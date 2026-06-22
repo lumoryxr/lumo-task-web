@@ -193,8 +193,11 @@ export const api = {
     return LOCAL_USER;
   },
 
-  async listTasks(): Promise<Task[]> {
-    const rows = await req<any[]>("GET", "/tasks");
+  // `q` performs a server-side keyword search over task title/description.
+  // Omitted (default) → returns the full incomplete-task list, unchanged.
+  async listTasks(q?: string): Promise<Task[]> {
+    const path = q ? `/tasks?q=${encodeURIComponent(q)}` : "/tasks";
+    const rows = await req<any[]>("GET", path);
     return rows.map(adaptTask);
   },
 

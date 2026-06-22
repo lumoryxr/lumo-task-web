@@ -66,6 +66,15 @@ export const TaskCreateBodySchema = z.object({
 
 export const TaskUpdateBodySchema = TaskCreateBodySchema.partial();
 
+// ── List query params ─────────────────────────────────────────────────────────
+// GET /tasks query string. `q` is an optional case-insensitive keyword that the
+// backend matches against task title/description (both locales). Bounded length
+// keeps the LIKE scan cheap and rejects abusive input at the route boundary.
+
+export const TaskListQuerySchema = z.object({
+  q: z.string().trim().min(1).max(200).optional(),
+});
+
 // ── Wire response ─────────────────────────────────────────────────────────────
 
 export const TaskWireSchema = z.object({
@@ -109,6 +118,7 @@ export const TaskCompleteResponseSchema = z.object({
 
 export type TaskCreateInput = z.input<typeof TaskCreateBodySchema>;
 export type TaskUpdateInput = z.input<typeof TaskUpdateBodySchema>;
+export type TaskListQuery = z.input<typeof TaskListQuerySchema>;
 export type TaskWire = z.infer<typeof TaskWireSchema>;
 export type TaskCompleteResponse = z.infer<typeof TaskCompleteResponseSchema>;
 

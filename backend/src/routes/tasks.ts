@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { TaskCreateBodySchema, TaskUpdateBodySchema, TaskWireSchema, type TaskWire, type TaskCompleteResponse } from "@lumo/contracts";
+import { TaskCreateBodySchema, TaskUpdateBodySchema, TaskListQuerySchema, TaskWireSchema, type TaskWire, type TaskCompleteResponse } from "@lumo/contracts";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute, batch } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
@@ -70,9 +70,28 @@ function rowToTask(row: TaskRow): TaskWire {
   });
 }
 
-// GET /tasks
-app.get("/", async (c) => {
+// GET /tasks?q=<keyword>
+// Without `q`: returns the user's incomplete tasks (unchanged behaviour).
+// With `q`: case-insensitive keyword match over title/description in both
+// locales. LIKE wildcards in the user input are escaped so they are treated as
+// literals, not patterns. All values are bound parameters (no SQLi surface).
+app.get("/", zValidator("query", TaskListQuerySchema), async (c) => {
   const userId = c.get("userId") as string;
+  const { q } = c.req.valid("query");
+
+  if (q) {
+    const like = `%${q.replace(/[\\%_]/g, (ch) => "\\" + ch)}%`;
+    const rows = await query<TaskRow>(
+      `SELECT * FROM tasks
+        WHERE user_id = :uid AND completed = 0
+          AND (title_en LIKE :q ESCAPE '\\' OR title_zh LIKE :q ESCAPE '\\'
+               OR desc_en LIKE :q ESCAPE '\\' OR desc_zh LIKE :q ESCAPE '\\')
+        ORDER BY created_at ASC`,
+      { uid: userId, q: like }
+    );
+    return c.json(rows.map(rowToTask));
+  }
+
   const rows = await query<TaskRow>(
     "SELECT * FROM tasks WHERE user_id = :uid AND completed = 0 ORDER BY created_at ASC",
     { uid: userId }
