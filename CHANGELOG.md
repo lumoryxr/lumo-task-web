@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat: Server-side task keyword search — `GET /v1/tasks?q=` filters by title/description (both locales), case-insensitive, LIKE-wildcard-escaped, contract-first (`TaskListQuerySchema`); `api.listTasks(q?)` on the web client
+- ci: GitLab CI/CD migrated from GitHub Actions (`.gitlab-ci.yml`) — 13-job gate, tag Release, manual Windows packaging; `.gitlab/` issue/MR templates, root `CODEOWNERS`, `docs/ENGINEERING_PROCESS.md`
 - feat: Habit check-in dialog + daily check-in badge (PR #126)
 - feat: Optimize completed timeline visual — extracted CompletedTimeline component with 14 unit tests (PR #130)
 - feat: AI auto PR code review workflow (PR #131)

@@ -35,6 +35,61 @@ describe("GET /v1/tasks", () => {
   });
 });
 
+describe("GET /v1/tasks?q= (keyword search)", () => {
+  // A unique marker keeps these fixtures from colliding with seeded demo tasks.
+  const M = "Zqx";
+  before(async () => {
+    await req("POST", "/v1/tasks", { token: demoToken, body: { title: { en: `${M} apricot report` } } });
+    await req("POST", "/v1/tasks", { token: demoToken, body: { title: { en: `${M} banana memo` } } });
+    await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: `${M} plain` }, desc: { en: "hidden apricot inside notes" } },
+    });
+  });
+
+  test("200 → filters by title keyword, contract-conformant", async () => {
+    const { status, body } = await req("GET", `/v1/tasks?q=${M}%20apricot`, { token: demoToken });
+    assert.equal(status, 200);
+    assert.ok(Array.isArray(body));
+    const titles = body.map((t: any) => t.title.en);
+    assert.ok(titles.includes(`${M} apricot report`), "title match missing");
+    assert.ok(!titles.includes(`${M} banana memo`), "non-match leaked");
+    for (const t of body) TaskWireSchema.parse(t);
+  });
+
+  test("200 → matches description (notes), both columns searched", async () => {
+    const { status, body } = await req("GET", "/v1/tasks?q=apricot", { token: demoToken });
+    assert.equal(status, 200);
+    const titles = body.map((t: any) => t.title.en);
+    assert.ok(titles.includes(`${M} apricot report`), "title hit missing");
+    assert.ok(titles.includes(`${M} plain`), "desc hit missing");
+  });
+
+  test("200 → keyword is case-insensitive", async () => {
+    const { status, body } = await req("GET", "/v1/tasks?q=APRICOT", { token: demoToken });
+    assert.equal(status, 200);
+    assert.ok(body.some((t: any) => t.title.en === `${M} apricot report`));
+  });
+
+  test("200 → no match returns empty array", async () => {
+    const { status, body } = await req("GET", "/v1/tasks?q=nonexistentkeyword999", { token: demoToken });
+    assert.equal(status, 200);
+    assert.deepEqual(body, []);
+  });
+
+  test("200 → LIKE wildcard in input is treated literally (not a pattern)", async () => {
+    // "%" would match everything if not escaped; expect zero literal-% matches.
+    const { status, body } = await req("GET", "/v1/tasks?q=%25%25%25", { token: demoToken });
+    assert.equal(status, 200);
+    assert.deepEqual(body, []);
+  });
+
+  test("400 → q over max length is rejected at the boundary", async () => {
+    const { status } = await req("GET", `/v1/tasks?q=${"a".repeat(201)}`, { token: demoToken });
+    assert.equal(status, 400);
+  });
+});
+
 describe("POST /v1/tasks", () => {
   test("201 → minimal task (title only)", async () => {
     const { status, body } = await req("POST", "/v1/tasks", {
