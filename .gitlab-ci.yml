@@ -215,13 +215,13 @@ release:
 # 触发：在 main（或某个 tag）上手动运行。运行前在「Run pipeline」里
 #       加一个变量 VERSION_LABEL=1.2.3（写进 package.json → 安装包文件名）。
 #
-# 运行器：tags 指定 GitLab SaaS Windows 运行器；若你的套餐没有，
-#        改成自建 Windows runner 的 tag（见文件末尾说明）。
+# 运行器：自建 Windows runner，注册时打 tag `windows`（见 README/记忆中的注册步骤）。
+#        runner 机器需预装：Node 22、Git、gitlab-runner（shell=pwsh）。
 # ============================================================================
 package:windows:
   stage: package
   interruptible: false
-  tags: [saas-windows-medium-amd64]
+  tags: [windows]
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
