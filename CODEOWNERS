@@ -1,0 +1,17 @@
+# CODEOWNERS — GitLab 读取根目录此文件。
+# 启用「Code Owner approval」门禁需 GitLab Premium；免费版此文件仍用于
+# 自动建议 reviewer 与文档化归属。Syntax: <pattern> @user。最后匹配者生效。
+
+# 默认：仓库所有者
+*                 @lumoryx
+
+# 前端 / 后端 / 契约
+/web-app/         @lumoryx
+/backend/         @lumoryx
+/packages/        @lumoryx
+
+# CI / 部署配置 —— 高风险，额外谨慎
+/.gitlab-ci.yml   @lumoryx
+/.gitlab/         @lumoryx
+/vercel.json      @lumoryx
+/render.yaml      @lumoryx
