@@ -1,0 +1,88 @@
+name: Production Site Validation
+
+# Validates the LIVE deployed frontend + backend (no mocks, no dev server).
+# Triggers:
+#   - PRs that touch the production E2E suite or its config
+#   - Daily schedule (regression detection on live infra)
+#   - Manual run from the Actions tab
+#
+# Distinct from `ui-tests.yml`, which runs the mocked-API UI suite against a
+# dev server. This workflow uses production-target Playwright config
+# (`web-app/playwright.production.config.ts` + `e2e/production.spec.ts`).
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "web-app/e2e/production.spec.ts"
+      - "web-app/playwright.production.config.ts"
+      - ".github/workflows/prod-site-validation.yml"
+  schedule:
+    - cron: "30 8 * * *"
+  workflow_dispatch:
+    inputs:
+      prod_base_url:
+        description: "Frontend base URL"
+        required: false
+        default: "https://lumo-task-frontend.onrender.com"
+      prod_api_base:
+        description: "Backend base URL"
+        required: false
+        default: "https://lumo-task-backend-1c3x.onrender.com"
+
+jobs:
+  prod-validation:
+    name: Playwright Production Validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web-app/package-lock.json
+
+      - name: Build shared contracts (@lumo/contracts)
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      - name: Remove conflicting apt sources
+        working-directory: .
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list \
+                     /etc/apt/sources.list.d/azure-cli.list \
+                     /etc/apt/sources.list.d/azure-cli.sources 2>/dev/null || true
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run production E2E suite
+        run: npx playwright test --config=playwright.production.config.ts
+        env:
+          PROD_BASE_URL: ${{ inputs.prod_base_url || 'https://lumo-task-frontend.onrender.com' }}
+          PROD_API_BASE: ${{ inputs.prod_api_base || 'https://lumo-task-backend-1c3x.onrender.com' }}
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-prod-${{ github.run_id }}
+          path: web-app/playwright-report-prod/
+          retention-days: 30
+
+      - name: Upload videos / traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-prod-${{ github.run_id }}
+          path: web-app/test-results/
+          retention-days: 14
