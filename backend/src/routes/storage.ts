@@ -5,6 +5,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { getSyncStatus, triggerSync, stopSync, initSync } from "../lib/sync.js";
 import { queryOne, execute } from "../db/client.js";
+import { encryptSecret } from "../lib/crypto.js";
 import type { Variables } from "../env.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -62,7 +63,7 @@ app.patch("/remote-config", zValidator("json", RemoteConfigBody), async (c) => {
 
   await execute(
     "UPDATE settings SET remote_url = :url, remote_token = :token WHERE user_id = :uid",
-    { url: remoteUrl ?? null, token: remoteToken ?? null, uid: userId }
+    { url: remoteUrl ?? null, token: remoteToken ? encryptSecret(remoteToken) : null, uid: userId }
   );
 
   stopSync();

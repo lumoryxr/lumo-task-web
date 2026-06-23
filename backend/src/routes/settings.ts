@@ -6,6 +6,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import type { Variables } from "../env.js";
 import type { SettingsRow } from "../db/rows.js";
+import { encryptSecret } from "../lib/crypto.js";
 
 const app = new Hono<{ Variables: Variables }>();
 app.use("/*", authMiddleware);
@@ -134,7 +135,7 @@ app.patch("/", zValidator("json", SettingsPatch), async (c) => {
   if (ai_configs_update) {
     const { provider, key, model, baseUrl } = ai_configs_update;
     const configs = parseAiConfigs(existing.ai_configs);
-    if (key != null && key.trim()) configs[provider].key = key.trim();
+    if (key != null && key.trim()) configs[provider].key = encryptSecret(key.trim());
     if (model !== undefined) configs[provider].model = model?.trim() ?? "";
     if (baseUrl !== undefined) configs[provider].baseUrl = baseUrl?.trim() ?? "";
     updates.push("ai_configs = :ai_configs");
