@@ -3,15 +3,15 @@
 # 自动建议 reviewer 与文档化归属。Syntax: <pattern> @user。最后匹配者生效。
 
 # 默认：仓库所有者
-*                 @lumoryx
+*                 @Jam-Lin
 
 # 前端 / 后端 / 契约
-/web-app/         @lumoryx
-/backend/         @lumoryx
-/packages/        @lumoryx
+/web-app/         @Jam-Lin
+/backend/         @Jam-Lin
+/packages/        @Jam-Lin
 
 # CI / 部署配置 —— 高风险，额外谨慎
-/.gitlab-ci.yml   @lumoryx
-/.gitlab/         @lumoryx
-/vercel.json      @lumoryx
-/render.yaml      @lumoryx
+/.gitlab-ci.yml   @Jam-Lin
+/.gitlab/         @Jam-Lin
+/vercel.json      @Jam-Lin
+/render.yaml      @Jam-Lin

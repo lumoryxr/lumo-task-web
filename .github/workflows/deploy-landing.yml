@@ -6,7 +6,7 @@ name: Deploy Landing Page
 # To enable GitHub Pages (one-time setup):
 #   Repo Settings → Pages → Source: "Deploy from a branch"
 #   Branch: gh-pages  /  Folder: / (root)  → Save
-#   URL: https://lumoryx.github.io/lumo-task-web/
+#   URL: https://lumoryxr.github.io/lumo-task-web/
 
 on:
   push:

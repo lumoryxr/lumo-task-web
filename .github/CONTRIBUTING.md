@@ -239,7 +239,7 @@ Code Reviewer 会重点检查：
 
 ```bash
 # 克隆仓库
-git clone https://github.com/lumoryx/lumo-task-web.git
+git clone https://github.com/lumoryxr/lumo-task-web.git
 cd lumo-task-web
 
 # 安装依赖

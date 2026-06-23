@@ -197,7 +197,7 @@ git tag v1.0.0
 git log --oneline v1.0.0
 ```
 
-View archived releases: https://github.com/lumoryx/lumo-task-web/releases
+View archived releases: https://github.com/lumoryxr/lumo-task-web/releases
 
 ---
 

@@ -132,7 +132,7 @@ async function main() {
   console.log(`3. Remove 'needs-triage' label when done`);
   console.log(`\n${colors.yellow}URL:${colors.reset}`);
   console.log(
-    `https://github.com/lumoryx/lumo-task-web/issues?q=is%3Aissue+is%3Aopen+label%3Aneeds-triage\n`
+    `https://github.com/lumoryxr/lumo-task-web/issues?q=is%3Aissue+is%3Aopen+label%3Aneeds-triage\n`
   );
 }
 

@@ -4,15 +4,15 @@
 
 **专注驱动的任务管理**
 
-[![CI](https://github.com/Lumoryx/lumo-task-web/actions/workflows/ci.yml/badge.svg)](https://github.com/Lumoryx/lumo-task-web/actions/workflows/ci.yml)
-[![Release](https://github.com/Lumoryx/lumo-task-web/actions/workflows/release-windows.yml/badge.svg)](https://github.com/Lumoryx/lumo-task-web/releases)
+[![CI](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml)
+[![Release](https://github.com/lumoryxr/lumo-task-web/actions/workflows/release-windows.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/releases)
 [![Demo](https://img.shields.io/badge/demo-live-brightgreen?logo=vercel)](https://lumo-task-web.vercel.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![AI-Coded](https://img.shields.io/badge/coded%20by-AI%20only-blueviolet?logo=anthropic)](https://claude.ai)
 
 **[English](README.md) | [中文](README.zh.md)**
 
-[在线 Demo](https://lumo-task-web.vercel.app) · [发布版本](https://github.com/Lumoryx/lumo-task-web/releases) · [贡献指南](.github/CONTRIBUTING.md)
+[在线 Demo](https://lumo-task-web.vercel.app) · [发布版本](https://github.com/lumoryxr/lumo-task-web/releases) · [贡献指南](.github/CONTRIBUTING.md)
 
 </div>
 
@@ -68,7 +68,7 @@ Lumo Task 是一款全栈任务管理应用，以艾森豪威尔矩阵、番茄�
 **前提条件：** Node.js 22+
 
 ```bash
-git clone https://github.com/Lumoryx/lumo-task-web.git
+git clone https://github.com/lumoryxr/lumo-task-web.git
 cd lumo-task-web
 
 # 同时启动前端和后端
@@ -89,7 +89,7 @@ Web 应用运行在 `http://localhost:5173`，API 运行在 `http://localhost:30
 
 ### Windows 桌面端
 
-从 [Releases](https://github.com/Lumoryx/lumo-task-web/releases) 下载最新的 `Lumo Task Setup x.x.x.exe` 并运行安装程序。
+从 [Releases](https://github.com/lumoryxr/lumo-task-web/releases) 下载最新的 `Lumo Task Setup x.x.x.exe` 并运行安装程序。
 
 > 若 Windows SmartScreen 弹出提示，点击「更多信息」→「仍要运行」即可。
 
@@ -185,4 +185,4 @@ NODE_VERSION=22
 
 ## License
 
-MIT © [Lumoryx](https://github.com/Lumoryx)
+MIT © [lumoryxr](https://github.com/lumoryxr)

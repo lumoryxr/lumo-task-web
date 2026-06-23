@@ -195,7 +195,7 @@ async function main() {
     console.log(`${colors.bold}${colors.blue}🔗 Creating Pull Request...${colors.reset}\n`);
     console.log(`${colors.yellow}Next steps:${colors.reset}`);
     console.log(
-      `1. Open: ${colors.bold}https://github.com/lumoryx/lumo-task-web/compare/${branch}?expand=1${colors.reset}`
+      `1. Open: ${colors.bold}https://github.com/lumoryxr/lumo-task-web/compare/${branch}?expand=1${colors.reset}`
     );
     console.log(`2. Fill in the PR template with:`);
     console.log(`   - Clear change summary`);
@@ -208,7 +208,7 @@ async function main() {
       `${colors.blue}→${colors.reset} Open PR page in browser? (y/n): `
     );
     if (createPRNow.toLowerCase() === 'y') {
-      const url = `https://github.com/lumoryx/lumo-task-web/compare/${branch}?expand=1`;
+      const url = `https://github.com/lumoryxr/lumo-task-web/compare/${branch}?expand=1`;
       const openCmd =
         process.platform === 'darwin'
           ? `open "${url}"`

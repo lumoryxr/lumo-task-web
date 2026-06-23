@@ -33,7 +33,7 @@ jobs:
 
           # For now, reference the full CHANGELOG
           echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "See [CHANGELOG.md](https://github.com/lumoryx/lumo-task-web/blob/main/CHANGELOG.md) for full details." >> $GITHUB_OUTPUT
+          echo "See [CHANGELOG.md](https://github.com/lumoryxr/lumo-task-web/blob/main/CHANGELOG.md) for full details." >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
@@ -46,7 +46,7 @@ jobs:
           body: |
             # Release ${{ steps.version.outputs.version }}
 
-            For detailed changes, please see [CHANGELOG.md](https://github.com/lumoryx/lumo-task-web/blob/main/CHANGELOG.md).
+            For detailed changes, please see [CHANGELOG.md](https://github.com/lumoryxr/lumo-task-web/blob/main/CHANGELOG.md).
 
             ## Installation
 
@@ -61,7 +61,7 @@ jobs:
 
             ---
 
-            **Compare**: [v${{ steps.version.outputs.version }}](https://github.com/lumoryx/lumo-task-web/releases/tag/v${{ steps.version.outputs.version }})
+            **Compare**: [v${{ steps.version.outputs.version }}](https://github.com/lumoryxr/lumo-task-web/releases/tag/v${{ steps.version.outputs.version }})
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
 

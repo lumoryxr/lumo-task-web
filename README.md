@@ -4,15 +4,15 @@
 
 **Focus-Driven Task Manager**
 
-[![CI](https://github.com/Lumoryx/lumo-task-web/actions/workflows/ci.yml/badge.svg)](https://github.com/Lumoryx/lumo-task-web/actions/workflows/ci.yml)
-[![Release](https://github.com/Lumoryx/lumo-task-web/actions/workflows/release-windows.yml/badge.svg)](https://github.com/Lumoryx/lumo-task-web/releases)
+[![CI](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml)
+[![Release](https://github.com/lumoryxr/lumo-task-web/actions/workflows/release-windows.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/releases)
 [![Demo](https://img.shields.io/badge/demo-live-brightgreen?logo=vercel)](https://lumo-task-web.vercel.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![AI-Coded](https://img.shields.io/badge/coded%20by-AI%20only-blueviolet?logo=anthropic)](https://claude.ai)
 
 **[English](README.md) | [中文](README.zh.md)**
 
-[Live Demo](https://lumo-task-web.vercel.app) · [Releases](https://github.com/Lumoryx/lumo-task-web/releases) · [Contributing](.github/CONTRIBUTING.md)
+[Live Demo](https://lumo-task-web.vercel.app) · [Releases](https://github.com/lumoryxr/lumo-task-web/releases) · [Contributing](.github/CONTRIBUTING.md)
 
 </div>
 
@@ -68,7 +68,7 @@ Lumo Task is a full-stack task management app built around the Eisenhower Matrix
 **Prerequisites:** Node.js 22+
 
 ```bash
-git clone https://github.com/Lumoryx/lumo-task-web.git
+git clone https://github.com/lumoryxr/lumo-task-web.git
 cd lumo-task-web
 
 # Start frontend + backend together
@@ -89,7 +89,7 @@ The web app runs at `http://localhost:5173` and the API at `http://localhost:300
 
 ### Windows Desktop App
 
-Download the latest `Lumo Task Setup x.x.x.exe` from [Releases](https://github.com/Lumoryx/lumo-task-web/releases) and run the installer.
+Download the latest `Lumo Task Setup x.x.x.exe` from [Releases](https://github.com/lumoryxr/lumo-task-web/releases) and run the installer.
 
 > If Windows SmartScreen appears, click "More info" then "Run anyway".
 
@@ -185,4 +185,4 @@ To participate: generate code with any AI (Claude, GPT, Gemini, ...), open a Pul
 
 ## License
 
-MIT © [Lumoryx](https://github.com/Lumoryx)
+MIT © [lumoryxr](https://github.com/lumoryxr)
