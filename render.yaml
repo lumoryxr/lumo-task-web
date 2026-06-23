@@ -1,19 +1,23 @@
 services:
+  # ── Backend API (Node web service) ─────────────────────────────────────────
   - type: web
     name: lumo-task-backend
     runtime: node
     rootDir: backend
     region: singapore          # closest to CN users; change to ohio/oregon as needed
-    plan: free                 # free tier: spins down after 15 min idle, ephemeral storage
+    plan: free                 # free tier: spins down after 15 min idle, ephemeral disk
     buildCommand: npm ci --include=dev && npm run build
     startCommand: node dist/bundle.cjs
     healthCheckPath: /health
 
-    # Data persistence via Turso (free hosted SQLite).
-    # Sign up at https://turso.tech, create a DB, then add the two env vars below
-    # in the Render dashboard. Without them the backend falls back to a local
-    # file: which IS ephemeral on Render free tier.
-
+    # IMPORTANT — data persistence:
+    # Render free-tier disk is EPHEMERAL (wiped on every redeploy/restart), and a
+    # persistent disk is a PAID feature. To keep data across deploys for free, store
+    # it in Turso (free hosted libsql/SQLite) by setting the two TURSO_* vars below.
+    # Without them the backend falls back to file:local.db, which WILL be wiped.
+    # Setup: sign up at https://turso.tech → `turso db create lumo-task` →
+    #        `turso db show --url lumo-task`  → TURSO_DATABASE_URL
+    #        `turso db tokens create lumo-task` → TURSO_AUTH_TOKEN
     envVars:
       - key: NODE_ENV
         value: production
@@ -22,8 +26,27 @@ services:
       - key: LUMO_JWT_SECRET
         generateValue: true    # Render auto-generates a secure random value
       - key: LUMO_ALLOWED_ORIGINS
-        sync: false            # Set manually in Render dashboard after Vercel deploy
+        sync: false            # set to the frontend URL, e.g. https://lumo-task-frontend.onrender.com
       - key: TURSO_DATABASE_URL
-        sync: false            # libsql://your-db-name-<org>.turso.io
+        sync: false            # libsql://lumo-task-<org>.turso.io  (REQUIRED for persistence)
       - key: TURSO_AUTH_TOKEN
-        sync: false            # token from: turso db tokens create <db-name>
+        sync: false            # from: turso db tokens create lumo-task
+
+  # ── Frontend (static SPA, served from Render's CDN — free, never sleeps) ─────
+  - type: web
+    name: lumo-task-frontend
+    runtime: static
+    # contracts/dist is committed, but rebuild it first to match the Vercel build
+    # (web-app depends on @lumo/contracts via a file: path).
+    buildCommand: cd packages/contracts && npm ci && npm run build && cd ../../web-app && npm ci && npm run build
+    staticPublishPath: web-app/dist
+    envVars:
+      - key: ELECTRON_SKIP_BINARY_DOWNLOAD
+        value: "1"             # web-app has electron as a devDep; skip the binary download on build
+      - key: VITE_API_BASE
+        sync: false            # set to the backend URL + /v1, e.g. https://lumo-task-backend.onrender.com/v1
+    # SPA fallback: serve real files first, route everything else to index.html.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
