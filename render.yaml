@@ -6,7 +6,9 @@ services:
     rootDir: backend
     region: singapore          # closest to CN users; change to ohio/oregon as needed
     plan: free                 # free tier: spins down after 15 min idle, ephemeral disk
-    buildCommand: npm ci --include=dev && npm run build
+    # @lumo/contracts is a file: dependency whose built dist/ is gitignored, so it
+    # must be built before the backend's tsc can resolve its types on a clean checkout.
+    buildCommand: npm --prefix ../packages/contracts ci && npm --prefix ../packages/contracts run build && npm ci --include=dev && npm run build
     startCommand: node dist/bundle.cjs
     healthCheckPath: /health
 
