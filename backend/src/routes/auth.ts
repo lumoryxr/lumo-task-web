@@ -23,9 +23,18 @@ const authRateLimit = createRateLimiter<{ Variables: Variables }>(10, 60_000, (c
   );
 });
 
+// Reject weak passwords everywhere a new password is set (register / change).
+const strongPassword = z
+  .string()
+  .min(8)
+  .max(256)
+  .refine((p) => /[A-Za-z]/.test(p) && /\d/.test(p), {
+    message: "Password must include at least one letter and one number",
+  });
+
 const RegisterBody = z.object({
   email: z.string().email().max(255),
-  password: z.string().min(8).max(256),
+  password: strongPassword,
   name: z.string().min(1).max(100),
 });
 
@@ -36,7 +45,7 @@ const SigninBody = z.object({
 
 const ChangePasswordBody = z.object({
   current_password: z.string().max(256),
-  new_password: z.string().min(8).max(256),
+  new_password: strongPassword,
 });
 
 function makeInitials(name: string) {
