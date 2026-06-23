@@ -3,7 +3,8 @@ import { runMigrations, ensureDefaultUser } from "./db/migrate.js";
 import { app } from "./app.js";
 import { initSync } from "./lib/sync.js";
 
-const port = parseInt(process.env.LUMO_PORT ?? "47291");
+// Render/Heroku/most PaaS inject the bind port via PORT; LUMO_PORT is the local override.
+const port = parseInt(process.env.PORT ?? process.env.LUMO_PORT ?? "47291");
 
 // Run migrations before accepting requests
 runMigrations()
