@@ -32,7 +32,7 @@ describe("Security · rate-limit · auth (10 / minute / IP)", () => {
     let throttled: any = null;
     for (let i = 0; i < 13; i++) {
       const res = await req("POST", "/v1/auth/signin", {
-        body: { email: "alex@stride.studio", password: "wrong-on-purpose" },
+        body: { email: "ratelimit-probe@test.local", password: "wrong-on-purpose" },
       });
       statuses.push(res.status);
       if (res.status === 429 && !throttled) throttled = res.body;

@@ -7,7 +7,7 @@
  */
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
-import { req, setupDb, signInDemo, assertNoSecrets } from "../helpers/index.js";
+import { req, setupDb, signInDemo, DEMO_EMAIL, DEMO_PASSWORD, assertNoSecrets } from "../helpers/index.js";
 
 const PLANTED_KEY = "sk-test-SUPER-SECRET-pl4nted-key-do-not-leak-0xDEADBEEF";
 
@@ -54,9 +54,9 @@ describe("Security · secrets · password hashes", () => {
 
   test("signin response carries no password_hash", async () => {
     const { body } = await req("POST", "/v1/auth/signin", {
-      body: { email: "alex@stride.studio", password: "demo1234" },
+      body: { email: DEMO_EMAIL, password: DEMO_PASSWORD },
     });
-    assertNoSecrets(body, ["demo1234"]);
+    assertNoSecrets(body, [DEMO_PASSWORD]);
   });
 
   test("GET /v1/user carries no password_hash", async () => {

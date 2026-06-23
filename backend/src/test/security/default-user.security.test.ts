@@ -1,42 +1,22 @@
 /**
- * Security · Demo user must never be seeded in production
+ * Security · The backend seeds no account in any environment
  *
- * The fixed-credential demo account (alex@stride.studio / demo1234, plan=pro) is
- * a local dev + test fixture. On the production startup path it would be a
- * publicly loginable account on the live backend, so `seedDemoUserIfPermitted()`
- * — used by index.ts and the migrate script — must skip seeding when
- * NODE_ENV=production. (ensureDefaultUser() itself stays unguarded so test
- * fixtures can seed directly regardless of NODE_ENV.)
+ * There is no default/demo user: running the migrations (the only DB bootstrap
+ * the server performs at startup) must create ZERO users. Any account is created
+ * solely through the public registration API. A hardcoded-credential account
+ * would be a publicly loginable hole on the live backend, so it must not exist
+ * in production OR test.
  */
-import { test, describe, before, afterEach } from "node:test";
+import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
-import { runMigrations, seedDemoUserIfPermitted } from "../../db/migrate.js";
-import { queryOne } from "../../db/client.js";
+import { runMigrations } from "../../db/migrate.js";
+import { query } from "../../db/client.js";
 
-const ORIGINAL_ENV = process.env.NODE_ENV;
+describe("no auto-seeded account", () => {
+  before(runMigrations);
 
-describe("seedDemoUserIfPermitted()", () => {
-  before(async () => {
-    await runMigrations(); // fresh schema, no demo user yet
-  });
-
-  afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_ENV;
-  });
-
-  test("production → skips seeding, no demo user created", async () => {
-    process.env.NODE_ENV = "production";
-    const seeded = await seedDemoUserIfPermitted();
-    assert.equal(seeded, false, "must report it did not seed in production");
-    const u = await queryOne("SELECT id FROM users WHERE id = 'u1'");
-    assert.ok(!u, "demo user must NOT exist on the production startup path");
-  });
-
-  test("non-production → seeds the demo fixture user", async () => {
-    process.env.NODE_ENV = "development";
-    const seeded = await seedDemoUserIfPermitted();
-    assert.equal(seeded, true, "must seed outside production");
-    const u = await queryOne<{ id: string }>("SELECT id FROM users WHERE id = 'u1'");
-    assert.equal(u?.id, "u1", "demo user should exist for dev/test fixtures");
+  test("migrations create zero users", async () => {
+    const rows = await query<{ n: number }>("SELECT COUNT(*) AS n FROM users");
+    assert.equal(rows[0].n, 0, "the backend must not seed any account");
   });
 });

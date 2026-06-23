@@ -1,11 +1,22 @@
+import { randomBytes } from "node:crypto";
 import { execute } from "./client.js";
 import { runMigrations } from "./migrate.js";
 import { hashPassword } from "../lib/password.js";
 
+// Dev-only demo-data seeder — must never run against production data.
+if (process.env.NODE_ENV === "production") {
+  console.error("Refusing to seed demo data in production.");
+  process.exit(1);
+}
+
 await runMigrations();
 
 const userId = "u1";
-const password = await hashPassword("demo1234");
+const email = process.env.SEED_EMAIL ?? "demo@local.test";
+// No hardcoded credentials: take the password from SEED_PASSWORD or generate a
+// random one (printed at the end so the developer can sign in).
+const plainPassword = process.env.SEED_PASSWORD ?? randomBytes(12).toString("base64url");
+const password = await hashPassword(plainPassword);
 const now = new Date().toISOString();
 
 // Seed user
@@ -14,7 +25,7 @@ await execute(`
   VALUES (:id, :email, :password_hash, :name, :initials, :local, :plan, :renews_at, :created_at)
 `, {
   id: userId,
-  email: "alex@stride.studio",
+  email,
   password_hash: password,
   name: "Alex Stride",
   initials: "AS",
@@ -109,3 +120,4 @@ for (const c of completed) {
 }
 
 console.log("Seed complete.");
+console.log(`Demo login → ${email} / ${plainPassword}`);

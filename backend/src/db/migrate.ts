@@ -1,32 +1,9 @@
-import { query, queryOne, execute, execRaw } from "./client.js";
-import bcrypt from "bcryptjs";
+import { query, execute, execRaw } from "./client.js";
 
-export async function ensureDefaultUser() {
-  const existing = await queryOne("SELECT id FROM users WHERE id = 'u1'");
-  if (existing) return;
-
-  const password_hash = bcrypt.hashSync("demo1234", 10);
-  const now = new Date().toISOString();
-
-  await execute(`
-    INSERT OR IGNORE INTO users (id, email, password_hash, name, initials, local, plan, renews_at, created_at)
-    VALUES ('u1', 'alex@stride.studio', :password_hash, 'Alex Stride', 'AS', 0, 'pro', '2026-08-12', :now)
-  `, { password_hash, now });
-
-  await execute("INSERT OR IGNORE INTO settings (user_id) VALUES ('u1')");
-}
-
-/**
- * Startup-path guard: seed the demo fixture user EXCEPT in production, where a
- * fixed-credential, publicly-loginable account on the live backend is a security
- * hole. Returns whether seeding ran. Tests/dev fixtures call ensureDefaultUser()
- * directly and are unaffected.
- */
-export async function seedDemoUserIfPermitted(): Promise<boolean> {
-  if (process.env.NODE_ENV === "production") return false;
-  await ensureDefaultUser();
-  return true;
-}
+// The backend NEVER seeds any account, in any environment. There is no default
+// or demo user: real users register via POST /v1/auth/register, and test
+// fixtures create users through that same public API. A hardcoded-credential
+// account would be a publicly loginable hole on the live backend.
 
 export async function runMigrations() {
   // ── Core tables ──────────────────────────────────────────────────────────────
@@ -313,7 +290,6 @@ export async function runMigrations() {
 // When run directly as a script
 if (process.argv[1]?.endsWith("migrate.ts") || process.argv[1]?.endsWith("migrate.js")) {
   runMigrations()
-    .then(() => seedDemoUserIfPermitted())
     .then(() => { console.log("Migrations complete."); process.exit(0); })
     .catch((err) => { console.error(err); process.exit(1); });
 }

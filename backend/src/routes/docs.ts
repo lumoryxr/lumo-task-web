@@ -145,8 +145,8 @@ const spec = {
                 type: "object",
                 required: ["email", "password"],
                 properties: {
-                  email: { type: "string", format: "email", example: "alex@stride.studio" },
-                  password: { type: "string", example: "demo1234" },
+                  email: { type: "string", format: "email", example: "user@example.com" },
+                  password: { type: "string", example: "your-password" },
                 },
               },
             },

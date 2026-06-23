@@ -6,9 +6,12 @@
  */
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
-import { req, setupDb, DEMO_EMAIL, DEMO_PASSWORD } from "../helpers/index.js";
+import { req, setupDb, ensureDemoUser, DEMO_EMAIL, DEMO_PASSWORD } from "../helpers/index.js";
 
-before(setupDb);
+before(async () => {
+  await setupDb();
+  await ensureDemoUser(); // register the primary fixture user via the public API
+});
 
 describe("POST /v1/auth/register", () => {
   test("201 → token + user object on valid input", async () => {

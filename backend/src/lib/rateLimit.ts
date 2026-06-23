@@ -9,7 +9,8 @@ type KeyFn<E extends Env> = (c: Context<E>) => string;
 
 /**
  * Creates a Hono middleware that rate-limits by a caller-supplied key.
- * In test environments (NODE_ENV=test) the limiter is a no-op.
+ * Can be disabled only via LUMO_DISABLE_RATE_LIMIT=1 (used by the test harness);
+ * the server refuses to start with that flag set in production (see index.ts).
  */
 export function createRateLimiter<E extends Env>(
   limit: number,
