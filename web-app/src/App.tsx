@@ -30,7 +30,7 @@ import { t } from "@/i18n/useT";
  * App root.
  *
  * - Loads the persisted accent on mount.
- * - Bootstraps the task store from the mock API.
+ * - Bootstraps the stores from the backend API.
  * - First-run users see /onboarding; everyone else gets the Shell.
  */
 export default function App() {

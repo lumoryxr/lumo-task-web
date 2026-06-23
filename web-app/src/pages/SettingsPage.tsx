@@ -10,7 +10,7 @@ import { usePetStore } from "@/store/usePetStore";
 import { useT } from "@/i18n/useT";
 import { toast } from "@/store/useToastStore";
 import type { Locale, Person } from "@/types/task";
-import { PERSON_COLORS } from "@/mocks/people";
+import { PERSON_COLORS } from "@/lib/personColors";
 import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
 import { useNotificationStore } from "@/store/useNotificationStore";
 
