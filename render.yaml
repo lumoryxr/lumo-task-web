@@ -8,7 +8,7 @@ services:
     plan: free                 # free tier: spins down after 15 min idle, ephemeral disk
     # @lumo/contracts is a file: dependency whose built dist/ is gitignored, so it
     # must be built before the backend's tsc can resolve its types on a clean checkout.
-    buildCommand: npm --prefix ../packages/contracts ci && npm --prefix ../packages/contracts run build && npm ci --include=dev && npm run build
+    buildCommand: npm --prefix ../packages/contracts ci --include=dev && npm --prefix ../packages/contracts run build && npm ci --include=dev && npm run build
     startCommand: node dist/bundle.cjs
     healthCheckPath: /health
 
