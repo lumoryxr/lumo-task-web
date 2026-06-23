@@ -27,6 +27,8 @@ services:
         value: "22"
       - key: LUMO_JWT_SECRET
         generateValue: true    # Render auto-generates a secure random value
+      - key: LUMO_ENCRYPTION_KEY
+        generateValue: true    # encrypts AI keys + sync tokens at rest (AES-256-GCM)
       - key: LUMO_ALLOWED_ORIGINS
         sync: false            # set to the frontend URL, e.g. https://lumo-task-frontend.onrender.com
       - key: TURSO_DATABASE_URL

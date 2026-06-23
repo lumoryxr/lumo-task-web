@@ -1,5 +1,6 @@
 ﻿import { createClient, type Client } from "@libsql/client";
 import { db, query, execute } from "../db/client.js";
+import { decryptSecret } from "./crypto.js";
 
 export type SyncStatus = "disabled" | "connecting" | "ok" | "error";
 
@@ -21,7 +22,7 @@ async function getRemoteConfig(): Promise<{ url: string; token: string } | null>
       "SELECT remote_url, remote_token FROM settings WHERE remote_url IS NOT NULL AND remote_url != '' LIMIT 1"
     );
     const r = row.rows[0] as any;
-    if (r?.remote_url) return { url: r.remote_url as string, token: (r.remote_token ?? "") as string };
+    if (r?.remote_url) return { url: r.remote_url as string, token: decryptSecret(r.remote_token as string | null) };
   } catch {}
   return null;
 }

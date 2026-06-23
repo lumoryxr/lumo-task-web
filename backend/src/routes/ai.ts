@@ -6,6 +6,7 @@ import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
+import { decryptSecret } from "../lib/crypto.js";
 import { callLLMWithTools, appendToolResults, type ChatMessage, type LLMConfig } from "../lib/ai-client.js";
 import { TASK_TOOLS, executeTool } from "../lib/ai-tools.js";
 import type { Variables } from "../env.js";
@@ -38,7 +39,7 @@ async function getProviderConfig(userId: string): Promise<ProviderResult> {
   let configs: Record<string, any> = {};
   try { configs = JSON.parse(settings?.ai_configs ?? "{}"); } catch {}
   const providerCfg = configs[activeProvider] ?? {};
-  const apiKey = providerCfg.key?.trim() || null;
+  const apiKey = decryptSecret(providerCfg.key).trim() || null;
 
   // User has their own key — use it directly
   if (apiKey) {
