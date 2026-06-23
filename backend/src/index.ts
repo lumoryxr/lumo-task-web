@@ -1,14 +1,19 @@
 import { serve } from "@hono/node-server";
-import { runMigrations, seedDemoUserIfPermitted } from "./db/migrate.js";
+import { runMigrations } from "./db/migrate.js";
 import { app } from "./app.js";
 import { initSync } from "./lib/sync.js";
 
 // Render/Heroku/most PaaS inject the bind port via PORT; LUMO_PORT is the local override.
 const port = parseInt(process.env.PORT ?? process.env.LUMO_PORT ?? "47291");
 
-// Run migrations before accepting requests
+// Fail-safe: security controls must never be disabled in production.
+if (process.env.NODE_ENV === "production" && process.env.LUMO_DISABLE_RATE_LIMIT === "1") {
+  console.error("Refusing to start: LUMO_DISABLE_RATE_LIMIT must not be set in production.");
+  process.exit(1);
+}
+
+// Run migrations before accepting requests (the backend seeds no accounts).
 runMigrations()
-  .then(() => seedDemoUserIfPermitted())
   .then(() => {
     initSync().catch((e) => console.error("[sync] startup error:", e.message));
     console.log(`Lumo backend starting on port ${port}`);

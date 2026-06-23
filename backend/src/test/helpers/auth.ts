@@ -1,16 +1,18 @@
 /**
  * Auth fixtures for backend tests.
  *
- * Factories that hide the register → sign-in dance so a test file can get an
- * authenticated user (or several, for isolation tests) in one call. The seeded
- * demo account (`alex@stride.studio`) is created by `ensureDefaultUser()`; use
- * `signInDemo()` when a test specifically depends on the demo profile, and
- * `newUserWithToken()` when it just needs *some* isolated user.
+ * The backend seeds NO accounts (no default/demo user in any environment), so
+ * fixtures create their users through the public registration API exactly like
+ * real users. `signInDemo()` lazily registers a single "primary" fixture user
+ * (with per-run RANDOM credentials — never hardcoded) and returns a token for
+ * it; `newUserWithToken()` registers a fresh isolated user each call.
  */
+import { randomBytes } from "node:crypto";
 import { req } from "./client.js";
 
-export const DEMO_EMAIL = "alex@stride.studio";
-export const DEMO_PASSWORD = "demo1234";
+// Per-run random credentials — no hardcoded secrets anywhere in the codebase.
+export const DEMO_EMAIL = `primary-${randomBytes(6).toString("hex")}@test.local`;
+export const DEMO_PASSWORD = `pw-${randomBytes(12).toString("hex")}`;
 
 export interface AuthedUser {
   token: string;
@@ -29,8 +31,20 @@ export function authHeader(token: string): { Authorization: string } {
   return { Authorization: `Bearer ${token}` };
 }
 
-/** Sign in as the seeded demo user. Throws if the demo user is missing. */
+/** Register the primary fixture user via the public API (idempotent per process). */
+let demoRegistered = false;
+export async function ensureDemoUser(): Promise<void> {
+  if (demoRegistered) return;
+  const { status } = await req("POST", "/v1/auth/register", {
+    body: { email: DEMO_EMAIL, password: DEMO_PASSWORD, name: "Primary Test User" },
+  });
+  if (status !== 201 && status !== 409) throw new Error(`demo register failed (${status})`);
+  demoRegistered = true;
+}
+
+/** Register-if-needed and sign in as the primary fixture user. */
 export async function signInDemo(): Promise<AuthedUser> {
+  await ensureDemoUser();
   const { status, body } = await req("POST", "/v1/auth/signin", {
     body: { email: DEMO_EMAIL, password: DEMO_PASSWORD },
   });

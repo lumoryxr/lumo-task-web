@@ -1,17 +1,10 @@
 import { SignJWT, jwtVerify } from "jose";
 import { randomUUID } from "crypto";
 
-const DEV_SECRET = "dev-secret-change-in-production";
-
 const secret = () => {
+  // Always require a real secret — no insecure default in any environment.
   const s = process.env.LUMO_JWT_SECRET;
-  if (!s) {
-    if (process.env.NODE_ENV !== "development") {
-      throw new Error("LUMO_JWT_SECRET must be set in all non-development environments");
-    }
-    console.warn("[jwt] LUMO_JWT_SECRET not set — using insecure dev default (local dev only)");
-    return new TextEncoder().encode(DEV_SECRET);
-  }
+  if (!s) throw new Error("LUMO_JWT_SECRET must be set");
   return new TextEncoder().encode(s);
 };
 
