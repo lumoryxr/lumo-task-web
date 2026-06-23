@@ -46,16 +46,33 @@ function makeAccount() {
   };
 }
 
+// Backend enforces 10 /v1/auth/* attempts per IP per minute. With ~14 register
+// calls in this suite, a parallel burst trips the limit. Serialize all register
+// traffic through a single promise chain that releases one call every 7s
+// (≈8.5/min — under the 10/min ceiling with safety margin).
+let _authChain: Promise<void> = Promise.resolve();
+const AUTH_MIN_INTERVAL_MS = 7_000;
+
+function throttleAuth<T>(work: () => Promise<T>): Promise<T> {
+  const released = _authChain.then(work);
+  _authChain = released
+    .catch(() => undefined)
+    .then(() => new Promise((r) => setTimeout(r, AUTH_MIN_INTERVAL_MS)));
+  return released;
+}
+
 async function registerViaApi(api: APIRequestContext, account = makeAccount()) {
-  const res = await api.post(`${API_BASE}/v1/auth/register`, {
-    data: account,
-    timeout: 60_000,
+  return throttleAuth(async () => {
+    const res = await api.post(`${API_BASE}/v1/auth/register`, {
+      data: account,
+      timeout: 60_000,
+    });
+    expect(res.status(), `register ${account.email}`).toBe(201);
+    const body = await res.json();
+    expect(body.token).toBeTruthy();
+    expect(body.user?.email).toBe(account.email);
+    return { account, token: body.token as string, user: body.user };
   });
-  expect(res.status(), `register ${account.email}`).toBe(201);
-  const body = await res.json();
-  expect(body.token).toBeTruthy();
-  expect(body.user?.email).toBe(account.email);
-  return { account, token: body.token as string, user: body.user };
 }
 
 async function seedAuthInLocalStorage(page: Page, token: string, user: any) {
@@ -200,48 +217,36 @@ test("AC-3.2 — Selecting 中文 updates UI text to Chinese", async ({ page }) 
 
 test("AC-4.1 — POST /v1/auth/register with fresh email → 201", async ({ request }) => {
   const account = makeAccount();
-  const res = await request.post(`${API_BASE}/v1/auth/register`, {
-    data: account,
-    timeout: 60_000,
-  });
-  expect(res.status()).toBe(201);
-  const body = await res.json();
-  expect(body.token).toBeTruthy();
-  expect(body.user.email).toBe(account.email);
-  expect(body.user.plan).toBe("free");
+  const { user } = await registerViaApi(request, account);
+  expect(user.email).toBe(account.email);
+  expect(user.plan).toBe("free");
 });
 
 test("AC-4.2 — Duplicate register returns 409 EMAIL_TAKEN", async ({ request }) => {
   const account = makeAccount();
-  const first = await request.post(`${API_BASE}/v1/auth/register`, {
-    data: account,
-    timeout: 60_000,
-  });
-  expect(first.status()).toBe(201);
+  await registerViaApi(request, account);
 
-  const second = await request.post(`${API_BASE}/v1/auth/register`, {
-    data: account,
-    timeout: 60_000,
-  });
+  const second = await throttleAuth(() =>
+    request.post(`${API_BASE}/v1/auth/register`, {
+      data: account,
+      timeout: 60_000,
+    })
+  );
   expect(second.status()).toBe(409);
   const body = await second.json();
-  // Tolerate either {error:{code}} or {code} shape
   const code = body?.error?.code ?? body?.code;
   expect(String(code)).toMatch(/EMAIL_TAKEN/i);
 });
 
 test("AC-4.4 — Register via API then sign-in via API succeeds", async ({ request }) => {
-  const account = makeAccount();
-  const reg = await request.post(`${API_BASE}/v1/auth/register`, {
-    data: account,
-    timeout: 60_000,
-  });
-  expect(reg.status()).toBe(201);
+  const { account } = await registerViaApi(request);
 
-  const signin = await request.post(`${API_BASE}/v1/auth/signin`, {
-    data: { email: account.email, password: account.password },
-    timeout: 60_000,
-  });
+  const signin = await throttleAuth(() =>
+    request.post(`${API_BASE}/v1/auth/signin`, {
+      data: { email: account.email, password: account.password },
+      timeout: 60_000,
+    })
+  );
   expect(signin.status()).toBe(200);
   const body = await signin.json();
   expect(body.token).toBeTruthy();

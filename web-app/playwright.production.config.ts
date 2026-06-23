@@ -10,7 +10,10 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
-  timeout: 90_000,
+  // Auth route is rate-limited (10/IP/min); spec throttles register calls to
+  // ≈7s apart, so later tests in the queue can wait 60–120s before their own
+  // work even starts.
+  timeout: 180_000,
   reporter: [
     ["list"],
     ["html", { outputFolder: "playwright-report-prod", open: "never" }],
