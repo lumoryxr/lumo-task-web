@@ -16,6 +16,18 @@ export async function ensureDefaultUser() {
   await execute("INSERT OR IGNORE INTO settings (user_id) VALUES ('u1')");
 }
 
+/**
+ * Startup-path guard: seed the demo fixture user EXCEPT in production, where a
+ * fixed-credential, publicly-loginable account on the live backend is a security
+ * hole. Returns whether seeding ran. Tests/dev fixtures call ensureDefaultUser()
+ * directly and are unaffected.
+ */
+export async function seedDemoUserIfPermitted(): Promise<boolean> {
+  if (process.env.NODE_ENV === "production") return false;
+  await ensureDefaultUser();
+  return true;
+}
+
 export async function runMigrations() {
   // ── Core tables ──────────────────────────────────────────────────────────────
   await execRaw(`
@@ -301,7 +313,7 @@ export async function runMigrations() {
 // When run directly as a script
 if (process.argv[1]?.endsWith("migrate.ts") || process.argv[1]?.endsWith("migrate.js")) {
   runMigrations()
-    .then(() => ensureDefaultUser())
+    .then(() => seedDemoUserIfPermitted())
     .then(() => { console.log("Migrations complete."); process.exit(0); })
     .catch((err) => { console.error(err); process.exit(1); });
 }
