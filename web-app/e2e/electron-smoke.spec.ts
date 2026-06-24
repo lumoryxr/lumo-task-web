@@ -63,7 +63,23 @@ test.describe("Electron desktop smoke", () => {
   });
 
   test.afterAll(async () => {
-    await electronApp?.close().catch(() => {});
+    if (!electronApp) return;
+    // electronApp.close() relies on a graceful app.quit(). Under xvfb in CI the
+    // embedded-backend child process can keep the Electron process alive past
+    // the 90s afterAll budget, hanging teardown and failing an otherwise-green
+    // suite (the render assertions all pass first). Race the graceful close
+    // against a short deadline, then force-kill the underlying process so
+    // teardown can never block the suite.
+    const proc = electronApp.process();
+    await Promise.race([
+      electronApp.close().catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 15_000)),
+    ]);
+    try {
+      if (proc && proc.exitCode === null) proc.kill("SIGKILL");
+    } catch {
+      /* process already gone */
+    }
   });
 
   test("SMOKE01 – embedded backend started and is reachable (self-provisioned secrets)", async () => {
