@@ -285,6 +285,13 @@ export async function runMigrations() {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  // Migrate: per-user session version. Tokens embed the version they were minted
+  // with; bumping it (on password change) invalidates all prior tokens.
+  const userColsSV = await query<{ name: string }>("PRAGMA table_info(users)");
+  if (!userColsSV.some((col) => col.name === "session_version")) {
+    await execRaw("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
+  }
 }
 
 // When run directly as a script

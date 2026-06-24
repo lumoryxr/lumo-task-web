@@ -8,8 +8,8 @@ const secret = () => {
   return new TextEncoder().encode(s);
 };
 
-export async function signToken(userId: string): Promise<string> {
-  return new SignJWT({ sub: userId })
+export async function signToken(userId: string, sessionVersion = 0): Promise<string> {
+  return new SignJWT({ sub: userId, sv: sessionVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setJti(randomUUID())
@@ -17,8 +17,10 @@ export async function signToken(userId: string): Promise<string> {
     .sign(secret());
 }
 
-export async function verifyToken(token: string): Promise<{ userId: string; jti: string }> {
+export async function verifyToken(token: string): Promise<{ userId: string; jti: string; sv: number }> {
   const { payload } = await jwtVerify(token, secret());
   if (!payload.sub || !payload.jti) throw new Error("invalid token");
-  return { userId: payload.sub, jti: payload.jti };
+  // Legacy tokens minted before session versioning carry no sv → treat as 0.
+  const sv = typeof payload.sv === "number" ? payload.sv : 0;
+  return { userId: payload.sub, jti: payload.jti, sv };
 }

@@ -74,7 +74,7 @@ app.post("/register", authRateLimit, zValidator("json", RegisterBody), async (c)
 
   await execute("INSERT INTO settings (user_id) VALUES (:user_id)", { user_id: id });
 
-  const token = await signToken(id);
+  const token = await signToken(id, 0);
 
   return c.json({
     token,
@@ -101,7 +101,7 @@ app.post("/signin", authRateLimit, zValidator("json", SigninBody), async (c) => 
     FROM tasks WHERE user_id = :uid
   `, { uid: user.id });
 
-  const token = await signToken(user.id);
+  const token = await signToken(user.id, user.session_version ?? 0);
 
   return c.json({
     token,
@@ -131,7 +131,11 @@ app.post("/change-password", authRateLimit, authMiddleware, zValidator("json", C
   if (!ok) return httpError(c, 400, "WRONG_PASSWORD", "Current password is incorrect");
 
   const new_hash = await hashPassword(new_password);
-  await execute("UPDATE users SET password_hash = :hash WHERE id = :id", { hash: new_hash, id: userId });
+  // Bump the session version so every previously-issued token is now rejected.
+  await execute(
+    "UPDATE users SET password_hash = :hash, session_version = session_version + 1 WHERE id = :id",
+    { hash: new_hash, id: userId },
+  );
 
   return c.json({ ok: true });
 });
