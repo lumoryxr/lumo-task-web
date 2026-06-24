@@ -29,7 +29,9 @@ export function assertStrongSecret(name: string, value: string | undefined): str
   if (PLACEHOLDERS.has(value.trim())) {
     throw new Error(`${name} must not be the example placeholder — set a real secret`);
   }
-  if (Buffer.byteLength(value, "utf8") < MIN_BYTES) {
+  // Measure the trimmed value so surrounding whitespace can't pad a low-entropy
+  // secret past the gate (consistent with the blank/placeholder checks above).
+  if (Buffer.byteLength(value.trim(), "utf8") < MIN_BYTES) {
     throw new Error(`${name} must be at least ${MIN_BYTES} bytes`);
   }
   return value;
