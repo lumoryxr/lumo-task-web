@@ -22,9 +22,43 @@ import {
 } from "@playwright/test";
 import path from "path";
 import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Collect the full descendant pid tree of `rootPid` (children, grandchildren, …)
+ * by walking `pgrep -P` breadth-first. Electron spawns the embedded backend as a
+ * child process (which under LUMO_USE_DIST may itself fork tsx→node), so killing
+ * only the Electron pid orphans the backend; it keeps its stdio pipe / API port
+ * open and stalls the Playwright worker until the 90s teardown deadline trips —
+ * failing an otherwise-green suite. We capture the tree while Electron is still
+ * alive (descendants are still reachable from it) so we can reap every node.
+ */
+function collectDescendants(rootPid: number): number[] {
+  const all: number[] = [];
+  const stack = [rootPid];
+  while (stack.length) {
+    const pid = stack.pop();
+    if (pid === undefined) break;
+    let children: number[] = [];
+    try {
+      const out = execSync(`pgrep -P ${pid}`, { encoding: "utf8" }).trim();
+      children = out
+        ? out.split("\n").map((s) => parseInt(s, 10)).filter((n) => Number.isInteger(n))
+        : [];
+    } catch {
+      // pgrep exits 1 (no children) — nothing to add for this pid.
+      children = [];
+    }
+    for (const c of children) {
+      all.push(c);
+      stack.push(c);
+    }
+  }
+  return all;
+}
 
 const MAIN_CJS = path.resolve(__dirname, "../electron/main.cjs");
 const APP_DIR = path.resolve(__dirname, "..");
@@ -66,19 +100,27 @@ test.describe("Electron desktop smoke", () => {
     if (!electronApp) return;
     // electronApp.close() relies on a graceful app.quit(). Under xvfb in CI the
     // embedded-backend child process can keep the Electron process alive past
-    // the 90s afterAll budget, hanging teardown and failing an otherwise-green
+    // the teardown budget, hanging the worker and failing an otherwise-green
     // suite (the render assertions all pass first). Race the graceful close
-    // against a short deadline, then force-kill the underlying process so
-    // teardown can never block the suite.
+    // against a short deadline, then force-kill the ENTIRE process tree —
+    // Electron AND the orphan-prone embedded backend (+ its own children) — so
+    // no lingering pipe/port can block worker teardown.
     const proc = electronApp.process();
+    const rootPid = proc?.pid;
+    // Snapshot descendants while Electron is still alive and parents them.
+    const descendants = rootPid ? collectDescendants(rootPid) : [];
     await Promise.race([
       electronApp.close().catch(() => {}),
       new Promise((resolve) => setTimeout(resolve, 15_000)),
     ]);
-    try {
-      if (proc && proc.exitCode === null) proc.kill("SIGKILL");
-    } catch {
-      /* process already gone */
+    // Reap children first, then the root, so nothing is left holding a handle.
+    for (const pid of [...descendants, rootPid]) {
+      if (!pid) continue;
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        /* process already gone */
+      }
     }
   });
 
