@@ -298,8 +298,8 @@ export async function executeTool(
   // GET /tasks is keyset-paginated ({ items, nextCursor }); page through to
   // assemble the full task set the AI tools reason over (heavy users span
   // multiple pages). Bounded per request; hard page cap guards a runaway loop.
-  async function listAllTasks(q?: string): Promise<any[]> {
-    const base = q ? `/tasks?q=${encodeURIComponent(q)}&limit=200` : "/tasks?limit=200";
+  async function listAllTasks(): Promise<any[]> {
+    const base = "/tasks?limit=200";
     const out: any[] = [];
     let cursor: string | null = null;
     for (let page = 0; page < 1000; page++) {
