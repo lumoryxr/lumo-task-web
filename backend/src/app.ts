@@ -14,6 +14,7 @@ import syncRoutes from "./routes/sync.js";
 import docsRoutes from "./routes/docs.js";
 import habitsRoutes from "./routes/habits.js";
 import countdownsRoutes from "./routes/countdowns.js";
+import { queryOne } from "./db/client.js";
 
 const allowedOrigins = (process.env.LUMO_ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -69,7 +70,17 @@ v1.route("/countdowns", countdownsRoutes);
 app.route("/v1", v1);
 app.route("/docs", docsRoutes);
 
-app.get("/health", (c) => c.json({ ok: true }));
+// Deep health check: verify DB connectivity so a load balancer drains an
+// instance whose database is unreachable instead of routing traffic to it.
+app.get("/health", async (c) => {
+  try {
+    await queryOne("SELECT 1 AS ok");
+    return c.json({ ok: true, db: "up" });
+  } catch (err) {
+    console.error("[health] db check failed:", (err as Error)?.message ?? err);
+    return c.json({ ok: false, db: "down" }, 503);
+  }
+});
 
 app.onError((err, c) => {
   console.error("[unhandled]", err?.message ?? err);
