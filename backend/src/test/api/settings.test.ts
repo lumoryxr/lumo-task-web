@@ -85,4 +85,31 @@ describe("PATCH /v1/settings", () => {
     });
     assert.equal(status, 401);
   });
+
+  test("200 → accepts a public AI baseUrl", async () => {
+    const { status, body } = await req("PATCH", "/v1/settings", {
+      token: demoToken,
+      body: { ai_configs_update: { provider: "custom", key: "k", baseUrl: "https://api.openai.com/v1" } },
+    });
+    assert.equal(status, 200);
+    assert.equal(body.ai_provider_configs.custom.baseUrl, "https://api.openai.com/v1");
+  });
+
+  test("400 → rejects an AI baseUrl pointing at cloud metadata (SSRF)", async () => {
+    const { status, body } = await req("PATCH", "/v1/settings", {
+      token: demoToken,
+      body: { ai_configs_update: { provider: "custom", key: "k", baseUrl: "http://169.254.169.254/latest/meta-data/" } },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error.code, "INVALID_BASE_URL");
+  });
+
+  test("400 → rejects an AI baseUrl pointing at a private host (SSRF)", async () => {
+    const { status, body } = await req("PATCH", "/v1/settings", {
+      token: demoToken,
+      body: { ai_configs_update: { provider: "custom", key: "k", baseUrl: "http://10.0.0.5:8080/v1" } },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error.code, "INVALID_BASE_URL");
+  });
 });

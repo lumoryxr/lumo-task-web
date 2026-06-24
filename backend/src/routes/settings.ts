@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { queryOne, execute } from "../db/client.js";
+import { queryOne, execute, dbMode } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import type { Variables } from "../env.js";
 import type { SettingsRow } from "../db/rows.js";
 import { encryptSecret } from "../lib/crypto.js";
+import { assertSafeOutboundUrl, SsrfError } from "../lib/ssrf.js";
 
 const app = new Hono<{ Variables: Variables }>();
 app.use("/*", authMiddleware);
@@ -135,6 +136,17 @@ app.patch("/", zValidator("json", SettingsPatch), async (c) => {
   if (ai_configs_update) {
     const { provider, key, model, baseUrl } = ai_configs_update;
     const configs = parseAiConfigs(existing.ai_configs);
+    // Block SSRF: in hosted mode the server will later fetch this base URL, so
+    // reject internal / loopback / metadata targets. Desktop mode allows
+    // localhost (self-hosted LLMs like Ollama).
+    if (baseUrl) {
+      try {
+        await assertSafeOutboundUrl(baseUrl.trim(), dbMode() !== "cloud");
+      } catch (e) {
+        if (e instanceof SsrfError) return httpError(c, 400, "INVALID_BASE_URL", e.message);
+        throw e;
+      }
+    }
     if (key != null && key.trim()) configs[provider].key = encryptSecret(key.trim());
     if (model !== undefined) configs[provider].model = model?.trim() ?? "";
     if (baseUrl !== undefined) configs[provider].baseUrl = baseUrl?.trim() ?? "";
