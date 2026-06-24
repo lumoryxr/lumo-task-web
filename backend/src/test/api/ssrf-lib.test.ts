@@ -8,7 +8,69 @@
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { assertSafeOutboundUrl, isBlockedAddress, SsrfError } from "../../lib/ssrf.js";
+import { assertSafeOutboundUrl, isBlockedAddress, SsrfError, safeFetch } from "../../lib/ssrf.js";
+
+describe("lib/ssrf · IPv4-in-IPv6 forms (the hex-normalized bypass)", () => {
+  // new URL("http://[::ffff:127.0.0.1]") normalizes to the hex form below
+  const blocked = [
+    "::ffff:7f00:1",        // hex-mapped 127.0.0.1
+    "::ffff:a9fe:a9fe",     // hex-mapped 169.254.169.254 (cloud metadata)
+    "::ffff:127.0.0.1",     // dotted-mapped loopback
+    "64:ff9b::7f00:1",      // NAT64 127.0.0.1
+    "64:ff9b::a9fe:a9fe",   // NAT64 metadata
+    "::7f00:1",             // IPv4-compatible loopback
+    "::ffff:10.0.0.1",      // mapped RFC1918
+  ];
+  for (const ip of blocked) test(`blocks ${ip}`, () => assert.equal(isBlockedAddress(ip), true));
+
+  // a v4-in-v6 form embedding a PUBLIC address must NOT be over-blocked
+  const allowed = ["::ffff:8.8.8.8", "::ffff:0808:0808", "64:ff9b::8.8.8.8"];
+  for (const ip of allowed) test(`allows public-embedded ${ip}`, () => assert.equal(isBlockedAddress(ip), false));
+
+  test("assertSafeOutboundUrl rejects the URL-normalized hex-mapped loopback", async () => {
+    await assert.rejects(() => assertSafeOutboundUrl("http://[::ffff:127.0.0.1]/v1", false), SsrfError);
+    await assert.rejects(() => assertSafeOutboundUrl("http://[::ffff:169.254.169.254]/", false), SsrfError);
+  });
+});
+
+describe("lib/ssrf · safeFetch redirect re-validation", () => {
+  const ok = (status = 200) => new Response("body", { status });
+  const redirect = (loc: string) => new Response(null, { status: 302, headers: { location: loc } });
+
+  test("follows a redirect to a public host and returns the final response", async () => {
+    const seq = [redirect("https://api.openai.com/final"), ok(200)];
+    let i = 0;
+    const res = await safeFetch("https://api.openai.com/v1", {}, false, undefined, async () => seq[i++]);
+    assert.equal(res.status, 200);
+    assert.equal(i, 2); // initial + one redirect followed
+  });
+
+  test("REFUSES a redirect to cloud metadata (the P0 bypass)", async () => {
+    const calls: string[] = [];
+    const fake = async (u: string) => { calls.push(u); return redirect("http://169.254.169.254/latest/meta-data/"); };
+    await assert.rejects(
+      () => safeFetch("https://api.openai.com/v1", {}, false, undefined, fake),
+      SsrfError,
+    );
+    // it must NOT have connected to the metadata host (only the initial public URL)
+    assert.deepEqual(calls, ["https://api.openai.com/v1"]);
+  });
+
+  test("REFUSES a redirect to loopback", async () => {
+    const fake = async () => redirect("http://127.0.0.1:8080/");
+    await assert.rejects(() => safeFetch("https://api.openai.com/v1", {}, false, undefined, fake), SsrfError);
+  });
+
+  test("caps redirect chains", async () => {
+    const fake = async () => redirect("https://api.openai.com/loop");
+    await assert.rejects(() => safeFetch("https://api.openai.com/v1", {}, false, undefined, fake), /Too many redirects/);
+  });
+
+  test("returns a non-redirect response directly", async () => {
+    const res = await safeFetch("https://api.openai.com/v1", {}, false, undefined, async () => ok(201));
+    assert.equal(res.status, 201);
+  });
+});
 
 describe("lib/ssrf · isBlockedAddress", () => {
   const blocked = [

@@ -1,5 +1,5 @@
 import { dbMode } from "../db/client.js";
-import { assertSafeOutboundUrl } from "./ssrf.js";
+import { safeFetch } from "./ssrf.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -124,11 +124,7 @@ async function callOpenAICompatWithTools(
 ): Promise<LLMResult> {
   const url = resolveUrl(config);
   const model = resolveModel(config);
-
-  // SSRF guard at the outbound chokepoint: a user-supplied base URL must not
-  // reach internal/metadata hosts in hosted mode (also covers env/legacy values
-  // that bypassed write-time validation). Desktop mode permits localhost.
-  await assertSafeOutboundUrl(url, dbMode() !== "cloud");
+  const allowPrivate = dbMode() !== "cloud";
 
   const body: Record<string, unknown> = {
     model,
@@ -149,12 +145,16 @@ async function callOpenAICompatWithTools(
   console.log(`[LLM] POST ${url} model=${model}`);
   let res: Response;
   try {
-    res = await fetch(url, {
+    // SSRF-safe: validates the URL and every redirect hop before connecting, so
+    // a user base URL (or a redirect off it) cannot reach internal/metadata
+    // hosts and exfiltrate the forwarded Authorization header. Desktop mode
+    // permits localhost (self-hosted LLMs).
+    res = await safeFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${config.apiKey}` },
       body: JSON.stringify(body),
       signal: abort.signal,
-    });
+    }, allowPrivate);
   } finally {
     clearTimeout(timer);
   }
@@ -214,7 +214,9 @@ async function callAnthropicWithTools(
   const timer = setTimeout(() => abort.abort(), 60_000);
   let res: Response;
   try {
-    res = await fetch("https://api.anthropic.com/v1/messages", {
+    // Fixed host, but route through safeFetch so a redirect off it still can't
+    // reach internal/metadata destinations (the x-api-key would be forwarded).
+    res = await safeFetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -223,7 +225,7 @@ async function callAnthropicWithTools(
       },
       body: JSON.stringify(body),
       signal: abort.signal,
-    });
+    }, false);
   } finally {
     clearTimeout(timer);
   }
