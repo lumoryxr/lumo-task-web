@@ -57,7 +57,14 @@ jobs:
       - name: Set version in package.json
         shell: pwsh
         run: |
-          $ver = "${{ github.event.inputs.version_label }}".TrimStart("v")
+          # Strip a leading "v" or "V" (case-insensitive); TrimStart("v") would
+          # miss an uppercase "V", leaving an invalid version like "V2.0.1" that
+          # electron-builder rejects.
+          $ver = "${{ github.event.inputs.version_label }}".Trim() -replace '^[vV]', ''
+          if ($ver -notmatch '^\d+\.\d+\.\d+([-+].*)?$') {
+            Write-Error "Invalid version '$ver' (from input '${{ github.event.inputs.version_label }}'). Expected semver like 1.2.3 or v1.2.3."
+            exit 1
+          }
           $json = Get-Content "web-app/package.json" -Raw | ConvertFrom-Json
           $json.version = $ver
           $json | ConvertTo-Json -Depth 100 | Set-Content "web-app/package.json"
@@ -83,8 +90,11 @@ jobs:
         id: release-meta
         shell: pwsh
         run: |
-          $ver  = "${{ github.event.inputs.version_label }}".Trim()
-          $tag  = if ($ver.StartsWith("v")) { $ver } else { "v${ver}" }
+          # Normalize to a bare version then re-prefix, so an uppercase "V"
+          # input does not yield a doubled tag like "vV2.0.1" (StartsWith is
+          # case-sensitive in PowerShell).
+          $ver  = "${{ github.event.inputs.version_label }}".Trim() -replace '^[vV]', ''
+          $tag  = "v${ver}"
           $name = "Lumo Task ${tag}"
           "tag=$tag"   | Out-File -Append $env:GITHUB_OUTPUT
           "name=$name" | Out-File -Append $env:GITHUB_OUTPUT
