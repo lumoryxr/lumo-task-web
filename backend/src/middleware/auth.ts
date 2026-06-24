@@ -17,7 +17,7 @@ export async function authMiddleware(c: Context<{ Variables: Variables }>, next:
   }
   const token = header.slice(7);
   try {
-    const { userId, jti } = await verifyToken(token);
+    const { userId, jti, sv } = await verifyToken(token);
 
     // Fast-path: already known-revoked
     if (revokedCache.has(jti)) {
@@ -28,6 +28,15 @@ export async function authMiddleware(c: Context<{ Variables: Variables }>, next:
     const revoked = await queryOne("SELECT 1 FROM revoked_tokens WHERE jti = :jti", { jti });
     if (revoked) {
       if (revokedCache.size < CACHE_MAX) revokedCache.add(jti);
+      return httpError(c, 401, "UNAUTHORIZED", "Unauthorized");
+    }
+
+    // Session version: reject tokens minted before the user's current version
+    // (bumped on password change to invalidate all prior sessions).
+    const u = await queryOne<{ session_version: number }>(
+      "SELECT session_version FROM users WHERE id = :uid", { uid: userId }
+    );
+    if (!u || sv < u.session_version) {
       return httpError(c, 401, "UNAUTHORIZED", "Unauthorized");
     }
 

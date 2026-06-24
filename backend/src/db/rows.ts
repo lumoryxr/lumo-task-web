@@ -10,6 +10,7 @@ export interface UserRow {
   plan: string;
   renews_at: string | null;
   created_at: string;
+  session_version: number;
 }
 
 export interface TaskRow {
