@@ -9,10 +9,18 @@ import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:
 
 const PREFIX = "enc:v1:";
 
+const MIN_KEY_BYTES = 32;
+
 function key(): Buffer {
   const raw = process.env.LUMO_ENCRYPTION_KEY;
   if (!raw) throw new Error("LUMO_ENCRYPTION_KEY must be set");
-  // Derive a fixed 32-byte AES key from the configured secret (any length).
+  // Reject low-entropy keys in every environment — a weak passphrase makes the
+  // at-rest AES key dictionary-attackable if the DB leaks.
+  if (Buffer.byteLength(raw, "utf8") < MIN_KEY_BYTES) {
+    throw new Error(`LUMO_ENCRYPTION_KEY must be at least ${MIN_KEY_BYTES} bytes`);
+  }
+  // Derive a fixed 32-byte AES key from the configured secret (SHA-256 keeps the
+  // derivation stable so existing ciphertext stays decryptable).
   return createHash("sha256").update(raw, "utf8").digest();
 }
 
