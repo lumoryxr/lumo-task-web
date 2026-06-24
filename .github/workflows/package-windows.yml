@@ -1,0 +1,66 @@
+name: Package Windows (Daily)
+
+# Verifies the Windows installer still BUILDS from main: contracts → backend →
+# frontend → electron-builder NSIS. Runtime startup of the desktop app (the
+# "won't start" class of bug) is guarded per-PR by electron-smoke.yml; this is
+# the heavier packaging check, kept off the per-PR path (windows-latest minutes
+# are billed higher) and run daily + on demand instead.
+on:
+  schedule:
+    - cron: "30 18 * * *"
+  workflow_dispatch:
+
+jobs:
+  package-windows:
+    name: Build Windows installer (NSIS x64)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build shared contracts (@lumo/contracts)
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+        shell: bash
+
+      - name: Install & build backend
+        working-directory: backend
+        run: |
+          npm ci --include=dev
+          npm run build
+        shell: bash
+
+      - name: Install & build frontend
+        working-directory: web-app
+        run: |
+          npm ci
+          npm run build
+        shell: bash
+
+      - name: Package Windows installer (NSIS x64)
+        working-directory: web-app
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: Verify installer was produced
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "web-app/dist-electron" -Filter "*.exe" -Recurse |
+                 Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "No .exe installer produced under web-app/dist-electron"
+            exit 1
+          }
+          Write-Host "Installer built: $($exe.FullName) ($([math]::Round($exe.Length/1MB,1)) MB)"
+
+      - name: Upload installer artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumo-windows-installer-${{ github.run_id }}
+          path: web-app/dist-electron/*.exe
+          retention-days: 7
+          if-no-files-found: warn

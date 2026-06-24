@@ -61,6 +61,26 @@ function getOrCreateJwtSecret() {
   return secret;
 }
 
+// ── Encryption key ──────────────────────────────────────────────────────────
+//
+// The bundled backend refuses to start without LUMO_ENCRYPTION_KEY (it encrypts
+// stored secrets — AI keys, sync tokens — with AES-256-GCM). The desktop app is
+// the only thing that launches the backend, so it must provision the key.
+//
+// MUST be persisted (not regenerated each launch): the key decrypts data written
+// on previous runs; rotating it would make stored secrets unreadable. We mirror
+// the JWT pattern — a per-install random key kept in userData with 0600 perms.
+// 32 bytes hex = 64 chars, comfortably above the backend's 32-byte minimum.
+function getOrCreateEncryptionKey() {
+  const keyPath = path.join(app.getPath("userData"), "encryption.key");
+  if (fs.existsSync(keyPath)) {
+    return fs.readFileSync(keyPath, "utf8").trim();
+  }
+  const key = crypto.randomBytes(32).toString("hex");
+  fs.writeFileSync(keyPath, key, { mode: 0o600 });
+  return key;
+}
+
 // ── Free port finder ──────────────────────────────────────────────────────────
 
 function findFreePort(preferred) {
@@ -153,6 +173,7 @@ async function startBackend() {
   apiPort = await findFreePort(47291);
   const dbPath = getDbPath();
   const jwtSecret = getOrCreateJwtSecret();
+  const encryptionKey = getOrCreateEncryptionKey();
 
   const syncCfg = getSyncConfig();
 
@@ -166,6 +187,7 @@ async function startBackend() {
     LUMO_PORT: String(apiPort),
     LUMO_DB_PATH: dbPathNormalised,
     LUMO_JWT_SECRET: jwtSecret,
+    LUMO_ENCRYPTION_KEY: encryptionKey,
     // In packaged builds, @libsql/* native modules live in extraResources.
     // NODE_PATH lets the forked bundle resolve them at runtime.
     ...(app.isPackaged

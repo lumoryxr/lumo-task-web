@@ -61,11 +61,21 @@ test.describe("Electron app", () => {
   let onboardingShownOnFreshStart = false;
 
   test.beforeAll(async () => {
+    // Scrub the secrets the desktop app must provision itself. In a real
+    // packaged install LUMO_ENCRYPTION_KEY / LUMO_JWT_SECRET are absent from the
+    // environment, so the embedded backend's boot check ("LUMO_ENCRYPTION_KEY
+    // must be set") only passes if main.cjs generates and injects them. Removing
+    // them here turns this suite into a regression guard for the
+    // packaged-app-won't-start bug (backend exited 1 → window never appeared).
+    const scrubbedEnv = { ...process.env };
+    delete scrubbedEnv.LUMO_ENCRYPTION_KEY;
+    delete scrubbedEnv.LUMO_JWT_SECRET;
+
     electronApp = await electron.launch({
       args: [MAIN_CJS],
       cwd: APP_DIR,
       env: {
-        ...process.env,
+        ...scrubbedEnv,
         NODE_ENV: "test",
         ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
         LUMO_USE_DIST: "1",
@@ -148,6 +158,19 @@ test.describe("Electron app", () => {
 
   test("OB01 – fresh launch (cleared localStorage) shows onboarding", async () => {
     expect(onboardingShownOnFreshStart).toBe(true);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Embedded backend boot (regression guard: packaged app self-provisions
+  // LUMO_ENCRYPTION_KEY / LUMO_JWT_SECRET — env was scrubbed in beforeAll)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  test("BOOT01 – embedded backend started and is reachable (self-provisioned secrets)", async () => {
+    const status = await page.evaluate(async (port: number) => {
+      const r = await fetch(`http://127.0.0.1:${port}/health`);
+      return r.status;
+    }, backendPort);
+    expect(status).toBe(200);
   });
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,79 @@
+name: Electron Smoke (Desktop)
+
+# Guards the packaged desktop app on every commit: builds the backend + web-app
+# and launches the real Electron app (electron.spec.ts) to prove it starts and is
+# usable. The suite scrubs LUMO_ENCRYPTION_KEY / LUMO_JWT_SECRET from the env, so
+# this fails unless main.cjs self-provisions them — catching the class of bug
+# where a packaged install won't start ("Refusing to start: LUMO_ENCRYPTION_KEY
+# must be set"). The actual Windows .exe packaging is verified separately in
+# package-windows.yml (scheduled), to keep per-PR cost down.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  electron-smoke:
+    name: Electron App Smoke (launch + use)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # The pre-installed Microsoft apt sources intermittently 403, breaking
+      # `--with-deps` (apt-get update). The libs we need are in the standard
+      # Ubuntu repos. (Mirrors ui-tests.yml.)
+      - name: Remove conflicting apt sources
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list \
+                     /etc/apt/sources.list.d/azure-cli.list \
+                     /etc/apt/sources.list.d/azure-cli.sources 2>/dev/null || true
+
+      # @lumo/contracts (file: dependency) must be built before backend/web-app
+      # can resolve its types.
+      - name: Build shared contracts (@lumo/contracts)
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+
+      - name: Install & build backend
+        working-directory: backend
+        run: |
+          npm ci --include=dev
+          npm run build
+
+      # NOTE: do NOT set ELECTRON_SKIP_BINARY_DOWNLOAD here — the Electron binary
+      # is required to launch the desktop app under Playwright.
+      - name: Install web-app deps (incl. Electron binary)
+        working-directory: web-app
+        run: npm ci
+
+      - name: Build web-app
+        working-directory: web-app
+        run: npm run build
+
+      - name: Install Playwright + system deps
+        working-directory: web-app
+        run: npx playwright install chromium --with-deps
+
+      - name: Install xvfb (virtual display for Electron)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run Electron smoke suite (xvfb)
+        working-directory: web-app
+        run: xvfb-run -a npx playwright test --config playwright.electron.config.ts
+        env:
+          LUMO_USE_DIST: "1"
+
+      - name: Upload Electron report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-report-${{ github.run_id }}
+          path: web-app/playwright-report-electron/
+          retention-days: 14
