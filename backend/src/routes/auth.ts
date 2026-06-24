@@ -4,10 +4,11 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
 import { signToken } from "../lib/jwt.js";
-import { hashPassword, verifyPassword } from "../lib/password.js";
+import { hashPassword, verifyPassword, dummyVerify } from "../lib/password.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
+import { getClientIp } from "../lib/clientIp.js";
 import { audit } from "../lib/audit.js";
 import type { Context } from "hono";
 import type { Variables } from "../env.js";
@@ -16,14 +17,9 @@ import { getSyncStatus } from "../lib/sync.js";
 
 const app = new Hono<{ Variables: Variables }>();
 
-// 10 auth attempts per IP per minute
-const authRateLimit = createRateLimiter<{ Variables: Variables }>(10, 60_000, (c) => {
-  return (
-    c.req.header("x-forwarded-for")?.split(",")[0].trim() ??
-    c.req.header("x-real-ip") ??
-    "unknown"
-  );
-});
+// 10 auth attempts per IP per minute, keyed on the trusted-proxy-resolved IP so
+// a spoofed X-Forwarded-For prefix can't be rotated to bypass the limit.
+const authRateLimit = createRateLimiter<{ Variables: Variables }>(10, 60_000, getClientIp);
 
 // Reject weak passwords everywhere a new password is set (register / change).
 const strongPassword = z
@@ -51,11 +47,7 @@ const ChangePasswordBody = z.object({
 });
 
 function clientIp(c: Context<{ Variables: Variables }>): string {
-  return (
-    c.req.header("x-forwarded-for")?.split(",")[0].trim() ??
-    c.req.header("x-real-ip") ??
-    "unknown"
-  );
+  return getClientIp(c);
 }
 
 function makeInitials(name: string) {
@@ -101,6 +93,8 @@ app.post("/signin", authRateLimit, zValidator("json", SigninBody), async (c) => 
 
   const user = await queryOne<UserRow>("SELECT * FROM users WHERE email = :email", { email });
   if (!user) {
+    // Spend equivalent bcrypt time so latency can't enumerate registered emails.
+    await dummyVerify(password);
     audit("auth.signin.fail", { email, ip: clientIp(c), reason: "no_user" });
     return httpError(c, 401, "INVALID_CREDENTIALS", "Invalid credentials");
   }
