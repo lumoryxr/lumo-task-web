@@ -40,4 +40,17 @@ describe("migration: tenant-table indexes", () => {
     assert.match(text, /USING INDEX idx_tasks_user_completed_created/i, `plan was: ${text}`);
     assert.doesNotMatch(text, /SCAN tasks(?! USING)/i, `unexpected full scan: ${text}`);
   });
+
+  test("the completed day-view query is tenant-scoped by index (no full scan)", async () => {
+    // The query filters DATE(completed_at,'localtime') = ?. SQLite cannot index a
+    // non-deterministic 'localtime' expression, so we rely on the user_id-prefixed
+    // index to scope the scan to one tenant (the DATE filter is a residual within
+    // that tenant) — which is the stated goal: never a full table scan.
+    const plan = await query<{ detail: string }>(
+      "EXPLAIN QUERY PLAN SELECT * FROM completed_entries WHERE user_id = 'u' AND DATE(completed_at, 'localtime') = '2026-06-24' ORDER BY completed_at ASC",
+    );
+    const text = plan.map((r) => r.detail).join(" | ");
+    assert.match(text, /USING INDEX idx_completed_user_completedat/i, `plan was: ${text}`);
+    assert.doesNotMatch(text, /SCAN completed_entries(?! USING)/i, `unexpected full scan: ${text}`);
+  });
 });

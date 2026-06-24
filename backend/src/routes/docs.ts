@@ -95,10 +95,21 @@ const spec = {
     "/health": {
       get: {
         tags: ["System"],
-        summary: "Health check",
+        summary: "Liveness check (process up; does not touch the DB)",
         security: [],
         responses: {
           "200": { description: "Server is up", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" } } } } } },
+        },
+      },
+    },
+    "/ready": {
+      get: {
+        tags: ["System"],
+        summary: "Readiness check (verifies DB connectivity)",
+        security: [],
+        responses: {
+          "200": { description: "Server can serve (DB reachable)", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" }, db: { type: "string" } } } } } },
+          "503": { description: "Database unreachable", content: { "application/json": { schema: { type: "object", properties: { ok: { type: "boolean" }, db: { type: "string" } } } } } },
         },
       },
     },

@@ -70,14 +70,19 @@ v1.route("/countdowns", countdownsRoutes);
 app.route("/v1", v1);
 app.route("/docs", docsRoutes);
 
-// Deep health check: verify DB connectivity so a load balancer drains an
-// instance whose database is unreachable instead of routing traffic to it.
-app.get("/health", async (c) => {
+// Liveness: is the process up? Kept shallow (no DB call) because this is what
+// Render's healthCheckPath polls — coupling it to the DB would let a transient
+// Turso blip restart-loop an otherwise-healthy instance.
+app.get("/health", (c) => c.json({ ok: true }));
+
+// Readiness: can the process actually serve (DB reachable)? For load-balancer
+// draining / external monitoring — returns 503 when the DB is unreachable.
+app.get("/ready", async (c) => {
   try {
     await queryOne("SELECT 1 AS ok");
     return c.json({ ok: true, db: "up" });
   } catch (err) {
-    console.error("[health] db check failed:", (err as Error)?.message ?? err);
+    console.error("[ready] db check failed:", (err as Error)?.message ?? err);
     return c.json({ ok: false, db: "down" }, 503);
   }
 });
