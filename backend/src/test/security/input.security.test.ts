@@ -34,7 +34,7 @@ describe("Security · input · injection is stored as inert data", () => {
 
     const { status: listStatus, body: list } = await req("GET", "/v1/tasks", { token });
     assert.equal(listStatus, 200, "tasks table must be intact after injection attempt");
-    assert.ok(Array.isArray(list));
+    assert.ok(Array.isArray(list.items), "paginated envelope with items[]");
 
     await req("DELETE", `/v1/tasks/${body.id}`, { token });
   });

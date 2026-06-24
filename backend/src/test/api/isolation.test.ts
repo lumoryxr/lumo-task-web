@@ -76,8 +76,8 @@ describe("Cross-user data isolation", () => {
     });
 
     const { body: bTasks } = await req("GET", "/v1/tasks", { token: userBToken });
-    assert.ok(Array.isArray(bTasks));
-    const hasUserATask = (bTasks as any[]).some((t: any) => t.title.en === "User A private");
+    assert.ok(Array.isArray(bTasks.items));
+    const hasUserATask = (bTasks.items as any[]).some((t: any) => t.title.en === "User A private");
     assert.equal(hasUserATask, false, "user B should not see user A's tasks");
   });
 

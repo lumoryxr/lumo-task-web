@@ -37,6 +37,12 @@ const RESOURCES: Resource[] = [
   { name: "countdown", base: "/v1/countdowns", seed: (t) => seedCountdown(t), patch: { title: "hijacked" }, getById: false },
 ];
 
+// List endpoints return either a bare array or a paginated envelope
+// ({ items, nextCursor }); extract the rows regardless of shape.
+function listItems(body: any): any[] {
+  return Array.isArray(body) ? body : (body?.items ?? []);
+}
+
 let ownerToken = "";
 let attackerToken = "";
 
@@ -76,13 +82,14 @@ for (const r of RESOURCES) {
     test(`attacker list ${r.base} excludes the owner's row`, async () => {
       const { status, body } = await req("GET", r.base, { token: attackerToken });
       assert.equal(status, 200);
-      assert.ok(Array.isArray(body));
-      assert.equal((body as any[]).some((row) => row.id === id), false, "attacker must not see owner's row");
+      const rows = listItems(body);
+      assert.ok(Array.isArray(rows));
+      assert.equal(rows.some((row) => row.id === id), false, "attacker must not see owner's row");
     });
 
     test(`owner's ${r.name} survives the attack`, async () => {
       const { body } = await req("GET", r.base, { token: ownerToken });
-      assert.equal((body as any[]).some((row) => row.id === id), true, "owner's row should still exist");
+      assert.equal(listItems(body).some((row) => row.id === id), true, "owner's row should still exist");
     });
   });
 }

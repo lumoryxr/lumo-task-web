@@ -251,12 +251,12 @@ describe("Task CRUD and Eisenhower matrix", () => {
   });
 
   test("GET /v1/tasks returns all four tasks", async () => {
-    const { status, body } = await api("GET", "/v1/tasks", { token: aliceToken });
+    const { status, body } = await api("GET", "/v1/tasks?limit=200", { token: aliceToken });
     assert.equal(status, 200);
-    assert.ok(Array.isArray(body));
-    assert.ok(body.length >= 4, "should have at least 4 tasks");
+    assert.ok(Array.isArray(body.items));
+    assert.ok(body.items.length >= 4, "should have at least 4 tasks");
     for (const q of ["Q1", "Q2", "Q3", "Q4"]) {
-      assert.ok(body.some((t: any) => t.quadrant === q), `missing ${q} task`);
+      assert.ok(body.items.some((t: any) => t.quadrant === q), `missing ${q} task`);
     }
   });
 
@@ -350,10 +350,10 @@ describe("Today list management", () => {
   });
 
   test("GET /v1/tasks includes the today-flagged task", async () => {
-    const { status, body } = await api("GET", "/v1/tasks", { token: aliceToken });
+    const { status, body } = await api("GET", "/v1/tasks?limit=200", { token: aliceToken });
     assert.equal(status, 200);
-    assert.ok(Array.isArray(body));
-    const t = body.find((t: any) => t.id === taskId);
+    assert.ok(Array.isArray(body.items));
+    const t = body.items.find((t: any) => t.id === taskId);
     assert.ok(t, "today task missing from task list");
     assert.equal(t.today, true, "task should have today=true");
   });
@@ -749,10 +749,10 @@ describe("Multi-user data isolation", () => {
   });
 
   test("bob's task list excludes alice's tasks", async () => {
-    const { body: tasks } = await api("GET", "/v1/tasks", { token: bobToken });
-    assert.ok(Array.isArray(tasks));
+    const { body: tasks } = await api("GET", "/v1/tasks?limit=200", { token: bobToken });
+    assert.ok(Array.isArray(tasks.items));
     assert.ok(
-      !tasks.some((t: any) => t.id === aliceTaskId),
+      !tasks.items.some((t: any) => t.id === aliceTaskId),
       "bob should not see alice's tasks",
     );
   });
