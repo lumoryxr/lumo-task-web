@@ -13,6 +13,7 @@ const EXPECTED = [
   "idx_tasks_user_completed_created",
   "idx_tasks_user_completed_quadrant",
   "idx_completed_user_completedat",
+  "idx_completed_user_localdate",
   "idx_people_user_created",
   "idx_habits_user_created",
   "idx_habit_logs_user_date",
@@ -39,5 +40,18 @@ describe("migration: tenant-table indexes", () => {
     const text = plan.map((r) => r.detail).join(" | ");
     assert.match(text, /USING INDEX idx_tasks_user_completed_created/i, `plan was: ${text}`);
     assert.doesNotMatch(text, /SCAN tasks(?! USING)/i, `unexpected full scan: ${text}`);
+  });
+
+  test("the completed day-view query is index-backed (no full scan)", async () => {
+    // The query filters DATE(completed_at,'localtime') = ?; the user_id-prefixed
+    // index already scopes it to one tenant (no full table scan), and the
+    // expression index idx_completed_user_localdate lets the planner seek the
+    // exact date for heavy users once it has stats. Either way: never a full scan.
+    const plan = await query<{ detail: string }>(
+      "EXPLAIN QUERY PLAN SELECT * FROM completed_entries WHERE user_id = 'u' AND DATE(completed_at, 'localtime') = '2026-06-24' ORDER BY completed_at ASC",
+    );
+    const text = plan.map((r) => r.detail).join(" | ");
+    assert.match(text, /USING INDEX/i, `plan was: ${text}`);
+    assert.doesNotMatch(text, /SCAN completed_entries(?! USING)/i, `unexpected full scan: ${text}`);
   });
 });
