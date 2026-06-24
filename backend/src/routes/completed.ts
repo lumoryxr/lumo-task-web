@@ -25,6 +25,9 @@ function rowToEntry(row: CompletedEntryRow) {
 app.get("/", async (c) => {
   const userId = c.get("userId") as string;
   const date = c.req.query("date");
+  if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return httpError(c, 400, "INVALID_DATE", "date must be in YYYY-MM-DD format");
+  }
 
   let rows: CompletedEntryRow[];
   if (date) {

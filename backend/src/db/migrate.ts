@@ -140,6 +140,9 @@ export async function runMigrations() {
     )
   `);
 
+  // Index the expiry so the prune below (and growth control) stays cheap.
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expires ON revoked_tokens(expires_at)");
+
   // Prune expired tokens
   await execRaw("DELETE FROM revoked_tokens WHERE expires_at < datetime('now')");
 
