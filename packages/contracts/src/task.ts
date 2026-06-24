@@ -73,6 +73,10 @@ export const TaskUpdateBodySchema = TaskCreateBodySchema.partial();
 
 export const TaskListQuerySchema = z.object({
   q: z.string().trim().min(1).max(200).optional(),
+  // Pagination (keyset). limit is always applied (default 50, max 200) so an
+  // unbounded response is impossible. cursor is an opaque keyset token.
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  cursor: z.string().min(1).max(256).optional(),
 });
 
 // ── Wire response ─────────────────────────────────────────────────────────────
@@ -102,6 +106,15 @@ export const TaskWireSchema = z.object({
   updated_at: z.string(),
 });
 
+// ── Paginated list response ───────────────────────────────────────────────────
+// GET /tasks returns a keyset-paginated envelope: a page of items plus the
+// cursor to fetch the next page (null on the last page).
+
+export const TaskListResponseSchema = z.object({
+  items: z.array(TaskWireSchema),
+  nextCursor: z.string().nullable(),
+});
+
 // ── Complete-task response ────────────────────────────────────────────────────
 // POST /tasks/:id/complete does not return a Task; it acknowledges the write and
 // returns the id of the created completed-log entry.
@@ -120,6 +133,7 @@ export type TaskCreateInput = z.input<typeof TaskCreateBodySchema>;
 export type TaskUpdateInput = z.input<typeof TaskUpdateBodySchema>;
 export type TaskListQuery = z.input<typeof TaskListQuerySchema>;
 export type TaskWire = z.infer<typeof TaskWireSchema>;
+export type TaskListResponse = z.infer<typeof TaskListResponseSchema>;
 export type TaskCompleteResponse = z.infer<typeof TaskCompleteResponseSchema>;
 
 // ── Normalized client view (re-exported by web-app/src/types/task.ts) ─────────
