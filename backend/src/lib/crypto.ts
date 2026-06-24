@@ -6,19 +6,14 @@
  * unchanged and are re-stored as ciphertext on the next write.
  */
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:crypto";
+import { assertStrongSecret } from "./secret-policy.js";
 
 const PREFIX = "enc:v1:";
 
-const MIN_KEY_BYTES = 32;
-
 function key(): Buffer {
-  const raw = process.env.LUMO_ENCRYPTION_KEY;
-  if (!raw) throw new Error("LUMO_ENCRYPTION_KEY must be set");
-  // Reject low-entropy keys in every environment — a weak passphrase makes the
-  // at-rest AES key dictionary-attackable if the DB leaks.
-  if (Buffer.byteLength(raw, "utf8") < MIN_KEY_BYTES) {
-    throw new Error(`LUMO_ENCRYPTION_KEY must be at least ${MIN_KEY_BYTES} bytes`);
-  }
+  // Reject missing/weak/blank/placeholder keys in every environment — a weak key
+  // makes the at-rest AES key dictionary-attackable if the DB leaks.
+  const raw = assertStrongSecret("LUMO_ENCRYPTION_KEY", process.env.LUMO_ENCRYPTION_KEY);
   // Derive a fixed 32-byte AES key from the configured secret (SHA-256 keeps the
   // derivation stable so existing ciphertext stays decryptable).
   return createHash("sha256").update(raw, "utf8").digest();

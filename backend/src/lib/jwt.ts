@@ -1,18 +1,11 @@
 import { SignJWT, jwtVerify } from "jose";
 import { randomUUID } from "crypto";
-
-const MIN_SECRET_BYTES = 32;
+import { assertStrongSecret } from "./secret-policy.js";
 
 const secret = () => {
   // Always require a real, high-entropy secret — no insecure default and no
-  // weak-secret backdoor in any environment. HS256 security depends entirely on
-  // the key, so reject anything below 32 bytes (256 bits).
-  const s = process.env.LUMO_JWT_SECRET;
-  if (!s) throw new Error("LUMO_JWT_SECRET must be set");
-  if (Buffer.byteLength(s, "utf8") < MIN_SECRET_BYTES) {
-    throw new Error(`LUMO_JWT_SECRET must be at least ${MIN_SECRET_BYTES} bytes`);
-  }
-  return new TextEncoder().encode(s);
+  // weak/blank/placeholder backdoor in any environment (see lib/secret-policy).
+  return new TextEncoder().encode(assertStrongSecret("LUMO_JWT_SECRET", process.env.LUMO_JWT_SECRET));
 };
 
 export async function signToken(userId: string, sessionVersion = 0): Promise<string> {
