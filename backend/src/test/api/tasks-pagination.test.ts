@@ -8,6 +8,7 @@
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
 import { req, setupDb, signInDemo, newUserWithToken, seedTask } from "../helpers/index.js";
+import { query } from "../../db/client.js";
 
 let token = "";
 const ids: string[] = [];
@@ -76,6 +77,18 @@ describe("GET /v1/tasks · pagination", () => {
     const all = await pageThrough(2, "q=Task");
     assert.equal(all.length, 5);
     assert.equal(new Set(all).size, 5);
+  });
+
+  test("AC-8: the keyset page query is index-backed (no full scan)", async () => {
+    const plan = await query<{ detail: string }>(
+      `EXPLAIN QUERY PLAN SELECT * FROM tasks
+         WHERE user_id = 'u' AND completed = 0
+           AND (created_at > '2026-01-01' OR (created_at = '2026-01-01' AND id > 'x'))
+         ORDER BY created_at ASC, id ASC LIMIT 51`,
+    );
+    const text = plan.map((r) => r.detail).join(" | ");
+    assert.match(text, /USING INDEX idx_tasks_user_completed_created/i, `plan was: ${text}`);
+    assert.doesNotMatch(text, /SCAN tasks(?! USING)/i, `unexpected full scan: ${text}`);
   });
 
   test("AC-7: a cursor never leaks another tenant's rows", async () => {
