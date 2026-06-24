@@ -306,7 +306,6 @@ export async function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_created ON tasks(user_id, completed, created_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_quadrant ON tasks(user_id, completed, quadrant);
     CREATE INDEX IF NOT EXISTS idx_completed_user_completedat ON completed_entries(user_id, completed_at);
-    CREATE INDEX IF NOT EXISTS idx_completed_user_localdate ON completed_entries(user_id, DATE(completed_at, 'localtime'));
     CREATE INDEX IF NOT EXISTS idx_people_user_created ON people(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_habits_user_created ON habits(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_habit_logs_user_date ON habit_logs(user_id, date);
