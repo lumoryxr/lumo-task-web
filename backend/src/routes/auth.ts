@@ -8,6 +8,8 @@ import { hashPassword, verifyPassword } from "../lib/password.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
+import { audit } from "../lib/audit.js";
+import type { Context } from "hono";
 import type { Variables } from "../env.js";
 import type { UserRow } from "../db/rows.js";
 import { getSyncStatus } from "../lib/sync.js";
@@ -48,6 +50,14 @@ const ChangePasswordBody = z.object({
   new_password: strongPassword,
 });
 
+function clientIp(c: Context<{ Variables: Variables }>): string {
+  return (
+    c.req.header("x-forwarded-for")?.split(",")[0].trim() ??
+    c.req.header("x-real-ip") ??
+    "unknown"
+  );
+}
+
 function makeInitials(name: string) {
   return name
     .split(/\s+/)
@@ -75,6 +85,7 @@ app.post("/register", authRateLimit, zValidator("json", RegisterBody), async (c)
   await execute("INSERT INTO settings (user_id) VALUES (:user_id)", { user_id: id });
 
   const token = await signToken(id, 0);
+  audit("auth.register", { userId: id, email, ip: clientIp(c) });
 
   return c.json({
     token,
@@ -89,10 +100,17 @@ app.post("/signin", authRateLimit, zValidator("json", SigninBody), async (c) => 
   const { email, password } = c.req.valid("json");
 
   const user = await queryOne<UserRow>("SELECT * FROM users WHERE email = :email", { email });
-  if (!user) return httpError(c, 401, "INVALID_CREDENTIALS", "Invalid credentials");
+  if (!user) {
+    audit("auth.signin.fail", { email, ip: clientIp(c), reason: "no_user" });
+    return httpError(c, 401, "INVALID_CREDENTIALS", "Invalid credentials");
+  }
 
   const ok = await verifyPassword(password, user.password_hash);
-  if (!ok) return httpError(c, 401, "INVALID_CREDENTIALS", "Invalid credentials");
+  if (!ok) {
+    audit("auth.signin.fail", { email, ip: clientIp(c), reason: "bad_password" });
+    return httpError(c, 401, "INVALID_CREDENTIALS", "Invalid credentials");
+  }
+  audit("auth.signin.ok", { userId: user.id, ip: clientIp(c) });
 
   const stats = await queryOne<{ task_count: number; pomo_count: number }>(`
     SELECT
@@ -128,7 +146,10 @@ app.post("/change-password", authRateLimit, authMiddleware, zValidator("json", C
   if (!user) return httpError(c, 404, "NOT_FOUND", "Not found");
 
   const ok = await verifyPassword(current_password, user.password_hash);
-  if (!ok) return httpError(c, 400, "WRONG_PASSWORD", "Current password is incorrect");
+  if (!ok) {
+    audit("auth.password_change.fail", { userId, ip: clientIp(c) });
+    return httpError(c, 400, "WRONG_PASSWORD", "Current password is incorrect");
+  }
 
   const new_hash = await hashPassword(new_password);
   // Bump the session version so every previously-issued token is now rejected.
@@ -136,6 +157,7 @@ app.post("/change-password", authRateLimit, authMiddleware, zValidator("json", C
     "UPDATE users SET password_hash = :hash, session_version = session_version + 1 WHERE id = :id",
     { hash: new_hash, id: userId },
   );
+  audit("auth.password_change", { userId, ip: clientIp(c) });
 
   return c.json({ ok: true });
 });
@@ -147,6 +169,7 @@ app.post("/signout", authMiddleware, async (c) => {
     "INSERT OR IGNORE INTO revoked_tokens (jti, expires_at) VALUES (:jti, :expires_at)",
     { jti, expires_at: expiresAt }
   );
+  audit("auth.signout", { userId: c.get("userId"), ip: clientIp(c) });
   return c.json({ ok: true });
 });
 
