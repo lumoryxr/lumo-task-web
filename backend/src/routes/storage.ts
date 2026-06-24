@@ -4,8 +4,9 @@ import { z } from "zod";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { getSyncStatus, triggerSync, stopSync, initSync } from "../lib/sync.js";
-import { queryOne, execute } from "../db/client.js";
+import { queryOne, execute, dbMode } from "../db/client.js";
 import { encryptSecret } from "../lib/crypto.js";
+import { assertSafeOutboundUrl, SsrfError } from "../lib/ssrf.js";
 import type { Variables } from "../env.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -57,6 +58,18 @@ const RemoteConfigBody = z.object({
 app.patch("/remote-config", zValidator("json", RemoteConfigBody), async (c) => {
   const userId = c.get("userId") as string;
   const { remoteUrl, remoteToken } = c.req.valid("json");
+
+  // SSRF guard: the server opens a libSQL connection to this URL. Restrict to
+  // remote DB schemes (block file: and internal/loopback/metadata hosts in
+  // hosted mode); desktop mode may target a LAN replica.
+  if (remoteUrl) {
+    try {
+      await assertSafeOutboundUrl(remoteUrl, dbMode() !== "cloud", new Set(["https:", "libsql:", "wss:"]));
+    } catch (e) {
+      if (e instanceof SsrfError) return httpError(c, 400, "INVALID_REMOTE_URL", e.message);
+      throw e;
+    }
+  }
 
   const existing = await queryOne("SELECT user_id FROM settings WHERE user_id = :uid", { uid: userId });
   if (!existing) return httpError(c, 404, "NOT_FOUND", "Settings not found");

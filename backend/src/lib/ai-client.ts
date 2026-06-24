@@ -1,3 +1,6 @@
+import { dbMode } from "../db/client.js";
+import { assertSafeOutboundUrl } from "./ssrf.js";
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -121,6 +124,11 @@ async function callOpenAICompatWithTools(
 ): Promise<LLMResult> {
   const url = resolveUrl(config);
   const model = resolveModel(config);
+
+  // SSRF guard at the outbound chokepoint: a user-supplied base URL must not
+  // reach internal/metadata hosts in hosted mode (also covers env/legacy values
+  // that bypassed write-time validation). Desktop mode permits localhost.
+  await assertSafeOutboundUrl(url, dbMode() !== "cloud");
 
   const body: Record<string, unknown> = {
     model,
