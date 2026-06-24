@@ -184,10 +184,12 @@ async function mockAPI(page: Page) {
       });
     }
     if (url.includes("/v1/tasks")) {
+      // GET list is the paginated envelope; other methods keep their empty stub.
+      const body = method === "GET" ? { items: [], nextCursor: null } : [];
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([]),
+        body: JSON.stringify(body),
       });
     }
     if (url.includes("/v1/people")) {
@@ -278,10 +280,11 @@ async function mockAPIWithData(page: Page) {
       });
     }
     if (url.includes("/v1/tasks")) {
+      // GET /v1/tasks is keyset-paginated: { items, nextCursor } (ADR-0001).
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(MOCK_TASKS),
+        body: JSON.stringify({ items: MOCK_TASKS, nextCursor: null }),
       });
     }
 

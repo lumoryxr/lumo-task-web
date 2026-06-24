@@ -194,11 +194,25 @@ export const api = {
   },
 
   // `q` performs a server-side keyword search over task title/description.
-  // Omitted (default) → returns the full incomplete-task list, unchanged.
+  // Omitted (default) → returns the full incomplete-task list.
+  //
+  // The API is keyset-paginated ({ items, nextCursor }); we transparently page
+  // through to assemble the full list so callers (matrix/today/week views) keep
+  // their full-set semantics. Each HTTP request stays bounded (server-side P1
+  // win); a hard page cap guards against a pathological loop. Server-driven
+  // infinite scroll is a future increment (ADR-0001).
   async listTasks(q?: string): Promise<Task[]> {
-    const path = q ? `/tasks?q=${encodeURIComponent(q)}` : "/tasks";
-    const rows = await req<any[]>("GET", path);
-    return rows.map(adaptTask);
+    const base = q ? `/tasks?q=${encodeURIComponent(q)}&limit=200` : "/tasks?limit=200";
+    const out: Task[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 1000; page++) {
+      const path: string = cursor ? `${base}&cursor=${encodeURIComponent(cursor)}` : base;
+      const res: { items: any[]; nextCursor: string | null } = await req("GET", path);
+      out.push(...res.items.map(adaptTask));
+      if (res.nextCursor == null) return out;
+      cursor = res.nextCursor;
+    }
+    return out;
   },
 
   async listToday(): Promise<Task[]> {

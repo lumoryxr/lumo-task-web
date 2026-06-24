@@ -7,6 +7,7 @@ import { query, queryOne, execute, batch } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
+import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
 import type { Variables } from "../env.js";
 import type { TaskRow } from "../db/rows.js";
 
@@ -75,28 +76,56 @@ function rowToTask(row: TaskRow): TaskWire {
 // With `q`: case-insensitive keyword match over title/description in both
 // locales. LIKE wildcards in the user input are escaped so they are treated as
 // literals, not patterns. All values are bound parameters (no SQLi surface).
+// Keyset (cursor) paginated. limit is always applied (default 50, max 200 via
+// the contract) so the response is bounded; the cursor seeks via the
+// (user_id, completed, created_at) index, tie-broken by id for a stable total
+// order. Always re-scoped to the authenticated user — the cursor is just a
+// position, never an authorization token.
 app.get("/", zValidator("query", TaskListQuerySchema), async (c) => {
   const userId = c.get("userId") as string;
-  const { q } = c.req.valid("query");
+  const { q, limit, cursor } = c.req.valid("query");
 
-  if (q) {
-    const like = `%${q.replace(/[\\%_]/g, (ch) => "\\" + ch)}%`;
-    const rows = await query<TaskRow>(
-      `SELECT * FROM tasks
-        WHERE user_id = :uid AND completed = 0
-          AND (title_en LIKE :q ESCAPE '\\' OR title_zh LIKE :q ESCAPE '\\'
-               OR desc_en LIKE :q ESCAPE '\\' OR desc_zh LIKE :q ESCAPE '\\')
-        ORDER BY created_at ASC`,
-      { uid: userId, q: like }
-    );
-    return c.json(rows.map(rowToTask));
+  let after: CursorPos | null = null;
+  if (cursor) {
+    try {
+      after = decodeCursor(cursor);
+    } catch {
+      return httpError(c, 400, "INVALID_CURSOR", "Invalid cursor");
+    }
   }
 
+  const where = ["user_id = :uid", "completed = 0"];
+  const params: Record<string, string | number> = { uid: userId };
+
+  if (q) {
+    params.q = `%${q.replace(/[\\%_]/g, (ch) => "\\" + ch)}%`;
+    where.push(
+      "(title_en LIKE :q ESCAPE '\\' OR title_zh LIKE :q ESCAPE '\\'" +
+        " OR desc_en LIKE :q ESCAPE '\\' OR desc_zh LIKE :q ESCAPE '\\')",
+    );
+  }
+  if (after) {
+    params.ca = after.createdAt;
+    params.cid = after.id;
+    where.push("(created_at > :ca OR (created_at = :ca AND id > :cid))");
+  }
+
+  // Fetch one extra row to know whether a further page exists.
+  params.lim = limit + 1;
   const rows = await query<TaskRow>(
-    "SELECT * FROM tasks WHERE user_id = :uid AND completed = 0 ORDER BY created_at ASC",
-    { uid: userId }
+    `SELECT * FROM tasks WHERE ${where.join(" AND ")}
+       ORDER BY created_at ASC, id ASC LIMIT :lim`,
+    params,
   );
-  return c.json(rows.map(rowToTask));
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+  const nextCursor = hasMore && last
+    ? encodeCursor({ createdAt: last.created_at, id: last.id })
+    : null;
+
+  return c.json({ items: page.map(rowToTask), nextCursor });
 });
 
 // POST /tasks

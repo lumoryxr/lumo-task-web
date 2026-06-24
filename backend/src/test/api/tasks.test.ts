@@ -20,13 +20,15 @@ before(async () => {
 });
 
 describe("GET /v1/tasks", () => {
-  test("200 → returns array (only incomplete tasks)", async () => {
+  test("200 → paginated envelope of incomplete tasks", async () => {
     const { status, body } = await req("GET", "/v1/tasks", { token: demoToken });
     assert.equal(status, 200);
-    assert.ok(Array.isArray(body));
-    for (const t of body) assert.equal(t.completed, false);
+    // Contract: { items, nextCursor } envelope (ADR-0001 / #47).
+    assert.ok(Array.isArray(body.items));
+    assert.ok("nextCursor" in body);
+    for (const t of body.items) assert.equal(t.completed, false);
     // Contract conformance: every item must match the @lumo/contracts wire shape.
-    for (const t of body) TaskWireSchema.parse(t);
+    for (const t of body.items) TaskWireSchema.parse(t);
   });
 
   test("401 → no token", async () => {
@@ -50,17 +52,17 @@ describe("GET /v1/tasks?q= (keyword search)", () => {
   test("200 → filters by title keyword, contract-conformant", async () => {
     const { status, body } = await req("GET", `/v1/tasks?q=${M}%20apricot`, { token: demoToken });
     assert.equal(status, 200);
-    assert.ok(Array.isArray(body));
-    const titles = body.map((t: any) => t.title.en);
+    assert.ok(Array.isArray(body.items));
+    const titles = body.items.map((t: any) => t.title.en);
     assert.ok(titles.includes(`${M} apricot report`), "title match missing");
     assert.ok(!titles.includes(`${M} banana memo`), "non-match leaked");
-    for (const t of body) TaskWireSchema.parse(t);
+    for (const t of body.items) TaskWireSchema.parse(t);
   });
 
   test("200 → matches description (notes), both columns searched", async () => {
     const { status, body } = await req("GET", "/v1/tasks?q=apricot", { token: demoToken });
     assert.equal(status, 200);
-    const titles = body.map((t: any) => t.title.en);
+    const titles = body.items.map((t: any) => t.title.en);
     assert.ok(titles.includes(`${M} apricot report`), "title hit missing");
     assert.ok(titles.includes(`${M} plain`), "desc hit missing");
   });
@@ -68,20 +70,21 @@ describe("GET /v1/tasks?q= (keyword search)", () => {
   test("200 → keyword is case-insensitive", async () => {
     const { status, body } = await req("GET", "/v1/tasks?q=APRICOT", { token: demoToken });
     assert.equal(status, 200);
-    assert.ok(body.some((t: any) => t.title.en === `${M} apricot report`));
+    assert.ok(body.items.some((t: any) => t.title.en === `${M} apricot report`));
   });
 
-  test("200 → no match returns empty array", async () => {
+  test("200 → no match returns empty page", async () => {
     const { status, body } = await req("GET", "/v1/tasks?q=nonexistentkeyword999", { token: demoToken });
     assert.equal(status, 200);
-    assert.deepEqual(body, []);
+    assert.deepEqual(body.items, []);
+    assert.equal(body.nextCursor, null);
   });
 
   test("200 → LIKE wildcard in input is treated literally (not a pattern)", async () => {
     // "%" would match everything if not escaped; expect zero literal-% matches.
     const { status, body } = await req("GET", "/v1/tasks?q=%25%25%25", { token: demoToken });
     assert.equal(status, 200);
-    assert.deepEqual(body, []);
+    assert.deepEqual(body.items, []);
   });
 
   test("400 → q over max length is rejected at the boundary", async () => {
@@ -238,7 +241,7 @@ describe("POST /v1/tasks/:id/complete", () => {
 
     // Task should no longer appear in the active list
     const { body: tasks } = await req("GET", "/v1/tasks", { token: demoToken });
-    assert.equal((tasks as any[]).find((t: any) => t.id === taskId), undefined,
+    assert.equal((tasks.items as any[]).find((t: any) => t.id === taskId), undefined,
       "completed task should not appear in active list");
   });
 
@@ -266,7 +269,7 @@ describe("POST /v1/tasks/:id/uncomplete", () => {
     assert.equal(body.completed, false);
 
     const { body: tasks } = await req("GET", "/v1/tasks", { token: demoToken });
-    assert.ok((tasks as any[]).find((t: any) => t.id === taskId), "task should be back in active list");
+    assert.ok((tasks.items as any[]).find((t: any) => t.id === taskId), "task should be back in active list");
   });
 
   test("404 → task is not completed (or doesn't exist)", async () => {

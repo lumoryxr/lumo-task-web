@@ -249,9 +249,25 @@ const spec = {
     "/v1/tasks": {
       get: {
         tags: ["Tasks"],
-        summary: "List all active (non-completed) tasks",
+        summary: "List active (non-completed) tasks — keyset paginated",
+        parameters: [
+          { name: "q", in: "query", required: false, schema: { type: "string", maxLength: 200 }, description: "Keyword search over title/description (both locales)" },
+          { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 200, default: 50 }, description: "Max items per page (default 50)" },
+          { name: "cursor", in: "query", required: false, schema: { type: "string" }, description: "Opaque keyset cursor from a previous response's nextCursor" },
+        ],
         responses: {
-          "200": { description: "Task array", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/Task" } } } } },
+          "200": {
+            description: "A page of tasks plus the next-page cursor (null on the last page)",
+            content: { "application/json": { schema: {
+              type: "object",
+              required: ["items", "nextCursor"],
+              properties: {
+                items: { type: "array", items: { $ref: "#/components/schemas/Task" } },
+                nextCursor: { type: "string", nullable: true },
+              },
+            } } },
+          },
+          "400": { description: "Invalid limit or cursor" },
           "401": { description: "Unauthorized" },
         },
       },

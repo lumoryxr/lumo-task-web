@@ -264,14 +264,15 @@ export const TASK_TOOLS: ToolDefinition[] = [
 
 // ── Tool executor ─────────────────────────────────────────────────────────────
 
-const PORT = process.env.LUMO_PORT ?? "47291";
-
 export async function executeTool(
   tool: ToolCall,
   jwt: string,
   locale: string,
 ): Promise<string> {
-  const base = `http://127.0.0.1:${PORT}/v1`;
+  // Read the port at call time (not module load) so the loopback target tracks
+  // the actually-bound port — the real server uses PORT; tests set LUMO_PORT.
+  const port = process.env.PORT ?? process.env.LUMO_PORT ?? "47291";
+  const base = `http://127.0.0.1:${port}/v1`;
   const headers: Record<string, string> = {
     "Authorization": `Bearer ${jwt}`,
     "Content-Type": "application/json",
@@ -294,6 +295,23 @@ export async function executeTool(
     return t.title?.[locale] ?? t.title?.en ?? (typeof t.title === "string" ? t.title : "?");
   }
 
+  // GET /tasks is keyset-paginated ({ items, nextCursor }); page through to
+  // assemble the full task set the AI tools reason over (heavy users span
+  // multiple pages). Bounded per request; hard page cap guards a runaway loop.
+  async function listAllTasks(): Promise<any[]> {
+    const base = "/tasks?limit=200";
+    const out: any[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 1000; page++) {
+      const path = cursor ? `${base}&cursor=${encodeURIComponent(cursor)}` : base;
+      const res = (await api("GET", path)) as { items: any[]; nextCursor: string | null };
+      out.push(...res.items);
+      if (res.nextCursor == null) return out;
+      cursor = res.nextCursor;
+    }
+    return out;
+  }
+
   const a = tool.args;
 
   switch (tool.name) {
@@ -301,7 +319,7 @@ export async function executeTool(
     // ── Tasks ──────────────────────────────────────────────────────────────
 
     case "list_tasks": {
-      const tasks = await api("GET", "/tasks") as any[];
+      const tasks = await listAllTasks();
       let filtered = tasks;
       if (a.quadrant) filtered = filtered.filter((t) => t.quadrant === a.quadrant);
       if (a.today_only === "true") filtered = filtered.filter((t) => t.today);
@@ -411,7 +429,7 @@ export async function executeTool(
       const today = new Date().toISOString().slice(0, 10);
       const [allEntries, allTasks] = await Promise.all([
         api("GET", "/completed") as Promise<any[]>,
-        api("GET", "/tasks") as Promise<any[]>,
+        listAllTasks(),
       ]);
       const todayEntries = (allEntries as any[]).filter((e) => (e.completedAt ?? "").startsWith(today));
       const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
@@ -461,7 +479,7 @@ export async function executeTool(
     case "search_tasks": {
       const query = String(a.query ?? "").toLowerCase().trim();
       if (!query) return JSON.stringify({ results: [] });
-      const allTasks = await api("GET", "/tasks") as any[];
+      const allTasks = await listAllTasks();
       const results = allTasks.filter((t) => {
         const title = taskTitle(t).toLowerCase();
         return title.includes(query);
@@ -489,7 +507,7 @@ export async function executeTool(
 
     case "generate_today_plan": {
       const maxTasks = Math.min(10, parseInt(String(a.max_tasks ?? "5"), 10) || 5);
-      const allTasks = await api("GET", "/tasks") as any[];
+      const allTasks = await listAllTasks();
       const notToday = allTasks.filter((t) => !t.today && !t.completed);
       // Priority: Q1 first, then Q2, then by due date
       const priority = ["Q1", "Q2", "Q3", "Q4", "unclassified"];
