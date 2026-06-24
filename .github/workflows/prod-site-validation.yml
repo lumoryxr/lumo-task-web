@@ -1,21 +1,17 @@
 name: Production Site Validation
 
 # Validates the LIVE deployed frontend + backend (no mocks, no dev server).
-# Triggers:
-#   - PRs that touch the production E2E suite or its config
-#   - Daily schedule (regression detection on live infra)
-#   - Manual run from the Actions tab
+#
+# This is NOT part of CI: it must never run on push or pull_request, because it
+# hits the real production environment (flaky/slow on PR validation, and it
+# would exercise live infra on every change). It runs only:
+#   - On a daily schedule (regression detection against live infra)
+#   - Manually, from the Actions tab (workflow_dispatch)
 #
 # Distinct from `ui-tests.yml`, which runs the mocked-API UI suite against a
 # dev server. This workflow uses production-target Playwright config
 # (`web-app/playwright.production.config.ts` + `e2e/production.spec.ts`).
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "web-app/e2e/production.spec.ts"
-      - "web-app/playwright.production.config.ts"
-      - ".github/workflows/prod-site-validation.yml"
   schedule:
     - cron: "30 8 * * *"
   workflow_dispatch:
