@@ -79,6 +79,30 @@ describe("GET /v1/tasks · pagination", () => {
     assert.equal(new Set(all).size, 5);
   });
 
+  test("AC-3: pages don't drop/repeat rows that share an identical created_at", async () => {
+    // Force a tie: a fresh user whose tasks are stamped the same created_at, then
+    // page with limit=1 across the tie. id is the only tiebreak.
+    const u = await newUserWithToken("pg-ties");
+    const tie: string[] = [];
+    for (let i = 0; i < 4; i++) tie.push((await seedTask(u.token, {})).id);
+    await import("../../db/client.js").then(({ execute }) =>
+      execute("UPDATE tasks SET created_at = '2026-06-24T00:00:00.000Z' WHERE user_id = :uid", { uid: u.userId }),
+    );
+
+    const walked: string[] = [];
+    let cursor: string | null = null;
+    for (let g = 0; g < 50; g++) {
+      const qs: string = `limit=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+      const { body } = await req("GET", `/v1/tasks?${qs}`, { token: u.token });
+      walked.push(...body.items.map((t: any) => t.id));
+      if (body.nextCursor == null) break;
+      cursor = body.nextCursor;
+    }
+    assert.equal(walked.length, 4, "all tied rows returned");
+    assert.equal(new Set(walked).size, 4, "no duplicates across the tie boundary");
+    for (const id of tie) assert.ok(walked.includes(id), `tied row ${id} skipped`);
+  });
+
   test("AC-8: the keyset page query is index-backed (no full scan)", async () => {
     const plan = await query<{ detail: string }>(
       `EXPLAIN QUERY PLAN SELECT * FROM tasks

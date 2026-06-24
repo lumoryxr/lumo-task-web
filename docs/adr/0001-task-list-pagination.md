@@ -40,8 +40,14 @@ SELECT * FROM tasks
 ```jsonc
 { "items": TaskWire[], "nextCursor": string | null }   // null ⇒ last page (AC-7)
 ```
-Bare-array → envelope is breaking for any raw consumer. The **only** consumer is
-our own web-app, updated in the same PR.
+Bare-array → envelope is breaking for any raw consumer. There are **two**
+first-party consumers, both updated in the same PR:
+1. the web-app (`api.listTasks`), and
+2. the backend AI tools (`lib/ai-tools.ts`), which call `GET /tasks` over the
+   loopback API in `list_tasks` / `get_focus_stats` / `search_tasks` /
+   `generate_today_plan` — these now page the envelope via a `listAllTasks()`
+   helper. (Caught by the pagination code review, not the initial draft — hence
+   this correction.)
 
 ### 4. Frontend blast-radius — absorb inside `listTasks()`
 The web-app's matrix / today / week views operate on the **full** incomplete-task

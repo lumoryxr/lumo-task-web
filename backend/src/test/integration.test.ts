@@ -27,6 +27,7 @@ import { rmSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { runMigrations } from "../db/migrate.js";
 import { app } from "../app.js";
+import { executeTool } from "../lib/ai-tools.js";
 
 // ── Server lifecycle ──────────────────────────────────────────────────────────
 // LUMO_DB_PATH is set via --env-file before module load so the db client picks
@@ -51,6 +52,9 @@ before(async () => {
       // requested port (0) rather than the bound port, so we don't use it.
       const addr = (server as any).address() as AddressInfo;
       BASE_URL = `http://127.0.0.1:${addr.port}`;
+      // Point the AI tools' loopback (executeTool) at this server's real port.
+      delete process.env.PORT;
+      process.env.LUMO_PORT = String(addr.port);
       resolve();
     });
   });
@@ -793,5 +797,26 @@ describe("Multi-user data isolation", () => {
 
     // Uncomplete for cleanup
     await api("POST", `/v1/tasks/${aliceTaskId}/uncomplete`, { token: aliceToken });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AI tools consume GET /tasks via the loopback API — must handle the paginated
+// envelope (regression guard from the pagination review of #48).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("AI tools · list_tasks over the paginated envelope", () => {
+  test("executeTool(list_tasks) unwraps { items } and returns the user's tasks", async () => {
+    const { body: reg } = await api("POST", "/v1/auth/register", {
+      body: { email: `ai-pg-${Date.now()}@test.local`, password: "password123", name: "AI Pg" },
+    });
+    const token = reg.token as string;
+    await api("POST", "/v1/tasks", { token, body: { title: { en: "AI sees me" }, quadrant: "Q1" } });
+
+    // Before the fix this threw (filtered.map on an object); now it returns JSON.
+    const out = await executeTool({ id: "1", name: "list_tasks", args: {} }, token, "en");
+    const parsed = JSON.parse(out);
+    assert.ok(Array.isArray(parsed), "list_tasks must return a JSON array");
+    assert.ok(parsed.some((t: any) => t.title === "AI sees me"), "seeded task missing from AI tool output");
   });
 });
