@@ -295,6 +295,22 @@ export async function runMigrations() {
   if (!userColsSV.some((col) => col.name === "session_version")) {
     await execRaw("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
   }
+
+  // Secondary indexes on the multi-tenant tables. Every list/read query filters
+  // by user_id (and sorts by created_at / completed_at / date); without these,
+  // SQLite full-scans the shared table per request, which both slows reads and
+  // — because scans hold the lock — starves the single writer at scale. The
+  // composite (user_id, …sort/filter) shape lets the hot queries run as index
+  // range scans with the ORDER BY already satisfied.
+  await execRaw(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_created ON tasks(user_id, completed, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_quadrant ON tasks(user_id, completed, quadrant);
+    CREATE INDEX IF NOT EXISTS idx_completed_user_completedat ON completed_entries(user_id, completed_at);
+    CREATE INDEX IF NOT EXISTS idx_people_user_created ON people(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_habits_user_created ON habits(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_habit_logs_user_date ON habit_logs(user_id, date);
+    CREATE INDEX IF NOT EXISTS idx_countdowns_user_created ON countdown_events(user_id, created_at);
+  `);
 }
 
 // When run directly as a script
