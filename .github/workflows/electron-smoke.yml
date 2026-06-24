@@ -69,6 +69,9 @@ jobs:
         run: xvfb-run -a npx playwright test --config playwright.electron.config.ts
         env:
           LUMO_USE_DIST: "1"
+          # Electron's setuid sandbox doesn't work in unprivileged CI containers;
+          # disable it so launch failures reflect real bugs, not sandbox/infra.
+          ELECTRON_DISABLE_SANDBOX: "1"
 
       - name: Upload Electron report on failure
         if: failure()

@@ -54,7 +54,11 @@ process.on("unhandledRejection", (reason) => {
 function getOrCreateJwtSecret() {
   const secretPath = path.join(app.getPath("userData"), "jwt.secret");
   if (fs.existsSync(secretPath)) {
-    return fs.readFileSync(secretPath, "utf8").trim();
+    // Treat a blank/truncated file (e.g. a crash mid-write) as absent and
+    // regenerate, rather than handing the backend an empty secret it rejects
+    // on every launch — which would permanently brick the install.
+    const existing = fs.readFileSync(secretPath, "utf8").trim();
+    if (existing) return existing;
   }
   const secret = crypto.randomBytes(48).toString("hex");
   fs.writeFileSync(secretPath, secret, { mode: 0o600 });
@@ -74,7 +78,10 @@ function getOrCreateJwtSecret() {
 function getOrCreateEncryptionKey() {
   const keyPath = path.join(app.getPath("userData"), "encryption.key");
   if (fs.existsSync(keyPath)) {
-    return fs.readFileSync(keyPath, "utf8").trim();
+    // Blank/truncated file → regenerate (see getOrCreateJwtSecret). A populated
+    // key is always reused so previously-encrypted data stays decryptable.
+    const existing = fs.readFileSync(keyPath, "utf8").trim();
+    if (existing) return existing;
   }
   const key = crypto.randomBytes(32).toString("hex");
   fs.writeFileSync(keyPath, key, { mode: 0o600 });
