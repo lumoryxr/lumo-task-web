@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { habitApi } from "@/api/client";
+import { habitApi, buildHabitUpdateBody } from "@/api/client";
 import type { Habit, HabitColor, HabitFrequency, HabitLog } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
@@ -142,7 +142,7 @@ export const useHabitsStore = create<HabitsState>((set) => ({
     try {
       await withOfflineQueue(
         userId,
-        { key: `update:${id}:${Date.now()}`, method: "PATCH", path: `/habits/${id}`, body: patch },
+        { key: `update:${id}:${clientId("u")}`, method: "PATCH", path: `/habits/${id}`, body: buildHabitUpdateBody(patch) },
         async () => {
           const updated = await habitApi.updateHabit(userId, id, patch);
           set((s) => ({ habits: s.habits.map((h) => (h.id === id ? updated : h)) }));

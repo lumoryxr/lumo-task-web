@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { countdownApi } from "@/api/client";
+import { countdownApi, buildCountdownUpdateBody } from "@/api/client";
 import type { CountdownColor, CountdownEvent, CountdownRepeat } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
@@ -122,7 +122,7 @@ export const useCountdownStore = create<CountdownState>((set) => ({
     try {
       await withOfflineQueue(
         userId,
-        { key: `update:${id}:${Date.now()}`, method: "PATCH", path: `/countdowns/${id}`, body: patch },
+        { key: `update:${id}:${clientId("u")}`, method: "PATCH", path: `/countdowns/${id}`, body: buildCountdownUpdateBody(patch) },
         async () => {
           const updated = await countdownApi.update(userId, id, patch);
           set((s) => ({ events: s.events.map((e) => (e.id === id ? updated : e)) }));

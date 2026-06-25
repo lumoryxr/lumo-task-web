@@ -169,6 +169,33 @@ export function buildTaskUpdateBody(patch: TaskUpdateInput) {
   };
 }
 
+/** PATCH /habits/:id wire body — curates undefined→null so an offline replay
+ *  clears a field the same way the online call does. Shared by both paths. */
+export function buildHabitUpdateBody(patch: Partial<Omit<Habit, "id" | "createdAt">>) {
+  return {
+    ...(patch.title !== undefined && { title: patch.title }),
+    ...("emoji" in patch && { emoji: patch.emoji ?? null }),
+    ...(patch.color !== undefined && { color: patch.color }),
+    ...(patch.frequency !== undefined && { frequency: patch.frequency }),
+    ...("frequencyDays" in patch && { frequencyDays: patch.frequencyDays ?? null }),
+    ...("frequencyTimes" in patch && { frequencyTimes: patch.frequencyTimes ?? null }),
+    ...("frequencyInterval" in patch && { frequencyInterval: patch.frequencyInterval ?? null }),
+    ...("note" in patch && { note: patch.note ?? null }),
+  };
+}
+
+/** PATCH /countdowns/:id wire body — shared by online update and offline replay. */
+export function buildCountdownUpdateBody(patch: Partial<Omit<CountdownEvent, "id" | "createdAt">>) {
+  return {
+    ...(patch.title !== undefined && { title: patch.title }),
+    ...(patch.date !== undefined && { date: patch.date }),
+    ...("emoji" in patch && { emoji: patch.emoji ?? null }),
+    ...(patch.color !== undefined && { color: patch.color }),
+    ...(patch.repeat !== undefined && { repeat: patch.repeat }),
+    ...("note" in patch && { note: patch.note ?? null }),
+  };
+}
+
 /** The POST /tasks wire body — shared by online create and offline-queue replay. */
 export function buildTaskCreateBody(input: TaskCreateInput, id?: string) {
   return {
@@ -576,16 +603,7 @@ export const habitApi = {
   },
 
   async updateHabit(_userId: string, id: string, patch: Partial<Omit<Habit, "id" | "createdAt">>): Promise<Habit> {
-    const raw = await req<any>("PATCH", `/habits/${id}`, {
-      ...(patch.title !== undefined && { title: patch.title }),
-      ...("emoji" in patch && { emoji: patch.emoji ?? null }),
-      ...(patch.color !== undefined && { color: patch.color }),
-      ...(patch.frequency !== undefined && { frequency: patch.frequency }),
-      ...("frequencyDays" in patch && { frequencyDays: patch.frequencyDays ?? null }),
-      ...("frequencyTimes" in patch && { frequencyTimes: patch.frequencyTimes ?? null }),
-      ...("frequencyInterval" in patch && { frequencyInterval: patch.frequencyInterval ?? null }),
-      ...("note" in patch && { note: patch.note ?? null }),
-    });
+    const raw = await req<any>("PATCH", `/habits/${id}`, buildHabitUpdateBody(patch));
     return adaptHabit(raw);
   },
 
@@ -647,14 +665,7 @@ export const countdownApi = {
   },
 
   async update(_userId: string, id: string, patch: Partial<Omit<CountdownEvent, "id" | "createdAt">>): Promise<CountdownEvent> {
-    const raw = await req<any>("PATCH", `/countdowns/${id}`, {
-      ...(patch.title !== undefined && { title: patch.title }),
-      ...(patch.date !== undefined && { date: patch.date }),
-      ...("emoji" in patch && { emoji: patch.emoji ?? null }),
-      ...(patch.color !== undefined && { color: patch.color }),
-      ...(patch.repeat !== undefined && { repeat: patch.repeat }),
-      ...("note" in patch && { note: patch.note ?? null }),
-    });
+    const raw = await req<any>("PATCH", `/countdowns/${id}`, buildCountdownUpdateBody(patch));
     return adaptCountdownEvent(raw);
   },
 

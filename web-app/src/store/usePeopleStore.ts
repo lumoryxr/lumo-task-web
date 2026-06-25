@@ -69,7 +69,7 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
     try {
       await withOfflineQueue(
         uid,
-        { key: `update:${id}:${Date.now()}`, method: "PATCH", path: `/people/${id}`, body: patch },
+        { key: `update:${id}:${clientId("u")}`, method: "PATCH", path: `/people/${id}`, body: patch },
         async () => {
           const next = await api.updatePerson(id, patch);
           set({ people: get().people.map((p) => (p.id === id ? next : p)) });

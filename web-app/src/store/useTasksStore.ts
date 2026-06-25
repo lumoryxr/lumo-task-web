@@ -124,7 +124,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     try {
       await withOfflineQueue(
         uid,
-        { key: `update:${id}:${Date.now()}`, method: "PATCH", path: `/tasks/${id}`, body: buildTaskUpdateBody(patch) },
+        { key: `update:${id}:${clientId("u")}`, method: "PATCH", path: `/tasks/${id}`, body: buildTaskUpdateBody(patch) },
         async () => {
           const next = await api.updateTask(id, patch);
           set({ tasks: get().tasks.map((t) => (t.id === id ? next : t)) });
