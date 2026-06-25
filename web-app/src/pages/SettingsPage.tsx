@@ -1048,16 +1048,6 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
-  const [status, setStatus] = useState<{ configured: boolean; remoteUrl: string; status: string; error: string | null; lastSyncAt: string | null } | null>(null);
-
-  const refreshStatus = useCallback(() => {
-    api.remoteStatus()
-      .then((s) => {
-        setStatus(s);
-        if (s.remoteUrl) setUrl((prev) => prev || s.remoteUrl);
-      })
-      .catch(() => setStatus(null));
-  }, []);
 
   useEffect(() => {
     api.syncStatus().then((s) => {
@@ -1071,18 +1061,12 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
         setUrl(cfg.url ?? "");
         setHasToken(cfg.hasToken);
       }).catch(() => {});
-    } else {
-      refreshStatus();
     }
-  }, [isElectron, refreshStatus]);
+  }, [isElectron]);
 
   function badgeContent() {
-    if (!isElectron) {
-      if (status?.status === "ok") return { label: t("settings.sync.replicaBadge"), color: "var(--accent-primary)" };
-      if (status?.status === "error") return { label: t("settings.sync.status.error"), color: "var(--status-urgent)" };
-      if (status?.configured) return { label: t("settings.sync.status.connecting"), color: "var(--text-muted)" };
-      return { label: t("settings.sync.webBadge"), color: "var(--text-muted)" };
-    }
+    // Web: cloud sync is server-authoritative and automatic (ADR-0003) — always on.
+    if (!isElectron) return { label: t("settings.sync.webBadge"), color: "var(--accent-primary)" };
     if (mode === "replica") return { label: t("settings.sync.replicaBadge"), color: "var(--accent-primary)" };
     return { label: t("settings.sync.localBadge"), color: "var(--accent-primary)" };
   }
@@ -1097,53 +1081,15 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
     }
   }
 
-  async function handleWebSave() {
-    if (saving) return;
-    setSaving(true);
-    try {
-      const res = await api.setRemoteConfig(url.trim(), token.trim());
-      setStatus((s) => ({ ...(s ?? { remoteUrl: url.trim() }), configured: Boolean(url.trim()), remoteUrl: url.trim(), status: res.status, error: res.error, lastSyncAt: res.lastSyncAt }));
-      setToken("");
-    } catch {
-      toast.error(t("settings.sync.error.save"), "");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDisconnect() {
-    if (saving) return;
-    setSaving(true);
-    try {
-      await api.setRemoteConfig("", "");
-      setStatus({ configured: false, remoteUrl: "", status: "disabled", error: null, lastSyncAt: null });
-      setUrl("");
-      setToken("");
-    } catch {
-      toast.error(t("settings.sync.error.save"), "");
-    } finally {
-      setSaving(false);
-    }
-  }
-
+  // Desktop (embedded replica) manual sync trigger; web sync is automatic.
   async function handleSyncNow() {
     if (syncing) return;
     setSyncing(true);
     try {
-      if (isElectron) {
-        const res = await api.syncNow();
-        setLastSyncAt(res.syncedAt);
-      } else {
-        const res = await api.triggerSync();
-        if (res.ok) {
-          setStatus((s) => s ? { ...s, lastSyncAt: res.lastSyncAt, status: "ok", error: null } : s);
-        } else {
-          refreshStatus();
-        }
-      }
+      const res = await api.syncNow();
+      setLastSyncAt(res.syncedAt);
     } catch {
       toast.error(t("settings.sync.error.trigger"), "");
-      if (!isElectron) refreshStatus();
     } finally {
       setSyncing(false);
     }
@@ -1158,20 +1104,6 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
   }
 
   const { label: badgeLabel, color: badgeColor } = badgeContent();
-  const st = status?.status ?? "disabled";
-  const syncStatusLabel: Record<string, string> = {
-    disabled: t("settings.sync.status.disabled"),
-    connecting: t("settings.sync.status.connecting"),
-    ok: t("settings.sync.status.ok"),
-    error: t("settings.sync.status.error"),
-  };
-  const syncStatusColor: Record<string, string> = {
-    disabled: "var(--text-faint)",
-    connecting: "var(--text-muted)",
-    ok: "var(--accent-primary)",
-    error: "var(--status-urgent)",
-  };
-  const canRetry = status?.configured && (st === "ok" || st === "error");
 
   return (
     <div>
@@ -1183,9 +1115,9 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
             <span className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: badgeColor }} />
             <span className="text-[12px]" style={{ color: badgeColor }}>{badgeLabel}</span>
           </div>
-          {(mode === "replica" || status?.lastSyncAt) && (
+          {(mode === "replica" || lastSyncAt) && (
             <span className="text-[11px] text-text-faint">
-              {t("settings.sync.lastSync")}: {fmtRelative(lastSyncAt ?? status?.lastSyncAt ?? null)}
+              {t("settings.sync.lastSync")}: {fmtRelative(lastSyncAt)}
             </span>
           )}
         </div>
@@ -1234,41 +1166,17 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
             </div>
           </>
         ) : (
-          <>
-            <div className="grid items-center px-5 py-4 border-t border-border-faint" style={{ gridTemplateColumns: "220px 1fr", gap: 36 }}>
-              <div>
-                <div className="text-[13px] font-medium text-text-primary">{t("settings.sync.title")}</div>
-                <div className="text-[11.5px] text-text-muted mt-1 leading-relaxed">{t("settings.sync.helper")}</div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-[12px] font-medium" style={{ color: syncStatusColor[st] ?? "var(--text-faint)" }}>{syncStatusLabel[st] ?? st}</span>
-                {canRetry && (
-                  <button onClick={handleSyncNow} disabled={syncing} className="btn btn-ghost" style={{ height: 28, fontSize: 11, padding: "0 10px" }}>
-                    {syncing ? t("settings.sync.syncing") : t("settings.sync.trigger")}
-                  </button>
-                )}
-              </div>
+          // Web: cloud sync is server-authoritative and automatic — no manual
+          // config (ADR-0003). Data is backed by the cloud and kept consistent
+          // across devices via the incremental delta sync.
+          <div className="px-5 py-4 border-t border-border-faint">
+            <div className="text-[13px] font-medium text-text-primary">{t("settings.sync.title")}</div>
+            <div className="text-[11.5px] text-text-muted mt-1 leading-relaxed">
+              {locale === "zh"
+                ? "你的数据已自动同步到云端,并在多设备间实时保持一致——无需手动配置。"
+                : "Your data syncs to the cloud automatically and stays consistent across your devices — no setup needed."}
             </div>
-
-            {status?.error && (
-              <div className="px-5 pb-3 text-[11px]" style={{ color: "var(--status-urgent)" }}>{status.error}</div>
-            )}
-
-            <div className="px-5 py-4 border-t flex flex-col gap-3" style={{ borderColor: "var(--border-faint)" }}>
-              <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("settings.sync.url.placeholder")} className="w-full text-[13px] rounded-md px-3 py-2 border bg-transparent outline-none" style={{ borderColor: "var(--border-default)", color: "var(--text-primary)" }} />
-              <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={t("settings.sync.token.placeholder")} className="w-full text-[13px] rounded-md px-3 py-2 border bg-transparent outline-none" style={{ borderColor: "var(--border-default)", color: "var(--text-primary)" }} />
-              <div className="flex gap-2">
-                <button onClick={handleWebSave} disabled={saving || !url.trim()} className="btn btn-primary" style={{ height: 32, fontSize: 12 }}>
-                  {saving ? t("settings.sync.saving") : t("settings.sync.save")}
-                </button>
-                {status?.configured && (
-                  <button onClick={handleDisconnect} disabled={saving} className="btn btn-ghost" style={{ height: 32, fontSize: 12 }}>
-                    {t("settings.sync.disconnect")}
-                  </button>
-                )}
-              </div>
-            </div>
-          </>
+          </div>
         )}
       </div>
     </div>

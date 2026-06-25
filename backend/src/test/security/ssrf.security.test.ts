@@ -101,24 +101,7 @@ describe("ssrf: route enforcement (hosted mode — TURSO_DATABASE_URL set in tes
     });
     assert.equal(status, 200);
   });
-
-  test("PATCH /storage/remote-config rejects a file: remote URL (scheme not allowed)", async () => {
-    const { token } = await signInDemo();
-    const { status, body } = await req("PATCH", "/v1/storage/remote-config", {
-      token,
-      body: { remoteUrl: "file:/tmp/lumo.db" },
-    });
-    assert.equal(status, 400);
-    assert.equal(body.error.code, "INVALID_REMOTE_URL");
-  });
-
-  test("PATCH /storage/remote-config rejects an internal libsql host", async () => {
-    const { token } = await signInDemo();
-    const { status, body } = await req("PATCH", "/v1/storage/remote-config", {
-      token,
-      body: { remoteUrl: "libsql://127.0.0.1:8080" },
-    });
-    assert.equal(status, 400);
-    assert.equal(body.error.code, "INVALID_REMOTE_URL");
-  });
+  // NOTE: the /storage/remote-config SSRF tests were removed with that endpoint
+  // (ADR-0003 Phase 5 — legacy manual remote sync deleted). The AI baseUrl SSRF
+  // guard above still exercises lib/ssrf, which remains in use.
 });

@@ -433,18 +433,6 @@ export const api = {
     return req("GET", "/storage/info");
   },
 
-  async remoteStatus(): Promise<{ configured: boolean; remoteUrl: string; status: string; error: string | null; lastSyncAt: string | null }> {
-    return req("GET", "/storage/remote-status");
-  },
-
-  async setRemoteConfig(remoteUrl: string, remoteToken: string): Promise<{ ok: boolean; status: string; error: string | null; lastSyncAt: string | null }> {
-    return req("PATCH", "/storage/remote-config", { remoteUrl, remoteToken });
-  },
-
-  async triggerSync(): Promise<{ ok: boolean; lastSyncAt: string | null }> {
-    return req("POST", "/storage/remote-sync", {});
-  },
-
   async outlookStatus(): Promise<{ configured: boolean; userEmail: string | null }> {
     return req("GET", "/outlook/status");
   },
