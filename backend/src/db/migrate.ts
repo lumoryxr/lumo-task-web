@@ -390,6 +390,14 @@ export async function runMigrations() {
       PRIMARY KEY (user_id, key)
     );
   `);
+
+  // GC floor (ADR-0003 Phase 5): the highest seq whose tombstones have been
+  // pruned. A client whose cursor is below this may have missed a GC'd delete,
+  // so the delta endpoint tells it to full-resync. Stored on the sync_seq row.
+  const seqCols = await query<{ name: string }>("PRAGMA table_info(sync_seq)");
+  if (!seqCols.some((col) => col.name === "gc_floor")) {
+    await execRaw("ALTER TABLE sync_seq ADD COLUMN gc_floor INTEGER NOT NULL DEFAULT 0");
+  }
 }
 
 // When run directly as a script

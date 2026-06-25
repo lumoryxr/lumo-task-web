@@ -6,6 +6,7 @@ import { httpError } from "../lib/errors.js";
 import { syncDb, dbMode, query } from "../db/client.js";
 import type { Variables } from "../env.js";
 import { SyncDeltaQuerySchema } from "@lumo/contracts";
+import { getGcFloor } from "../lib/gc.js";
 import { rowToTask } from "./tasks.js";
 import { rowToEntry } from "./completed.js";
 import { rowToPerson } from "./people.js";
@@ -38,6 +39,17 @@ const SYNC_DOMAINS: { key: string; table: string; map: (row: any) => unknown }[]
 app.get("/", syncRateLimit, zValidator("query", SyncDeltaQuerySchema), async (c) => {
   const userId = c.get("userId") as string;
   const { since, limit } = c.req.valid("query");
+
+  // If the cursor is below the GC floor, pruned tombstones may have been missed
+  // → tell the client to full-resync. (since=0 is already a full snapshot.)
+  if (since > 0 && since < (await getGcFloor())) {
+    return c.json({
+      cursor: since,
+      hasMore: false,
+      resyncRequired: true,
+      changes: { tasks: [], completed: [], people: [], habits: [], countdowns: [] },
+    });
+  }
 
   // Fetch up to limit+1 changed rows per domain (seq ascending), then merge by
   // the GLOBAL seq and keyset-paginate across all domains. The cursor is just a

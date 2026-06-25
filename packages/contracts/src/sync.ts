@@ -26,6 +26,10 @@ export const SyncDeltaResponseSchema = z.object({
   cursor: z.number().int(),
   // True when more changes remain beyond this page (keep paging at `cursor`).
   hasMore: z.boolean(),
+  // True when the client's `since` is below the GC floor: it may have missed
+  // pruned tombstones and must full-resync (re-pull from since=0). When set,
+  // `changes` is empty and the client should discard local state and reload.
+  resyncRequired: z.boolean().optional(),
   changes: z.object({
     tasks: z.array(SyncChangeRecordSchema),
     completed: z.array(SyncChangeRecordSchema),

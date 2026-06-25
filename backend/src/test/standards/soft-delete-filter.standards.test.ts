@@ -39,9 +39,12 @@ const EXCLUDE = [
 // an interpolated read of a soft-deletable table could slip an unfiltered read
 // past the guard. We therefore FLAG any interpolated `FROM ${...}` in a SELECT
 // unless its file is explicitly allowlisted as intentionally reading tombstones.
-// routes/sync.ts (the delta-pull endpoint) is the one place that deliberately
-// returns deleted rows so deletions propagate (ADR-0003).
-const DYNAMIC_FROM_ALLOWLIST = [path.join(SRC_DIR, "routes", "sync.ts")];
+// These deliberately read tombstones (ADR-0003): routes/sync.ts (delta-pull
+// returns deleted rows so deletions propagate) and lib/gc.ts (prunes tombstones).
+const DYNAMIC_FROM_ALLOWLIST = [
+  path.join(SRC_DIR, "routes", "sync.ts"),
+  path.join(SRC_DIR, "lib", "gc.ts"),
+];
 
 /** Collect every .ts source file under backend/src (excluding tests + sync.ts). */
 function sourceFiles(dir: string): string[] {
