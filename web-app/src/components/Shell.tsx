@@ -7,6 +7,12 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { FloatingPet } from "@/components/FloatingPet";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useTasksStore } from "@/store/useTasksStore";
+import { usePeopleStore } from "@/store/usePeopleStore";
+import { useHabitsStore } from "@/store/useHabitsStore";
+import { useCountdownStore } from "@/store/useCountdownStore";
+import { startSyncEngine } from "@/lib/syncEngine";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 /**
@@ -58,6 +64,21 @@ export function Shell() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Multi-device live refresh (ADR-0003 Phase 4): poll the incremental delta and
+  // refresh just the stores whose domain changed on another device. Additive —
+  // local writes still flow through the stores' own optimistic path.
+  const userId = useAuthStore((s) => s.user.id);
+  useEffect(() => {
+    if (!userId) return;
+    const engine = startSyncEngine(userId, (domains) => {
+      if (domains.has("tasks") || domains.has("completed")) void useTasksStore.getState().load();
+      if (domains.has("people")) void usePeopleStore.getState().load();
+      if (domains.has("habits")) void useHabitsStore.getState().load(userId);
+      if (domains.has("countdowns")) void useCountdownStore.getState().load(userId);
+    });
+    return () => engine.stop();
+  }, [userId]);
 
   const titleMap: Record<string, { title: string; sub: string }> = {
     "/today": { title: t("today.title"), sub: t("today.sub") },
