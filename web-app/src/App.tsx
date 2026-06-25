@@ -1,18 +1,49 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Shell } from "@/components/Shell";
-import { TodayPage } from "@/pages/TodayPage";
-import { MatrixPage } from "@/pages/MatrixPage";
-import { FocusPage } from "@/pages/FocusPage";
-import { SettingsPage } from "@/pages/SettingsPage";
-import { OnboardingPage } from "@/pages/OnboardingPage";
-import { LoginPage } from "@/pages/LoginPage";
-import { RegisterPage } from "@/pages/RegisterPage";
-import { AccountPage } from "@/pages/AccountPage";
-import { ChangePasswordPage } from "@/pages/ChangePasswordPage";
-import { CountdownPage } from "@/pages/CountdownPage";
-import { HabitsPage } from "@/pages/HabitsPage";
-import { StatsPage } from "@/pages/StatsPage";
+import { RouteFallback } from "@/components/RouteFallback";
+
+// Route-level code splitting: each page ships as its own chunk, loaded on
+// demand, so the initial bundle no longer carries every screen's code. Pages
+// use named exports, so map them onto the default export `React.lazy` expects.
+const TodayPage = lazy(() =>
+  import("@/pages/TodayPage").then((m) => ({ default: m.TodayPage }))
+);
+const MatrixPage = lazy(() =>
+  import("@/pages/MatrixPage").then((m) => ({ default: m.MatrixPage }))
+);
+const FocusPage = lazy(() =>
+  import("@/pages/FocusPage").then((m) => ({ default: m.FocusPage }))
+);
+const SettingsPage = lazy(() =>
+  import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage }))
+);
+const OnboardingPage = lazy(() =>
+  import("@/pages/OnboardingPage").then((m) => ({ default: m.OnboardingPage }))
+);
+const LoginPage = lazy(() =>
+  import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage }))
+);
+const RegisterPage = lazy(() =>
+  import("@/pages/RegisterPage").then((m) => ({ default: m.RegisterPage }))
+);
+const AccountPage = lazy(() =>
+  import("@/pages/AccountPage").then((m) => ({ default: m.AccountPage }))
+);
+const ChangePasswordPage = lazy(() =>
+  import("@/pages/ChangePasswordPage").then((m) => ({
+    default: m.ChangePasswordPage,
+  }))
+);
+const CountdownPage = lazy(() =>
+  import("@/pages/CountdownPage").then((m) => ({ default: m.CountdownPage }))
+);
+const HabitsPage = lazy(() =>
+  import("@/pages/HabitsPage").then((m) => ({ default: m.HabitsPage }))
+);
+const StatsPage = lazy(() =>
+  import("@/pages/StatsPage").then((m) => ({ default: m.StatsPage }))
+);
 import { applyAccentTheme, useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
@@ -96,6 +127,7 @@ export default function App() {
   return (
     <ErrorBoundary>
     <ToastStack />
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
       {/* Stand-alone full-screen pages (own layout, no Shell) */}
       <Route path="/onboarding" element={<OnboardingPage />} />
@@ -117,6 +149,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/today" replace />} />
       </Route>
     </Routes>
+    </Suspense>
     </ErrorBoundary>
   );
 }
