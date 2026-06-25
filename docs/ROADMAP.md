@@ -19,7 +19,7 @@ The loop prefers the **highest unchecked item in the lowest-numbered phase** tha
 ## Phase 1 — Polish & UX  ⬅ current focus
 Grounded in the current app (12 pages; `ErrorBoundary` + `ToastStack` exist; pet/gamification system present).
 
-- [ ] **Route-level code splitting** — `React.lazy` + `Suspense` per page + vite `manualChunks`. Main chunk is ~800KB today (no splitting) → slow first paint. Biggest single UX+perf win.
+- [x] **Route-level code splitting** — `React.lazy` + single `<Suspense>` per page + vite `manualChunks` (`react-vendor`/`html2canvas`/`msal`). Entry bundle ~800KB monolith → `index` ~168KB; `html2canvas` (201KB) & `msal` (236KB) now lazy. Extracted `PersonAvatar` into its own module so eager call sites no longer drag the Settings chunk into the entry bundle. `RouteFallback` loading state (a11y `role=status`/`aria-live`, reduced-motion aware). *(PR #71, merged 2026-06-25)*
 - [ ] **Loading skeletons** — replace blank/jank during fetches (tasks, habits, stats, completed) with skeleton placeholders (none exist yet).
 - [ ] **Client request resilience** — timeout + `AbortController` + limited retry in `web-app/src/api/client.ts` (none today): no infinite spinners on slow networks.
 - [ ] **Empty-state audit** — consistent, friendly empty states (illustration + clear CTA) on every list page.
