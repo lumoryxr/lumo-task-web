@@ -8,8 +8,8 @@
  */
 
 import { create } from "zustand";
-import { api, buildTaskCreateBody } from "@/api/client";
-import { enqueue, clientId, isOfflineError } from "@/lib/writeQueue";
+import { api, buildTaskCreateBody, buildTaskUpdateBody } from "@/api/client";
+import { clientId, withOfflineQueue } from "@/lib/writeQueue";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { CompletedEntry, Subtask, Task, TaskCompleteResponse, TaskCreateInput, TaskUpdateInput } from "@/types/task";
 import { toast } from "@/store/useToastStore";
@@ -74,46 +74,45 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     // Client-generated id so an offline-created task has a stable id and its
     // queued create replays idempotently (ADR-0003 Phase 4b).
     const id = clientId("t");
+    const uid = useAuthStore.getState().user.id;
     try {
-      const task = await api.createTask(input, id);
-      set({ tasks: [task, ...get().tasks] });
-      return task;
+      return await withOfflineQueue(
+        uid,
+        { key: `create:${id}`, method: "POST", path: "/tasks", body: buildTaskCreateBody(input, id) },
+        async () => {
+          const task = await api.createTask(input, id);
+          set({ tasks: [task, ...get().tasks] });
+          return task;
+        },
+        () => {
+          const optimistic: Task = {
+            id,
+            assignee_ids: input.assignee_ids ?? [],
+            title: input.title,
+            desc: input.desc ?? null,
+            quadrant: input.quadrant ?? "unclassified",
+            today: input.today ?? false,
+            week_focus: false,
+            due: input.due ?? null,
+            duration: input.duration ?? 0,
+            pomos_done: 0,
+            pomos_total: input.pomos_total ?? 0,
+            conviction: input.conviction ?? undefined,
+            next_step: input.next_step ?? undefined,
+            reason: input.reason ?? undefined,
+            ai_suggest: input.ai_suggest ?? undefined,
+            completed: false,
+            not_now: input.not_now ?? [],
+            recurrence: input.recurrence ?? "none",
+            subtasks: input.subtasks ?? [],
+            scheduled_start: input.scheduled_start ?? null,
+            created_at: new Date().toISOString(),
+          };
+          set({ tasks: [optimistic, ...get().tasks] });
+          return optimistic;
+        },
+      );
     } catch (e) {
-      if (isOfflineError(e)) {
-        // Offline: show the task now and queue the create to replay on reconnect.
-        const optimistic: Task = {
-          id,
-          assignee_ids: input.assignee_ids ?? [],
-          title: input.title,
-          desc: input.desc ?? null,
-          quadrant: input.quadrant ?? "unclassified",
-          today: input.today ?? false,
-          week_focus: false,
-          due: input.due ?? null,
-          duration: input.duration ?? 0,
-          pomos_done: 0,
-          pomos_total: input.pomos_total ?? 0,
-          conviction: input.conviction ?? undefined,
-          next_step: input.next_step ?? undefined,
-          reason: input.reason ?? undefined,
-          ai_suggest: input.ai_suggest ?? undefined,
-          completed: false,
-          not_now: input.not_now ?? [],
-          recurrence: input.recurrence ?? "none",
-          subtasks: input.subtasks ?? [],
-          scheduled_start: input.scheduled_start ?? null,
-          created_at: new Date().toISOString(),
-        };
-        set({ tasks: [optimistic, ...get().tasks] });
-        enqueue(useAuthStore.getState().user.id, {
-          key: `create:${id}`,
-          method: "POST",
-          path: "/tasks",
-          body: buildTaskCreateBody(input, id),
-          ts: Date.now(),
-        });
-        return optimistic;
-      }
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(t("error.task.create"), msg);
       throw e;
@@ -121,9 +120,20 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   async update(id, patch) {
+    const uid = useAuthStore.getState().user.id;
     try {
-      const next = await api.updateTask(id, patch);
-      set({ tasks: get().tasks.map((t) => (t.id === id ? next : t)) });
+      await withOfflineQueue(
+        uid,
+        { key: `update:${id}:${Date.now()}`, method: "PATCH", path: `/tasks/${id}`, body: buildTaskUpdateBody(patch) },
+        async () => {
+          const next = await api.updateTask(id, patch);
+          set({ tasks: get().tasks.map((t) => (t.id === id ? next : t)) });
+        },
+        () => {
+          // Optimistic local merge (reconciled by the delta poll on reconnect).
+          set({ tasks: get().tasks.map((t) => (t.id === id ? ({ ...t, ...patch } as Task) : t)) });
+        },
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(t("error.task.update"), msg);
@@ -162,9 +172,19 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   async remove(id) {
+    const uid = useAuthStore.getState().user.id;
     try {
-      await api.deleteTask(id);
-      set({ tasks: get().tasks.filter((t) => t.id !== id) });
+      await withOfflineQueue(
+        uid,
+        { key: `delete:${id}`, method: "DELETE", path: `/tasks/${id}` },
+        async () => {
+          await api.deleteTask(id);
+          set({ tasks: get().tasks.filter((t) => t.id !== id) });
+        },
+        () => {
+          set({ tasks: get().tasks.filter((t) => t.id !== id) });
+        },
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(t("error.task.delete"), msg);

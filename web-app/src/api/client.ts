@@ -146,6 +146,29 @@ async function req<T>(
 
 // ── Type adapters (backend snake_case → frontend camelCase where needed) ──────
 
+/** The PATCH /tasks/:id wire body — shared by online update and offline replay. */
+export function buildTaskUpdateBody(patch: TaskUpdateInput) {
+  return {
+    ...(patch.title !== undefined && { title: patch.title }),
+    ...(patch.desc !== undefined && { desc: patch.desc }),
+    ...(patch.quadrant !== undefined && { quadrant: patch.quadrant }),
+    ...(patch.today !== undefined && { today: patch.today }),
+    ...(patch.week_focus !== undefined && { week_focus: patch.week_focus }),
+    ...(patch.due !== undefined && { due: patch.due }),
+    ...(patch.duration !== undefined && { duration: patch.duration }),
+    ...(patch.pomos_total !== undefined && { pomos_total: patch.pomos_total }),
+    ...(patch.assignee_ids !== undefined && { assignee_ids: patch.assignee_ids }),
+    ...(patch.conviction !== undefined && { conviction: patch.conviction }),
+    ...(patch.next_step !== undefined && { next_step: patch.next_step }),
+    ...(patch.reason !== undefined && { reason: patch.reason }),
+    ...(patch.ai_suggest !== undefined && { ai_suggest: patch.ai_suggest }),
+    ...(patch.not_now !== undefined && { not_now: patch.not_now }),
+    ...(patch.recurrence !== undefined && { recurrence: patch.recurrence }),
+    ...(patch.subtasks !== undefined && { subtasks: patch.subtasks }),
+    ...(patch.scheduled_start !== undefined && { scheduled_start: patch.scheduled_start }),
+  };
+}
+
 /** The POST /tasks wire body — shared by online create and offline-queue replay. */
 export function buildTaskCreateBody(input: TaskCreateInput, id?: string) {
   return {
@@ -340,25 +363,7 @@ export const api = {
   },
 
   async updateTask(id: string, patch: TaskUpdateInput): Promise<Task> {
-    const raw = await req<any>("PATCH", `/tasks/${id}`, {
-      ...(patch.title !== undefined && { title: patch.title }),
-      ...(patch.desc !== undefined && { desc: patch.desc }),
-      ...(patch.quadrant !== undefined && { quadrant: patch.quadrant }),
-      ...(patch.today !== undefined && { today: patch.today }),
-      ...(patch.week_focus !== undefined && { week_focus: patch.week_focus }),
-      ...(patch.due !== undefined && { due: patch.due }),
-      ...(patch.duration !== undefined && { duration: patch.duration }),
-      ...(patch.pomos_total !== undefined && { pomos_total: patch.pomos_total }),
-      ...(patch.assignee_ids !== undefined && { assignee_ids: patch.assignee_ids }),
-      ...(patch.conviction !== undefined && { conviction: patch.conviction }),
-      ...(patch.next_step !== undefined && { next_step: patch.next_step }),
-      ...(patch.reason !== undefined && { reason: patch.reason }),
-      ...(patch.ai_suggest !== undefined && { ai_suggest: patch.ai_suggest }),
-      ...(patch.not_now !== undefined && { not_now: patch.not_now }),
-      ...(patch.recurrence !== undefined && { recurrence: patch.recurrence }),
-      ...(patch.subtasks !== undefined && { subtasks: patch.subtasks }),
-      ...(patch.scheduled_start !== undefined && { scheduled_start: patch.scheduled_start }),
-    });
+    const raw = await req<any>("PATCH", `/tasks/${id}`, buildTaskUpdateBody(patch));
     return adaptTask(raw);
   },
 
@@ -379,8 +384,8 @@ export const api = {
     return rows.map(adaptPerson);
   },
 
-  async createPerson(input: Omit<Person, "id">): Promise<Person> {
-    const raw = await req<any>("POST", "/people", input);
+  async createPerson(input: Omit<Person, "id">, id?: string): Promise<Person> {
+    const raw = await req<any>("POST", "/people", { ...input, ...(id ? { id } : {}) });
     return adaptPerson(raw);
   },
 
@@ -555,8 +560,9 @@ export const habitApi = {
     return rows.map(adaptHabitLog);
   },
 
-  async createHabit(_userId: string, input: Omit<Habit, "id" | "createdAt">): Promise<Habit> {
+  async createHabit(_userId: string, input: Omit<Habit, "id" | "createdAt">, id?: string): Promise<Habit> {
     const raw = await req<any>("POST", "/habits", {
+      ...(id ? { id } : {}),
       title: input.title,
       emoji: input.emoji ?? null,
       color: input.color,
@@ -627,8 +633,9 @@ export const countdownApi = {
     return rows.map(adaptCountdownEvent);
   },
 
-  async create(_userId: string, input: Omit<CountdownEvent, "id" | "createdAt">): Promise<CountdownEvent> {
+  async create(_userId: string, input: Omit<CountdownEvent, "id" | "createdAt">, id?: string): Promise<CountdownEvent> {
     const raw = await req<any>("POST", "/countdowns", {
+      ...(id ? { id } : {}),
       title: input.title,
       date: input.date,
       emoji: input.emoji ?? null,

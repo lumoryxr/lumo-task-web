@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { enqueue, list, pendingCount, flush, startFlusher, type QueuedWrite, type Executor } from "../writeQueue";
+import { enqueue, list, pendingCount, flush, startFlusher, withOfflineQueue, type QueuedWrite, type Executor } from "../writeQueue";
 
 function w(key: string, path = "/tasks"): QueuedWrite {
   return { key, method: "POST", path, body: { x: 1 }, ts: 0 };
@@ -58,6 +58,36 @@ describe("writeQueue · flush", () => {
     const res = await flush("u1", exec);
     expect(res.flushed).toBe(0);
     expect(pendingCount("u1")).toBe(1); // kept for later
+  });
+});
+
+describe("writeQueue · withOfflineQueue", () => {
+  const reqMeta = { key: "k1", method: "POST" as const, path: "/tasks", body: { a: 1 } };
+
+  it("returns the online result and enqueues nothing on success", async () => {
+    const optimistic = vi.fn();
+    const r = await withOfflineQueue("u1", reqMeta, async () => "server", () => { optimistic(); return "opt"; });
+    expect(r).toBe("server");
+    expect(optimistic).not.toHaveBeenCalled();
+    expect(pendingCount("u1")).toBe(0);
+  });
+
+  it("on an offline error: applies optimistic, enqueues, returns optimistic", async () => {
+    const r = await withOfflineQueue(
+      "u1",
+      reqMeta,
+      async () => { throw new Error("Failed to fetch"); },
+      () => "opt",
+    );
+    expect(r).toBe("opt");
+    expect(list("u1").map((i) => i.key)).toEqual(["k1"]);
+  });
+
+  it("rethrows a non-offline error and enqueues nothing", async () => {
+    await expect(
+      withOfflineQueue("u1", reqMeta, async () => { throw new Error("400 validation failed"); }, () => "opt"),
+    ).rejects.toThrow(/validation/);
+    expect(pendingCount("u1")).toBe(0);
   });
 });
 
