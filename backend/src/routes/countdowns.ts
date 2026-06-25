@@ -37,7 +37,7 @@ const MigrateBody = z.object({
   })),
 });
 
-function rowToEvent(row: CountdownEventRow) {
+export function rowToEvent(row: CountdownEventRow) {
   return {
     id: row.id,
     title: row.title,

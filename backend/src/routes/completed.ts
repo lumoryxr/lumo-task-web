@@ -9,7 +9,7 @@ import type { CompletedEntryRow } from "../db/rows.js";
 const app = new Hono<{ Variables: Variables }>();
 app.use("/*", authMiddleware);
 
-function rowToEntry(row: CompletedEntryRow) {
+export function rowToEntry(row: CompletedEntryRow) {
   return {
     id: row.id,
     task_id: row.task_id ?? null,

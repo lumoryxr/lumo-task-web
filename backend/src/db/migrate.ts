@@ -326,6 +326,53 @@ export async function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_habit_logs_user_date ON habit_logs(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_countdowns_user_created ON countdown_events(user_id, created_at) WHERE deleted_at IS NULL;
   `);
+
+  // ── Incremental-sync change sequence (ADR-0003 Phase 2) ─────────────────────
+  // Every syncable row carries a monotonic `seq` stamped from a single global
+  // counter, advanced on INSERT *and* UPDATE (incl. soft-delete). The delta
+  // endpoint reads `WHERE user_id = ? AND seq > :cursor ORDER BY seq`, so the
+  // cursor is a server-authoritative high-water mark — not a wall clock (no
+  // same-millisecond / NTP-rollback edge cases). seq is stamped by triggers, so
+  // no write path needs to know about it.
+  const SYNC_TABLES = ["tasks", "completed_entries", "people", "habits", "countdown_events"];
+
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS sync_seq (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL);
+    INSERT OR IGNORE INTO sync_seq (id, value) VALUES (1, 0);
+  `);
+
+  for (const table of SYNC_TABLES) {
+    const cols = await query<{ name: string }>(`PRAGMA table_info(${table})`);
+    if (!cols.some((col) => col.name === "seq")) {
+      await execRaw(`ALTER TABLE ${table} ADD COLUMN seq INTEGER`);
+    }
+    // Triggers stamp the next global seq. The AFTER UPDATE trigger guards with
+    // `WHEN NEW.seq IS OLD.seq` so the seq-stamping update it issues does not
+    // re-fire it (recursion-safe regardless of PRAGMA recursive_triggers). Each
+    // trigger is one statement (execRaw splits on ';', which would break the
+    // trigger body), so we run them via execute().
+    await execute(
+      `CREATE TRIGGER IF NOT EXISTS trg_${table}_seq_insert AFTER INSERT ON ${table}
+       BEGIN
+         UPDATE sync_seq SET value = value + 1 WHERE id = 1;
+         UPDATE ${table} SET seq = (SELECT value FROM sync_seq WHERE id = 1) WHERE rowid = NEW.rowid;
+       END`,
+    );
+    await execute(
+      `CREATE TRIGGER IF NOT EXISTS trg_${table}_seq_update AFTER UPDATE ON ${table}
+       WHEN NEW.seq IS OLD.seq
+       BEGIN
+         UPDATE sync_seq SET value = value + 1 WHERE id = 1;
+         UPDATE ${table} SET seq = (SELECT value FROM sync_seq WHERE id = 1) WHERE rowid = NEW.rowid;
+       END`,
+    );
+    // Delta read index: (user_id, seq) range scan with ORDER BY seq satisfied.
+    await execRaw(`CREATE INDEX IF NOT EXISTS idx_${table}_user_seq ON ${table}(user_id, seq)`);
+    // One-time, idempotent backfill of pre-existing rows: SET seq = seq fires the
+    // update trigger (NEW.seq IS OLD.seq) to stamp; `WHERE seq IS NULL` makes a
+    // re-run a no-op so seqs aren't churned on every startup.
+    await execRaw(`UPDATE ${table} SET seq = seq WHERE seq IS NULL`);
+  }
 }
 
 // When run directly as a script

@@ -51,7 +51,7 @@ const MigrateBody = z.object({
   })),
 });
 
-function rowToHabit(row: HabitRow) {
+export function rowToHabit(row: HabitRow) {
   return {
     id: row.id,
     title: row.title,
