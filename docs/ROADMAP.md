@@ -44,6 +44,10 @@ From the production-readiness review (#46) + ongoing. Already shipped: #34/#36/#
 - [ ] **DB backup / PITR** — Turso free has no PITR; document/automate backups.
 - [ ] **SQLite single-writer ceiling** — ADR on Postgres / per-tenant sharding before large-scale rollout (plan-only; needs Jalen).
 
+### Test & quality infrastructure
+- [x] **Daily integration + DFX regression** — `integration-regression.yml` runs backend real-API + DFX (Design-for-X) + web real-backend suites daily against a fresh ephemeral env (never on push/PR). DFX suite (`backend/src/test/dfx.integration.test.ts`) covers security / robustness / recoverability / observability / scalability / interoperability; coverage tracked in `docs/testing/dfx-coverage-matrix.md`. *(Jalen 2026-06-25)*
+  - **Convention (auto-replenish):** every feature PR extends the integration + DFX suites and the coverage matrix for any new/changed endpoint; the loop also periodically audits API-surface vs DFX coverage and opens gap-filling PRs.
+
 ### Awaiting Jalen — do not auto-build
 - **/register account enumeration (#46 #4)** — A: accept trade-off (signin timing is defense-in-depth) vs B: email-verification flow. *Product/contract call.*
 
@@ -64,5 +68,6 @@ Today view + recommended card + CompletedTimeline · Eisenhower Matrix (drag-dro
 
 ## Done log
 - 2026-06-24: Security/architecture hardening — #34/#36/#38/#40/#42/#45/#50; task-list pagination #48; review report #46.
+- 2026-06-25: Daily integration + DFX regression workflow & suite; fixed malformed-JSON → 500 (now 400) robustness bug found by the new DFX suite.
 
 _Last restructured: 2026-06-24 (phase prioritization). Maintained by the autonomous loop each run._

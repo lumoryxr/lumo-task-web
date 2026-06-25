@@ -19,7 +19,8 @@
     "test:coverage": "node --env-file src/test/.env.test --import tsx/esm --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-branches=78 --test-coverage-functions=75 \"src/test/api/**/*.test.ts\"",
     "test:security": "node --env-file src/test/.env.test --import tsx/esm --test \"src/test/security/**/*.security.test.ts\"",
     "test:standards": "node --env-file src/test/.env.test --import tsx/esm --test \"src/test/standards/**/*.standards.test.ts\"",
-    "test:integration": "node --env-file src/test/.env.integration --import tsx/esm --test src/test/integration.test.ts"
+    "test:integration": "node --env-file src/test/.env.integration --import tsx/esm --test src/test/integration.test.ts",
+    "test:dfx": "node --env-file src/test/.env.integration --import tsx/esm --test src/test/dfx.integration.test.ts"
   },
   "dependencies": {
     "@lumo/contracts": "file:../packages/contracts",

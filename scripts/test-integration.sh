@@ -4,9 +4,11 @@
 #
 # Usage:
 #   ./scripts/test-integration.sh              # run all suites
-#   ./scripts/test-integration.sh backend      # backend only
+#   ./scripts/test-integration.sh backend      # backend real-API only
+#   ./scripts/test-integration.sh dfx          # DFX (Design-for-X) only
 #   ./scripts/test-integration.sh web          # web UI only
 #   ./scripts/test-integration.sh electron     # Electron only
+#   ./scripts/test-integration.sh regression   # backend + dfx + web (daily headless lane)
 #   ./scripts/test-integration.sh --skip-build web
 #   ./scripts/test-integration.sh --open-report
 
@@ -19,7 +21,7 @@ OPEN_REPORT=false
 
 for arg in "$@"; do
   case "$arg" in
-    backend|web|electron|all) SUITE="$arg" ;;
+    backend|dfx|web|electron|all|regression) SUITE="$arg" ;;
     --skip-build) SKIP_BUILD=true ;;
     --open-report) OPEN_REPORT=true ;;
     *) echo "Unknown arg: $arg"; exit 1 ;;
@@ -99,6 +101,28 @@ run_backend() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Suite 1b: DFX (Design-for-X) integration tests — security/robustness/recovery/
+#           observability/scalability/interoperability over real HTTP + SQLite.
+# ═══════════════════════════════════════════════════════════════════════════════
+DFX_DB="$TMP_DIR/lumo-dfx-integration.db"
+run_dfx() {
+  header "Suite 1b — DFX (Design-for-X) integration tests"
+  rm -f "$DFX_DB"
+
+  set +e
+  ( cd "$BACKEND" && LUMO_DB_PATH="$DFX_DB" \
+    node --env-file src/test/.env.integration --import tsx/esm --test src/test/dfx.integration.test.ts )
+  CODE=$?
+  set -e
+
+  rm -f "$DFX_DB"
+
+  if [[ $CODE -eq 0 ]]; then ok  "DFX integration: PASSED"
+  else                        fail "DFX integration: FAILED (exit $CODE)"; fi
+  RESULTS[dfx]=$CODE
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Suite 2: Web UI integration tests (real backend + Playwright)
 # ═══════════════════════════════════════════════════════════════════════════════
 run_web() {
@@ -156,8 +180,11 @@ run_electron() {
 }
 
 # ── run selected suites ───────────────────────────────────────────────────────
-[[ "$SUITE" == "all" || "$SUITE" == "backend"  ]] && run_backend
-[[ "$SUITE" == "all" || "$SUITE" == "web"      ]] && run_web
+# "regression" = the daily headless lane: backend + DFX + web (no Electron, which
+# has its own per-PR smoke + daily Windows packaging job).
+[[ "$SUITE" == "all" || "$SUITE" == "regression" || "$SUITE" == "backend"  ]] && run_backend
+[[ "$SUITE" == "all" || "$SUITE" == "regression" || "$SUITE" == "dfx"      ]] && run_dfx
+[[ "$SUITE" == "all" || "$SUITE" == "regression" || "$SUITE" == "web"      ]] && run_web
 [[ "$SUITE" == "all" || "$SUITE" == "electron" ]] && run_electron
 
 # ── summary ───────────────────────────────────────────────────────────────────

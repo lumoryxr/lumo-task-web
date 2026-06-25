@@ -3,12 +3,14 @@
     One-click integration test runner for Lumo Task (Windows).
 
 .DESCRIPTION
-    Runs three integration test suites in sequence:
-      1. Backend real-API tests      (Node.js test runner, real SQLite)
-      2. Web UI tests                (Playwright + real Hono backend)
-      3. Windows Electron UI tests   (Playwright _electron)
+    Runs the integration test suites in sequence:
+      1.  Backend real-API tests     (Node.js test runner, real SQLite)
+      1b. DFX (Design-for-X) tests   (security/robustness/recovery/scalability)
+      2.  Web UI tests               (Playwright + real Hono backend)
+      3.  Windows Electron UI tests  (Playwright _electron)
 
-    Pass -Suite to run a single suite: backend | web | electron | all (default)
+    Pass -Suite to run a single suite: backend | dfx | web | electron |
+    regression (backend+dfx+web) | all (default)
     Pass -SkipBuild to skip the npm build steps (faster re-runs).
     Pass -OpenReport to open the HTML report after each suite.
 
@@ -20,7 +22,7 @@
 #>
 
 param(
-    [ValidateSet("all", "backend", "web", "electron")]
+    [ValidateSet("all", "backend", "dfx", "web", "electron", "regression")]
     [string]$Suite = "all",
 
     [switch]$SkipBuild,
@@ -43,6 +45,7 @@ $WebApp  = Join-Path $Root "web-app"
 
 $TempDir   = if ($env:TEMP) { $env:TEMP } else { "C:\Windows\Temp" }
 $BackendDb = Join-Path $TempDir "lumo-backend-integration.db"
+$DfxDb     = Join-Path $TempDir "lumo-dfx-integration.db"
 $WebDb     = Join-Path $TempDir "lumo-web-integration.db"
 
 # Use script-scope so functions can write results without pipeline interference
@@ -143,6 +146,31 @@ function Run-BackendSuite {
 }
 
 # -----------------------------------------------------------------------------
+# Suite 1b: DFX (Design-for-X) integration tests
+# -----------------------------------------------------------------------------
+function Run-DfxSuite {
+    Write-Header "Suite 1b -- DFX (Design-for-X) integration tests"
+
+    if (Test-Path $DfxDb) { Remove-Item $DfxDb -Force }
+
+    Push-Location $Backend
+    $env:LUMO_DB_PATH = $DfxDb
+    node --env-file src/test/.env.integration --import tsx/esm --test src/test/dfx.integration.test.ts
+    $ec = $LASTEXITCODE
+    Remove-Item Env:\LUMO_DB_PATH -ErrorAction SilentlyContinue
+    Pop-Location
+
+    if (Test-Path $DfxDb) { Remove-Item $DfxDb -Force }
+
+    if ($ec -eq 0) {
+        Write-Ok "DFX integration: PASSED"
+    } else {
+        Write-Fail "DFX integration: FAILED (exit $ec)"
+    }
+    $script:Results["dfx"] = $ec
+}
+
+# -----------------------------------------------------------------------------
 # Suite 2: Web UI integration tests (real backend + Playwright)
 # -----------------------------------------------------------------------------
 function Run-WebSuite {
@@ -210,8 +238,9 @@ function Run-ElectronSuite {
 }
 
 # -- run selected suites ------------------------------------------------------
-if ($Suite -eq "all" -or $Suite -eq "backend")  { Run-BackendSuite  }
-if ($Suite -eq "all" -or $Suite -eq "web")      { Run-WebSuite      }
+if ($Suite -eq "all" -or $Suite -eq "regression" -or $Suite -eq "backend")  { Run-BackendSuite  }
+if ($Suite -eq "all" -or $Suite -eq "regression" -or $Suite -eq "dfx")      { Run-DfxSuite      }
+if ($Suite -eq "all" -or $Suite -eq "regression" -or $Suite -eq "web")      { Run-WebSuite      }
 if ($Suite -eq "all" -or $Suite -eq "electron") { Run-ElectronSuite }
 
 # -- summary ------------------------------------------------------------------
