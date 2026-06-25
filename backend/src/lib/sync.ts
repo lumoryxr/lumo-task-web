@@ -27,6 +27,26 @@ async function getRemoteConfig(): Promise<{ url: string; token: string } | null>
   return null;
 }
 
+/**
+ * The app-level table sync is a SINGLE-TENANT mechanism: getRemoteConfig() picks
+ * one settings row (LIMIT 1) and syncTasks/syncCompletedEntries copy EVERY row
+ * with no user_id scoping. That is correct only when the database holds exactly
+ * one user (desktop / self-host). On a shared multi-tenant backend it would push
+ * every tenant's data to a single user's remote DB — a cross-tenant data leak.
+ * Until the per-user-database architecture replaces this path, hard-gate it to a
+ * single-user database, checked at runtime on every cycle (a second user may
+ * register after sync has started).
+ */
+export async function appLevelSyncAllowed(): Promise<boolean> {
+  try {
+    const rows = await query<{ n: number }>("SELECT COUNT(*) AS n FROM users");
+    return Number(rows[0]?.n ?? 0) <= 1;
+  } catch {
+    // Fail closed: if we can't confirm single-tenancy, do not sync.
+    return false;
+  }
+}
+
 async function ensureRemoteSchema(client: Client): Promise<void> {
   const tables = [
     "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, name TEXT NOT NULL, initials TEXT NOT NULL, local INTEGER NOT NULL DEFAULT 0, plan TEXT DEFAULT 'free', renews_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
@@ -121,6 +141,15 @@ async function syncCompletedEntries(client: Client): Promise<void> {
 }
 
 async function runSyncCycle(client: Client): Promise<void> {
+  // Re-check every cycle: refuse the moment the DB stops being single-tenant
+  // (e.g. a second user registered after sync started). This narrows the leak to
+  // at most one in-flight cycle; the per-user-database architecture eliminates it
+  // entirely by removing the unscoped copy.
+  if (!(await appLevelSyncAllowed())) {
+    console.warn("[sync] stopped: database is no longer single-tenant; app-level sync disabled");
+    stopSync();
+    return;
+  }
   await syncTasks(client);
   await syncCompletedEntries(client);
   lastSyncAt = new Date().toISOString();
@@ -133,6 +162,14 @@ export async function initSync(): Promise<void> {
   const cfg = await getRemoteConfig();
   if (!cfg) { syncStatus = "disabled"; return; }
 
+  // Never run the single-tenant app-level sync against a multi-tenant database.
+  if (!(await appLevelSyncAllowed())) {
+    syncStatus = "disabled";
+    syncError = null;
+    console.warn("[sync] refused: app-level sync is single-tenant only; multiple users present");
+    return;
+  }
+
   try {
     syncStatus = "connecting";
     console.log("[sync] connecting to " + cfg.url);
@@ -140,6 +177,10 @@ export async function initSync(): Promise<void> {
     await remoteClient.execute("SELECT 1");
     await ensureRemoteSchema(remoteClient);
     await runSyncCycle(remoteClient);
+
+    // runSyncCycle may have detected multi-tenancy mid-init and called stopSync()
+    // (which nulls remoteClient and clears the timer). Don't arm a no-op interval.
+    if (!remoteClient) return;
 
     const intervalMs = Math.max(10_000, parseInt(process.env.LUMO_SYNC_INTERVAL ?? "60000"));
     syncTimer = setInterval(async () => {
