@@ -41,6 +41,10 @@ const NotNowItemSchema = z.object({
 // ── Request bodies ────────────────────────────────────────────────────────────
 
 export const TaskCreateBodySchema = z.object({
+  // Optional client-generated id (offline-first, ADR-0003 Phase 4): lets a client
+  // create an entity offline with a stable id and replay the create idempotently.
+  // Server-generated when absent.
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
   title: LocalizedStringSchema,
   desc: LongLocalizedStringSchema.optional().nullable(),
   quadrant: QuadrantSchema.default("unclassified"),

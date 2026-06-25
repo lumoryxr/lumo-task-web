@@ -44,7 +44,7 @@ app.post("/", zValidator("json", PersonCreateBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const body = c.req.valid("json");
   return idempotent(c, async () => {
-    const id = "p_" + nanoid(10);
+    const id = body.id ?? ("p_" + nanoid(10));
     const now = new Date().toISOString();
     await execute(`
       INSERT INTO people (id, user_id, name, initials, color, email, created_at)

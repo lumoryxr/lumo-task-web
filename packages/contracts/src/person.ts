@@ -13,6 +13,8 @@ import { z } from "zod";
 // ── Request bodies ────────────────────────────────────────────────────────────
 
 export const PersonCreateBodySchema = z.object({
+  // Optional client-generated id (offline-first, ADR-0003 Phase 4).
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
   name: z.string().min(1).max(100),
   initials: z.string().min(1).max(2),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
