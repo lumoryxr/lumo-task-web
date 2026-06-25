@@ -120,6 +120,30 @@ export const defaultExecutor: Executor = async (w) => {
   return "drop";
 };
 
+/**
+ * Run a store mutation with offline fallback. Tries `online()`; if it fails with
+ * a connectivity error, applies the optimistic local change via `offline()`,
+ * enqueues `request` for replay on reconnect, and returns the optimistic result.
+ * Any non-offline error (e.g. a 4xx) propagates to the caller's normal handling.
+ */
+export async function withOfflineQueue<T>(
+  userId: string,
+  request: Omit<QueuedWrite, "ts">,
+  online: () => Promise<T>,
+  offline: () => T,
+): Promise<T> {
+  try {
+    return await online();
+  } catch (e) {
+    if (isOfflineError(e)) {
+      const result = offline();
+      enqueue(userId, { ...request, ts: Date.now() });
+      return result;
+    }
+    throw e;
+  }
+}
+
 export interface FlusherHandle {
   flushNow: () => void;
   stop: () => void;

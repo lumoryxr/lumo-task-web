@@ -1,8 +1,22 @@
 import { create } from "zustand";
-import { countdownApi } from "@/api/client";
+import { countdownApi, buildCountdownUpdateBody } from "@/api/client";
 import type { CountdownColor, CountdownEvent, CountdownRepeat } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
+import { clientId, withOfflineQueue } from "@/lib/writeQueue";
+
+/** POST /countdowns wire body — shared by online create + offline replay. */
+function countdownCreateBody(input: Omit<CountdownEvent, "id" | "createdAt">, id: string) {
+  return {
+    id,
+    title: input.title,
+    date: input.date,
+    emoji: input.emoji ?? null,
+    color: input.color,
+    repeat: input.repeat,
+    note: input.note ?? null,
+  };
+}
 
 function migrationKey(userId: string) {
   return `lumo.countdowns.migrated.v1.${userId}`;
@@ -82,10 +96,22 @@ export const useCountdownStore = create<CountdownState>((set) => ({
   },
 
   async create(userId, input) {
+    const id = clientId("cd");
     try {
-      const event = await countdownApi.create(userId, input);
-      set((s) => ({ events: [...s.events, event] }));
-      return event;
+      return await withOfflineQueue(
+        userId,
+        { key: `create:${id}`, method: "POST", path: "/countdowns", body: countdownCreateBody(input, id) },
+        async () => {
+          const event = await countdownApi.create(userId, input, id);
+          set((s) => ({ events: [...s.events, event] }));
+          return event;
+        },
+        () => {
+          const optimistic = { ...input, id, createdAt: new Date().toISOString() } as CountdownEvent;
+          set((s) => ({ events: [...s.events, optimistic] }));
+          return optimistic;
+        },
+      );
     } catch (e) {
       toast.error(t("countdown.error.create"), e instanceof Error ? e.message : String(e));
       throw e;
@@ -94,8 +120,17 @@ export const useCountdownStore = create<CountdownState>((set) => ({
 
   async update(userId, id, patch) {
     try {
-      const updated = await countdownApi.update(userId, id, patch);
-      set((s) => ({ events: s.events.map((e) => (e.id === id ? updated : e)) }));
+      await withOfflineQueue(
+        userId,
+        { key: `update:${id}:${clientId("u")}`, method: "PATCH", path: `/countdowns/${id}`, body: buildCountdownUpdateBody(patch) },
+        async () => {
+          const updated = await countdownApi.update(userId, id, patch);
+          set((s) => ({ events: s.events.map((e) => (e.id === id ? updated : e)) }));
+        },
+        () => {
+          set((s) => ({ events: s.events.map((e) => (e.id === id ? ({ ...e, ...patch } as CountdownEvent) : e)) }));
+        },
+      );
     } catch (e) {
       toast.error(t("countdown.error.update"), e instanceof Error ? e.message : String(e));
     }
@@ -103,8 +138,17 @@ export const useCountdownStore = create<CountdownState>((set) => ({
 
   async remove(userId, id) {
     try {
-      await countdownApi.delete(userId, id);
-      set((s) => ({ events: s.events.filter((e) => e.id !== id) }));
+      await withOfflineQueue(
+        userId,
+        { key: `delete:${id}`, method: "DELETE", path: `/countdowns/${id}` },
+        async () => {
+          await countdownApi.delete(userId, id);
+          set((s) => ({ events: s.events.filter((e) => e.id !== id) }));
+        },
+        () => {
+          set((s) => ({ events: s.events.filter((e) => e.id !== id) }));
+        },
+      );
       toast.success(t("countdown.deleted"));
     } catch (e) {
       toast.error(t("countdown.error.delete"), e instanceof Error ? e.message : String(e));
