@@ -1,6 +1,6 @@
 # ADR 0002 — Per-user database + libSQL embedded replica (local-first sync)
 
-- Status: **Proposed** (pending sign-off on the open decisions below)
+- Status: **Accepted** (Jalen signed off the open decisions 2026-06-25)
 - Date: 2026-06-25
 - Requirement: data-sync redesign (Jalen chose "每用户一个库", 2026-06-25)
 - Related: #63/#64 (stopgap: gated the leaking app-level sync to single-tenant)
@@ -45,18 +45,33 @@ the hand-rolled sync.
   *within* a user DB (isolation is by-database), but keep the column for now to
   minimize churn.
 
-### 2. Provisioning
-On signup, the backend creates the user's data DB + a **scoped** auth token via
-the Turso Platform API (or self-hosted `sqld`), and records it in
-`user_databases` (token encrypted at rest with the existing `crypto.ts`). The
-"sync toggle" becomes "this user already has a cloud DB" — no manual URL pasting
-(today's UX requires the user to create a Turso DB and paste URL+token).
+### 2. Provisioning — **hosted Turso, lazy on first sync-enable** (decided)
+DBs are created **the first time a user enables sync** (not at signup), via the
+**hosted Turso Platform API** (an org-level API token held as a backend secret,
+e.g. `TURSO_PLATFORM_TOKEN`). Flow:
+
+1. User flips the sync toggle → **a confirmation prompt ("二次提醒")** explains
+   what enabling sync does (creates a cloud copy of their data) and requires an
+   explicit confirm. No DB is created on the first tap.
+2. On confirm, the backend: creates `lumo-user-<id>` + mints a **scoped** auth
+   token, records it in `user_databases` (token encrypted via `crypto.ts`),
+   **copies the user's current data** into the new DB, then switches the device
+   to embedded-replica mode against it.
+
+This means users who never enable sync never get a cloud DB (no idle DBs, no
+manual URL pasting — today's UX requires the user to create a Turso DB by hand
+and paste URL+token). It also folds the "existing data migration" question into
+the normal enable-sync path: copy-on-enable, per user, when they opt in.
 
 ### 3. Request routing (web / server-authoritative)
-A per-request resolver maps the authenticated `userId` → their data-DB libSQL
-client, from an **LRU connection cache** (bounded, idle-evicted). Web requests
-connect directly to the user's DB. Auth (JWT) stays in the control plane and is
-unchanged → multi-device "just works", no device registration needed.
+A per-request resolver maps the authenticated `userId` → their data store, from
+an **LRU connection cache** (bounded, idle-evicted). Because provisioning is
+lazy, routing is **hybrid**: a user with no `user_databases` row reads/writes the
+**shared data store** (today's behaviour, unchanged); once they enable sync, they
+route to **their own per-user DB**. Auth (JWT) stays in the control plane and is
+unchanged → multi-device "just works", no device registration needed. (The
+shared store is retired only if/when every active user has opted in; otherwise it
+remains the home for sync-off users.)
 
 ### 4. Local-first devices (desktop / mobile)
 The device runs an **embedded replica of the user's own data DB**:
@@ -83,27 +98,32 @@ then bump). Removes the 3-place hand-copied schema drift.
 ## Phased rollout (each phase = its own PRD→contract→TDD→review→merge)
 
 - **Phase 0 — done:** stop the leak (#64, app-level sync gated to single-tenant).
-- **Phase 1:** control/data split + provisioning (flagged); new signups get a
-  per-user DB; routing + connection cache; web reads/writes route to the user DB.
-- **Phase 2:** versioned per-DB migration runner + `schema_version` gate.
-- **Phase 3:** desktop/mobile embedded replica against the user DB; **delete
+- **Phase 1:** provisioning service (hosted Turso Platform API, behind a
+  mockable interface) + `user_databases` control table + hybrid routing/connection
+  cache (sync-off → shared store; sync-on → per-user DB). No behaviour change for
+  sync-off users.
+- **Phase 2:** enable-sync flow — **confirmation prompt ("二次提醒")** → provision
+  → **copy current data into the new DB** → flip routing. Idempotent + resumable.
+- **Phase 3:** versioned per-DB migration runner + `schema_version` gate.
+- **Phase 4:** desktop/mobile embedded replica against the user DB; **delete
   `lib/sync.ts`** and the `remote_url/remote_token` settings path.
-- **Phase 4:** tombstones (`deleted_at`) + monotonic write clock.
-- **Phase 5:** one-time migration of existing shared-DB users into per-user DBs;
-  remove the shared-data tables.
+- **Phase 5:** tombstones (`deleted_at`) + monotonic write clock.
 
-## Open decisions (need Jalen)
+## Decisions resolved (Jalen, 2026-06-25)
 
-1. **Turso Platform (hosted) vs self-hosted `sqld`.** Hosted = trivial
-   provisioning + scales to many small DBs (their database-per-tenant model),
-   but per-DB on their plans/pricing. Self-hosted = full control, more ops.
-   *Recommendation: hosted Turso to start (matches current deploy, least ops).*
-2. **Existing production data.** There is live data in the shared Turso (Render).
-   Phase 5 migration must split it per-user. Need the current volume (likely tiny
-   now) to size the one-time migration. *Recommendation: do it while small.*
-3. **Provision timing.** Per-user DB at **signup** (uniform routing, simplest) vs
-   **lazily on first sync-enable** (fewer DBs, but two code paths). *Recommendation:
-   at signup.*
+1. **Hosting:** ✅ **Hosted Turso Platform** (least ops, database-per-tenant is a
+   first-class feature). Needs an org-level `TURSO_PLATFORM_TOKEN` backend secret.
+2. **Existing data:** folded into **copy-on-enable** — a user's data is copied to
+   their new DB when they opt into sync; no separate bulk migration needed while
+   the shared store still serves sync-off users.
+3. **Provision timing:** ✅ **Lazy — on first sync-enable**, with a **confirmation
+   prompt ("二次提醒")** before any DB is created.
+
+## Prerequisite from Jalen
+- A **Turso Platform API token** (org scope, can create databases) to set as the
+  backend secret `TURSO_PLATFORM_TOKEN` on Render. Implementation hides the
+  Platform API behind a mockable interface, so Phases 1–2 can be built and tested
+  without it, but real provisioning needs this token configured.
 
 ## Consequences
 
