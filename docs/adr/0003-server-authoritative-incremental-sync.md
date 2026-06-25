@@ -98,6 +98,60 @@ backend — removing the dual-backend complexity.
   PowerSync/ElectricSQL (viable "buy", adds an external dependency — fallback if
   hand-rolling gets costly); full CRDT (overkill for this conflict profile).
 
+## Architect-review amendments (2026-06-25)
+
+Hardening folded in after an adversarial architecture/security review:
+
+1. **Sync cursor = monotonic server sequence, not wall-clock.** Add a server-
+   assigned monotonic `seq` (per-user counter) stamped on every write; the delta
+   query is `WHERE seq > :cursor ORDER BY seq`. Wall-clock `updated_at` has
+   same-millisecond, NTP-rollback, and restart edge cases that drop or duplicate
+   deltas. (The existing `cursor.ts` is `created_at`-keyset for list pagination —
+   not reused for the delta cursor.)
+2. **Server owns all sync metadata; clients can never set it.** `updated_at`,
+   `created_at`, `deleted_at`, `seq` are stamped server-side only. A **standards
+   test** forbids these fields in any write DTO (a client backdating `updated_at`
+   could hide from delta or always win LWW — an injection vector).
+3. **Delta endpoint must paginate.** `?since=*` full snapshots reintroduce the
+   ADR-0001 unbounded-response/OOM problem; the delta itself is keyset-paginated.
+   The cursor is validated against the authenticated user and carries no forgeable
+   tenant scope — this is the single highest-value cross-tenant surface, so it
+   gets the heaviest DFX/authz coverage.
+4. **Idempotency keys are per-user, persisted, and replay-safe.** An
+   `idempotency_keys(user_id, key, result, created_at)` table; a replayed
+   mutation returns the **cached result** rather than re-executing; keys are
+   namespaced by `user_id` (a global key space would let one user probe another's
+   results). TTL'd.
+5. **LWW granularity.** Row-level LWW can clobber concurrent edits to *different*
+   fields of one entity (device A edits due date, device B completes → one lost).
+   Decision: field-level mutation commands for high-conflict fields where it
+   matters; otherwise row-level LWW is accepted and **documented** as a known
+   limitation (not a silent bug).
+6. **Soft-delete vs uniqueness.** Audited: the 5 syncable tables (`tasks`,
+   `completed_entries`, `people`, `habits`, `countdowns`) have **no secondary
+   UNIQUE** constraints (only `users.email` and `habit_logs`'s composite PK, both
+   out of scope), so tombstones don't strand a unique slot today. **Rule going
+   forward:** any new UNIQUE on a soft-deletable table must be a *partial* index
+   `WHERE deleted_at IS NULL`.
+7. **Offline-beyond-retention → forced full resync.** A client whose cursor is
+   older than the tombstone-GC horizon must be told to full-resync (`410` →
+   `since=*`), else GC'd deletes resurrect. The GC horizon and this check are
+   designed together in Phase 5.
+
+Operational consequences elevated by the single-shared-DB choice (blast radius =
+all tenants): **backups/PITR + versioned, reversible migrations become hard
+prerequisites** (a bad GC/migration hits everyone at once); the `deleted_at IS
+NULL` read filter is enforced via a shared query helper + a standards/DFX test
+that flags unfiltered reads; soft-delete FK/cascade semantics (task → its
+completed entries / subtasks / assignees) are defined per domain; the offline
+queue must handle ordering, poison mutations (a rejected mutation can't block the
+queue), and stale-write reconciliation; the delta endpoint is rate-limited
+(full vs partial, à la Todoist). Accepted, explicitly-documented trade-offs:
+polling (not real-time push); task content stored plaintext at rest (required for
+server-side AI — the cost of rejecting E2EE); SQLite single-writer ceiling;
+desktop's move from embedded-backend to thin-client+cache is its own design
+(Phase 4/5), not a footnote.
+
 ## References
 - Todoist Sync API — https://developer.todoist.com/sync/v8/
 - Linear sync engine (reverse-engineered) — https://github.com/wzhudev/reverse-linear-sync-engine
