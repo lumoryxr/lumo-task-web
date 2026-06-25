@@ -28,7 +28,7 @@ app.get("/", async (c) => {
   const userId = c.get("userId") as string;
   try {
     const rows = await query<PersonRow>(
-      "SELECT * FROM people WHERE user_id = :uid ORDER BY created_at ASC",
+      "SELECT * FROM people WHERE user_id = :uid AND deleted_at IS NULL ORDER BY created_at ASC",
       { uid: userId }
     );
     return c.json(rows.map(rowToPerson));
@@ -50,7 +50,7 @@ app.post("/", zValidator("json", PersonCreateBodySchema), async (c) => {
       VALUES (:id, :user_id, :name, :initials, :color, :email, :now)
     `, { id, user_id: userId, name: body.name, initials: body.initials, color: body.color, email: body.email ?? null, now });
 
-    const row = await queryOne<PersonRow>("SELECT * FROM people WHERE id = :id", { id });
+    const row = await queryOne<PersonRow>("SELECT * FROM people WHERE id = :id AND deleted_at IS NULL", { id });
     return c.json(rowToPerson(row!), 201);
   } catch (err) {
     console.error("[people] POST /:", err instanceof Error ? err.message : err);
@@ -65,7 +65,7 @@ app.patch("/:id", zValidator("json", PersonUpdateBodySchema), async (c) => {
   const body = c.req.valid("json");
   try {
     const existing = await queryOne<PersonRow>(
-      "SELECT * FROM people WHERE id = :id AND user_id = :uid",
+      "SELECT * FROM people WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
       { id: personId, uid: userId }
     );
     if (!existing) return httpError(c, 404, "NOT_FOUND", "Not found");
@@ -82,7 +82,7 @@ app.patch("/:id", zValidator("json", PersonUpdateBodySchema), async (c) => {
       id: personId, uid: userId,
     });
 
-    const row = await queryOne<PersonRow>("SELECT * FROM people WHERE id = :id", { id: personId });
+    const row = await queryOne<PersonRow>("SELECT * FROM people WHERE id = :id AND deleted_at IS NULL", { id: personId });
     return c.json(rowToPerson(row!));
   } catch (err) {
     console.error("[people] PATCH /:id:", err instanceof Error ? err.message : err);
@@ -95,9 +95,11 @@ app.delete("/:id", async (c) => {
   const userId = c.get("userId") as string;
   const personId = c.req.param("id");
   try {
+    const now = new Date().toISOString();
+    // Soft delete (people has no updated_at column → set deleted_at only).
     const result = await execute(
-      "DELETE FROM people WHERE id = :id AND user_id = :uid",
-      { id: personId, uid: userId }
+      "UPDATE people SET deleted_at = :now WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
+      { id: personId, uid: userId, now }
     );
     if (result.changes === 0) return httpError(c, 404, "NOT_FOUND", "Not found");
 

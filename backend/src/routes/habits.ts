@@ -78,7 +78,7 @@ function rowToLog(row: HabitLogRow) {
 app.get("/", async (c) => {
   const userId = c.get("userId");
   const rows = await query<HabitRow>(
-    "SELECT * FROM habits WHERE user_id = :uid ORDER BY created_at ASC",
+    "SELECT * FROM habits WHERE user_id = :uid AND deleted_at IS NULL ORDER BY created_at ASC",
     { uid: userId }
   );
   return c.json(rows.map(rowToHabit));
@@ -126,7 +126,7 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
   // habit_id is client-supplied, so without this guard a caller could write
   // rows keyed to another user's habit and pollute the shared key space.
   const owned = await query<{ id: string }>(
-    "SELECT id FROM habits WHERE user_id = :uid",
+    "SELECT id FROM habits WHERE user_id = :uid AND deleted_at IS NULL",
     { uid: userId }
   );
   const ownedIds = new Set(owned.map((h) => h.id));
@@ -172,7 +172,7 @@ app.post("/", zValidator("json", HabitBody), async (c) => {
     }
   );
 
-  const row = await queryOne<HabitRow>("SELECT * FROM habits WHERE id = :id", { id });
+  const row = await queryOne<HabitRow>("SELECT * FROM habits WHERE id = :id AND deleted_at IS NULL", { id });
   return c.json(rowToHabit(row!), 201);
 });
 
@@ -184,7 +184,7 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", HabitUpdateBo
   const now = new Date().toISOString();
 
   const existing = await queryOne<HabitRow>(
-    "SELECT * FROM habits WHERE id = :id AND user_id = :uid",
+    "SELECT * FROM habits WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
     { id: habitId, uid: userId }
   );
   if (!existing) return httpError(c, 404, "NOT_FOUND", "Habit not found");
@@ -212,7 +212,7 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", HabitUpdateBo
     }
   );
 
-  const row = await queryOne<HabitRow>("SELECT * FROM habits WHERE id = :id", { id: habitId });
+  const row = await queryOne<HabitRow>("SELECT * FROM habits WHERE id = :id AND deleted_at IS NULL", { id: habitId });
   return c.json(rowToHabit(row!));
 });
 
@@ -221,13 +221,17 @@ app.delete("/:id", zValidator("param", IdParam), async (c) => {
   const userId = c.get("userId");
   const habitId = c.req.param("id");
 
+  const now = new Date().toISOString();
+  // Soft delete the habit (tombstone, propagates on sync). habit_logs are
+  // subordinate check-in rows (not a syncable domain in this phase) and are
+  // hard-deleted with the habit as before.
   await execute(
     "DELETE FROM habit_logs WHERE habit_id = :id AND user_id = :uid",
     { id: habitId, uid: userId }
   );
   const result = await execute(
-    "DELETE FROM habits WHERE id = :id AND user_id = :uid",
-    { id: habitId, uid: userId }
+    "UPDATE habits SET deleted_at = :now, updated_at = :now WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
+    { id: habitId, uid: userId, now }
   );
   if (result.changes === 0) return httpError(c, 404, "NOT_FOUND", "Habit not found");
   return new Response(null, { status: 204 });
@@ -244,7 +248,7 @@ app.post(
     const { date } = c.req.valid("json");
 
     const habit = await queryOne<HabitRow>(
-      "SELECT id FROM habits WHERE id = :id AND user_id = :uid",
+      "SELECT id FROM habits WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
       { id: habitId, uid: userId }
     );
     if (!habit) return httpError(c, 404, "NOT_FOUND", "Habit not found");

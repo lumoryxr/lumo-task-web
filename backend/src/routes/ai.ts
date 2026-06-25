@@ -104,7 +104,7 @@ app.post("/classify", classifyRateLimit, zValidator("json", z.object({}).strict(
   const today = new Date().toISOString().slice(0, 10);
 
   const tasks = await query<any>(
-    "SELECT * FROM tasks WHERE user_id = :uid AND completed = 0 AND quadrant = 'unclassified'",
+    "SELECT * FROM tasks WHERE user_id = :uid AND completed = 0 AND deleted_at IS NULL AND quadrant = 'unclassified'",
     { uid: userId }
   );
 
@@ -206,7 +206,7 @@ app.post("/recommend", classifyRateLimit, zValidator("json", z.object({}).strict
   try {
   const q1Tasks = await query<any>(
     `SELECT * FROM tasks
-    WHERE user_id = :uid AND completed = 0 AND quadrant = 'Q1' AND today = 1
+    WHERE user_id = :uid AND completed = 0 AND deleted_at IS NULL AND quadrant = 'Q1' AND today = 1
     ORDER BY conviction DESC NULLS LAST, due ASC NULLS LAST`,
     { uid: userId }
   );
@@ -604,7 +604,7 @@ app.post("/breakdown", classifyRateLimit, zValidator("json", BreakdownRequestSch
 
   try {
     const task = await queryOne<any>(
-      "SELECT title_en, title_zh, desc_en, desc_zh FROM tasks WHERE id = :id AND user_id = :uid",
+      "SELECT title_en, title_zh, desc_en, desc_zh FROM tasks WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
       { id: taskId, uid: userId }
     );
 
