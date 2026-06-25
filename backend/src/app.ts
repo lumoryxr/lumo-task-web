@@ -91,12 +91,13 @@ app.get("/ready", async (c) => {
 app.onError((err, c) => {
   // Hono raises HTTPException for client-side faults detected before/within a
   // route handler — most importantly a malformed JSON body, which the validator
-  // throws as HTTPException(400). Honor its status so a bad request can never
-  // masquerade as a 5xx outage, and normalize it into our standard
+  // throws as HTTPException(400). Honor its (client-error) status so a bad
+  // request can never masquerade as a 5xx outage, normalized into our standard
   // { error: { code, message } } envelope. Our own routes never throw
   // HTTPException (they return via httpError), so this only catches framework
-  // parse errors — handled centrally so it holds uniformly for every route.
-  if (err instanceof HTTPException) {
+  // parse errors. A 5xx HTTPException is a real server fault — fall through to
+  // the logged generic 500 below rather than relaying its internal message.
+  if (err instanceof HTTPException && err.status < 500) {
     const isBadJson = err.status === 400 && /malformed json/i.test(err.message);
     const code = isBadJson ? "INVALID_JSON" : err.status === 400 ? "BAD_REQUEST" : "HTTP_ERROR";
     const message = isBadJson ? "Malformed JSON body" : err.message;
