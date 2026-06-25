@@ -4,7 +4,7 @@ import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
-import { PersonAvatar } from "@/pages/SettingsPage";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { toISODate } from "@/lib/format";
 import type { Quadrant, TaskRecurrence } from "@/types/task";
 

@@ -11,6 +11,7 @@ import { useT } from "@/i18n/useT";
 import { toast } from "@/store/useToastStore";
 import type { Locale, Person } from "@/types/task";
 import { PERSON_COLORS } from "@/lib/personColors";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
 import { useNotificationStore } from "@/store/useNotificationStore";
 
@@ -804,7 +805,7 @@ function IntegrationsPanel({ t, locale }: { t: (k: string) => string; locale: st
   );
 }
 
-/* ── PersonForm / PersonAvatar ────────────────────────────────────── */
+/* ── PersonForm ───────────────────────────────────────────────────── */
 
 function PersonForm({
   draft,
@@ -887,25 +888,6 @@ function PersonForm({
           {t("settings.members.save")}
         </button>
       </div>
-    </div>
-  );
-}
-
-export function PersonAvatar({ person, size = 24 }: { person: Pick<Person, "initials" | "color" | "name">; size?: number }) {
-  return (
-    <div
-      className="flex-shrink-0 flex items-center justify-center rounded-full font-semibold select-none"
-      title={person.name}
-      style={{
-        width: size,
-        height: size,
-        background: person.color,
-        color: "#0d1210",
-        fontSize: Math.round(size * 0.4),
-        letterSpacing: "-0.02em",
-      }}
-    >
-      {person.initials}
     </div>
   );
 }

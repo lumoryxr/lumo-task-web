@@ -11,7 +11,7 @@ import { TaskDetailModal } from "@/components/TaskDetailModal";
 import { TaskEditModal } from "@/components/TaskEditModal";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 import { usePeopleStore } from "@/store/usePeopleStore";
-import { PersonAvatar } from "@/pages/SettingsPage";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { CalendarView } from "@/components/CalendarView";
 import { useIsMobile } from "@/hooks/useIsMobile";
 

@@ -12,6 +12,7 @@ type Dict = Record<string, string>;
 export const STRINGS: Record<Locale, Dict> = {
   en: {
     "brand.name": "Lumo",
+    "app.loading": "Loading…",
     "nav.section.workspace": "Workspace",
     "nav.today": "Today",
     "nav.matrix": "Matrix",
@@ -656,6 +657,7 @@ export const STRINGS: Record<Locale, Dict> = {
   },
   zh: {
     "brand.name": "Lumo",
+    "app.loading": "加载中…",
     "nav.section.workspace": "工作区",
     "nav.today": "今天",
     "nav.matrix": "矩阵",
