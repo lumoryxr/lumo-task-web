@@ -1,8 +1,15 @@
 # ADR 0002 — Per-user database + libSQL embedded replica (local-first sync)
 
-- Status: **Accepted** (Jalen signed off the open decisions 2026-06-25)
+- Status: **Superseded by [ADR-0003](0003-server-authoritative-incremental-sync.md)** (2026-06-25)
 - Date: 2026-06-25
 - Requirement: data-sync redesign (Jalen chose "每用户一个库", 2026-06-25)
+
+> **Superseded.** After researching how leading products sync (Todoist, Linear,
+> CloudKit, Obsidian/Standard Notes, PowerSync), the per-user-database approach
+> was judged too complex/ops-heavy for this stage. The project adopts a
+> server-authoritative incremental sync on the existing multi-tenant DB instead —
+> see **ADR-0003**. This document is kept for the historical decision trail and
+> the still-valid analysis of the original two sync mechanisms.
 - Related: #63/#64 (stopgap: gated the leaking app-level sync to single-tenant)
 
 ## Context
