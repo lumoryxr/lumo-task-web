@@ -44,7 +44,7 @@ function safeParse<T>(raw: string | null | undefined, fallback: T): T {
 // Validate the DB row → wire mapping against the contract on every read, so the
 // response is guaranteed conformant (writes always pass through the contract, so
 // this never throws for clean data; it surfaces drift instead of leaking it).
-function rowToTask(row: TaskRow): TaskWire {
+export function rowToTask(row: TaskRow): TaskWire {
   return TaskWireSchema.parse({
     id: row.id,
     assignee_ids: safeParse<string[]>(row.assignee_ids, []),

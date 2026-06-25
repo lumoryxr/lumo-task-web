@@ -12,7 +12,7 @@ const app = new Hono<{ Variables: Variables }>();
 app.use("/*", authMiddleware);
 
 // Request/response shapes are owned by @lumo/contracts (Contract-First).
-function rowToPerson(row: PersonRow): PersonWire {
+export function rowToPerson(row: PersonRow): PersonWire {
   return {
     id: row.id,
     name: row.name,

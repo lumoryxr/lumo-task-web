@@ -35,6 +35,14 @@ const EXCLUDE = [
   path.join(SRC_DIR, "lib", "sync.ts"),
 ];
 
+// A literal-table scan is blind to interpolated table names (`FROM ${tbl}`), so
+// an interpolated read of a soft-deletable table could slip an unfiltered read
+// past the guard. We therefore FLAG any interpolated `FROM ${...}` in a SELECT
+// unless its file is explicitly allowlisted as intentionally reading tombstones.
+// routes/sync.ts (the delta-pull endpoint) is the one place that deliberately
+// returns deleted rows so deletions propagate (ADR-0003).
+const DYNAMIC_FROM_ALLOWLIST = [path.join(SRC_DIR, "routes", "sync.ts")];
+
 /** Collect every .ts source file under backend/src (excluding tests + sync.ts). */
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -99,9 +107,18 @@ describe("Standards · soft-delete read filter", () => {
     for (const file of sourceFiles(SRC_DIR)) {
       const src = readFileSync(file, "utf8");
       const rel = path.relative(SRC_DIR, file);
+      const dynamicAllowed = DYNAMIC_FROM_ALLOWLIST.includes(file);
       for (const lit of extractLiterals(src)) {
         const sql = lit.replace(/\s+/g, " ").trim();
         if (!/\bSELECT\b/i.test(sql)) continue;
+        // Interpolated table name in a SELECT — the literal scan can't see which
+        // table it is. Require an explicit allowlist so a future interpolated
+        // client read can't silently skip the deleted_at filter.
+        if (/\bFROM\s+\$\{/.test(sql) && !dynamicAllowed) {
+          violations.push(
+            `${rel}: SELECT with an interpolated table name (FROM \${...}); verify deleted_at handling and allowlist if it intentionally reads tombstones → ${sql.slice(0, 120)}`,
+          );
+        }
         for (const t of SOFT_TABLES) {
           if (new RegExp(`\\bFROM\\s+${t}\\b`, "i").test(sql) && !/deleted_at\s+IS\s+NULL/i.test(sql)) {
             violations.push(`${rel}: read from '${t}' without 'deleted_at IS NULL' → ${sql.slice(0, 120)}`);
