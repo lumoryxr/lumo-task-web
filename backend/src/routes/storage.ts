@@ -3,7 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
-import { getSyncStatus, triggerSync, stopSync, initSync } from "../lib/sync.js";
+import { getSyncStatus, triggerSync, stopSync, initSync, appLevelSyncAllowed } from "../lib/sync.js";
 import { queryOne, execute, dbMode } from "../db/client.js";
 import { encryptSecret } from "../lib/crypto.js";
 import { assertSafeOutboundUrl, SsrfError } from "../lib/ssrf.js";
@@ -58,6 +58,20 @@ const RemoteConfigBody = z.object({
 app.patch("/remote-config", zValidator("json", RemoteConfigBody), async (c) => {
   const userId = c.get("userId") as string;
   const { remoteUrl, remoteToken } = c.req.valid("json");
+
+  // The app-level sync is single-tenant only (it copies every row, unscoped, to
+  // the remote). Refuse to enable it on a shared multi-tenant backend before we
+  // even store the token — otherwise one user's sync would leak all tenants'
+  // data. Checked first so no outbound connection is attempted and no secret is
+  // persisted on a shared deployment.
+  if (remoteUrl && !(await appLevelSyncAllowed())) {
+    return httpError(
+      c,
+      409,
+      "SYNC_MULTITENANT_DISABLED",
+      "Cloud sync via remote-config is unavailable on a shared multi-tenant backend.",
+    );
+  }
 
   // SSRF guard: the server opens a libSQL connection to this URL. Restrict to
   // remote DB schemes (block file: and internal/loopback/metadata hosts in
