@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
+import { idempotent } from "../lib/idempotency.js";
 import type { Variables } from "../env.js";
 import type { CountdownEventRow } from "../db/rows.js";
 
@@ -93,6 +94,7 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
 app.post("/", zValidator("json", CountdownBody), async (c) => {
   const userId = c.get("userId");
   const body = c.req.valid("json");
+  return idempotent(c, async () => {
   const id = "cd_" + nanoid(10);
   const now = new Date().toISOString();
 
@@ -118,7 +120,8 @@ app.post("/", zValidator("json", CountdownBody), async (c) => {
     "SELECT * FROM countdown_events WHERE id = :id AND deleted_at IS NULL",
     { id }
   );
-  return c.json(rowToEvent(row!), 201);
+  return { status: 201, body: rowToEvent(row!) };
+  });
 });
 
 // PATCH /countdowns/:id
