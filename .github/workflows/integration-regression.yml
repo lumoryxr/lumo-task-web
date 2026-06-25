@@ -1,0 +1,90 @@
+name: Integration Regression (daily)
+
+# Daily end-to-end regression against a FRESH, EPHEMERAL environment built from
+# scratch in the runner — a real Hono backend over a brand-new temp SQLite file
+# and a real Vite frontend driven by Playwright. Nothing here touches production
+# data or live infra (that is prod-site-validation.yml's job).
+#
+# Three suites, each a separate step so a failure is attributable at a glance:
+#   • Backend  — real-API integration (business scenarios over real HTTP+SQLite)
+#   • DFX      — Design-for-X: security / robustness / recoverability /
+#                observability / scalability / interoperability under hostile input
+#   • Web UI   — real-backend Playwright (interface + API, no mocks)
+#
+# This is NOT part of CI: it must NEVER run on push or pull_request (slow, and a
+# full browser+backend boot doesn't belong on every commit). It runs only on a
+# daily schedule and on-demand. A failed scheduled run notifies repo admins via
+# GitHub's native workflow-failure email.
+on:
+  schedule:
+    - cron: "0 9 * * *" # 09:00 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: integration-regression
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    name: Integration + DFX Regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build shared contracts (@lumo/contracts)
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install web-app dependencies
+        working-directory: web-app
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      - name: Remove conflicting apt sources
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list \
+                     /etc/apt/sources.list.d/azure-cli.list \
+                     /etc/apt/sources.list.d/azure-cli.sources 2>/dev/null || true
+
+      - name: Install Playwright browsers
+        working-directory: web-app
+        run: npx playwright install chromium --with-deps
+
+      # ── Suites (each runs even if a prior one fails, for full daily signal) ──
+      - name: Backend real-API integration
+        run: bash scripts/test-integration.sh backend --skip-build
+
+      - name: DFX (Design-for-X) integration
+        if: always()
+        run: bash scripts/test-integration.sh dfx --skip-build
+
+      - name: Web UI integration (real backend)
+        if: always()
+        run: bash scripts/test-integration.sh web --skip-build
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-report-${{ github.run_id }}
+          path: web-app/playwright-report-integration/
+          retention-days: 14
+
+      - name: Upload videos / traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-traces-${{ github.run_id }}
+          path: web-app/test-results/
+          retention-days: 7

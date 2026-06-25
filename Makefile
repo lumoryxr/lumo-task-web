@@ -129,6 +129,13 @@ else
 	bash scripts/test-integration.sh backend --skip-build
 endif
 
+test-integration-dfx: $(BACKEND)/node_modules                   ## DFX (Design-for-X) integration tests only
+ifeq ($(OS),Windows_NT)
+	powershell -ExecutionPolicy Bypass -File scripts/test-integration.ps1 -Suite dfx -SkipBuild
+else
+	bash scripts/test-integration.sh dfx --skip-build
+endif
+
 test-integration-web: $(APP)/node_modules $(BACKEND)/node_modules  ## Web UI integration tests only (real backend)
 ifeq ($(OS),Windows_NT)
 	powershell -ExecutionPolicy Bypass -File scripts/test-integration.ps1 -Suite web -SkipBuild
@@ -200,8 +207,9 @@ help:   ## Show this help
 	@echo "  ci           contracts + backend + web-app gate (mirrors CI)"
 	@echo ""
 	@echo "Integration tests (real API + Playwright):"
-	@echo "  test-integration           All suites: backend + web + electron"
+	@echo "  test-integration           All suites: backend + dfx + web + electron"
 	@echo "  test-integration-backend   Backend real-API tests only"
+	@echo "  test-integration-dfx       DFX (Design-for-X) integration tests only"
 	@echo "  test-integration-web       Web UI tests with real backend"
 	@echo "  test-integration-electron  Windows Electron UI tests"
 	@echo ""

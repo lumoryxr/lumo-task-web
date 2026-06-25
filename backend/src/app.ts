@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { cors } from "hono/cors";
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/user.js";
@@ -88,6 +89,19 @@ app.get("/ready", async (c) => {
 });
 
 app.onError((err, c) => {
+  // Hono raises HTTPException for client-side faults detected before/within a
+  // route handler — most importantly a malformed JSON body, which the validator
+  // throws as HTTPException(400). Honor its status so a bad request can never
+  // masquerade as a 5xx outage, and normalize it into our standard
+  // { error: { code, message } } envelope. Our own routes never throw
+  // HTTPException (they return via httpError), so this only catches framework
+  // parse errors — handled centrally so it holds uniformly for every route.
+  if (err instanceof HTTPException) {
+    const isBadJson = err.status === 400 && /malformed json/i.test(err.message);
+    const code = isBadJson ? "INVALID_JSON" : err.status === 400 ? "BAD_REQUEST" : "HTTP_ERROR";
+    const message = isBadJson ? "Malformed JSON body" : err.message;
+    return c.json({ error: { code, message } }, err.status);
+  }
   console.error("[unhandled]", err?.message ?? err);
   return c.json({ error: { code: "INTERNAL_ERROR", message: "Internal server error" } }, 500);
 });
