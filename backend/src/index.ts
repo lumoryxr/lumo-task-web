@@ -1,7 +1,6 @@
 import { serve } from "@hono/node-server";
 import { runMigrations } from "./db/migrate.js";
 import { app } from "./app.js";
-import { initSync } from "./lib/sync.js";
 import { startGcScheduler } from "./lib/gc.js";
 import { validateStartupSecrets } from "./lib/secret-policy.js";
 
@@ -26,7 +25,6 @@ try {
 // Run migrations before accepting requests (the backend seeds no accounts).
 runMigrations()
   .then(() => {
-    initSync().catch((e) => console.error("[sync] startup error:", e.message));
     // Prune old tombstones + idempotency keys now and daily (ADR-0003 Phase 5).
     // Best-effort, non-blocking — never delays accepting requests.
     startGcScheduler();

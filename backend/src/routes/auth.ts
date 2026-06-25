@@ -13,7 +13,11 @@ import { audit } from "../lib/audit.js";
 import type { Context } from "hono";
 import type { Variables } from "../env.js";
 import type { UserRow } from "../db/rows.js";
-import { getSyncStatus } from "../lib/sync.js";
+import { dbMode } from "../db/client.js";
+
+// `syncOK` = is the user's data backed by cloud storage (vs a local-only file)?
+// Derived from the DB mode now that the legacy app-level sync status is gone.
+const syncOk = () => dbMode() !== "local";
 
 const app = new Hono<{ Variables: Variables }>();
 
@@ -83,7 +87,7 @@ app.post("/register", authRateLimit, zValidator("json", RegisterBody), async (c)
     token,
     user: {
       id, email, name, initials, local: false, plan: "free", renewsAt: null,
-      stats: { tasks: 0, pomodoros: 0, syncOK: getSyncStatus().status === "ok" },
+      stats: { tasks: 0, pomodoros: 0, syncOK: syncOk() },
     },
   }, 201);
 });
@@ -125,7 +129,7 @@ app.post("/signin", authRateLimit, zValidator("json", SigninBody), async (c) => 
       local: Boolean(user.local),
       plan: user.plan ?? "free",
       renewsAt: user.renews_at ?? null,
-      stats: { tasks: stats?.task_count ?? 0, pomodoros: stats?.pomo_count ?? 0, syncOK: getSyncStatus().status === "ok" },
+      stats: { tasks: stats?.task_count ?? 0, pomodoros: stats?.pomo_count ?? 0, syncOK: syncOk() },
     },
   });
 });
