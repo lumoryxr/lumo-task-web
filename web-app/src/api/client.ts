@@ -45,6 +45,33 @@ function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// ── Resilience config ───────────────────────────────────────────────────────
+//
+// Slow or flaky networks must never leave the UI stuck on an infinite spinner,
+// and a transient blip on a read should self-heal without bothering the user.
+//
+//  • Timeout — every attempt is abort()ed after REQUEST_TIMEOUT_MS so a request
+//    that never responds rejects with a clear "请求超时" error.
+//  • Retry — only *idempotent* reads (GET) are retried, on network failures,
+//    timeouts, and transient (gateway/overload) statuses. Writes are NEVER
+//    retried, so a slow POST can't silently duplicate a row.
+//  • 500 is deliberately NOT retryable: it's usually a deterministic app error,
+//    not a blip, so retrying just delays the inevitable failure.
+
+const REQUEST_TIMEOUT_MS = 15_000; // per-attempt cap
+const MAX_RETRIES = 2; // total attempts = 1 + MAX_RETRIES
+const RETRY_BASE_DELAY_MS = 300; // exponential backoff base (300ms, 600ms)
+const RETRYABLE_STATUS = new Set([408, 429, 502, 503, 504]);
+
+function isIdempotent(method: string): boolean {
+  return method === "GET";
+}
+
+function backoff(attempt: number): Promise<void> {
+  // attempt is 1-based for the first retry.
+  return new Promise((resolve) => setTimeout(resolve, RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)));
+}
+
 // ── Fetch helper ──────────────────────────────────────────────────────────────
 
 async function req<T>(
@@ -56,39 +83,63 @@ async function req<T>(
   const token = getToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  const retryable = isIdempotent(method);
 
-  let res: Response;
-  try {
-    res = await fetch(`${base}${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch (networkErr) {
-    const detail = networkErr instanceof Error ? networkErr.message : String(networkErr);
-    throw new Error(`无法连接到服务器 (${base})：${detail}`);
-  }
+  for (let attempt = 0; ; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  if (!res.ok) {
-    // 401 with a token present (not during login/register) means session expired.
-    // Guard token && to avoid mis-firing on wrong-password 401s at the login page.
-    // Deduplicate concurrent 401s so only one event + one toast reaches the user.
-    if (res.status === 401 && token && path !== "/auth/signout" && !sessionExpiredNotified) {
-      sessionExpiredNotified = true;
-      clearToken();
-      window.dispatchEvent(new Event("lumo:session-expired"));
+    let res: Response;
+    try {
+      res = await fetch(`${base}${path}`, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+    } catch (networkErr) {
+      clearTimeout(timer);
+      const isTimeout = networkErr instanceof Error && networkErr.name === "AbortError";
+      // Idempotent reads retry on network errors / timeouts; writes never do.
+      if (retryable && attempt < MAX_RETRIES) {
+        await backoff(attempt + 1);
+        continue;
+      }
+      if (isTimeout) {
+        throw new Error(`请求超时 (${base}${path})`);
+      }
+      const detail = networkErr instanceof Error ? networkErr.message : String(networkErr);
+      throw new Error(`无法连接到服务器 (${base})：${detail}`);
     }
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    const errBody = (err as any).error;
-    const errMsg =
-      typeof errBody === "string"
-        ? errBody
-        : errBody?.message ?? `HTTP ${res.status} ${res.statusText}`;
-    throw new Error(errMsg);
-  }
+    clearTimeout(timer);
 
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+    if (!res.ok) {
+      // Retry transient (gateway/overload) statuses for idempotent reads before
+      // consuming the body or surfacing the error.
+      if (retryable && RETRYABLE_STATUS.has(res.status) && attempt < MAX_RETRIES) {
+        await backoff(attempt + 1);
+        continue;
+      }
+      // 401 with a token present (not during login/register) means session expired.
+      // Guard token && to avoid mis-firing on wrong-password 401s at the login page.
+      // Deduplicate concurrent 401s so only one event + one toast reaches the user.
+      if (res.status === 401 && token && path !== "/auth/signout" && !sessionExpiredNotified) {
+        sessionExpiredNotified = true;
+        clearToken();
+        window.dispatchEvent(new Event("lumo:session-expired"));
+      }
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      const errBody = (err as any).error;
+      const errMsg =
+        typeof errBody === "string"
+          ? errBody
+          : errBody?.message ?? `HTTP ${res.status} ${res.statusText}`;
+      throw new Error(errMsg);
+    }
+
+    if (res.status === 204) return undefined as T;
+    return res.json() as Promise<T>;
+  }
 }
 
 // ── Type adapters (backend snake_case → frontend camelCase where needed) ──────
