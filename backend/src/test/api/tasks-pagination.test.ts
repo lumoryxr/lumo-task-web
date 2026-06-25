@@ -106,7 +106,7 @@ describe("GET /v1/tasks · pagination", () => {
   test("AC-8: the keyset page query is index-backed (no full scan)", async () => {
     const plan = await query<{ detail: string }>(
       `EXPLAIN QUERY PLAN SELECT * FROM tasks
-         WHERE user_id = 'u' AND completed = 0
+         WHERE user_id = 'u' AND completed = 0 AND deleted_at IS NULL
            AND (created_at > '2026-01-01' OR (created_at = '2026-01-01' AND id > 'x'))
          ORDER BY created_at ASC, id ASC LIMIT 51`,
     );

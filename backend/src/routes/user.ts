@@ -18,7 +18,7 @@ app.get("/", authMiddleware, async (c) => {
       SELECT
         COUNT(CASE WHEN completed = 0 THEN 1 END) as task_count,
         COALESCE(SUM(pomos_done), 0) as pomo_count
-      FROM tasks WHERE user_id = :uid
+      FROM tasks WHERE user_id = :uid AND deleted_at IS NULL
     `, { uid: userId });
 
     return c.json({

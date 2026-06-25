@@ -296,20 +296,35 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
   }
 
+  // Soft-delete (tombstones). Deletes set `deleted_at` instead of removing the
+  // row, so the deletion can propagate to other devices during sync (ADR-0003)
+  // instead of resurrecting. Every normal read filters `deleted_at IS NULL`.
+  // Added to the syncable domains only; idempotent per column.
+  for (const table of ["tasks", "completed_entries", "people", "habits", "countdown_events"]) {
+    const cols = await query<{ name: string }>(`PRAGMA table_info(${table})`);
+    if (!cols.some((col) => col.name === "deleted_at")) {
+      await execRaw(`ALTER TABLE ${table} ADD COLUMN deleted_at TEXT`);
+    }
+  }
+
   // Secondary indexes on the multi-tenant tables. Every list/read query filters
   // by user_id (and sorts by created_at / completed_at / date); without these,
   // SQLite full-scans the shared table per request, which both slows reads and
   // — because scans hold the lock — starves the single writer at scale. The
   // composite (user_id, …sort/filter) shape lets the hot queries run as index
   // range scans with the ORDER BY already satisfied.
+  //
+  // The list indexes are PARTIAL (`WHERE deleted_at IS NULL`) so the hot path —
+  // listing live rows — stays a tight index range scan even as tombstones
+  // accumulate before GC, and tombstoned rows don't bloat the index.
   await execRaw(`
-    CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_created ON tasks(user_id, completed, created_at);
-    CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_quadrant ON tasks(user_id, completed, quadrant);
-    CREATE INDEX IF NOT EXISTS idx_completed_user_completedat ON completed_entries(user_id, completed_at);
-    CREATE INDEX IF NOT EXISTS idx_people_user_created ON people(user_id, created_at);
-    CREATE INDEX IF NOT EXISTS idx_habits_user_created ON habits(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_created ON tasks(user_id, completed, created_at) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_quadrant ON tasks(user_id, completed, quadrant) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_completed_user_completedat ON completed_entries(user_id, completed_at) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_people_user_created ON people(user_id, created_at) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_habits_user_created ON habits(user_id, created_at) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_habit_logs_user_date ON habit_logs(user_id, date);
-    CREATE INDEX IF NOT EXISTS idx_countdowns_user_created ON countdown_events(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_countdowns_user_created ON countdown_events(user_id, created_at) WHERE deleted_at IS NULL;
   `);
 }
 

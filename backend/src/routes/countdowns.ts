@@ -54,7 +54,7 @@ function rowToEvent(row: CountdownEventRow) {
 app.get("/", async (c) => {
   const userId = c.get("userId");
   const rows = await query<CountdownEventRow>(
-    "SELECT * FROM countdown_events WHERE user_id = :uid ORDER BY created_at ASC",
+    "SELECT * FROM countdown_events WHERE user_id = :uid AND deleted_at IS NULL ORDER BY created_at ASC",
     { uid: userId }
   );
   return c.json(rows.map(rowToEvent));
@@ -115,7 +115,7 @@ app.post("/", zValidator("json", CountdownBody), async (c) => {
   );
 
   const row = await queryOne<CountdownEventRow>(
-    "SELECT * FROM countdown_events WHERE id = :id",
+    "SELECT * FROM countdown_events WHERE id = :id AND deleted_at IS NULL",
     { id }
   );
   return c.json(rowToEvent(row!), 201);
@@ -129,7 +129,7 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", CountdownUpda
   const now = new Date().toISOString();
 
   const existing = await queryOne<CountdownEventRow>(
-    "SELECT * FROM countdown_events WHERE id = :id AND user_id = :uid",
+    "SELECT * FROM countdown_events WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
     { id: eventId, uid: userId }
   );
   if (!existing) return httpError(c, 404, "NOT_FOUND", "Countdown event not found");
@@ -153,7 +153,7 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", CountdownUpda
   );
 
   const row = await queryOne<CountdownEventRow>(
-    "SELECT * FROM countdown_events WHERE id = :id",
+    "SELECT * FROM countdown_events WHERE id = :id AND deleted_at IS NULL",
     { id: eventId }
   );
   return c.json(rowToEvent(row!));
@@ -162,9 +162,10 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", CountdownUpda
 // DELETE /countdowns/:id
 app.delete("/:id", zValidator("param", IdParam), async (c) => {
   const userId = c.get("userId");
+  const now = new Date().toISOString();
   const result = await execute(
-    "DELETE FROM countdown_events WHERE id = :id AND user_id = :uid",
-    { id: c.req.param("id"), uid: userId }
+    "UPDATE countdown_events SET deleted_at = :now, updated_at = :now WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
+    { id: c.req.param("id"), uid: userId, now }
   );
   if (result.changes === 0) return httpError(c, 404, "NOT_FOUND", "Countdown event not found");
   return new Response(null, { status: 204 });

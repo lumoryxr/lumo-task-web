@@ -28,7 +28,7 @@ app.post("/sessions", focusRateLimit, zValidator("json", FocusSessionBody), asyn
 
   if (body.task_id) {
     const task = await queryOne<FocusTaskRow>(
-      "SELECT * FROM tasks WHERE id = :id AND user_id = :uid",
+      "SELECT * FROM tasks WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
       { id: body.task_id, uid: userId }
     );
     if (task) {

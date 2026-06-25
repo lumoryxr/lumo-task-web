@@ -94,29 +94,28 @@ app.get("/", zValidator("query", TaskListQuerySchema), async (c) => {
     }
   }
 
-  const where = ["user_id = :uid", "completed = 0"];
+  // Base read keeps the always-present filters — including `deleted_at IS NULL`
+  // — inside this literal, so the soft-delete-filter standards scan can verify
+  // it statically. Optional clauses (search, keyset cursor) are appended below.
+  let sql = "SELECT * FROM tasks WHERE user_id = :uid AND completed = 0 AND deleted_at IS NULL";
   const params: Record<string, string | number> = { uid: userId };
 
   if (q) {
     params.q = `%${q.replace(/[\\%_]/g, (ch) => "\\" + ch)}%`;
-    where.push(
-      "(title_en LIKE :q ESCAPE '\\' OR title_zh LIKE :q ESCAPE '\\'" +
-        " OR desc_en LIKE :q ESCAPE '\\' OR desc_zh LIKE :q ESCAPE '\\')",
-    );
+    sql +=
+      " AND (title_en LIKE :q ESCAPE '\\' OR title_zh LIKE :q ESCAPE '\\'" +
+      " OR desc_en LIKE :q ESCAPE '\\' OR desc_zh LIKE :q ESCAPE '\\')";
   }
   if (after) {
     params.ca = after.createdAt;
     params.cid = after.id;
-    where.push("(created_at > :ca OR (created_at = :ca AND id > :cid))");
+    sql += " AND (created_at > :ca OR (created_at = :ca AND id > :cid))";
   }
 
   // Fetch one extra row to know whether a further page exists.
   params.lim = limit + 1;
-  const rows = await query<TaskRow>(
-    `SELECT * FROM tasks WHERE ${where.join(" AND ")}
-       ORDER BY created_at ASC, id ASC LIMIT :lim`,
-    params,
-  );
+  sql += " ORDER BY created_at ASC, id ASC LIMIT :lim";
+  const rows = await query<TaskRow>(sql, params);
 
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
@@ -169,7 +168,7 @@ app.post("/", taskMutateLimit, zValidator("json", TaskCreateBodySchema), async (
     now,
   });
 
-  const row = await queryOne<TaskRow>("SELECT * FROM tasks WHERE id = :id", { id });
+  const row = await queryOne<TaskRow>("SELECT * FROM tasks WHERE id = :id AND deleted_at IS NULL", { id });
   return c.json(rowToTask(row!), 201);
 });
 
@@ -177,7 +176,7 @@ app.post("/", taskMutateLimit, zValidator("json", TaskCreateBodySchema), async (
 app.get("/:id", zValidator("param", IdParam), async (c) => {
   const userId = c.get("userId") as string;
   const row = await queryOne<TaskRow>(
-    "SELECT * FROM tasks WHERE id = :id AND user_id = :uid",
+    "SELECT * FROM tasks WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
     { id: c.req.param("id"), uid: userId }
   );
   if (!row) return httpError(c, 404, "NOT_FOUND", "Not found");
@@ -192,7 +191,7 @@ app.patch("/:id", taskMutateLimit, zValidator("param", IdParam), zValidator("jso
   const now = new Date().toISOString();
 
   const existing = await queryOne<TaskRow>(
-    "SELECT * FROM tasks WHERE id = :id AND user_id = :uid",
+    "SELECT * FROM tasks WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
     { id: taskId, uid: userId }
   );
   if (!existing) return httpError(c, 404, "NOT_FOUND", "Not found");
@@ -233,16 +232,20 @@ app.patch("/:id", taskMutateLimit, zValidator("param", IdParam), zValidator("jso
     WHERE id = :id AND user_id = :uid
   `, { ...merged, id: taskId, uid: userId, now });
 
-  const row = await queryOne<TaskRow>("SELECT * FROM tasks WHERE id = :id", { id: taskId });
+  const row = await queryOne<TaskRow>("SELECT * FROM tasks WHERE id = :id AND deleted_at IS NULL", { id: taskId });
   return c.json(rowToTask(row!));
 });
 
 // DELETE /tasks/:id
 app.delete("/:id", zValidator("param", IdParam), async (c) => {
   const userId = c.get("userId") as string;
+  const now = new Date().toISOString();
+  // Soft delete (tombstone) so the deletion propagates on sync instead of
+  // resurrecting. `deleted_at IS NULL` guard makes a repeat delete a 404, as
+  // before. The row stays; every read filters `deleted_at IS NULL`.
   const result = await execute(
-    "DELETE FROM tasks WHERE id = :id AND user_id = :uid",
-    { id: c.req.param("id"), uid: userId }
+    "UPDATE tasks SET deleted_at = :now, updated_at = :now WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
+    { id: c.req.param("id"), uid: userId, now }
   );
   if (result.changes === 0) return httpError(c, 404, "NOT_FOUND", "Not found");
   return new Response(null, { status: 204 });
@@ -254,7 +257,7 @@ app.post("/:id/complete", zValidator("param", IdParam), async (c) => {
   const taskId = c.req.param("id");
 
   const task = await queryOne<TaskRow>(
-    "SELECT * FROM tasks WHERE id = :id AND user_id = :uid",
+    "SELECT * FROM tasks WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
     { id: taskId, uid: userId }
   );
   if (!task) return httpError(c, 404, "NOT_FOUND", "Not found");
@@ -321,7 +324,7 @@ app.post("/:id/uncomplete", zValidator("param", IdParam), async (c) => {
   const taskId = c.req.param("id");
 
   const task = await queryOne(
-    "SELECT * FROM tasks WHERE id = :id AND user_id = :uid AND completed = 1",
+    "SELECT * FROM tasks WHERE id = :id AND user_id = :uid AND completed = 1 AND deleted_at IS NULL",
     { id: taskId, uid: userId }
   );
   if (!task) return httpError(c, 404, "NOT_FOUND", "Not found");
@@ -334,12 +337,13 @@ app.post("/:id/uncomplete", zValidator("param", IdParam), async (c) => {
       args: { id: taskId, now },
     },
     {
-      sql: "DELETE FROM completed_entries WHERE task_id = :task_id AND user_id = :uid",
-      args: { task_id: taskId, uid: userId },
+      // Soft-delete the completed-log rows so the removal propagates on sync.
+      sql: "UPDATE completed_entries SET deleted_at = :now WHERE task_id = :task_id AND user_id = :uid AND deleted_at IS NULL",
+      args: { task_id: taskId, uid: userId, now },
     },
   ]);
 
-  const row = await queryOne<TaskRow>("SELECT * FROM tasks WHERE id = :id", { id: taskId });
+  const row = await queryOne<TaskRow>("SELECT * FROM tasks WHERE id = :id AND deleted_at IS NULL", { id: taskId });
   return c.json(rowToTask(row!));
 });
 

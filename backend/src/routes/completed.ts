@@ -33,13 +33,13 @@ app.get("/", async (c) => {
   if (date) {
     rows = await query<CompletedEntryRow>(`
       SELECT * FROM completed_entries
-      WHERE user_id = :uid AND DATE(completed_at, 'localtime') = :date
+      WHERE user_id = :uid AND deleted_at IS NULL AND DATE(completed_at, 'localtime') = :date
       ORDER BY completed_at ASC
     `, { uid: userId, date });
   } else {
     rows = await query<CompletedEntryRow>(`
       SELECT * FROM completed_entries
-      WHERE user_id = :uid
+      WHERE user_id = :uid AND deleted_at IS NULL
       ORDER BY completed_at DESC
       LIMIT 200
     `, { uid: userId });
@@ -54,7 +54,7 @@ app.post("/:id/reopen", async (c) => {
   const entryId = c.req.param("id");
 
   const entry = await queryOne<CompletedEntryRow>(
-    "SELECT * FROM completed_entries WHERE id = :id AND user_id = :uid",
+    "SELECT * FROM completed_entries WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
     { id: entryId, uid: userId }
   );
   if (!entry) return httpError(c, 404, "NOT_FOUND", "Not found");
@@ -63,12 +63,12 @@ app.post("/:id/reopen", async (c) => {
   // Using batch() ensures both writes succeed or both roll back — no orphaned state.
   const now = new Date().toISOString();
   const stmts: InStatement[] = [
-    { sql: "DELETE FROM completed_entries WHERE id = :id", args: { id: entryId } },
+    { sql: "UPDATE completed_entries SET deleted_at = :now WHERE id = :id", args: { id: entryId, now } },
   ];
 
   if (entry.task_id) {
     // Only reopen the task if it still exists (it may have been deleted separately).
-    const task = await queryOne("SELECT id FROM tasks WHERE id = :id", { id: entry.task_id });
+    const task = await queryOne("SELECT id FROM tasks WHERE id = :id AND deleted_at IS NULL", { id: entry.task_id });
     if (task) {
       stmts.push({
         sql: "UPDATE tasks SET completed = 0, today = 1, updated_at = :now WHERE id = :id",
