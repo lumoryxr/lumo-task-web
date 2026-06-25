@@ -1,6 +1,6 @@
 # ADR 0003 — Server-authoritative incremental sync (Todoist model)
 
-- Status: **Accepted**
+- Status: **Implemented** (all phases shipped 2026-06-25; see Phased rollout)
 - Date: 2026-06-25
 - **Supersedes: ADR-0002** (per-user database + embedded replica)
 - Requirement: Jalen chose option A (2026-06-25) after researching how leading
@@ -73,16 +73,23 @@ backend — removing the dual-backend complexity.
 
 ## Phased rollout (each phase = its own PRD → contract → TDD → review → merge)
 
-- **Phase 1:** tombstones across syncable domains; reads filter `deleted_at`;
-  delete endpoints soft-delete. *Independent value: fixes delete-resurrect.*
-- **Phase 2:** delta-pull endpoint `GET /v1/sync?since=` (+ contract in
-  `@lumo/contracts`).
-- **Phase 3:** server-authoritative `updated_at` on all writes + creation
-  idempotency keys.
-- **Phase 4:** client local cache + offline mutation queue + replay (web first,
-  then desktop).
-- **Phase 5:** delete `lib/sync.ts` + `remote_url/remote_token`; desktop switches
-  to the delta API; tombstone GC job.
+**All phases shipped 2026-06-25.** Each went PRD (issue) → contract → TDD → one
+adversarial review (findings on the PR) → gates → merge.
+
+- ✅ **Phase 1 — tombstones** across syncable domains; reads filter `deleted_at`;
+  delete endpoints soft-delete. *Independent value: fixes delete-resurrect.* — **PR #69**
+- ✅ **Phase 2 — delta-pull endpoint** `GET /v1/sync?since=` backed by a monotonic
+  `seq` cursor (trigger-based, not wall-clock) + delta pagination + cursor authz
+  (+ contract in `@lumo/contracts`). — **PR #73**
+- ✅ **Phase 3 — creation idempotency keys** (per-user namespaced, TTL-reclaimed)
+  + server-authoritative timestamps on writes. — **PR #75**
+- ✅ **Phase 4 — client cache + offline queue:** web multi-device live refresh
+  (read, all domains) — **PR #78**; offline mutation queue + client-generated ids
+  — **PR #85**; offline writes across **all domains / all ops** (create/update/remove)
+  — **PR #88**.
+- ✅ **Phase 5 — teardown + lifecycle:** GC + offline-overage forced full resync
+  — **PR #80**; delete `lib/sync.ts` + `remote_url/remote_token` + manual-config UI,
+  `syncOK` derived from db mode — **PR #83**.
 
 ## Consequences
 
