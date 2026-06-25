@@ -5,6 +5,7 @@ import { EveningReviewModal } from "@/components/EveningReviewModal";
 import { MorningPlanningModal } from "@/components/MorningPlanningModal";
 import { WeeklyPlanningModal, isWeeklyPlanned } from "@/components/WeeklyPlanningModal";
 import { TaskRow } from "@/components/TaskRow";
+import { TaskListSkeleton } from "@/components/skeletons";
 import { IconArrowRight } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
@@ -732,7 +733,7 @@ export function TodayPage() {
   }
 
   if (loading && tasks.length === 0) {
-    return <div className="p-8 text-text-muted text-sm">Loading…</div>;
+    return <TaskListSkeleton />;
   }
 
   const incomplete = [...tasks]
