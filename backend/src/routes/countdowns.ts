@@ -15,6 +15,7 @@ app.use("/*", authMiddleware);
 const IdParam = z.object({ id: z.string().min(1).max(64) });
 
 const CountdownBody = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
   title: z.string().min(1).max(200),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   emoji: z.string().max(10).optional().nullable(),
@@ -95,7 +96,7 @@ app.post("/", zValidator("json", CountdownBody), async (c) => {
   const userId = c.get("userId");
   const body = c.req.valid("json");
   return idempotent(c, async () => {
-  const id = "cd_" + nanoid(10);
+  const id = body.id ?? ("cd_" + nanoid(10));
   const now = new Date().toISOString();
 
   await execute(

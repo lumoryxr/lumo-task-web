@@ -20,6 +20,7 @@ const LogParam = z.object({
 });
 
 const HabitBody = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
   title: z.string().min(1).max(200),
   emoji: z.string().max(10).optional().nullable(),
   color: z.enum(["green", "cyan", "amber", "red", "purple"]).default("green"),
@@ -151,7 +152,7 @@ app.post("/", zValidator("json", HabitBody), async (c) => {
   const userId = c.get("userId");
   const body = c.req.valid("json");
   return idempotent(c, async () => {
-  const id = "habit_" + nanoid(10);
+  const id = body.id ?? ("habit_" + nanoid(10));
   const now = new Date().toISOString();
 
   await execute(

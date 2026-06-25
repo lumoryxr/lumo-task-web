@@ -133,7 +133,7 @@ app.post("/", taskMutateLimit, zValidator("json", TaskCreateBodySchema), async (
   const userId = c.get("userId") as string;
   const body = c.req.valid("json");
   return idempotent(c, async () => {
-  const id = "t_" + nanoid(10);
+  const id = body.id ?? ("t_" + nanoid(10));
   const now = new Date().toISOString();
 
   await execute(`

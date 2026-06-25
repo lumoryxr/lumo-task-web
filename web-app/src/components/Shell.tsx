@@ -13,6 +13,7 @@ import { usePeopleStore } from "@/store/usePeopleStore";
 import { useHabitsStore } from "@/store/useHabitsStore";
 import { useCountdownStore } from "@/store/useCountdownStore";
 import { startSyncEngine } from "@/lib/syncEngine";
+import { startFlusher } from "@/lib/writeQueue";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 /**
@@ -77,7 +78,9 @@ export function Shell() {
       if (domains.has("habits")) void useHabitsStore.getState().load(userId);
       if (domains.has("countdowns")) void useCountdownStore.getState().load(userId);
     });
-    return () => engine.stop();
+    // Replay offline writes queued for this user when back online (ADR-0003 4b).
+    const flusher = startFlusher(userId);
+    return () => { engine.stop(); flusher.stop(); };
   }, [userId]);
 
   const titleMap: Record<string, { title: string; sub: string }> = {

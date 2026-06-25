@@ -77,12 +77,14 @@ function backoff(attempt: number): Promise<void> {
 async function req<T>(
   method: string,
   path: string,
-  body?: unknown
+  body?: unknown,
+  opts?: { idempotencyKey?: string }
 ): Promise<T> {
   const base = await getBase();
   const token = getToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (opts?.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
   const retryable = isIdempotent(method);
 
   for (let attempt = 0; ; attempt++) {
@@ -143,6 +145,29 @@ async function req<T>(
 }
 
 // ── Type adapters (backend snake_case → frontend camelCase where needed) ──────
+
+/** The POST /tasks wire body — shared by online create and offline-queue replay. */
+export function buildTaskCreateBody(input: TaskCreateInput, id?: string) {
+  return {
+    ...(id ? { id } : {}),
+    title: input.title,
+    desc: input.desc ?? null,
+    quadrant: input.quadrant,
+    today: input.today,
+    due: input.due ?? null,
+    duration: input.duration,
+    pomos_total: input.pomos_total,
+    assignee_ids: input.assignee_ids ?? [],
+    conviction: input.conviction ?? null,
+    next_step: input.next_step ?? null,
+    reason: input.reason ?? null,
+    ai_suggest: input.ai_suggest ?? null,
+    not_now: input.not_now ?? [],
+    recurrence: input.recurrence ?? "none",
+    subtasks: input.subtasks ?? [],
+    scheduled_start: input.scheduled_start ?? null,
+  };
+}
 
 function adaptTask(raw: any): Task {
   return {
@@ -309,25 +334,8 @@ export const api = {
     return req("POST", "/ai/breakdown", { taskId, locale });
   },
 
-  async createTask(input: TaskCreateInput): Promise<Task> {
-    const raw = await req<any>("POST", "/tasks", {
-      title: input.title,
-      desc: input.desc ?? null,
-      quadrant: input.quadrant,
-      today: input.today,
-      due: input.due ?? null,
-      duration: input.duration,
-      pomos_total: input.pomos_total,
-      assignee_ids: input.assignee_ids ?? [],
-      conviction: input.conviction ?? null,
-      next_step: input.next_step ?? null,
-      reason: input.reason ?? null,
-      ai_suggest: input.ai_suggest ?? null,
-      not_now: input.not_now ?? [],
-      recurrence: input.recurrence ?? "none",
-      subtasks: input.subtasks ?? [],
-      scheduled_start: input.scheduled_start ?? null,
-    });
+  async createTask(input: TaskCreateInput, id?: string): Promise<Task> {
+    const raw = await req<any>("POST", "/tasks", buildTaskCreateBody(input, id));
     return adaptTask(raw);
   },
 
@@ -467,6 +475,34 @@ export const api = {
 };
 
 export type ApiClient = typeof api;
+
+/**
+ * Replay a single queued write (ADR-0003 Phase 4b offline queue). Sends one
+ * request with the Idempotency-Key so a replay can't duplicate. Returns the HTTP
+ * status; THROWS on a network/connection error (no response) so the caller knows
+ * to keep the item queued and retry later. Bypasses req()'s own retry — the
+ * write queue owns retry/backoff.
+ */
+export async function sendWrite(
+  method: "POST" | "PATCH" | "DELETE",
+  path: string,
+  body: unknown,
+  idempotencyKey: string,
+): Promise<number> {
+  const base = await getBase();
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Idempotency-Key": idempotencyKey,
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  return res.status;
+}
 
 // ── Adapter helpers ───────────────────────────────────────────────────────────
 
