@@ -373,6 +373,23 @@ export async function runMigrations() {
     // re-run a no-op so seqs aren't churned on every startup.
     await execRaw(`UPDATE ${table} SET seq = seq WHERE seq IS NULL`);
   }
+
+  // ── Idempotency keys (ADR-0003 Phase 3) ─────────────────────────────────────
+  // A client that retries a create after a network timeout sends the same
+  // Idempotency-Key; the stored result is replayed instead of inserting a
+  // duplicate row. Namespaced by user_id so one user's key can't reach another's
+  // result. `response` holds the JSON body; `status` the HTTP status. GC of old
+  // keys is deferred to Phase 5 (with tombstone GC).
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS idempotency_keys (
+      user_id    TEXT NOT NULL,
+      key        TEXT NOT NULL,
+      status     INTEGER,
+      response   TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, key)
+    );
+  `);
 }
 
 // When run directly as a script

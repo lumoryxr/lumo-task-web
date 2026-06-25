@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
+import { idempotent } from "../lib/idempotency.js";
 import type { Variables } from "../env.js";
 import type { HabitRow, HabitLogRow } from "../db/rows.js";
 
@@ -149,6 +150,7 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
 app.post("/", zValidator("json", HabitBody), async (c) => {
   const userId = c.get("userId");
   const body = c.req.valid("json");
+  return idempotent(c, async () => {
   const id = "habit_" + nanoid(10);
   const now = new Date().toISOString();
 
@@ -173,7 +175,8 @@ app.post("/", zValidator("json", HabitBody), async (c) => {
   );
 
   const row = await queryOne<HabitRow>("SELECT * FROM habits WHERE id = :id AND deleted_at IS NULL", { id });
-  return c.json(rowToHabit(row!), 201);
+  return { status: 201, body: rowToHabit(row!) };
+  });
 });
 
 // PATCH /habits/:id

@@ -64,4 +64,25 @@ describe("Clients cannot set sync metadata", () => {
     assert.equal(row!.deleted_at, null, "PATCH must not let a client tombstone a row");
     assert.equal((await req("GET", `/v1/tasks/${t.id}`, { token })).status, 200);
   });
+
+  // Every create endpoint must server-own deleted_at / seq, regardless of body.
+  const META = { deleted_at: "2020-01-01T00:00:00.000Z", seq: 999999, created_at: "1999-01-01T00:00:00.000Z" };
+  const CREATES: { ep: string; table: string; body: Record<string, unknown> }[] = [
+    { ep: "/v1/people", table: "people", body: { name: "N", initials: "NN", color: "#5bc8d4", ...META } },
+    { ep: "/v1/habits", table: "habits", body: { title: "H", color: "green", frequency: "daily", ...META } },
+    { ep: "/v1/countdowns", table: "countdown_events", body: { title: "C", date: "2026-12-01", color: "cyan", repeat: "none", ...META } },
+  ];
+  for (const { ep, table, body } of CREATES) {
+    test(`POST ${ep} ignores client deleted_at/seq (server-owned)`, async () => {
+      const { status, body: created } = await req("POST", ep, { token, body: body as any });
+      assert.equal(status, 201);
+      const row = await queryOne<{ deleted_at: string | null; seq: number | null }>(
+        `SELECT deleted_at, seq FROM ${table} WHERE id = :id`,
+        { id: created.id },
+      );
+      assert.equal(row!.deleted_at, null, `${ep}: client deleted_at must be ignored`);
+      assert.notEqual(row!.seq, 999999, `${ep}: client seq must be ignored (server stamps it)`);
+      assert.ok(row!.seq != null && row!.seq < 999999, `${ep}: seq is server-assigned`);
+    });
+  }
 });

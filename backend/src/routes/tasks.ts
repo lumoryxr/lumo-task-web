@@ -8,6 +8,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
 import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
+import { idempotent } from "../lib/idempotency.js";
 import type { Variables } from "../env.js";
 import type { TaskRow } from "../db/rows.js";
 
@@ -131,6 +132,7 @@ app.get("/", zValidator("query", TaskListQuerySchema), async (c) => {
 app.post("/", taskMutateLimit, zValidator("json", TaskCreateBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const body = c.req.valid("json");
+  return idempotent(c, async () => {
   const id = "t_" + nanoid(10);
   const now = new Date().toISOString();
 
@@ -169,7 +171,8 @@ app.post("/", taskMutateLimit, zValidator("json", TaskCreateBodySchema), async (
   });
 
   const row = await queryOne<TaskRow>("SELECT * FROM tasks WHERE id = :id AND deleted_at IS NULL", { id });
-  return c.json(rowToTask(row!), 201);
+  return { status: 201, body: rowToTask(row!) };
+  });
 });
 
 // GET /tasks/:id

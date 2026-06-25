@@ -5,6 +5,7 @@ import { PersonCreateBodySchema, PersonUpdateBodySchema, type PersonWire } from 
 import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
+import { idempotent } from "../lib/idempotency.js";
 import type { Variables } from "../env.js";
 import type { PersonRow } from "../db/rows.js";
 
@@ -42,20 +43,17 @@ app.get("/", async (c) => {
 app.post("/", zValidator("json", PersonCreateBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const body = c.req.valid("json");
-  const id = "p_" + nanoid(10);
-  const now = new Date().toISOString();
-  try {
+  return idempotent(c, async () => {
+    const id = "p_" + nanoid(10);
+    const now = new Date().toISOString();
     await execute(`
       INSERT INTO people (id, user_id, name, initials, color, email, created_at)
       VALUES (:id, :user_id, :name, :initials, :color, :email, :now)
     `, { id, user_id: userId, name: body.name, initials: body.initials, color: body.color, email: body.email ?? null, now });
 
     const row = await queryOne<PersonRow>("SELECT * FROM people WHERE id = :id AND deleted_at IS NULL", { id });
-    return c.json(rowToPerson(row!), 201);
-  } catch (err) {
-    console.error("[people] POST /:", err instanceof Error ? err.message : err);
-    return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
-  }
+    return { status: 201, body: rowToPerson(row!) };
+  });
 });
 
 // PATCH /people/:id
