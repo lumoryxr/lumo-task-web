@@ -1,7 +1,6 @@
 import { serve } from "@hono/node-server";
 import { runMigrations } from "./db/migrate.js";
 import { app } from "./app.js";
-import { startGcScheduler } from "./lib/gc.js";
 import { validateStartupSecrets } from "./lib/secret-policy.js";
 
 // Render/Heroku/most PaaS inject the bind port via PORT; LUMO_PORT is the local override.
@@ -25,9 +24,6 @@ try {
 // Run migrations before accepting requests (the backend seeds no accounts).
 runMigrations()
   .then(() => {
-    // Prune old tombstones + idempotency keys now and daily (ADR-0003 Phase 5).
-    // Best-effort, non-blocking — never delays accepting requests.
-    startGcScheduler();
     console.log(`Lumo backend starting on port ${port}`);
     serve({ fetch: app.fetch, port });
   })

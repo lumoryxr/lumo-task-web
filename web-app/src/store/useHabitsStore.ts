@@ -1,24 +1,9 @@
 import { create } from "zustand";
-import { habitApi, buildHabitUpdateBody } from "@/api/client";
+import { habitApi } from "@/api/client";
 import type { Habit, HabitColor, HabitFrequency, HabitLog } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
-import { clientId, withOfflineQueue } from "@/lib/writeQueue";
-
-/** POST /habits wire body — shared by online create + offline replay. */
-function habitCreateBody(input: Omit<Habit, "id" | "createdAt">, id: string) {
-  return {
-    id,
-    title: input.title,
-    emoji: input.emoji ?? null,
-    color: input.color,
-    frequency: input.frequency,
-    frequencyDays: input.frequencyDays ?? null,
-    frequencyTimes: input.frequencyTimes ?? null,
-    frequencyInterval: input.frequencyInterval ?? null,
-    note: input.note ?? null,
-  };
-}
+import { clientId } from "@/lib/id";
 
 function migrationKey(userId: string) {
   return `lumo.habits.migrated.v1.${userId}`;
@@ -118,20 +103,9 @@ export const useHabitsStore = create<HabitsState>((set) => ({
   async create(userId, input) {
     const id = clientId("habit");
     try {
-      return await withOfflineQueue(
-        userId,
-        { key: `create:${id}`, method: "POST", path: "/habits", body: habitCreateBody(input, id) },
-        async () => {
-          const habit = await habitApi.createHabit(userId, input, id);
-          set((s) => ({ habits: [...s.habits, habit] }));
-          return habit;
-        },
-        () => {
-          const optimistic = { ...input, id, createdAt: new Date().toISOString() } as Habit;
-          set((s) => ({ habits: [...s.habits, optimistic] }));
-          return optimistic;
-        },
-      );
+      const habit = await habitApi.createHabit(userId, input, id);
+      set((s) => ({ habits: [...s.habits, habit] }));
+      return habit;
     } catch (e) {
       toast.error(t("habit.error.create"), e instanceof Error ? e.message : String(e));
       throw e;
@@ -140,35 +114,20 @@ export const useHabitsStore = create<HabitsState>((set) => ({
 
   async update(userId, id, patch) {
     try {
-      await withOfflineQueue(
-        userId,
-        { key: `update:${id}:${clientId("u")}`, method: "PATCH", path: `/habits/${id}`, body: buildHabitUpdateBody(patch) },
-        async () => {
-          const updated = await habitApi.updateHabit(userId, id, patch);
-          set((s) => ({ habits: s.habits.map((h) => (h.id === id ? updated : h)) }));
-        },
-        () => {
-          set((s) => ({ habits: s.habits.map((h) => (h.id === id ? ({ ...h, ...patch } as Habit) : h)) }));
-        },
-      );
+      const updated = await habitApi.updateHabit(userId, id, patch);
+      set((s) => ({ habits: s.habits.map((h) => (h.id === id ? updated : h)) }));
     } catch (e) {
       toast.error(t("habit.error.update"), e instanceof Error ? e.message : String(e));
     }
   },
 
   async remove(userId, id) {
-    const removeLocal = () =>
+    try {
+      await habitApi.deleteHabit(userId, id);
       set((s) => ({
         habits: s.habits.filter((h) => h.id !== id),
         logs: s.logs.filter((l) => l.habitId !== id),
       }));
-    try {
-      await withOfflineQueue(
-        userId,
-        { key: `delete:${id}`, method: "DELETE", path: `/habits/${id}` },
-        async () => { await habitApi.deleteHabit(userId, id); removeLocal(); },
-        () => { removeLocal(); },
-      );
       toast.success(t("habit.deleted"));
     } catch (e) {
       toast.error(t("habit.error.delete"), e instanceof Error ? e.message : String(e));
