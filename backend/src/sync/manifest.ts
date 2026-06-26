@@ -35,16 +35,49 @@ export interface SyncEntity {
 export const FOUR_TUPLE = ["id", "user_id", "updated_at", "deleted_at"] as const;
 
 /**
- * Per-entity row schema. We keep these lenient/passthrough on purpose: the wire
- * `SyncRowSchema` already enforces the four-tuple, and row payloads originate
- * from our own clients writing rows that this same backend produced. Strictness
- * lives in the create/update route contracts; sync is a row-level transport.
+ * Per-entity row schema. Each EXTENDS the wire `SyncRowSchema` (which enforces
+ * the four-tuple) and additionally requires the table's NOT NULL payload columns.
+ *
+ * Why this matters: if a pushed row omits a NOT NULL column (e.g. a task with no
+ * `title_en`, or a person with no `name`), a lenient passthrough schema lets it
+ * through and the INSERT then fails the SQLite NOT NULL constraint — surfacing as
+ * an opaque 500. By requiring those columns here, a missing required column is
+ * caught up front as a clean 400 INVALID_ROW. The engine stays fully generic: it
+ * still iterates the manifest and only the `schema` object differs per entity.
+ *
+ * `.passthrough()` (inherited from SyncRowSchema) keeps every other payload
+ * column flowing through untouched, so we don't have to enumerate optional/
+ * nullable columns — only the NOT NULL ones that would otherwise cause a 500.
  */
-const taskRowSchema = SyncRowSchema;
-const personRowSchema = SyncRowSchema;
-const completedEntryRowSchema = SyncRowSchema;
-const habitRowSchema = SyncRowSchema;
-const countdownEventRowSchema = SyncRowSchema;
+
+/** Require a set of payload columns to be present & non-null (string content). */
+function requiringNotNull(shape: Record<string, z.ZodTypeAny>): z.ZodType {
+  return SyncRowSchema.and(z.object(shape).passthrough());
+}
+
+// NOT NULL columns per table (mirrors db/migrate.ts CREATE TABLE). `user_id` is
+// already required by SyncRowSchema (and is force-overwritten server-side), and
+// columns with a SQLite DEFAULT are NOT listed — an omitted one binds to its
+// default, never NULL-violating. Only truly NOT-NULL-without-default columns
+// (which a missing value would crash on) are required here.
+const taskRowSchema = requiringNotNull({
+  title_en: z.string(),
+});
+const personRowSchema = requiringNotNull({
+  name: z.string(),
+  initials: z.string(),
+  color: z.string(),
+});
+const completedEntryRowSchema = requiringNotNull({
+  title_en: z.string(),
+});
+const habitRowSchema = requiringNotNull({
+  title: z.string(),
+});
+const countdownEventRowSchema = requiringNotNull({
+  title: z.string(),
+  date: z.string(),
+});
 
 export const SYNC_MANIFEST: SyncEntity[] = [
   {

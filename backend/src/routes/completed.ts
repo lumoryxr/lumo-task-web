@@ -4,6 +4,7 @@ import type { InStatement } from "@libsql/client";
 import { authMiddleware } from "../middleware/auth.js";
 import type { Variables } from "../env.js";
 import { httpError } from "../lib/errors.js";
+import { hlcNow } from "../lib/hlc.js";
 import type { CompletedEntryRow } from "../db/rows.js";
 
 const app = new Hono<{ Variables: Variables }>();
@@ -61,9 +62,11 @@ app.post("/:id/reopen", async (c) => {
 
   // Build the atomic batch: always delete the entry; conditionally reopen the task.
   // Using batch() ensures both writes succeed or both roll back — no orphaned state.
-  const now = new Date().toISOString();
+  // Tombstone on the entry (`deleted_at` + `updated_at`) and the task's
+  // `updated_at` are all LWW/cursor keys → HLC.
+  const now = hlcNow();
   const stmts: InStatement[] = [
-    { sql: "UPDATE completed_entries SET deleted_at = :now WHERE id = :id", args: { id: entryId, now } },
+    { sql: "UPDATE completed_entries SET deleted_at = :now, updated_at = :now WHERE id = :id", args: { id: entryId, now } },
   ];
 
   if (entry.task_id) {

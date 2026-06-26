@@ -75,6 +75,24 @@ export function compare(a: string, b: string): number {
 }
 
 /**
+ * The canonical sync timestamp for a server-originated REST write.
+ *
+ * Every backend route that stamps `updated_at` (or a tombstone `deleted_at` that
+ * rides the same LWW order) on a syncable table MUST use this, NOT
+ * `new Date().toISOString()` — the latter emits only 3 fractional digits, which
+ * sorts BEFORE the 6-digit HLC values that synced/desktop rows carry and so
+ * loses LWW races and breaks the pull cursor. Thin alias over `now()` so the
+ * intent ("this is a sync timestamp") is explicit at every call site.
+ *
+ * NOTE: this is for SERVER-ORIGINATED writes only. The sync `push` path must
+ * PRESERVE the incoming row's `updated_at` (the client supplies its own HLC for
+ * cross-device LWW) — it never calls this.
+ */
+export function hlcNow(): string {
+  return now();
+}
+
+/**
  * Test-only: reset the internal clock state so a test process starts from a
  * known baseline. Not used by production code.
  */

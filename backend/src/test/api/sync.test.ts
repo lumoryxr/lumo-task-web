@@ -18,8 +18,22 @@ import { req, setupDb } from "../helpers/index.js";
 import { newUserWithToken } from "../helpers/auth.js";
 import { now } from "../../lib/hlc.js";
 import { runMigrations } from "../../db/migrate.js";
+import { app } from "../../app.js";
 
 let token = "";
+
+/** POST /v1/sync/pull with a RAW (unstringified) body — used to send malformed
+ *  or empty bodies the JSON-encoding `req()` helper can't express. */
+async function fetchRawPull(rawBody: string) {
+  const res = await app.request("/v1/sync/pull", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: rawBody,
+  });
+  let body: any;
+  try { body = await res.json(); } catch { body = await res.text(); }
+  return { status: res.status, body };
+}
 
 // Sync rows carry the FULL column set, exactly as a desktop client reads them
 // from its own SQLite (every NOT NULL column present). The engine binds each
@@ -184,5 +198,67 @@ describe("AC8 · migrations idempotent", () => {
     // people & completed_entries gained updated_at.
     const { body } = await pull();
     assert.ok(Array.isArray(body.entities.completed_entries));
+  });
+});
+
+// ── F4 · per-entity schemas reject missing NOT NULL columns as a 400 ──────────
+describe("F4 · push validates required NOT NULL columns (400, not 500)", () => {
+  test("a task row missing title_en → 400 INVALID_ROW, nothing applied", async () => {
+    const t = now();
+    // Same as taskRow() but with title_en deliberately omitted.
+    const bad = {
+      id: "f4-missing-title", user_id: "ignored", updated_at: t,
+      assignee_ids: "[]", not_now_json: "[]", subtasks_json: "[]",
+      quadrant: "unclassified", today: 0, duration: 0, pomos_done: 0, pomos_total: 0,
+      completed: 0, recurrence: "none", week_focus: 0, created_at: t,
+    };
+    const res = await push({ tasks: [bad] });
+    assert.equal(res.status, 400, "missing NOT NULL column is a clean client error");
+    assert.equal(res.body.error?.code, "INVALID_ROW");
+
+    // Nothing was applied — the row does not surface in a pull.
+    const { body } = await pull();
+    assert.ok(!body.entities.tasks.some((r: any) => r.id === "f4-missing-title"));
+  });
+
+  test("a person row missing name → 400 INVALID_ROW", async () => {
+    const t = now();
+    const bad = {
+      id: "f4-missing-name", user_id: "ignored", updated_at: t, created_at: t,
+      initials: "XX", color: "#00ff00",
+    };
+    const res = await push({ people: [bad] });
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error?.code, "INVALID_ROW");
+  });
+
+  test("validate-all-then-apply: ONE bad row fails the whole batch, zero applied", async () => {
+    const t = now();
+    const good = taskRow("f4-good-with-bad", "Valid", t);
+    const bad = { id: "f4-bad", user_id: "ignored", updated_at: t }; // no title_en
+    const res = await push({ tasks: [good, bad] });
+    assert.equal(res.status, 400, "any invalid row rejects the entire batch");
+
+    // The GOOD row in the same batch must NOT have been applied.
+    const { body } = await pull();
+    assert.ok(
+      !body.entities.tasks.some((r: any) => r.id === "f4-good-with-bad"),
+      "no partial commit — the valid sibling row was not written",
+    );
+  });
+});
+
+// ── F5 · pull malformed-JSON consistency ──────────────────────────────────────
+describe("F5 · pull malformed JSON → 400 (not a silent full resync)", () => {
+  test("malformed JSON body → 400 INVALID_JSON", async () => {
+    const bad = await fetchRawPull("{ not json ");
+    assert.equal(bad.status, 400);
+    assert.equal(bad.body.error?.code, "INVALID_JSON");
+  });
+
+  test("absent/empty body is still valid → full resync (since=MIN_HLC)", async () => {
+    const empty = await fetchRawPull("");
+    assert.equal(empty.status, 200, "empty body defaults to a full resync");
+    assert.ok(Array.isArray(empty.body.entities.tasks));
   });
 });

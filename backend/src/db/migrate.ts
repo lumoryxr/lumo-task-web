@@ -329,28 +329,44 @@ export async function runMigrations() {
     }
   }
 
-  // Normalize ALL existing `updated_at` values across syncable tables from the
-  // SQLite datetime form (`YYYY-MM-DD HH:MM:SS`, produced by datetime('now'))
-  // to the HLC ISO form (`YYYY-MM-DDTHH:MM:SS.000000Z`). Without this, a legacy
-  // row's `updated_at` ("2026-06-26 10:00:00") and a fresh HLC value
-  // ("2026-06-26T10:00:00.000000Z") would be compared as raw strings — the space
-  // (0x20) sorts before 'T' (0x54), so a legacy value would always look "older"
-  // and could be silently clobbered. Normalizing up front means every compare is
-  // between two values of the same, lexicographically-sortable shape.
-  //
-  // The matcher keys on the 11th char being a space (datetime form) vs 'T' (ISO
-  // form); rows already in ISO form are left untouched, so re-runs are no-ops.
+  // Normalize ALL existing `updated_at` values across syncable tables to the
+  // canonical HLC shape: ISO-8601 UTC with SIX fractional-second digits + 'Z',
+  // e.g. `2026-06-26T10:00:00.000000Z`. The LWW engine and pull cursor do a raw
+  // STRING compare on `updated_at`, so mixing shapes silently mis-orders rows:
+  //   - a SQLite datetime ("2026-06-26 10:00:00") sorts the space (0x20) before
+  //     a 'T' (0x54), so it always looks "older" and gets clobbered;
+  //   - a 3-fractional-digit ISO ("…326Z", old `toISOString()` writes) sorts
+  //     before the 6-digit HLC values that synced rows carry.
+  // Two legacy shapes therefore get converted; values already in the canonical
+  // 6-digit form are left untouched, so re-runs are exact no-ops (idempotent).
   for (const table of ["tasks", "people", "completed_entries", "habits", "countdown_events"]) {
+    // (a) SQLite datetime space-form `YYYY-MM-DD HH:MM:SS` (11th char is a space)
+    //     → `YYYY-MM-DDTHH:MM:SS.000000Z`.
     await execRaw(
       `UPDATE ${table}
          SET updated_at = REPLACE(updated_at, ' ', 'T') || '.000000Z'
        WHERE updated_at IS NOT NULL
          AND SUBSTR(updated_at, 11, 1) = ' '`
     );
-    // Any remaining NULL updated_at (shouldn't happen on the four-tuple tables,
-    // but defensive) gets the HLC epoch so comparisons never hit NULL.
+    // (b) 3-fractional-digit ISO `…SS.mmmZ` (length 24, ends in 'Z', a '.' at the
+    //     20th char) → pad the fractional part to 6 digits: `…SS.mmm000Z`. This
+    //     matches ONLY the 3-digit form; the canonical 6-digit form has length 27
+    //     so it is excluded and left untouched.
     await execRaw(
-      `UPDATE ${table} SET updated_at = '1970-01-01T00:00:00.000000Z' WHERE updated_at IS NULL`
+      `UPDATE ${table}
+         SET updated_at = SUBSTR(updated_at, 1, 23) || '000Z'
+       WHERE updated_at IS NOT NULL
+         AND LENGTH(updated_at) = 24
+         AND SUBSTR(updated_at, 24, 1) = 'Z'
+         AND SUBSTR(updated_at, 20, 1) = '.'`
+    );
+    // Any remaining NULL updated_at (shouldn't happen on the four-tuple tables,
+    // but defensive) gets a value STRICTLY GREATER than MIN_HLC. It must NOT be
+    // MIN_HLC itself: pull filters `updated_at > :since` with `since` defaulting
+    // to MIN_HLC on a full sync, so a row exactly equal to MIN_HLC would never be
+    // returned. `…000001Z` is the smallest value that still pulls on a full sync.
+    await execRaw(
+      `UPDATE ${table} SET updated_at = '1970-01-01T00:00:00.000001Z' WHERE updated_at IS NULL`
     );
   }
 

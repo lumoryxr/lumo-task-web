@@ -35,11 +35,17 @@ app.get("/status", (c) => {
 
 app.post("/pull", syncRateLimit, async (c) => {
   const userId = c.get("userId") as string;
-  let raw: unknown;
-  try {
-    raw = await c.req.json();
-  } catch {
-    raw = {};
+  // An ABSENT/EMPTY body is valid → full resync (since defaults to MIN_HLC).
+  // A non-empty body that is MALFORMED JSON is a 400, consistent with push —
+  // we never silently treat a corrupt request as a full resync.
+  const text = await c.req.text();
+  let raw: unknown = {};
+  if (text.trim() !== "") {
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      return httpError(c, 400, "INVALID_JSON", "Malformed JSON body");
+    }
   }
   const parsed = SyncPullRequestSchema.safeParse(raw ?? {});
   if (!parsed.success) {

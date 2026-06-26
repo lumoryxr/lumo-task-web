@@ -104,6 +104,12 @@ async function upsertRow(
   // can't fire (PK already taken), so the net effect is a rejected write, never
   // a cross-user mutation. A caller therefore cannot overwrite another user's
   // row even by guessing its id.
+  //
+  // ACCEPTED EDGE CASE: if a pushed row's `id` collides with ANOTHER user's row,
+  // the pusher silently loses their own write (the guard makes it a no-op rather
+  // than mutating the foreign row). With nanoid(10/21) the collision probability
+  // is astronomically small, so we accept this in favour of the hard isolation
+  // guarantee. The isolation guard itself must NEVER be relaxed.
   const sql =
     `INSERT INTO ${entity.table} (${insertCols}) VALUES (${insertParams})
        ON CONFLICT(id) DO UPDATE SET ${updateSet}
@@ -119,6 +125,17 @@ async function upsertRow(
  * re-push of the same rows is a no-op (equal HLC re-applies the same values).
  * Returns the count actually written and the max `updated_at` among applied rows.
  *
+ * Validate-all-then-apply: EVERY row in the whole batch is validated against its
+ * entity schema FIRST; if any row fails, we throw INVALID_ROW (→ 400) having
+ * applied NOTHING. Only after the entire batch validates do we apply the upserts.
+ * This means the sole remaining throw source during apply is a true DB fault, so
+ * an INVALID_ROW can never leave a partially-applied batch.
+ *
+ * NOTE on `updated_at`: push PRESERVES each incoming row's `updated_at` (the
+ * desktop/client supplies its own HLC and cross-device LWW needs the origin
+ * timestamp). The engine never re-stamps it with `hlcNow()` — that is only for
+ * server-originated REST writes.
+ *
  * The cursor advances ONLY after rows are applied; on a thrown error mid-batch
  * the caller gets the exception and does NOT advance its cursor, so a retry
  * re-fetches safely (AC5).
@@ -127,15 +144,14 @@ export async function push(
   userId: string,
   entityMap: Record<string, SyncRow[]>,
 ): Promise<PushResult> {
-  let applied = 0;
-  let cursor = MIN_HLC;
-
+  // ── Phase 1: validate the WHOLE batch up front. Nothing is written until
+  // every row passes — a single bad row fails the request with 400 and zero
+  // side effects.
+  const validated: { entity: SyncEntity; row: Record<string, unknown> }[] = [];
   for (const entity of SYNC_MANIFEST) {
     const rows = entityMap[entity.table];
     if (!rows || rows.length === 0) continue;
-
     for (const row of rows) {
-      // Validate against the entity schema; force user_id happens in upsertRow.
       const parsed = entity.schema.safeParse(row);
       if (!parsed.success) {
         throw Object.assign(new Error("INVALID_ROW"), {
@@ -144,12 +160,25 @@ export async function push(
           issues: parsed.error.issues,
         });
       }
-      const wrote = await upsertRow(userId, entity, parsed.data as Record<string, unknown>);
-      if (wrote) {
-        applied += 1;
-        const updatedAt = String((parsed.data as Record<string, unknown>).updated_at);
-        if (updatedAt > cursor) cursor = updatedAt;
-      }
+      validated.push({ entity, row: parsed.data as Record<string, unknown> });
+    }
+  }
+
+  // ── Phase 2: apply. Each upsert is an independent LWW statement; the only way
+  // to throw here is a genuine DB fault, in which case the caller surfaces a 500
+  // and its cursor does NOT advance (safe to retry). We can't wrap these in a
+  // single batch() because the conditional `ON CONFLICT … WHERE` upsert needs
+  // per-statement bound args and the per-row applied/no-op result, which
+  // db.batch() does not expose — so isolation/atomicity of a *bad row* is
+  // instead guaranteed by the validate-all-up-front in Phase 1.
+  let applied = 0;
+  let cursor = MIN_HLC;
+  for (const { entity, row } of validated) {
+    const wrote = await upsertRow(userId, entity, row);
+    if (wrote) {
+      applied += 1;
+      const updatedAt = String(row.updated_at);
+      if (updatedAt > cursor) cursor = updatedAt;
     }
   }
 
