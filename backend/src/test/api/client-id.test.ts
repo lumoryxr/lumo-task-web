@@ -1,9 +1,8 @@
 /**
- * Client-generated ids on create (ADR-0003 Phase 4b — offline-first).
+ * Client-generated ids on create.
  *
- * A client can supply the entity id on create so an offline-created row has a
- * stable id before it syncs; combined with the Idempotency-Key, the queued
- * create replays without duplicating.
+ * A client can supply the entity id on create so an optimistic insert has a
+ * stable id before the server round-trip resolves.
  */
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
@@ -35,18 +34,6 @@ describe("Client-generated ids", () => {
       body: { id: "bad id!", title: { en: "x" }, quadrant: "Q1" },
     });
     assert.equal(status, 400);
-  });
-
-  test("client id + Idempotency-Key replay creates exactly one row", async () => {
-    const id = "t_offlineCreate9";
-    const headers = { "Idempotency-Key": "queue-replay-1" };
-    const body = { id, title: { en: "queued" }, quadrant: "Q2" };
-    const r1 = await req("POST", "/v1/tasks", { token, body, headers });
-    const r2 = await req("POST", "/v1/tasks", { token, body, headers });
-    assert.equal(r1.body.id, id);
-    assert.equal(r2.body.id, id, "replay returns the same row");
-    // Only one row exists with that id.
-    assert.equal((await req("GET", `/v1/tasks/${id}`, { token })).status, 200);
   });
 
   test("people / habits / countdowns honor client ids too", async () => {
