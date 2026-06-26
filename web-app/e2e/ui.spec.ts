@@ -1112,9 +1112,9 @@ test("TC80 – Countdown lunar picker: no raw i18n keys leak in the open form", 
   await expect(dialog.getByLabel("Month")).toBeVisible();
 
   // No visible text inside the dialog should look like a bare countdown.* key.
-  const texts = await dialog.locator("*").allInnerTexts();
-  const leaked = texts
-    .flatMap((t) => t.split("\n"))
+  const text = await dialog.innerText();
+  const leaked = text
+    .split("\n")
     .map((s) => s.trim())
     .filter((s) => /^countdown\.[a-z0-9.]+$/i.test(s));
   expect(leaked).toEqual([]);
