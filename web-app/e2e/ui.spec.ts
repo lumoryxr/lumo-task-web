@@ -17,9 +17,11 @@
  *   TC62–TC65  Countdown page (auth gate, list, add modal)
  *   TC66–TC70  Account & Change-password pages
  *   TC71–TC74  Navigation (sidebar links, routing, 404 redirect)
+ *   TC75–TC78  i18n (no raw key leaks across pages + habit modals, en + 中文)
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { STRINGS } from "../src/i18n/strings";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -1170,4 +1172,125 @@ test("TC74 – Navigation: Focus nav link navigates to Focus page", async ({ pag
   await expect(
     page.getByText(/\d{1,2}:\d{2}/).or(page.getByText("Nothing to focus on")).first()
   ).toBeVisible({ timeout: 8_000 });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC75–TC78  i18n: no untranslated key leaks into the rendered UI
+//
+// Companion to the static guard in src/i18n/__tests__/strings.test.ts. That one
+// proves every *referenced* key EXISTS in the dictionary; these prove the
+// *rendered* UI never displays a raw key — the 乱码 bug a user actually sees
+// (e.g. a habit-frequency pill reading "habit.freq.weekend" instead of its
+// translation). Detection: any visible text (or aria-label/placeholder/title)
+// that is exactly a known i18n key, or matches the dotted-key shape under a real
+// key namespace, is a leak.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const I18N_KEYS = new Set(Object.keys(STRINGS.en));
+const I18N_NAMESPACES = new Set([...I18N_KEYS].map((k) => k.split(".")[0]));
+const I18N_KEY_SHAPE = /^[a-z][a-z0-9]*(?:\.[a-z0-9_]+)+$/;
+
+async function findRawI18nKeys(page: Page): Promise<string[]> {
+  return page.evaluate(
+    ({ keys, namespaces, shapeSrc }) => {
+      const KEYS = new Set(keys);
+      const NS = new Set(namespaces);
+      const shape = new RegExp(shapeSrc);
+      const hits = new Set<string>();
+      const consider = (raw: string | null) => {
+        const t = (raw || "").trim();
+        if (!t) return;
+        if (KEYS.has(t) || (shape.test(t) && NS.has(t.split(".")[0]))) hits.add(t);
+      };
+      const visible = (el: Element | null) => {
+        if (!el) return false;
+        const cs = getComputedStyle(el as HTMLElement);
+        if (cs.visibility === "hidden" || cs.display === "none") return false;
+        const r = (el as HTMLElement).getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      };
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      let n: Node | null;
+      while ((n = walker.nextNode())) {
+        if (visible(n.parentElement)) consider(n.textContent);
+      }
+      document.querySelectorAll("[aria-label],[placeholder],[title]").forEach((el) => {
+        if (!visible(el)) return;
+        consider(el.getAttribute("aria-label"));
+        consider(el.getAttribute("placeholder"));
+        consider(el.getAttribute("title"));
+      });
+      return [...hits];
+    },
+    { keys: [...I18N_KEYS], namespaces: [...I18N_NAMESPACES], shapeSrc: I18N_KEY_SHAPE.source },
+  );
+}
+
+async function expectNoRawKeys(page: Page, where: string) {
+  const leaks = await findRawI18nKeys(page);
+  expect(leaks, `raw i18n keys leaked into UI at ${where}: ${leaks.join(", ")}`).toEqual([]);
+}
+
+test("TC75 – i18n: core pages render no raw i18n keys (en)", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  for (const route of ["today", "matrix", "focus", "stats", "habits", "countdown", "account", "settings"]) {
+    await page.goto(`/#/${route}`);
+    await expect(page.getByRole("link", { name: /^Today\b/i }).first()).toBeVisible({ timeout: 8_000 });
+    await expectNoRawKeys(page, `/#/${route}`);
+  }
+});
+
+test("TC76 – i18n: Habit creation modal shows no raw keys across frequency modes (en)", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/habits");
+  await expect(page.getByText("Habits").first()).toBeVisible({ timeout: 8_000 });
+  await page.getByRole("button", { name: /new habit/i }).first().click();
+  const dialog = page.locator('[role="dialog"]');
+  await expect(dialog.locator("input").first()).toBeVisible({ timeout: 10_000 });
+  await expectNoRawKeys(page, "habit modal (default frequency)");
+  // Each sub-config (weekday picker, times/week, interval) is rendered only when
+  // its frequency pill is selected — visit each so habit.day.* and the *.label
+  // keys actually render.
+  for (const pill of ["Pick days", "Times / week", "Interval"]) {
+    await dialog.getByRole("button", { name: pill, exact: true }).click();
+    await expectNoRawKeys(page, `habit modal (${pill})`);
+  }
+});
+
+test("TC77 – i18n: Habit calendar modal shows no raw keys (en)", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/habits");
+  await expect(page.getByText("Morning exercise")).toBeVisible({ timeout: 8_000 });
+  await page.getByRole("button", { name: "Habit calendar" }).first().click();
+  await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 10_000 });
+  await expectNoRawKeys(page, "habit calendar modal");
+});
+
+test("TC78 – i18n: core pages + habit modal show no raw keys (中文)", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  // Switch to 中文 via Settings (same flow as TC44).
+  await page.goto("/#/settings");
+  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
+  await page.getByRole("button", { name: /language/i }).click();
+  await page.getByText("中文").click();
+  await expect(page.getByText("中文")).toBeVisible({ timeout: 8_000 });
+  for (const route of ["today", "matrix", "stats", "habits", "countdown", "settings"]) {
+    await page.goto(`/#/${route}`);
+    await page.waitForLoadState("networkidle");
+    await expectNoRawKeys(page, `zh /#/${route}`);
+  }
+  // Habit modal in 中文 — the richest dynamic-key surface (freq pills + sub-configs).
+  await page.goto("/#/habits");
+  await page.getByRole("button", { name: /新建习惯/ }).first().click();
+  const dialog = page.locator('[role="dialog"]');
+  await expect(dialog.locator("input").first()).toBeVisible({ timeout: 10_000 });
+  await expectNoRawKeys(page, "zh habit modal (default frequency)");
+  for (const pill of ["指定星期", "每周几次", "间隔"]) {
+    await dialog.getByRole("button", { name: pill, exact: true }).click();
+    await expectNoRawKeys(page, `zh habit modal (${pill})`);
+  }
 });
