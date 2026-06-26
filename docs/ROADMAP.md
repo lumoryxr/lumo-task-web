@@ -24,7 +24,7 @@ Grounded in the current app (12 pages; `ErrorBoundary` + `ToastStack` exist; pet
 - [ ] **Client request resilience** — timeout + `AbortController` + limited retry in `web-app/src/api/client.ts` (none today): no infinite spinners on slow networks.
 - [ ] **Empty-state audit** — consistent, friendly empty states (illustration + clear CTA) on every list page.
 - [ ] **Error-state UX audit** — every API failure surfaces a toast/inline message (`ToastStack` exists) instead of silent failure.
-- [ ] **i18n completeness** — sweep for any hardcoded/untranslated EN or ZH string.
+- [ ] **i18n completeness** — sweep for any hardcoded/untranslated EN or ZH string. *(in progress: `MatrixPage` copy routed through `useT()` — empty/drop-zone hints, quadrant subtitles, more-actions — PR #101, merged 2026-06-26. Remaining pages still need a sweep.)*
 - [ ] **Accessibility pass** — focus-visible, ARIA on icon buttons, keyboard nav for modals/command palette, contrast check.
 - [ ] **Visual consistency** — spacing/typography/color-token audit; tighten modal/card/topbar rhythm.
 - [ ] **Micro-interactions** — purposeful transitions (task complete, quadrant move, pet reactions), honoring `reduced_motion`.
@@ -69,5 +69,6 @@ Today view + recommended card + CompletedTimeline · Eisenhower Matrix (drag-dro
 ## Done log
 - 2026-06-24: Security/architecture hardening — #34/#36/#38/#40/#42/#45/#50; task-list pagination #48; review report #46.
 - 2026-06-25: Daily integration + DFX regression workflow & suite; fixed malformed-JSON → 500 (now 400) robustness bug found by the new DFX suite.
+- 2026-06-26: P1a generic sync core + desktop provisioning (#102); i18n sweep — `MatrixPage` copy localized (#101). Both merged.
 
 _Last restructured: 2026-06-24 (phase prioritization). Maintained by the autonomous loop each run._
