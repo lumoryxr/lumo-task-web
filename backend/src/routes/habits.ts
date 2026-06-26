@@ -119,7 +119,10 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
         frequency_interval: h.frequencyInterval ?? null,
         note: h.note ?? null,
         created_at: h.createdAt,
-        updated_at: h.createdAt,
+        // `updated_at` is the LWW/cursor key → must be canonical HLC, never the
+        // client's raw ISO `createdAt` (a 3-digit ISO sorts before all HLC
+        // values and would silently lose every sync race). Stamp import time.
+        updated_at: hlcNow(),
       }
     );
   }

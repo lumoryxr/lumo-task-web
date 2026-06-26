@@ -340,12 +340,15 @@ export async function runMigrations() {
   // Two legacy shapes therefore get converted; values already in the canonical
   // 6-digit form are left untouched, so re-runs are exact no-ops (idempotent).
   for (const table of ["tasks", "people", "completed_entries", "habits", "countdown_events"]) {
-    // (a) SQLite datetime space-form `YYYY-MM-DD HH:MM:SS` (11th char is a space)
-    //     → `YYYY-MM-DDTHH:MM:SS.000000Z`.
+    // (a) SQLite datetime space-form `YYYY-MM-DD HH:MM:SS` (exactly 19 chars, 11th
+    //     char is a space) → `YYYY-MM-DDTHH:MM:SS.000000Z`. The `LENGTH = 19` guard
+    //     ensures a space-form value that somehow carried a trailing fraction is
+    //     NOT double-appended into a malformed `…SS.mmm.000000Z`.
     await execRaw(
       `UPDATE ${table}
          SET updated_at = REPLACE(updated_at, ' ', 'T') || '.000000Z'
        WHERE updated_at IS NOT NULL
+         AND LENGTH(updated_at) = 19
          AND SUBSTR(updated_at, 11, 1) = ' '`
     );
     // (b) 3-fractional-digit ISO `…SS.mmmZ` (length 24, ends in 'Z', a '.' at the

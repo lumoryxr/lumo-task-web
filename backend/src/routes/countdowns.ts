@@ -83,7 +83,10 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
         repeat: e.repeat,
         note: e.note ?? null,
         created_at: e.createdAt,
-        updated_at: e.createdAt,
+        // `updated_at` is the LWW/cursor key → canonical HLC, not the client's
+        // raw ISO `createdAt` (3-digit ISO sorts before all HLC values and would
+        // silently lose sync races). Stamp import time.
+        updated_at: hlcNow(),
       }
     );
   }

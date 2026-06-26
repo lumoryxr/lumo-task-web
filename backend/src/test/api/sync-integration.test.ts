@@ -145,3 +145,42 @@ describe("F6 · REST write → sync pull end-to-end", () => {
     assert.ok(third.body.cursor > cursor, "cursor advanced after the new write");
   });
 });
+
+describe("bulk-import (/migrate) stamps canonical HLC updated_at, not the client's raw ISO", () => {
+  // The legacy localStorage import sends each row's original `createdAt` as a
+  // 3-fractional-digit ISO. That value must NOT land in `updated_at` (the LWW key)
+  // — it would sort before every synced HLC value and silently lose every race.
+  const LEGACY_ISO = "2024-01-02T03:04:05.000Z"; // 3-digit ISO, the wrong shape
+
+  test("POST /habits/migrate → pulled habit has 6-digit HLC updated_at, original created_at preserved", async () => {
+    const res = await req("POST", "/v1/habits/migrate", {
+      token,
+      body: {
+        habits: [{ id: "mig-habit", title: "Meditate", color: "green", frequency: "daily", createdAt: LEGACY_ISO }],
+        logs: [],
+      },
+    });
+    assert.equal(res.status, 200);
+
+    const row = (await pull()).body.entities.habits.find((r: any) => r.id === "mig-habit");
+    assert.ok(row, "migrated habit surfaces in pull");
+    assert.match(row.updated_at, HLC_RE, "updated_at is canonical HLC, not the raw client ISO");
+    assert.notEqual(row.updated_at, LEGACY_ISO, "the 3-digit client ISO did NOT leak into the LWW key");
+    assert.equal(row.created_at, LEGACY_ISO, "original created_at is preserved");
+  });
+
+  test("POST /countdowns/migrate → pulled event has 6-digit HLC updated_at", async () => {
+    const res = await req("POST", "/v1/countdowns/migrate", {
+      token,
+      body: {
+        events: [{ id: "mig-cd", title: "Trip", date: "2099-05-01", color: "green", repeat: "none", createdAt: LEGACY_ISO }],
+      },
+    });
+    assert.equal(res.status, 200);
+
+    const row = (await pull()).body.entities.countdown_events.find((r: any) => r.id === "mig-cd");
+    assert.ok(row, "migrated countdown surfaces in pull");
+    assert.match(row.updated_at, HLC_RE, "updated_at is canonical HLC, not the raw client ISO");
+    assert.equal(row.created_at, LEGACY_ISO, "original created_at is preserved");
+  });
+});

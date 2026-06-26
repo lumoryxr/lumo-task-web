@@ -36,9 +36,10 @@ async function fetchRawPull(rawBody: string) {
 }
 
 // Sync rows carry the FULL column set, exactly as a desktop client reads them
-// from its own SQLite (every NOT NULL column present). The engine binds each
-// manifest column, so omitting a NOT NULL column without a row value would write
-// NULL and violate the constraint — production clients never do that.
+// from its own SQLite (every column present). The engine binds only the columns
+// a row actually carries, so an omitted column with a SQLite DEFAULT falls to its
+// default on insert (see the "omitted defaulted column" test below) rather than
+// being NULL-bound.
 function taskRow(id: string, titleEn: string, updatedAt: string, extra: Record<string, unknown> = {}) {
   return {
     id, user_id: "ignored-by-server", title_en: titleEn, updated_at: updatedAt,
@@ -260,5 +261,40 @@ describe("F5 · pull malformed JSON → 400 (not a silent full resync)", () => {
     const empty = await fetchRawPull("");
     assert.equal(empty.status, 200, "empty body defaults to a full resync");
     assert.ok(Array.isArray(empty.body.entities.tasks));
+  });
+});
+
+// ── Review round 2 · engine omits absent columns → DB default, no 500 ──────────
+describe("engine binds only present columns (omitted defaulted column → default, not 500)", () => {
+  test("a task row omitting defaulted columns succeeds and the defaults apply", async () => {
+    const t = now();
+    // Minimal row: only the schema-required title_en + the four-tuple. Every other
+    // NOT NULL column (quadrant, assignee_ids, …) has a SQLite DEFAULT and is
+    // omitted — the engine must leave them out of the INSERT so the default fires,
+    // NOT bind NULL (which used to 500 on the NOT NULL constraint).
+    const r = await push({ tasks: [{ id: "minimal-task", user_id: "x", title_en: "Bare", updated_at: t }] });
+    assert.equal(r.status, 200, "omitting defaulted columns must not 500");
+    assert.equal(r.body.applied, 1);
+
+    const got = (await pull()).body.entities.tasks.find((x: any) => x.id === "minimal-task");
+    assert.ok(got, "row round-trips");
+    assert.equal(got.quadrant, "unclassified", "DB default applied for omitted column");
+    assert.equal(got.assignee_ids, "[]", "DB default applied for omitted column");
+  });
+
+  test("completed_entries round-trips (previously untested entity), completed_at defaults when omitted", async () => {
+    const t = now();
+    const r = await push({
+      completed_entries: [
+        { id: "ce-1", user_id: "x", title_en: "Did a thing", duration: 25, updated_at: t },
+      ],
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.applied, 1);
+
+    const got = (await pull()).body.entities.completed_entries.find((x: any) => x.id === "ce-1");
+    assert.ok(got, "completed_entry round-trips through push→pull");
+    assert.equal(got.title_en, "Did a thing");
+    assert.ok(got.completed_at, "omitted completed_at fell to its DB default, not NULL");
   });
 });

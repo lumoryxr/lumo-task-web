@@ -75,13 +75,20 @@ async function upsertRow(
   // a client can never write into another user's scope.
   const values: Record<string, unknown> = { ...row, user_id: userId };
 
-  // Build the column list / bind params strictly from the manifest, so unknown
-  // client-supplied keys are ignored and column order is server-controlled.
-  const cols = entity.columns;
+  // Bind only the manifest columns the row actually carries (plus the always-
+  // required id/user_id/updated_at). Columns the client omits are LEFT OUT of the
+  // statement entirely, so on INSERT they fall to their SQLite DEFAULT and on
+  // UPDATE they keep their stored value — rather than being bound to an explicit
+  // NULL, which would violate a NOT NULL column (e.g. created_at/completed_at) and
+  // surface as an opaque 500. Unknown client-supplied keys are ignored (we filter
+  // to the manifest), and column order stays server-controlled.
+  const cols = entity.columns.filter(
+    (c) => c === "id" || c === "user_id" || c === "updated_at" || c in row,
+  );
   const insertCols = cols.join(", ");
   const insertParams = cols.map((c) => `:${c}`).join(", ");
 
-  // ON CONFLICT update sets every non-key column from the incoming row.
+  // ON CONFLICT update sets every present non-key column from the incoming row.
   const updateSet = cols
     .filter((c) => c !== "id" && c !== "user_id")
     .map((c) => `${c} = excluded.${c}`)
@@ -89,8 +96,8 @@ async function upsertRow(
 
   const args: Record<string, unknown> = { uid: userId };
   for (const c of cols) {
-    // Default any column the client omitted to NULL (libsql requires every named
-    // param to be bound). `user_id` is forced; everything else comes from the row.
+    // `user_id` is forced from the JWT; a column present with an explicit null
+    // (a nullable field being cleared) binds null as intended.
     args[c] = c === "user_id" ? userId : (values[c] ?? null);
   }
 
