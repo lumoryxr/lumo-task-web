@@ -488,53 +488,9 @@ export const api = {
   async syncNow(): Promise<{ ok: boolean; syncedAt: string }> {
     return req("POST", "/sync");
   },
-
-  /**
-   * Incremental sync delta (ADR-0003): rows changed since `since` (a server seq
-   * high-water mark), including tombstones. Used by the sync engine to detect
-   * cross-device changes. `since=0` = full snapshot.
-   */
-  async syncDelta(
-    since: number,
-    limit = 200,
-  ): Promise<{
-    cursor: number;
-    hasMore: boolean;
-    changes: { tasks: any[]; completed: any[]; people: any[]; habits: any[]; countdowns: any[] };
-  }> {
-    return req("GET", `/sync?since=${since}&limit=${limit}`);
-  },
 };
 
 export type ApiClient = typeof api;
-
-/**
- * Replay a single queued write (ADR-0003 Phase 4b offline queue). Sends one
- * request with the Idempotency-Key so a replay can't duplicate. Returns the HTTP
- * status; THROWS on a network/connection error (no response) so the caller knows
- * to keep the item queued and retry later. Bypasses req()'s own retry — the
- * write queue owns retry/backoff.
- */
-export async function sendWrite(
-  method: "POST" | "PATCH" | "DELETE",
-  path: string,
-  body: unknown,
-  idempotencyKey: string,
-): Promise<number> {
-  const base = await getBase();
-  const token = getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "Idempotency-Key": idempotencyKey,
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${base}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  return res.status;
-}
 
 // ── Adapter helpers ───────────────────────────────────────────────────────────
 

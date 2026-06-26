@@ -3,8 +3,7 @@ import { api } from "@/api/client";
 import type { Person } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
-import { clientId, withOfflineQueue } from "@/lib/writeQueue";
-import { useAuthStore } from "@/store/useAuthStore";
+import { clientId } from "@/lib/id";
 
 interface PeopleState {
   people: Person[];
@@ -42,22 +41,10 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
 
   async create(input) {
     const id = clientId("p");
-    const uid = useAuthStore.getState().user.id;
     try {
-      return await withOfflineQueue(
-        uid,
-        { key: `create:${id}`, method: "POST", path: "/people", body: { ...input, id } },
-        async () => {
-          const person = await api.createPerson(input, id);
-          set({ people: [...get().people, person] });
-          return person;
-        },
-        () => {
-          const optimistic = { ...input, id } as Person;
-          set({ people: [...get().people, optimistic] });
-          return optimistic;
-        },
-      );
+      const person = await api.createPerson(input, id);
+      set({ people: [...get().people, person] });
+      return person;
     } catch (e) {
       toast.error(t("error.person.create"), e instanceof Error ? e.message : String(e));
       throw e;
@@ -65,19 +52,9 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
   },
 
   async update(id, patch) {
-    const uid = useAuthStore.getState().user.id;
     try {
-      await withOfflineQueue(
-        uid,
-        { key: `update:${id}:${clientId("u")}`, method: "PATCH", path: `/people/${id}`, body: patch },
-        async () => {
-          const next = await api.updatePerson(id, patch);
-          set({ people: get().people.map((p) => (p.id === id ? next : p)) });
-        },
-        () => {
-          set({ people: get().people.map((p) => (p.id === id ? ({ ...p, ...patch } as Person) : p)) });
-        },
-      );
+      const next = await api.updatePerson(id, patch);
+      set({ people: get().people.map((p) => (p.id === id ? next : p)) });
     } catch (e) {
       toast.error(t("error.person.update"), e instanceof Error ? e.message : String(e));
       throw e;
@@ -85,19 +62,9 @@ export const usePeopleStore = create<PeopleState>((set, get) => ({
   },
 
   async remove(id) {
-    const uid = useAuthStore.getState().user.id;
     try {
-      await withOfflineQueue(
-        uid,
-        { key: `delete:${id}`, method: "DELETE", path: `/people/${id}` },
-        async () => {
-          await api.deletePerson(id);
-          set({ people: get().people.filter((p) => p.id !== id) });
-        },
-        () => {
-          set({ people: get().people.filter((p) => p.id !== id) });
-        },
-      );
+      await api.deletePerson(id);
+      set({ people: get().people.filter((p) => p.id !== id) });
     } catch (e) {
       toast.error(t("error.person.delete"), e instanceof Error ? e.message : String(e));
       throw e;
