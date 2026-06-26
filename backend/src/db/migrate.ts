@@ -287,6 +287,16 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
   }
 
+  // Migrate: countdown calendar system (#43). `date` always stores a solar
+  // (Gregorian) ISO anchor; `calendar` records whether the user authored the
+  // event in the solar or the Chinese lunar calendar (which only affects
+  // display and yearly-recurrence math). Existing rows default to 'solar',
+  // so behaviour is unchanged.
+  const cdColsCal = await query<{ name: string }>("PRAGMA table_info(countdown_events)");
+  if (!cdColsCal.some((col) => col.name === "calendar")) {
+    await execRaw("ALTER TABLE countdown_events ADD COLUMN calendar TEXT NOT NULL DEFAULT 'solar'");
+  }
+
   // Soft-delete (tombstones). Deletes set `deleted_at` instead of removing the
   // row, so the deletion can propagate to other devices during sync (ADR-0003)
   // instead of resurrecting. Every normal read filters `deleted_at IS NULL`.

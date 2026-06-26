@@ -22,6 +22,9 @@ const CountdownBody = z.object({
   color: z.enum(["green", "cyan", "amber", "red"]).default("green"),
   repeat: z.enum(["none", "yearly"]).default("none"),
   note: z.string().max(2000).optional().nullable(),
+  // `date` is always a solar (Gregorian) ISO anchor; `calendar` only records
+  // which calendar the user authored in (affects display + lunar recurrence).
+  calendar: z.enum(["solar", "lunar"]).default("solar"),
 });
 
 const CountdownUpdateBody = CountdownBody.partial();
@@ -35,6 +38,7 @@ const MigrateBody = z.object({
     color: z.enum(["green", "cyan", "amber", "red"]),
     repeat: z.enum(["none", "yearly"]),
     note: z.string().optional().nullable(),
+    calendar: z.enum(["solar", "lunar"]).default("solar"),
     createdAt: z.string(),
   })),
 });
@@ -48,6 +52,7 @@ export function rowToEvent(row: CountdownEventRow) {
     color: row.color,
     repeat: row.repeat,
     note: row.note ?? undefined,
+    calendar: row.calendar ?? "solar",
     createdAt: row.created_at,
   };
 }
@@ -70,9 +75,9 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
   for (const e of events) {
     await execute(
       `INSERT OR IGNORE INTO countdown_events
-         (id, user_id, title, date, emoji, color, repeat, note, created_at, updated_at)
+         (id, user_id, title, date, emoji, color, repeat, note, calendar, created_at, updated_at)
        VALUES
-         (:id, :user_id, :title, :date, :emoji, :color, :repeat, :note, :created_at, :updated_at)`,
+         (:id, :user_id, :title, :date, :emoji, :color, :repeat, :note, :calendar, :created_at, :updated_at)`,
       {
         id: e.id,
         user_id: userId,
@@ -82,6 +87,7 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
         color: e.color,
         repeat: e.repeat,
         note: e.note ?? null,
+        calendar: e.calendar,
         created_at: e.createdAt,
         // `updated_at` is the LWW/cursor key → canonical HLC, not the client's
         // raw ISO `createdAt` (3-digit ISO sorts before all HLC values and would
@@ -105,9 +111,9 @@ app.post("/", zValidator("json", CountdownBody), async (c) => {
 
   await execute(
     `INSERT INTO countdown_events
-       (id, user_id, title, date, emoji, color, repeat, note, created_at, updated_at)
+       (id, user_id, title, date, emoji, color, repeat, note, calendar, created_at, updated_at)
      VALUES
-       (:id, :user_id, :title, :date, :emoji, :color, :repeat, :note, :now, :sync_ts)`,
+       (:id, :user_id, :title, :date, :emoji, :color, :repeat, :note, :calendar, :now, :sync_ts)`,
     {
       id,
       user_id: userId,
@@ -117,6 +123,7 @@ app.post("/", zValidator("json", CountdownBody), async (c) => {
       color: body.color,
       repeat: body.repeat,
       note: body.note ?? null,
+      calendar: body.calendar,
       now, sync_ts: syncTs,
     }
   );
@@ -145,7 +152,7 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", CountdownUpda
   await execute(
     `UPDATE countdown_events SET
        title = :title, date = :date, emoji = :emoji, color = :color,
-       repeat = :repeat, note = :note, updated_at = :now
+       repeat = :repeat, note = :note, calendar = :calendar, updated_at = :now
      WHERE id = :id AND user_id = :uid`,
     {
       title: body.title ?? existing.title,
@@ -154,6 +161,7 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", CountdownUpda
       color: body.color ?? existing.color,
       repeat: body.repeat ?? existing.repeat,
       note: "note" in body ? (body.note ?? null) : existing.note,
+      calendar: body.calendar ?? existing.calendar,
       now,
       id: eventId,
       uid: userId,

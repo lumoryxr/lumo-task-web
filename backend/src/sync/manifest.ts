@@ -121,7 +121,7 @@ export const SYNC_MANIFEST: SyncEntity[] = [
     schema: countdownEventRowSchema,
     columns: [
       "id", "user_id", "title", "date", "emoji", "color", "repeat", "note",
-      "created_at", "updated_at", "deleted_at",
+      "calendar", "created_at", "updated_at", "deleted_at",
     ],
   },
 ];

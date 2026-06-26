@@ -84,6 +84,9 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
         color:  form.color,
         repeat: form.repeat,
         note:   form.note.trim() || undefined,
+        // P1: countdowns are authored in the solar calendar; the lunar picker
+        // arrives in P2. Editing preserves an event's existing calendar.
+        calendar: event?.calendar ?? "solar",
       });
       onClose();
     } finally {

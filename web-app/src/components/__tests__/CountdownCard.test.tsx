@@ -17,6 +17,7 @@ const BASE: CountdownEvent = {
   emoji: "🎂",
   color: "amber",
   repeat: "yearly",
+  calendar: "solar",
   createdAt: "2026-01-01T00:00:00Z",
 };
 

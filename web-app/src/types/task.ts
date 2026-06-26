@@ -125,15 +125,19 @@ export interface PetChatMessage {
 
 export type CountdownColor = "green" | "cyan" | "amber" | "red";
 export type CountdownRepeat = "none" | "yearly";
+/** Which calendar the user authored the event in. `date` is ALWAYS a solar
+ * (Gregorian) ISO anchor; 'lunar' only changes display + yearly-recurrence math. */
+export type CountdownCalendar = "solar" | "lunar";
 
 export interface CountdownEvent {
   id: string;
   title: string;
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD — always the solar (Gregorian) anchor date
   emoji?: string;
   color: CountdownColor;
   repeat: CountdownRepeat;
   note?: string;
+  calendar: CountdownCalendar;
   createdAt: string;
 }
 
