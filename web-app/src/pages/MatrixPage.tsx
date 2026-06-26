@@ -40,10 +40,10 @@ export function MatrixPage() {
   }
 
   const quadrants: Array<{ id: Quadrant; label: string; sub: string }> = [
-    { id: "Q1", label: t("matrix.q1"), sub: "Urgent · Important" },
-    { id: "Q2", label: t("matrix.q2"), sub: "Important · Not urgent" },
-    { id: "Q3", label: t("matrix.q3"), sub: "Urgent · Not important" },
-    { id: "Q4", label: t("matrix.q4"), sub: "Neither" },
+    { id: "Q1", label: t("matrix.q1"), sub: t("matrix.q1.sub") },
+    { id: "Q2", label: t("matrix.q2"), sub: t("matrix.q2.sub") },
+    { id: "Q3", label: t("matrix.q3"), sub: t("matrix.q3.sub") },
+    { id: "Q4", label: t("matrix.q4"), sub: t("matrix.q4.sub") },
   ];
 
   return (
@@ -167,6 +167,7 @@ function ViewToggleBtn({
 /* ── Unclassified bar — drop zone + horizontal chip list ─────────── */
 
 function UnclassifiedBar({ unclassified, label }: { unclassified: Task[]; label: string }) {
+  const t = useT();
   const { over, handlers } = useTaskDrop("unclassified");
 
   return (
@@ -188,7 +189,7 @@ function UnclassifiedBar({ unclassified, label }: { unclassified: Task[]; label:
       </span>
       {unclassified.length === 0 ? (
         <span className="text-[11px] text-text-faint italic ml-1">
-          {over ? "Drop here" : "—"}
+          {over ? t("matrix.dropHere") : "—"}
         </span>
       ) : (
         <div className="flex items-center gap-1.5 overflow-x-auto min-w-0" style={{ scrollbarWidth: "none" }}>
@@ -275,7 +276,7 @@ function QuadrantPanel({ id, title, subtitle }: { id: Quadrant; title: string; s
       <div className="flex-1 min-h-0 scroll-y p-3 flex flex-col gap-1.5">
         {tasks.length === 0 && (
           <div className="text-[12px] text-text-faint italic px-1 py-3">
-            {over ? t("matrix.dropHere") : "No tasks here."}
+            {over ? t("matrix.dropHere") : t("matrix.empty")}
           </div>
         )}
         {tasks.map((task) => (
@@ -402,8 +403,8 @@ function MatrixTaskCard({ task }: { task: Task }) {
           <button
             ref={moreRef}
             onMouseDown={(e) => e.stopPropagation()}
-            title={locale === "zh" ? "更多操作" : "More actions"}
-            aria-label={locale === "zh" ? "更多操作" : "More actions"}
+            title={t("matrix.moreActions")}
+            aria-label={t("matrix.moreActions")}
             onClick={(e) => {
               e.stopPropagation();
               const rect = moreRef.current?.getBoundingClientRect();
