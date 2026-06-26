@@ -14,6 +14,7 @@ import { ShareCard } from "@/components/ShareCard";
 import { WrappedCard } from "@/components/WrappedCard";
 import { HabitWeekSection } from "@/components/HabitWeekSection";
 import { QuadrantBreakdown } from "@/components/QuadrantBreakdown";
+import { StatsSkeleton } from "@/components/skeletons";
 import type { QuadrantCount } from "@/utils/stats";
 
 const DAY_KEYS = ["stats.day.sun","stats.day.mon","stats.day.tue","stats.day.wed","stats.day.thu","stats.day.fri","stats.day.sat"];
@@ -117,7 +118,7 @@ export function StatsPage() {
 
       <div className="px-7 pb-7 space-y-6">
         {loading ? (
-          <div className="text-center py-16 text-text-muted text-[13px]">Loading…</div>
+          <StatsSkeleton />
         ) : entries.length === 0 ? (
           <div className="text-center py-16 text-text-muted text-[13px]">{t("stats.empty")}</div>
         ) : (
