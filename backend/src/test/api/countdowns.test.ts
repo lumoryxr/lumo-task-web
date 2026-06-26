@@ -50,6 +50,48 @@ describe("Countdowns", () => {
     assert.equal(status, 400);
   });
 
+  test("201 → POST defaults calendar to 'solar' when omitted", async () => {
+    const { status, body } = await req("POST", "/v1/countdowns", {
+      token: demoToken,
+      body: { title: "No calendar", date: "2026-12-01", color: "green", repeat: "none" },
+    });
+    assert.equal(status, 201);
+    assert.equal(body.calendar, "solar");
+  });
+
+  test("201 → POST persists a lunar countdown and round-trips it via GET", async () => {
+    const { status, body } = await req("POST", "/v1/countdowns", {
+      token: demoToken,
+      body: { title: "农历生日", date: "2026-06-15", color: "amber", repeat: "yearly", calendar: "lunar" },
+    });
+    assert.equal(status, 201);
+    assert.equal(body.calendar, "lunar");
+    const list = await req("GET", "/v1/countdowns", { token: demoToken });
+    const found = (list.body as any[]).find((e) => e.id === body.id);
+    assert.equal(found.calendar, "lunar");
+  });
+
+  test("400 → POST rejects an invalid calendar value", async () => {
+    const { status } = await req("POST", "/v1/countdowns", {
+      token: demoToken,
+      body: { title: "Bad cal", date: "2026-12-01", color: "green", repeat: "none", calendar: "julian" },
+    });
+    assert.equal(status, 400);
+  });
+
+  test("200 → PATCH updates the calendar field", async () => {
+    const created = await req("POST", "/v1/countdowns", {
+      token: demoToken,
+      body: { title: "Switch me", date: "2026-12-01", color: "green", repeat: "yearly" },
+    });
+    const { status, body } = await req("PATCH", `/v1/countdowns/${created.body.id}`, {
+      token: demoToken,
+      body: { calendar: "lunar" },
+    });
+    assert.equal(status, 200);
+    assert.equal(body.calendar, "lunar");
+  });
+
   test("200 → PATCH updates date and clears note when sent as null", async () => {
     await req("PATCH", `/v1/countdowns/${eventId}`, { token: demoToken, body: { note: "remember" } });
     const { status, body } = await req("PATCH", `/v1/countdowns/${eventId}`, {

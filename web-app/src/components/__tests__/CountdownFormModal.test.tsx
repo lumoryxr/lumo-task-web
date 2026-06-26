@@ -16,6 +16,7 @@ const EDIT_EVENT: CountdownEvent = {
   color: "amber",
   repeat: "yearly",
   note: "Special day",
+  calendar: "solar",
   createdAt: "2026-01-01T00:00:00Z",
 };
 

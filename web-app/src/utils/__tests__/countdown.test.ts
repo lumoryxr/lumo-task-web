@@ -67,6 +67,30 @@ describe("daysUntil", () => {
       expect(result).toBe(expected);
     });
   });
+
+  describe("calendar=lunar", () => {
+    it("repeat=none uses the solar anchor directly", () => {
+      setToday("2026-06-01");
+      // anchor solar 2026-06-15 (lunar 五月初一), one-time → plain solar diff
+      expect(daysUntil("2026-06-15", "none", "lunar")).toBe(14);
+    });
+
+    it("repeat=yearly counts to the next lunar occurrence", () => {
+      setToday("2026-07-01");
+      // this year's lunar 五月初一 (2026-06-15) has passed → next is 2027-06-05
+      const days = daysUntil("2026-06-15", "yearly", "lunar");
+      const expected = Math.round(
+        (new Date("2027-06-05T00:00:00").getTime() - new Date("2026-07-01T00:00:00").getTime()) / 86_400_000,
+      );
+      expect(days).toBe(expected);
+    });
+
+    it("falls back to solar handling for an out-of-range anchor", () => {
+      setToday("1800-01-01");
+      // lunar conversion unavailable < 1900 → behaves like a solar one-time date
+      expect(daysUntil("1800-01-10", "none", "lunar")).toBe(9);
+    });
+  });
 });
 
 describe("fmtDate", () => {
@@ -84,5 +108,17 @@ describe("fmtDate", () => {
     const result = fmtDate("2026-12-25", "none", "zh");
     expect(result).toMatch(/12/);
     expect(result).toMatch(/25/);
+  });
+
+  it("renders a lunar event as its Chinese lunar date", () => {
+    // one-time lunar event includes the lunar year
+    expect(fmtDate("2026-06-15", "none", "zh", "lunar")).toBe("二零二六年五月初一");
+    // yearly lunar event omits the year
+    expect(fmtDate("2026-06-15", "yearly", "en", "lunar")).toBe("五月初一");
+  });
+
+  it("falls back to the solar label when lunar conversion is unavailable", () => {
+    const result = fmtDate("1800-12-25", "none", "en", "lunar");
+    expect(result).toMatch(/1800/);
   });
 });

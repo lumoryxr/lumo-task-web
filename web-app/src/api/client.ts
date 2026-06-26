@@ -206,6 +206,7 @@ export function buildCountdownUpdateBody(patch: Partial<Omit<CountdownEvent, "id
     ...(patch.color !== undefined && { color: patch.color }),
     ...(patch.repeat !== undefined && { repeat: patch.repeat }),
     ...("note" in patch && { note: patch.note ?? null }),
+    ...(patch.calendar !== undefined && { calendar: patch.calendar }),
   };
 }
 
@@ -555,6 +556,7 @@ function adaptCountdownEvent(raw: any): CountdownEvent {
     color: raw.color,
     repeat: raw.repeat,
     note: raw.note ?? undefined,
+    calendar: raw.calendar ?? "solar",
     createdAt: raw.createdAt,
   };
 }
@@ -645,6 +647,7 @@ export const countdownApi = {
       color: input.color,
       repeat: input.repeat,
       note: input.note ?? null,
+      calendar: input.calendar,
     });
     return adaptCountdownEvent(raw);
   },
@@ -668,6 +671,7 @@ export const countdownApi = {
         color: e.color,
         repeat: e.repeat,
         note: e.note ?? null,
+        calendar: e.calendar ?? "solar",
         createdAt: e.createdAt,
       })),
     });

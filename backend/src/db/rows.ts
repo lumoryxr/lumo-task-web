@@ -133,6 +133,7 @@ export interface CountdownEventRow {
   color: string;
   repeat: string;
   note: string | null;
+  calendar: string;
   created_at: string;
   updated_at: string;
 }

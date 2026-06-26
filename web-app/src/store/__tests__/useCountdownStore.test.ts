@@ -19,6 +19,7 @@ type TestEvent = {
   date: string;
   color: "green" | "cyan" | "amber" | "red";
   repeat: "none" | "yearly";
+  calendar: "solar" | "lunar";
   createdAt: string;
 };
 
@@ -29,6 +30,7 @@ function makeEvent(overrides: Partial<TestEvent> = {}): TestEvent {
     date: "2026-08-14",
     color: "amber",
     repeat: "yearly",
+    calendar: "solar",
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };

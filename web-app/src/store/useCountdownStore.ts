@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { countdownApi } from "@/api/client";
-import type { CountdownColor, CountdownEvent, CountdownRepeat } from "@/types/task";
+import type { CountdownCalendar, CountdownColor, CountdownEvent, CountdownRepeat } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
 import { clientId } from "@/lib/id";
@@ -29,6 +29,7 @@ interface CountdownState {
     color: CountdownColor;
     repeat: CountdownRepeat;
     note?: string;
+    calendar?: CountdownCalendar;
   }) => Promise<CountdownEvent>;
   update: (userId: string, id: string, patch: Partial<Omit<CountdownEvent, "id" | "createdAt">>) => Promise<void>;
   remove: (userId: string, id: string) => Promise<void>;
@@ -85,7 +86,7 @@ export const useCountdownStore = create<CountdownState>((set) => ({
   async create(userId, input) {
     const id = clientId("cd");
     try {
-      const event = await countdownApi.create(userId, input, id);
+      const event = await countdownApi.create(userId, { ...input, calendar: input.calendar ?? "solar" }, id);
       set((s) => ({ events: [...s.events, event] }));
       return event;
     } catch (e) {

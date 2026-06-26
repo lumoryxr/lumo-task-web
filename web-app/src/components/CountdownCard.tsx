@@ -56,7 +56,7 @@ interface CountdownCardProps {
 
 export function CountdownCard({ event, locale, onEdit, onDelete }: CountdownCardProps) {
   const t = useT();
-  const days = daysUntil(event.date, event.repeat);
+  const days = daysUntil(event.date, event.repeat, event.calendar);
   const c = COLOR_MAP[event.color];
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -302,7 +302,7 @@ export function CountdownCard({ event, locale, onEdit, onDelete }: CountdownCard
           borderTop: "1px solid var(--border-faint)",
         }}>
           <span style={{ fontSize: 11, color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
-            {fmtDate(event.date, event.repeat, locale)}
+            {fmtDate(event.date, event.repeat, locale, event.calendar)}
           </span>
           {event.repeat === "yearly" && (
             <span style={{
