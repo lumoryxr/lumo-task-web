@@ -10,9 +10,8 @@
  *   3. append one entry here.
  *
  * `columns` is the full set of syncable columns the engine reads on pull and
- * writes on push (the four-tuple plus the entity payload). Server-internal
- * columns (`seq`, which is ADR-0003 legacy machinery slated for removal) are
- * intentionally excluded — they are not part of the cross-device row state.
+ * writes on push (the four-tuple plus the entity payload) — the complete list
+ * of live, cross-device row state for each entity.
  *
  * A standards guard (`sync-manifest.standards.test.ts`) introspects each table
  * via `PRAGMA table_info` and FAILS the build if any entity lacks one of the

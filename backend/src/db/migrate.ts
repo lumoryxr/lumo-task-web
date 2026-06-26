@@ -146,15 +146,6 @@ export async function runMigrations() {
   // Prune expired tokens
   await execRaw("DELETE FROM revoked_tokens WHERE expires_at < datetime('now')");
 
-  // Sync cursor tracking for remote LibSQL replication
-  await execRaw(`
-    CREATE TABLE IF NOT EXISTS sync_cursors (
-      table_name     TEXT PRIMARY KEY,
-      last_pushed_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z',
-      last_pulled_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'
-    )
-  `);
-
   // Migrate: add recurrence column
   const taskColsV2 = await query<{ name: string }>("PRAGMA table_info(tasks)");
   if (!taskColsV2.some((c) => c.name === "recurrence")) {
@@ -405,69 +396,31 @@ export async function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_countdowns_user_created ON countdown_events(user_id, created_at) WHERE deleted_at IS NULL;
   `);
 
-  // ── Incremental-sync change sequence (ADR-0003 Phase 2) ─────────────────────
-  // Every syncable row carries a monotonic `seq` stamped from a single global
-  // counter, advanced on INSERT *and* UPDATE (incl. soft-delete). The delta
-  // endpoint reads `WHERE user_id = ? AND seq > :cursor ORDER BY seq`, so the
-  // cursor is a server-authoritative high-water mark — not a wall clock (no
-  // same-millisecond / NTP-rollback edge cases). seq is stamped by triggers, so
-  // no write path needs to know about it.
-  const SYNC_TABLES = ["tasks", "completed_entries", "people", "habits", "countdown_events"];
-
-  await execRaw(`
-    CREATE TABLE IF NOT EXISTS sync_seq (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL);
-    INSERT OR IGNORE INTO sync_seq (id, value) VALUES (1, 0);
-  `);
-
-  for (const table of SYNC_TABLES) {
+  // ── Drop dead ADR-0003 sync machinery (P3) ──────────────────────────────────
+  // The current HLC-based sync (ADR-0004, P1) keys exclusively on `updated_at`
+  // and never reads `seq`, `sync_seq`, `sync_cursors`, or `idempotency_keys`.
+  // These were ADR-0003 leftovers with no production reader, so they are dropped
+  // here. This block runs unconditionally each boot but is a cheap no-op once
+  // already clean (DROP … IF EXISTS, plus a PRAGMA guard before DROP COLUMN).
+  //
+  // Ordering is load-bearing: the seq triggers and (user_id, seq) index reference
+  // the `seq` column, so they MUST be dropped BEFORE the column. `sync_seq` is
+  // dropped after, since the triggers' bodies reference it. Each DROP is a single
+  // statement (execRaw splits on ';'), so they run one at a time.
+  for (const table of ["tasks", "completed_entries", "people", "habits", "countdown_events"]) {
+    await execRaw(`DROP TRIGGER IF EXISTS trg_${table}_seq_insert`);
+    await execRaw(`DROP TRIGGER IF EXISTS trg_${table}_seq_update`);
+    await execRaw(`DROP INDEX IF EXISTS idx_${table}_user_seq`);
+    // DROP COLUMN only if the column still exists (libsql/SQLite 3.35+ supports
+    // ALTER TABLE … DROP COLUMN). Guarded via PRAGMA so a re-run is a no-op.
     const cols = await query<{ name: string }>(`PRAGMA table_info(${table})`);
-    if (!cols.some((col) => col.name === "seq")) {
-      await execRaw(`ALTER TABLE ${table} ADD COLUMN seq INTEGER`);
+    if (cols.some((col) => col.name === "seq")) {
+      await execRaw(`ALTER TABLE ${table} DROP COLUMN seq`);
     }
-    // Triggers stamp the next global seq. The AFTER UPDATE trigger guards with
-    // `WHEN NEW.seq IS OLD.seq` so the seq-stamping update it issues does not
-    // re-fire it (recursion-safe regardless of PRAGMA recursive_triggers). Each
-    // trigger is one statement (execRaw splits on ';', which would break the
-    // trigger body), so we run them via execute().
-    await execute(
-      `CREATE TRIGGER IF NOT EXISTS trg_${table}_seq_insert AFTER INSERT ON ${table}
-       BEGIN
-         UPDATE sync_seq SET value = value + 1 WHERE id = 1;
-         UPDATE ${table} SET seq = (SELECT value FROM sync_seq WHERE id = 1) WHERE rowid = NEW.rowid;
-       END`,
-    );
-    await execute(
-      `CREATE TRIGGER IF NOT EXISTS trg_${table}_seq_update AFTER UPDATE ON ${table}
-       WHEN NEW.seq IS OLD.seq
-       BEGIN
-         UPDATE sync_seq SET value = value + 1 WHERE id = 1;
-         UPDATE ${table} SET seq = (SELECT value FROM sync_seq WHERE id = 1) WHERE rowid = NEW.rowid;
-       END`,
-    );
-    // Delta read index: (user_id, seq) range scan with ORDER BY seq satisfied.
-    await execRaw(`CREATE INDEX IF NOT EXISTS idx_${table}_user_seq ON ${table}(user_id, seq)`);
-    // One-time, idempotent backfill of pre-existing rows: SET seq = seq fires the
-    // update trigger (NEW.seq IS OLD.seq) to stamp; `WHERE seq IS NULL` makes a
-    // re-run a no-op so seqs aren't churned on every startup.
-    await execRaw(`UPDATE ${table} SET seq = seq WHERE seq IS NULL`);
   }
-
-  // ── Idempotency keys (ADR-0003 Phase 3) ─────────────────────────────────────
-  // A client that retries a create after a network timeout sends the same
-  // Idempotency-Key; the stored result is replayed instead of inserting a
-  // duplicate row. Namespaced by user_id so one user's key can't reach another's
-  // result. `response` holds the JSON body; `status` the HTTP status. GC of old
-  // keys is deferred to Phase 5 (with tombstone GC).
-  await execRaw(`
-    CREATE TABLE IF NOT EXISTS idempotency_keys (
-      user_id    TEXT NOT NULL,
-      key        TEXT NOT NULL,
-      status     INTEGER,
-      response   TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      PRIMARY KEY (user_id, key)
-    );
-  `);
+  await execRaw("DROP TABLE IF EXISTS sync_seq");
+  await execRaw("DROP TABLE IF EXISTS sync_cursors");
+  await execRaw("DROP TABLE IF EXISTS idempotency_keys");
 
   // ── P1b desktop sync client binding/cursor state (ADR-0004 Addendum) ────────
   // The LOCAL backend's sync client persists, per local user, whether sync is
@@ -487,14 +440,6 @@ export async function runMigrations() {
       last_error     TEXT
     )
   `);
-
-  // GC floor (ADR-0003 Phase 5): the highest seq whose tombstones have been
-  // pruned. A client whose cursor is below this may have missed a GC'd delete,
-  // so the delta endpoint tells it to full-resync. Stored on the sync_seq row.
-  const seqCols = await query<{ name: string }>("PRAGMA table_info(sync_seq)");
-  if (!seqCols.some((col) => col.name === "gc_floor")) {
-    await execRaw("ALTER TABLE sync_seq ADD COLUMN gc_floor INTEGER NOT NULL DEFAULT 0");
-  }
 }
 
 // When run directly as a script
