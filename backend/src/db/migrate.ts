@@ -307,6 +307,65 @@ export async function runMigrations() {
     }
   }
 
+  // ── P1a sync: uniform four-tuple `updated_at` (ADR-0004 Addendum) ───────────
+  // Every syncable entity must carry { id, user_id, updated_at, deleted_at }.
+  // `tasks`, `habits`, `countdown_events` already have `updated_at`; `people`
+  // and `completed_entries` do not — add them, seeding existing rows from the
+  // most meaningful existing timestamp so they are not all-zero on first sync.
+  //
+  // NB: ALTER TABLE ADD COLUMN cannot use a non-constant DEFAULT, so we add the
+  // column then backfill via UPDATE. Idempotent: guarded by PRAGMA, and the
+  // backfill only touches NULLs.
+  {
+    const peopleCols = await query<{ name: string }>("PRAGMA table_info(people)");
+    if (!peopleCols.some((c) => c.name === "updated_at")) {
+      await execRaw("ALTER TABLE people ADD COLUMN updated_at TEXT");
+      await execRaw("UPDATE people SET updated_at = created_at WHERE updated_at IS NULL");
+    }
+    const completedCols = await query<{ name: string }>("PRAGMA table_info(completed_entries)");
+    if (!completedCols.some((c) => c.name === "updated_at")) {
+      await execRaw("ALTER TABLE completed_entries ADD COLUMN updated_at TEXT");
+      await execRaw("UPDATE completed_entries SET updated_at = completed_at WHERE updated_at IS NULL");
+    }
+  }
+
+  // Normalize ALL existing `updated_at` values across syncable tables from the
+  // SQLite datetime form (`YYYY-MM-DD HH:MM:SS`, produced by datetime('now'))
+  // to the HLC ISO form (`YYYY-MM-DDTHH:MM:SS.000000Z`). Without this, a legacy
+  // row's `updated_at` ("2026-06-26 10:00:00") and a fresh HLC value
+  // ("2026-06-26T10:00:00.000000Z") would be compared as raw strings — the space
+  // (0x20) sorts before 'T' (0x54), so a legacy value would always look "older"
+  // and could be silently clobbered. Normalizing up front means every compare is
+  // between two values of the same, lexicographically-sortable shape.
+  //
+  // The matcher keys on the 11th char being a space (datetime form) vs 'T' (ISO
+  // form); rows already in ISO form are left untouched, so re-runs are no-ops.
+  for (const table of ["tasks", "people", "completed_entries", "habits", "countdown_events"]) {
+    await execRaw(
+      `UPDATE ${table}
+         SET updated_at = REPLACE(updated_at, ' ', 'T') || '.000000Z'
+       WHERE updated_at IS NOT NULL
+         AND SUBSTR(updated_at, 11, 1) = ' '`
+    );
+    // Any remaining NULL updated_at (shouldn't happen on the four-tuple tables,
+    // but defensive) gets the HLC epoch so comparisons never hit NULL.
+    await execRaw(
+      `UPDATE ${table} SET updated_at = '1970-01-01T00:00:00.000000Z' WHERE updated_at IS NULL`
+    );
+  }
+
+  // Sync read indexes: pull does `WHERE user_id = ? AND updated_at > ? ORDER BY
+  // updated_at`, so a composite (user_id, updated_at) lets it run as an index
+  // range scan with the ordering already satisfied. NOT partial on deleted_at —
+  // pull intentionally returns tombstoned rows so deletes propagate.
+  await execRaw(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_user_updated ON tasks(user_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_people_user_updated ON people(user_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_completed_user_updated ON completed_entries(user_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_habits_user_updated ON habits(user_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_countdowns_user_updated ON countdown_events(user_id, updated_at);
+  `);
+
   // Secondary indexes on the multi-tenant tables. Every list/read query filters
   // by user_id (and sorts by created_at / completed_at / date); without these,
   // SQLite full-scans the shared table per request, which both slows reads and
