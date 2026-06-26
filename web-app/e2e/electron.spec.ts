@@ -447,7 +447,7 @@ test.describe("Electron app", () => {
     if (await syncTab.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await syncTab.click();
       await expect(
-        page.getByText(/cloud sync|turso|remote replica/i).first()
+        page.getByText(/cloud sync|enable cloud sync|sync now/i).first()
       ).toBeVisible({ timeout: 5_000 });
     }
   });

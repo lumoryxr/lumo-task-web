@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore, type Accent, type Density } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
@@ -14,6 +14,7 @@ import { PERSON_COLORS } from "@/lib/personColors";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import type { SyncStatusResponse } from "@lumo/contracts";
 
 const ACCENT_SWATCHES: Array<{ id: Accent; hex: string; label: string }> = [
   { id: "green", hex: "#3DFFA0", label: "Lumo Green" },
@@ -1037,61 +1038,93 @@ function StoragePanel({ t, locale }: { t: (k: string) => string; locale: string 
 
 /* ── Sync panel ───────────────────────────────────────────────────── */
 
+/**
+ * Cloud-sync settings — Obsidian-like flow over the in-backend sync client.
+ *
+ * The panel talks to the LOCAL backend's sync endpoints (`/sync/status|enable|
+ * disable|now`), which are identical in web and electron — both processes run a
+ * backend that owns the cloud connection. No Turso URL/token, no relaunch.
+ *
+ *  - enabled === false → "Enable cloud sync" button → reveals an email/password
+ *    cloud sign-in form → `api.syncEnable`.
+ *  - enabled === true  → enabled state + last-synced + last-error + "Sync now"
+ *    (`api.syncNow`) + "Disable" (`api.syncDisable`).
+ */
 function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) {
-  const isElectron = typeof window !== "undefined" && !!window.electronAPI;
+  const [status, setStatus] = useState<SyncStatusResponse | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const [enabled, setEnabled] = useState(false);
-  const [hasToken, setHasToken] = useState(false);
-  const [mode, setMode] = useState<"local" | "replica" | "cloud">("local");
-  const [url, setUrl] = useState("");
-  const [token, setToken] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [disabling, setDisabling] = useState(false);
+
+  async function refresh() {
+    try {
+      setStatus(await api.syncStatus());
+    } catch {
+      /* leave previous status; transient backend hiccup */
+    }
+  }
 
   useEffect(() => {
-    api.syncStatus().then((s) => {
-      setMode(s.mode);
-      setLastSyncAt(s.lastSyncAt);
-    }).catch(() => {});
+    refresh();
+  }, []);
 
-    if (isElectron && window.electronAPI) {
-      (window.electronAPI as any).getSyncConfig?.().then((cfg: { enabled: boolean; url: string; hasToken: boolean }) => {
-        setEnabled(cfg.enabled);
-        setUrl(cfg.url ?? "");
-        setHasToken(cfg.hasToken);
-      }).catch(() => {});
-    }
-  }, [isElectron]);
-
-  function badgeContent() {
-    // Web: cloud sync is server-authoritative and automatic (ADR-0003) — always on.
-    if (!isElectron) return { label: t("settings.sync.webBadge"), color: "var(--accent-primary)" };
-    if (mode === "replica") return { label: t("settings.sync.replicaBadge"), color: "var(--accent-primary)" };
-    return { label: t("settings.sync.localBadge"), color: "var(--accent-primary)" };
+  /** Map a backend sync error to a concise, localised message. The api client
+   *  attaches the backend error `code` and HTTP `status` to the thrown error. */
+  function explainEnableError(err: unknown): string {
+    const code = (err as { code?: string })?.code;
+    const status = (err as { status?: number })?.status;
+    if (code === "CLOUD_AUTH_FAILED" || status === 401) return t("settings.sync.error.signin");
+    if (code === "NO_CLOUD_BASE") return t("settings.sync.error.notConfigured");
+    if (code === "CLOUD_UNREACHABLE" || status === 502) return t("settings.sync.error.unreachable");
+    return t("settings.sync.error.enable");
   }
 
-  async function handleElectronSave() {
-    if (!window.electronAPI) return;
-    setSaving(true);
+  async function handleEnable(e: FormEvent) {
+    e.preventDefault();
+    if (connecting) return;
+    setConnecting(true);
+    setFormError(null);
     try {
-      await (window.electronAPI as any).setSyncConfig?.({ enabled, url, token });
+      const next = await api.syncEnable(email.trim(), password);
+      setStatus(next);
+      setShowForm(false);
+      setEmail("");
+      setPassword("");
+    } catch (err) {
+      setFormError(explainEnableError(err));
     } finally {
-      setSaving(false);
+      setConnecting(false);
     }
   }
 
-  // Desktop (embedded replica) manual sync trigger; web sync is automatic.
   async function handleSyncNow() {
     if (syncing) return;
     setSyncing(true);
     try {
-      const res = await api.syncNow();
-      setLastSyncAt(res.syncedAt);
+      await api.syncNow();
+      await refresh();
     } catch {
       toast.error(t("settings.sync.error.trigger"), "");
+      await refresh();
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleDisable() {
+    if (disabling) return;
+    setDisabling(true);
+    try {
+      setStatus(await api.syncDisable());
+    } catch {
+      toast.error(t("settings.sync.error.disable"), "");
+    } finally {
+      setDisabling(false);
     }
   }
 
@@ -1103,7 +1136,9 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
     return locale === "zh" ? `${Math.floor(diff / 3600)} 小时前` : `${Math.floor(diff / 3600)} hr ago`;
   }
 
-  const { label: badgeLabel, color: badgeColor } = badgeContent();
+  const enabled = status?.enabled ?? false;
+  const badgeLabel = enabled ? t("settings.sync.onBadge") : t("settings.sync.offBadge");
+  const badgeColor = enabled ? "var(--accent-primary)" : "var(--text-faint)";
 
   return (
     <div>
@@ -1115,67 +1150,85 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
             <span className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: badgeColor }} />
             <span className="text-[12px]" style={{ color: badgeColor }}>{badgeLabel}</span>
           </div>
-          {(mode === "replica" || lastSyncAt) && (
+          {enabled && (
             <span className="text-[11px] text-text-faint">
-              {t("settings.sync.lastSync")}: {fmtRelative(lastSyncAt)}
+              {t("settings.sync.lastSync")}: {fmtRelative(status?.lastSyncedAt ?? null)}
             </span>
           )}
         </div>
 
-        {isElectron ? (
+        {enabled ? (
+          // ── Enabled: synced state + sync-now / disable controls ──────────────
           <>
-            <div className="grid items-center px-5 py-4 border-t border-border-faint"
-              style={{ gridTemplateColumns: "200px 1fr", gap: 32 }}>
-              <div>
-                <div className="text-[13px] font-medium text-text-primary leading-snug">{t("settings.sync.enable")}</div>
-                <div className="text-[11.5px] text-text-muted mt-1 leading-relaxed">{t("settings.sync.enable.helper")}</div>
-              </div>
-              <Toggle value={enabled} onChange={setEnabled} />
-            </div>
-
-            {enabled && (
-              <>
-                <div className="grid items-start px-5 py-4 border-t border-border-faint"
-                  style={{ gridTemplateColumns: "200px 1fr", gap: 32 }}>
-                  <div className="text-[13px] font-medium text-text-primary leading-snug pt-1">{t("settings.sync.url")}</div>
-                  <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("settings.sync.url.placeholder")} className="w-full text-[12px] rounded-lg px-3 py-2 outline-none focus:ring-1" style={{ background: "var(--bg-deep)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontFamily: "monospace" }} />
+            <div className="px-5 py-4 border-t border-border-faint">
+              <div className="text-[13px] font-medium text-text-primary">{t("settings.sync.title")}</div>
+              <div className="text-[11.5px] text-text-muted mt-1 leading-relaxed">{t("settings.sync.enable.helper")}</div>
+              {status?.lastError && (
+                <div className="text-[11.5px] mt-2 leading-relaxed" style={{ color: "var(--danger, #ff6b6b)" }}>
+                  {status.lastError}
                 </div>
-                <div className="grid items-start px-5 py-4 border-t border-border-faint"
-                  style={{ gridTemplateColumns: "200px 1fr", gap: 32 }}>
-                  <div>
-                    <div className="text-[13px] font-medium text-text-primary leading-snug">{t("settings.sync.token")}</div>
-                    {hasToken && <div className="text-[11px] text-text-faint mt-0.5">{locale === "zh" ? "已保存（输入新值可替换）" : "Saved — enter a new value to replace"}</div>}
-                  </div>
-                  <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={hasToken ? "••••••••" : t("settings.sync.token.placeholder")} className="w-full text-[12px] rounded-lg px-3 py-2 outline-none focus:ring-1" style={{ background: "var(--bg-deep)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontFamily: "monospace" }} />
-                </div>
-                <div className="px-5 pb-3">
-                  <p className="text-[11px] text-text-faint">{t("settings.sync.howto")}</p>
-                </div>
-              </>
-            )}
-
-            <div className="px-5 py-3 border-t border-border-faint flex items-center gap-2">
-              <button onClick={handleElectronSave} disabled={saving || (enabled && !url)} className="btn btn-primary" style={{ height: 30, fontSize: 12, opacity: saving || (enabled && !url) ? 0.6 : 1 }}>
-                {saving ? t("settings.sync.saving") : t("settings.sync.save")}
-              </button>
-              {mode === "replica" && (
-                <button onClick={handleSyncNow} disabled={syncing} className="btn btn-secondary" style={{ height: 30, fontSize: 12, opacity: syncing ? 0.6 : 1 }}>
-                  {syncing ? t("settings.sync.syncing") : t("settings.sync.syncNow")}
-                </button>
               )}
+            </div>
+            <div className="px-5 py-3 border-t border-border-faint flex items-center gap-2">
+              <button onClick={handleSyncNow} disabled={syncing} className="btn btn-primary" style={{ height: 30, fontSize: 12, opacity: syncing ? 0.6 : 1 }}>
+                {syncing ? t("settings.sync.syncing") : t("settings.sync.syncNow")}
+              </button>
+              <button onClick={handleDisable} disabled={disabling} className="btn btn-secondary" style={{ height: 30, fontSize: 12, opacity: disabling ? 0.6 : 1 }}>
+                {disabling ? t("settings.sync.disabling") : t("settings.sync.disable")}
+              </button>
             </div>
           </>
         ) : (
-          // Web: cloud sync is server-authoritative and automatic — no manual
-          // config (ADR-0003). Data is backed by the cloud and kept consistent
-          // across devices via the incremental delta sync.
+          // ── Disabled: one-click enable → cloud account sign-in form ──────────
           <div className="px-5 py-4 border-t border-border-faint">
-            <div className="text-[13px] font-medium text-text-primary">{t("settings.sync.title")}</div>
-            <div className="text-[11.5px] text-text-muted mt-1 leading-relaxed">
-              {locale === "zh"
-                ? "你的数据已自动同步到云端,并在多设备间实时保持一致——无需手动配置。"
-                : "Your data syncs to the cloud automatically and stays consistent across your devices — no setup needed."}
-            </div>
+            <div className="text-[13px] font-medium text-text-primary leading-snug">{t("settings.sync.enable")}</div>
+            <div className="text-[11.5px] text-text-muted mt-1 leading-relaxed">{t("settings.sync.enable.helper")}</div>
+
+            {!showForm ? (
+              <button onClick={() => { setShowForm(true); setFormError(null); }} className="btn btn-primary mt-3" style={{ height: 30, fontSize: 12 }}>
+                {t("settings.sync.enable.cta")}
+              </button>
+            ) : (
+              <form onSubmit={handleEnable} className="mt-3 flex flex-col gap-3" style={{ maxWidth: 360 }}>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[12px] text-text-secondary">{t("settings.sync.email")}</span>
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={t("settings.sync.email.placeholder")}
+                    required
+                    className="w-full text-[12px] rounded-lg px-3 py-2 outline-none focus:ring-1"
+                    style={{ background: "var(--bg-deep)", border: "1px solid var(--border-default)", color: "var(--text-primary)" }}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[12px] text-text-secondary">{t("settings.sync.password")}</span>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t("settings.sync.password.placeholder")}
+                    required
+                    className="w-full text-[12px] rounded-lg px-3 py-2 outline-none focus:ring-1"
+                    style={{ background: "var(--bg-deep)", border: "1px solid var(--border-default)", color: "var(--text-primary)" }}
+                  />
+                </label>
+                {formError && (
+                  <div className="text-[11.5px] leading-relaxed" style={{ color: "var(--danger, #ff6b6b)" }}>{formError}</div>
+                )}
+                <div className="flex items-center gap-2">
+                  <button type="submit" disabled={connecting || !email.trim() || !password} className="btn btn-primary" style={{ height: 30, fontSize: 12, opacity: connecting || !email.trim() || !password ? 0.6 : 1 }}>
+                    {connecting ? t("settings.sync.connecting") : t("settings.sync.connect")}
+                  </button>
+                  <button type="button" onClick={() => { setShowForm(false); setFormError(null); }} disabled={connecting} className="btn btn-secondary" style={{ height: 30, fontSize: 12 }}>
+                    {t("settings.sync.cancel")}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         )}
       </div>
