@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
+import { hlcNow } from "../lib/hlc.js";
 import type { Variables } from "../env.js";
 import type { CountdownEventRow } from "../db/rows.js";
 
@@ -82,7 +83,10 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
         repeat: e.repeat,
         note: e.note ?? null,
         created_at: e.createdAt,
-        updated_at: e.createdAt,
+        // `updated_at` is the LWW/cursor key → canonical HLC, not the client's
+        // raw ISO `createdAt` (3-digit ISO sorts before all HLC values and would
+        // silently lose sync races). Stamp import time.
+        updated_at: hlcNow(),
       }
     );
   }
@@ -96,12 +100,14 @@ app.post("/", zValidator("json", CountdownBody), async (c) => {
   const body = c.req.valid("json");
   const id = body.id ?? ("cd_" + nanoid(10));
   const now = new Date().toISOString();
+  // `updated_at` is the LWW/cursor key for sync → HLC.
+  const syncTs = hlcNow();
 
   await execute(
     `INSERT INTO countdown_events
        (id, user_id, title, date, emoji, color, repeat, note, created_at, updated_at)
      VALUES
-       (:id, :user_id, :title, :date, :emoji, :color, :repeat, :note, :now, :now)`,
+       (:id, :user_id, :title, :date, :emoji, :color, :repeat, :note, :now, :sync_ts)`,
     {
       id,
       user_id: userId,
@@ -111,7 +117,7 @@ app.post("/", zValidator("json", CountdownBody), async (c) => {
       color: body.color,
       repeat: body.repeat,
       note: body.note ?? null,
-      now,
+      now, sync_ts: syncTs,
     }
   );
 
@@ -127,7 +133,8 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", CountdownUpda
   const userId = c.get("userId");
   const eventId = c.req.param("id");
   const body = c.req.valid("json");
-  const now = new Date().toISOString();
+  // `:now` here only feeds `updated_at` (the LWW/cursor key) → HLC.
+  const now = hlcNow();
 
   const existing = await queryOne<CountdownEventRow>(
     "SELECT * FROM countdown_events WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
@@ -163,7 +170,8 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", CountdownUpda
 // DELETE /countdowns/:id
 app.delete("/:id", zValidator("param", IdParam), async (c) => {
   const userId = c.get("userId");
-  const now = new Date().toISOString();
+  // Tombstone: both `deleted_at` and `updated_at` ride the LWW order → HLC.
+  const now = hlcNow();
   const result = await execute(
     "UPDATE countdown_events SET deleted_at = :now, updated_at = :now WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
     { id: c.req.param("id"), uid: userId, now }

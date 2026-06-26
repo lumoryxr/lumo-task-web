@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
+import { hlcNow } from "../lib/hlc.js";
 import type { Variables } from "../env.js";
 import type { HabitRow, HabitLogRow } from "../db/rows.js";
 
@@ -118,7 +119,10 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
         frequency_interval: h.frequencyInterval ?? null,
         note: h.note ?? null,
         created_at: h.createdAt,
-        updated_at: h.createdAt,
+        // `updated_at` is the LWW/cursor key → must be canonical HLC, never the
+        // client's raw ISO `createdAt` (a 3-digit ISO sorts before all HLC
+        // values and would silently lose every sync race). Stamp import time.
+        updated_at: hlcNow(),
       }
     );
   }
@@ -152,12 +156,14 @@ app.post("/", zValidator("json", HabitBody), async (c) => {
   const body = c.req.valid("json");
   const id = body.id ?? ("habit_" + nanoid(10));
   const now = new Date().toISOString();
+  // `updated_at` is the LWW/cursor key for sync → HLC.
+  const syncTs = hlcNow();
 
   await execute(
     `INSERT INTO habits
        (id, user_id, title, emoji, color, frequency, frequency_days, frequency_times, frequency_interval, note, created_at, updated_at)
      VALUES
-       (:id, :user_id, :title, :emoji, :color, :frequency, :frequency_days, :frequency_times, :frequency_interval, :note, :now, :now)`,
+       (:id, :user_id, :title, :emoji, :color, :frequency, :frequency_days, :frequency_times, :frequency_interval, :note, :now, :sync_ts)`,
     {
       id,
       user_id: userId,
@@ -169,7 +175,7 @@ app.post("/", zValidator("json", HabitBody), async (c) => {
       frequency_times: body.frequencyTimes ?? null,
       frequency_interval: body.frequencyInterval ?? null,
       note: body.note ?? null,
-      now,
+      now, sync_ts: syncTs,
     }
   );
 
@@ -182,7 +188,8 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", HabitUpdateBo
   const userId = c.get("userId");
   const habitId = c.req.param("id");
   const body = c.req.valid("json");
-  const now = new Date().toISOString();
+  // `:now` here only feeds `updated_at` (the LWW/cursor key) → HLC.
+  const now = hlcNow();
 
   const existing = await queryOne<HabitRow>(
     "SELECT * FROM habits WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
@@ -222,7 +229,8 @@ app.delete("/:id", zValidator("param", IdParam), async (c) => {
   const userId = c.get("userId");
   const habitId = c.req.param("id");
 
-  const now = new Date().toISOString();
+  // Tombstone: both `deleted_at` and `updated_at` ride the LWW order → HLC.
+  const now = hlcNow();
   // Soft delete the habit (tombstone, propagates on sync). habit_logs are
   // subordinate check-in rows (not a syncable domain in this phase) and are
   // hard-deleted with the habit as before.

@@ -5,6 +5,7 @@ import { PersonCreateBodySchema, PersonUpdateBodySchema, type PersonWire } from 
 import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
+import { hlcNow } from "../lib/hlc.js";
 import type { Variables } from "../env.js";
 import type { PersonRow } from "../db/rows.js";
 
@@ -44,10 +45,12 @@ app.post("/", zValidator("json", PersonCreateBodySchema), async (c) => {
   const body = c.req.valid("json");
   const id = body.id ?? ("p_" + nanoid(10));
   const now = new Date().toISOString();
+  // `updated_at` is the LWW/cursor key for sync → HLC (not a plain ISO string).
+  const syncTs = hlcNow();
   await execute(`
-    INSERT INTO people (id, user_id, name, initials, color, email, created_at)
-    VALUES (:id, :user_id, :name, :initials, :color, :email, :now)
-  `, { id, user_id: userId, name: body.name, initials: body.initials, color: body.color, email: body.email ?? null, now });
+    INSERT INTO people (id, user_id, name, initials, color, email, created_at, updated_at)
+    VALUES (:id, :user_id, :name, :initials, :color, :email, :now, :sync_ts)
+  `, { id, user_id: userId, name: body.name, initials: body.initials, color: body.color, email: body.email ?? null, now, sync_ts: syncTs });
 
   const row = await queryOne<PersonRow>("SELECT * FROM people WHERE id = :id AND deleted_at IS NULL", { id });
   return c.json(rowToPerson(row!), 201);
@@ -67,13 +70,15 @@ app.patch("/:id", zValidator("json", PersonUpdateBodySchema), async (c) => {
 
     await execute(`
       UPDATE people SET
-        name = :name, initials = :initials, color = :color, email = :email
+        name = :name, initials = :initials, color = :color, email = :email,
+        updated_at = :sync_ts
       WHERE id = :id AND user_id = :uid
     `, {
       name: body.name ?? existing.name,
       initials: body.initials ?? existing.initials,
       color: body.color ?? existing.color,
       email: "email" in body ? (body.email ?? null) : existing.email,
+      sync_ts: hlcNow(),
       id: personId, uid: userId,
     });
 
@@ -90,10 +95,10 @@ app.delete("/:id", async (c) => {
   const userId = c.get("userId") as string;
   const personId = c.req.param("id");
   try {
-    const now = new Date().toISOString();
-    // Soft delete (people has no updated_at column → set deleted_at only).
+    // Tombstone: both `deleted_at` and `updated_at` ride the same LWW order → HLC.
+    const now = hlcNow();
     const result = await execute(
-      "UPDATE people SET deleted_at = :now WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
+      "UPDATE people SET deleted_at = :now, updated_at = :now WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
       { id: personId, uid: userId, now }
     );
     if (result.changes === 0) return httpError(c, 404, "NOT_FOUND", "Not found");
@@ -107,12 +112,13 @@ app.delete("/:id", async (c) => {
         SELECT COALESCE(json_group_array(value), '[]')
         FROM json_each(assignee_ids)
         WHERE value != :pid
-      )
+      ),
+      updated_at = :now
       WHERE user_id = :uid
         AND EXISTS (
           SELECT 1 FROM json_each(assignee_ids) WHERE value = :pid
         )
-    `, { pid: personId, uid: userId });
+    `, { pid: personId, uid: userId, now });
 
     return new Response(null, { status: 204 });
   } catch (err) {

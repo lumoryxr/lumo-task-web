@@ -7,6 +7,7 @@ import { query, queryOne, execute, batch } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
+import { hlcNow } from "../lib/hlc.js";
 import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
 import type { Variables } from "../env.js";
 import type { TaskRow } from "../db/rows.js";
@@ -133,6 +134,9 @@ app.post("/", taskMutateLimit, zValidator("json", TaskCreateBodySchema), async (
   const body = c.req.valid("json");
   const id = body.id ?? ("t_" + nanoid(10));
   const now = new Date().toISOString();
+  // `updated_at` is the LWW/cursor key — it MUST be an HLC, never a plain ISO
+  // string (3 fractional digits would sort before synced 6-digit values).
+  const syncTs = hlcNow();
 
   await execute(`
     INSERT INTO tasks (
@@ -144,7 +148,7 @@ app.post("/", taskMutateLimit, zValidator("json", TaskCreateBodySchema), async (
       :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
       :quadrant, :today, :week_focus, :due, :duration, 0, :pomos_total, :conviction,
       :next_step_en, :next_step_zh, :reason_en, :reason_zh, :ai_suggest, :not_now_json,
-      :recurrence, :subtasks_json, :scheduled_start, :now, :now
+      :recurrence, :subtasks_json, :scheduled_start, :now, :sync_ts
     )
   `, {
     id, user_id: userId,
@@ -165,7 +169,7 @@ app.post("/", taskMutateLimit, zValidator("json", TaskCreateBodySchema), async (
     not_now_json: JSON.stringify(body.not_now ?? []),
     subtasks_json: JSON.stringify(body.subtasks ?? []),
     scheduled_start: body.scheduled_start ?? null,
-    now,
+    now, sync_ts: syncTs,
   });
 
   const row = await queryOne<TaskRow>("SELECT * FROM tasks WHERE id = :id AND deleted_at IS NULL", { id });
@@ -188,7 +192,8 @@ app.patch("/:id", taskMutateLimit, zValidator("param", IdParam), zValidator("jso
   const userId = c.get("userId") as string;
   const taskId = c.req.param("id");
   const body = c.req.valid("json");
-  const now = new Date().toISOString();
+  // `:now` here only feeds `updated_at` (the LWW/cursor key) → must be an HLC.
+  const now = hlcNow();
 
   const existing = await queryOne<TaskRow>(
     "SELECT * FROM tasks WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
@@ -239,7 +244,8 @@ app.patch("/:id", taskMutateLimit, zValidator("param", IdParam), zValidator("jso
 // DELETE /tasks/:id
 app.delete("/:id", zValidator("param", IdParam), async (c) => {
   const userId = c.get("userId") as string;
-  const now = new Date().toISOString();
+  // Tombstone: both `deleted_at` and `updated_at` are LWW-ordered → HLC.
+  const now = hlcNow();
   // Soft delete (tombstone) so the deletion propagates on sync instead of
   // resurrecting. `deleted_at IS NULL` guard makes a repeat delete a 404, as
   // before. The row stays; every read filters `deleted_at IS NULL`.
@@ -263,23 +269,27 @@ app.post("/:id/complete", zValidator("param", IdParam), async (c) => {
   if (!task) return httpError(c, 404, "NOT_FOUND", "Not found");
 
   const now = new Date().toISOString();
+  // `completed_at`/`created_at` are plain wall-clock; `updated_at` on every
+  // syncable row (the completed_entry, the task, the spawned next task) is the
+  // LWW/cursor key → HLC.
+  const syncTs = hlcNow();
   const entryId = "c_" + nanoid(10);
   const recurrence = task.recurrence ?? "none";
 
   const stmts: Parameters<typeof batch>[0] = [
     {
-      sql: `INSERT INTO completed_entries (id, user_id, task_id, title_en, title_zh, duration, quadrant, started_at, completed_at)
-            VALUES (:id, :user_id, :task_id, :title_en, :title_zh, :duration, :quadrant, :started_at, :completed_at)`,
+      sql: `INSERT INTO completed_entries (id, user_id, task_id, title_en, title_zh, duration, quadrant, started_at, completed_at, updated_at)
+            VALUES (:id, :user_id, :task_id, :title_en, :title_zh, :duration, :quadrant, :started_at, :completed_at, :sync_ts)`,
       args: {
         id: entryId, user_id: userId, task_id: taskId,
         title_en: task.title_en, title_zh: task.title_zh ?? null,
         duration: task.duration, quadrant: task.quadrant,
-        started_at: null, completed_at: now,
+        started_at: null, completed_at: now, sync_ts: syncTs,
       },
     },
     {
-      sql: "UPDATE tasks SET completed = 1, updated_at = :now WHERE id = :id",
-      args: { id: taskId, now },
+      sql: "UPDATE tasks SET completed = 1, updated_at = :sync_ts WHERE id = :id",
+      args: { id: taskId, sync_ts: syncTs },
     },
   ];
 
@@ -297,7 +307,7 @@ app.post("/:id/complete", zValidator("param", IdParam), async (c) => {
               :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
               :quadrant, 0, :due, :duration, 0, :pomos_total, NULL,
               NULL, NULL, NULL, NULL, NULL, '[]',
-              :recurrence, :now, :now
+              :recurrence, :now, :sync_ts
             )`,
       args: {
         id: nextId, user_id: userId,
@@ -308,7 +318,7 @@ app.post("/:id/complete", zValidator("param", IdParam), async (c) => {
         due: nextDue,
         duration: task.duration, pomos_total: task.pomos_total,
         recurrence,
-        now,
+        now, sync_ts: syncTs,
       },
     });
   }
@@ -329,7 +339,9 @@ app.post("/:id/uncomplete", zValidator("param", IdParam), async (c) => {
   );
   if (!task) return httpError(c, 404, "NOT_FOUND", "Not found");
 
-  const now = new Date().toISOString();
+  // Both writes touch the LWW/cursor key (`updated_at` / tombstone `deleted_at`)
+  // on syncable rows → HLC.
+  const now = hlcNow();
 
   await batch([
     {
@@ -338,7 +350,8 @@ app.post("/:id/uncomplete", zValidator("param", IdParam), async (c) => {
     },
     {
       // Soft-delete the completed-log rows so the removal propagates on sync.
-      sql: "UPDATE completed_entries SET deleted_at = :now WHERE task_id = :task_id AND user_id = :uid AND deleted_at IS NULL",
+      // Bump updated_at too so the tombstone advances the LWW key / cursor.
+      sql: "UPDATE completed_entries SET deleted_at = :now, updated_at = :now WHERE task_id = :task_id AND user_id = :uid AND deleted_at IS NULL",
       args: { task_id: taskId, uid: userId, now },
     },
   ]);

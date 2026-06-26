@@ -41,9 +41,13 @@ const EXCLUDE = [
 // unless its file is explicitly allowlisted as intentionally reading tombstones.
 // These deliberately read tombstones (ADR-0003): routes/sync.ts (delta-pull
 // returns deleted rows so deletions propagate) and lib/gc.ts (prunes tombstones).
+// sync/engine.ts: the generic pull engine reads `FROM ${entity.table}` and
+// intentionally returns tombstoned rows (deletes must propagate to peers), so it
+// deliberately omits the `deleted_at IS NULL` filter — allowlisted here.
 const DYNAMIC_FROM_ALLOWLIST = [
   path.join(SRC_DIR, "routes", "sync.ts"),
   path.join(SRC_DIR, "lib", "gc.ts"),
+  path.join(SRC_DIR, "sync", "engine.ts"),
 ];
 
 /** Collect every .ts source file under backend/src (excluding tests + sync.ts). */

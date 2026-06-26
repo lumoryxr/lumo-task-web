@@ -138,3 +138,86 @@ startup #56, i18n, the register-error fix — are kept).
   stand up an isolated environment (own backend + own Turso DB) per B2B customer.
 - **P3 — Cleanup.** Drop dead `seq`/contract code; optionally retire tombstones;
   decommission the old shared-DB deployment.
+
+---
+
+## Addendum (2026-06-26) — P1 redesigned: shared cloud DB + API logical sync
+
+After further alignment with Jalen, the **P1 desktop-sync design changed** from the
+"per-environment Turso DB + libSQL embedded replica + provisioning service" shape
+above to a simpler **local-first + per-user logical sync over the existing shared
+cloud DB**. The organization concept was considered and **dropped** (added
+complexity without enough payoff). This addendum supersedes the P1 bullet and the
+"provisioning service" consequence for the desktop path. Web B2B (P2) is unchanged.
+
+### Why the change
+
+- The cloud already runs **one shared multi-tenant DB** (web app, `user_id` column)
+  and Jalen wants to keep using it as-is — no per-user DB provisioning.
+- A libSQL **embedded replica mirrors the *entire* remote DB**, so replicating a
+  shared DB to the desktop would pull **every user's** rows down — the exact
+  cross-user leak we must prevent. Embedded replica is therefore **off the table**
+  for a shared cloud DB.
+- Positioning is **Obsidian-like**: data lives locally by default; cloud sync is
+  **opt-in**; only the signed-in user's own rows ever travel.
+
+### Decision (P1)
+
+Desktop = local-first SQLite, fully offline by default. When the user enables sync,
+the desktop's **local backend acts as a sync client** that talks **only to the cloud
+backend's authenticated HTTP sync API** — it never connects to the cloud database
+directly and never holds Turso credentials. The server is the single chokepoint that
+**forces `user_id` from the JWT** on every pull and push, so the desktop can only
+ever send/receive its own rows; other users' data is unreachable on the wire.
+
+### Locked design points (Jalen, 2026-06-26)
+
+1. **API-only, never direct DB.** Desktop↔cloud is exclusively the authenticated
+   sync API over HTTPS. Cloud DB URL/token stays only in the cloud backend env.
+   The sync client lives in the desktop's local backend process (not the renderer),
+   so the JWT never enters the front-end.
+2. **Generic, manifest-driven sync.** A single sync engine iterates a registry of
+   syncable entities; **adding a new object = register it + add a contracts schema,
+   with zero sync-logic rewrite**. Every syncable table must carry the uniform
+   four-tuple `{ id, user_id, updated_at, deleted_at }`. A guard test fails the build
+   if a registered entity lacks any of the four. (Migration needed: `people` and
+   `completed_entries` currently lack `updated_at`; `deleted_at` already present on
+   tasks/people/completed_entries/habits/countdown_events.)
+3. **Obsidian-like bind/login.** No account needed for pure-local use. Enabling sync
+   prompts a **web-account login** → binds local data to that cloud `user_id`. First
+   enable runs a **two-way reconcile** (pull-all + push-all, LWW union by id) — safe
+   because it is all one user's own data. Switching accounts on an install requires
+   explicit confirmation and never pushes account A's local data under account B.
+4. **Conflict resolution: row-level LWW + Hybrid Logical Clock (HLC) + tombstones.**
+   - Wall-clock is **not trusted** (skew / user clock changes). Each write stamps an
+     **HLC** timestamp (physical + logical counter) — monotonic, cross-device
+     comparable. The sync cursor is the HLC high-watermark.
+   - **Tombstones** (`deleted_at`) + the same LWW rule prevent delete-resurrection:
+     a delete carries a later HLC, so a stale update cannot revive a deleted row.
+   - Row-level LWW is the default (matches TickTick and is adequate for a task app).
+     Its one weakness — concurrent edits to *different fields* of the same row lose
+     one side — is accepted; **field-level merge is deferred** until a specific field
+     proves to need it.
+   - Reliability: idempotent upserts (by id), cursor advances **only after** rows are
+     applied (safe resume on partial failure).
+
+### Threat model (P1)
+
+- **Isolation is server-enforced at one audited chokepoint**, not physical (shared
+  DB). `user_id` is taken **only** from the verified JWT — never from a client-
+  supplied parameter or row field; push **overwrites** any client `user_id` with the
+  JWT subject. Residual risk = a server-side bug in that chokepoint — the *same* risk
+  the existing web shared DB already carries; concentrated into one small, guarded,
+  test-covered surface. A cross-user pull/push attempt is a required test case.
+- The desktop **never holds Turso credentials** and **never receives another user's
+  rows on the wire**, so a compromised desktop leaks only that one user's scope.
+
+### Build units (P1)
+
+- **P1a — Generic sync core (backend).** Contracts pull/push schemas; HLC util;
+  sync manifest/registry; `POST /v1/sync/pull` + `POST /v1/sync/push` (JWT-scoped,
+  LWW, tombstones); migrations to add missing `updated_at`; four-tuple guard test;
+  cross-user isolation tests. (Replaces the old embedded-replica `/sync` endpoints.)
+- **P1b — Desktop sync client + Obsidian-like toggle.** Sync client in local backend;
+  settings toggle re-skinned to one-click login/bind; first-enable reconcile;
+  optional at-rest encryption of the local file.

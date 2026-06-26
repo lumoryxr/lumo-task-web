@@ -6,6 +6,7 @@ import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
+import { hlcNow } from "../lib/hlc.js";
 import { decryptSecret } from "../lib/crypto.js";
 import { callLLMWithTools, appendToolResults, type ChatMessage, type LLMConfig } from "../lib/ai-client.js";
 import { TASK_TOOLS, executeTool } from "../lib/ai-tools.js";
@@ -120,7 +121,7 @@ app.post("/classify", classifyRateLimit, zValidator("json", z.object({}).strict(
     for (const task of tasks) {
       const h = heuristicQuadrant(task, today);
       await execute("UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id",
-          { q: h.q, now: new Date().toISOString(), id: task.id });
+          { q: h.q, now: hlcNow(), id: task.id });
       suggestions.push({ task_id: task.id, quadrant: h.q, confidence: h.confidence });
     }
     return c.json({ suggestions, cloudLimitReached: true });
@@ -162,7 +163,7 @@ Return ONLY a JSON array, no markdown:
           const confidence = typeof item.confidence === "number" ? Math.min(1, Math.max(0, item.confidence)) : 0.7;
           const reason = typeof item.reason === "string" ? item.reason.slice(0, 200) : undefined;
           await execute("UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id",
-            { q, now: new Date().toISOString(), id: item.task_id });
+            { q, now: hlcNow(), id: item.task_id });
           suggestions.push({ task_id: item.task_id, quadrant: q, confidence, reason });
           covered.add(item.task_id);
         }
@@ -172,7 +173,7 @@ Return ONLY a JSON array, no markdown:
           if (!covered.has(task.id)) {
             const h = heuristicQuadrant(task, today);
             await execute("UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id",
-          { q: h.q, now: new Date().toISOString(), id: task.id });
+          { q: h.q, now: hlcNow(), id: task.id });
             suggestions.push({ task_id: task.id, quadrant: h.q, confidence: h.confidence });
           }
         }
@@ -189,7 +190,7 @@ Return ONLY a JSON array, no markdown:
   for (const task of tasks) {
     const h = heuristicQuadrant(task, today);
     await execute("UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id",
-          { q: h.q, now: new Date().toISOString(), id: task.id });
+          { q: h.q, now: hlcNow(), id: task.id });
     suggestions.push({ task_id: task.id, quadrant: h.q, confidence: h.confidence });
   }
 
@@ -243,7 +244,7 @@ Choose the single most critical task to work on RIGHT NOW. Return ONLY valid JSO
         const nextStep = typeof parsed.next_step === "string" ? parsed.next_step.slice(0, 300) : null;
 
         await execute("UPDATE tasks SET conviction = :c, reason_en = :r, next_step_en = :ns, updated_at = :now WHERE id = :id",
-          { c: conviction, r: reason, ns: nextStep, now: new Date().toISOString(), id: picked.id });
+          { c: conviction, r: reason, ns: nextStep, now: hlcNow(), id: picked.id });
 
         if (usingCloud) await incrementCloudUsage(userId);
         return c.json({
@@ -265,7 +266,7 @@ Choose the single most critical task to work on RIGHT NOW. Return ONLY valid JSO
   // Heuristic fallback
   const conviction = 0.85;
   await execute("UPDATE tasks SET conviction = :c, updated_at = :now WHERE id = :id",
-    { c: conviction, now: new Date().toISOString(), id: topTask.id });
+    { c: conviction, now: hlcNow(), id: topTask.id });
 
   return c.json({
     task: {

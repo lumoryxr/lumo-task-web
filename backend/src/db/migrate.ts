@@ -307,6 +307,84 @@ export async function runMigrations() {
     }
   }
 
+  // ── P1a sync: uniform four-tuple `updated_at` (ADR-0004 Addendum) ───────────
+  // Every syncable entity must carry { id, user_id, updated_at, deleted_at }.
+  // `tasks`, `habits`, `countdown_events` already have `updated_at`; `people`
+  // and `completed_entries` do not — add them, seeding existing rows from the
+  // most meaningful existing timestamp so they are not all-zero on first sync.
+  //
+  // NB: ALTER TABLE ADD COLUMN cannot use a non-constant DEFAULT, so we add the
+  // column then backfill via UPDATE. Idempotent: guarded by PRAGMA, and the
+  // backfill only touches NULLs.
+  {
+    const peopleCols = await query<{ name: string }>("PRAGMA table_info(people)");
+    if (!peopleCols.some((c) => c.name === "updated_at")) {
+      await execRaw("ALTER TABLE people ADD COLUMN updated_at TEXT");
+      await execRaw("UPDATE people SET updated_at = created_at WHERE updated_at IS NULL");
+    }
+    const completedCols = await query<{ name: string }>("PRAGMA table_info(completed_entries)");
+    if (!completedCols.some((c) => c.name === "updated_at")) {
+      await execRaw("ALTER TABLE completed_entries ADD COLUMN updated_at TEXT");
+      await execRaw("UPDATE completed_entries SET updated_at = completed_at WHERE updated_at IS NULL");
+    }
+  }
+
+  // Normalize ALL existing `updated_at` values across syncable tables to the
+  // canonical HLC shape: ISO-8601 UTC with SIX fractional-second digits + 'Z',
+  // e.g. `2026-06-26T10:00:00.000000Z`. The LWW engine and pull cursor do a raw
+  // STRING compare on `updated_at`, so mixing shapes silently mis-orders rows:
+  //   - a SQLite datetime ("2026-06-26 10:00:00") sorts the space (0x20) before
+  //     a 'T' (0x54), so it always looks "older" and gets clobbered;
+  //   - a 3-fractional-digit ISO ("…326Z", old `toISOString()` writes) sorts
+  //     before the 6-digit HLC values that synced rows carry.
+  // Two legacy shapes therefore get converted; values already in the canonical
+  // 6-digit form are left untouched, so re-runs are exact no-ops (idempotent).
+  for (const table of ["tasks", "people", "completed_entries", "habits", "countdown_events"]) {
+    // (a) SQLite datetime space-form `YYYY-MM-DD HH:MM:SS` (exactly 19 chars, 11th
+    //     char is a space) → `YYYY-MM-DDTHH:MM:SS.000000Z`. The `LENGTH = 19` guard
+    //     ensures a space-form value that somehow carried a trailing fraction is
+    //     NOT double-appended into a malformed `…SS.mmm.000000Z`.
+    await execRaw(
+      `UPDATE ${table}
+         SET updated_at = REPLACE(updated_at, ' ', 'T') || '.000000Z'
+       WHERE updated_at IS NOT NULL
+         AND LENGTH(updated_at) = 19
+         AND SUBSTR(updated_at, 11, 1) = ' '`
+    );
+    // (b) 3-fractional-digit ISO `…SS.mmmZ` (length 24, ends in 'Z', a '.' at the
+    //     20th char) → pad the fractional part to 6 digits: `…SS.mmm000Z`. This
+    //     matches ONLY the 3-digit form; the canonical 6-digit form has length 27
+    //     so it is excluded and left untouched.
+    await execRaw(
+      `UPDATE ${table}
+         SET updated_at = SUBSTR(updated_at, 1, 23) || '000Z'
+       WHERE updated_at IS NOT NULL
+         AND LENGTH(updated_at) = 24
+         AND SUBSTR(updated_at, 24, 1) = 'Z'
+         AND SUBSTR(updated_at, 20, 1) = '.'`
+    );
+    // Any remaining NULL updated_at (shouldn't happen on the four-tuple tables,
+    // but defensive) gets a value STRICTLY GREATER than MIN_HLC. It must NOT be
+    // MIN_HLC itself: pull filters `updated_at > :since` with `since` defaulting
+    // to MIN_HLC on a full sync, so a row exactly equal to MIN_HLC would never be
+    // returned. `…000001Z` is the smallest value that still pulls on a full sync.
+    await execRaw(
+      `UPDATE ${table} SET updated_at = '1970-01-01T00:00:00.000001Z' WHERE updated_at IS NULL`
+    );
+  }
+
+  // Sync read indexes: pull does `WHERE user_id = ? AND updated_at > ? ORDER BY
+  // updated_at`, so a composite (user_id, updated_at) lets it run as an index
+  // range scan with the ordering already satisfied. NOT partial on deleted_at —
+  // pull intentionally returns tombstoned rows so deletes propagate.
+  await execRaw(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_user_updated ON tasks(user_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_people_user_updated ON people(user_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_completed_user_updated ON completed_entries(user_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_habits_user_updated ON habits(user_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_countdowns_user_updated ON countdown_events(user_id, updated_at);
+  `);
+
   // Secondary indexes on the multi-tenant tables. Every list/read query filters
   // by user_id (and sorts by created_at / completed_at / date); without these,
   // SQLite full-scans the shared table per request, which both slows reads and
