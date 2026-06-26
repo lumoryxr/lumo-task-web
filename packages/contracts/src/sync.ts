@@ -79,3 +79,56 @@ export const SyncPushResponseSchema = z.object({
   cursor: HlcSchema,
 });
 export type SyncPushResponse = z.infer<typeof SyncPushResponseSchema>;
+
+// ── Desktop sync client control (P1b-core) ──────────────────────────────────
+//
+// The desktop's LOCAL backend runs a sync client that talks to the cloud's
+// generic `/v1/sync/pull` + `/push` over HTTP. These schemas describe the LOCAL
+// control endpoints (`/v1/sync/enable | disable | now | status`) the desktop UI
+// calls to bind to a cloud account and drive sync. The cloud JWT is NEVER part
+// of any of these shapes — it is stored encrypted server-side and never echoed.
+
+/**
+ * `POST /v1/sync/enable` request. Signs the local backend into the cloud account
+ * (email/password) and binds local data to that cloud `user_id`. `cloudBase` is
+ * optional — when omitted the backend falls back to its trusted config constant
+ * (`LUMO_CLOUD_API_BASE`). It is OUR operated cloud URL, never a user-entered DB.
+ */
+// NOTE: the cloud base URL is intentionally NOT accepted from the request. It is
+// a server-trusted constant (`LUMO_CLOUD_API_BASE`, injected by Electron on the
+// desktop). Accepting it from a client would let an authenticated caller make the
+// backend sign in / POST to an arbitrary URL — an SSRF + credential-exfiltration
+// vector on the shared cloud deployment (which runs this same code).
+export const SyncEnableRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+export type SyncEnableRequest = z.infer<typeof SyncEnableRequestSchema>;
+
+/**
+ * Sync binding status — the response of `/enable`, `/status`, and (extended)
+ * `/now`. NEVER carries the cloud token. `mode` is the local DB mode (kept from
+ * the legacy `GET /status` shape). `enabled` reflects the binding; the cursors
+ * are HLC high-watermarks; `lastError` surfaces the last failed cycle's reason.
+ */
+export const SyncStatusResponseSchema = z.object({
+  mode: z.string(),
+  enabled: z.boolean(),
+  lastSyncedAt: z.string().nullable(),
+  lastError: z.string().nullable(),
+  pushCursor: HlcSchema,
+  pullCursor: HlcSchema,
+});
+export type SyncStatusResponse = z.infer<typeof SyncStatusResponseSchema>;
+
+/**
+ * `POST /v1/sync/now` response — one cycle's outcome plus the resulting cursors.
+ * `pushed`/`pulled` are the row counts applied to the cloud and to local.
+ */
+export const SyncCycleResponseSchema = z.object({
+  pushed: z.number().int().nonnegative(),
+  pulled: z.number().int().nonnegative(),
+  pushCursor: HlcSchema,
+  pullCursor: HlcSchema,
+});
+export type SyncCycleResponse = z.infer<typeof SyncCycleResponseSchema>;

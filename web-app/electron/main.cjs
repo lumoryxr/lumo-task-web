@@ -6,6 +6,17 @@ const crypto = require("crypto");
 const net = require("net");
 const os = require("os");
 
+// ── Cloud sync backend origin ─────────────────────────────────────────────────
+//
+// The bundled backend runs an in-process sync client that talks to OUR operated
+// cloud backend over its authenticated HTTP API (P1b). This is the cloud ROOT
+// origin — the backend appends `/v1` itself. It is a server-trusted constant,
+// never user-entered (accepting it from a client would be an SSRF vector).
+//
+// OPERATOR: set LUMO_CLOUD_API_BASE to your deployed cloud backend origin
+// before packaging if it differs from the default below.
+const CLOUD_API_BASE = process.env.LUMO_CLOUD_API_BASE || "https://lumo-task-backend.onrender.com";
+
 // ── File logger ───────────────────────────────────────────────────────────────
 
 let logStream = null;
@@ -155,22 +166,6 @@ function saveDbDirPref(dbDir) {
   fs.writeFileSync(prefPath, JSON.stringify({ dbDir }), { encoding: "utf8", mode: 0o600 });
 }
 
-// ── Cloud sync config ─────────────────────────────────────────────────────────
-
-function getSyncConfig() {
-  const syncPath = path.join(app.getPath("userData"), "sync.json");
-  try {
-    return JSON.parse(fs.readFileSync(syncPath, "utf8"));
-  } catch {
-    return { enabled: false, url: "", token: "" };
-  }
-}
-
-function saveSyncConfig(cfg) {
-  const syncPath = path.join(app.getPath("userData"), "sync.json");
-  fs.writeFileSync(syncPath, JSON.stringify(cfg), { encoding: "utf8", mode: 0o600 });
-}
-
 // ── Backend process ───────────────────────────────────────────────────────────
 
 let backendProcess = null;
@@ -181,8 +176,6 @@ async function startBackend() {
   const dbPath = getDbPath();
   const jwtSecret = getOrCreateJwtSecret();
   const encryptionKey = getOrCreateEncryptionKey();
-
-  const syncCfg = getSyncConfig();
 
   // On Windows, backslashes in file paths break libsql's "file:" URL scheme.
   // Normalise to forward slashes for cross-platform SQLite URLs.
@@ -195,13 +188,13 @@ async function startBackend() {
     LUMO_DB_PATH: dbPathNormalised,
     LUMO_JWT_SECRET: jwtSecret,
     LUMO_ENCRYPTION_KEY: encryptionKey,
+    // Cloud backend origin for the in-process sync client (P1b). The backend
+    // appends `/v1`. Server-trusted constant — never user-entered.
+    LUMO_CLOUD_API_BASE: CLOUD_API_BASE,
     // In packaged builds, @libsql/* native modules live in extraResources.
     // NODE_PATH lets the forked bundle resolve them at runtime.
     ...(app.isPackaged
       ? { NODE_PATH: path.join(process.resourcesPath, "backend", "node_modules") }
-      : {}),
-    ...(syncCfg.enabled && syncCfg.url && syncCfg.token
-      ? { TURSO_SYNC_URL: syncCfg.url, TURSO_SYNC_TOKEN: syncCfg.token }
       : {}),
   };
 
@@ -357,29 +350,9 @@ function createWindow() {
     shell.showItemInFolder(getDbPath());
   });
 
-  // ── Cloud sync IPC ────────────────────────────────────────────────────────
-
-  /** Returns the current sync config (without the token value for security). */
-  ipcMain.handle("sync:getConfig", () => {
-    const cfg = getSyncConfig();
-    return { enabled: cfg.enabled ?? false, url: cfg.url ?? "", hasToken: !!(cfg.token) };
-  });
-
-  /**
-   * Saves sync config and relaunches the app so the backend restarts with
-   * the new TURSO_SYNC_URL / TURSO_SYNC_TOKEN env vars.
-   */
-  ipcMain.handle("sync:setConfig", (_event, cfg) => {
-    if (typeof cfg !== "object" || cfg === null) return { ok: false, error: "Invalid config" };
-    saveSyncConfig({
-      enabled: !!cfg.enabled,
-      url: typeof cfg.url === "string" ? cfg.url.trim().slice(0, 512) : "",
-      token: typeof cfg.token === "string" ? cfg.token.trim().slice(0, 512) : "",
-    });
-    app.relaunch();
-    app.exit(0);
-    return { ok: true };
-  });
+  // NOTE: Cloud sync is now an in-process backend loop driven by the HTTP
+  // endpoints (/sync/enable|disable|now|status) — no IPC, no app.relaunch().
+  // The cloud origin is injected into the backend env via LUMO_CLOUD_API_BASE.
 
   // ── Pet focus compact mode ────────────────────────────────────────────────
   let savedBounds = null;

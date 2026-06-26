@@ -25,9 +25,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Reveals lumo.db in Finder / Explorer (fire-and-forget). */
   showDbInFolder: () => ipcRenderer.send("db:showInFolder"),
 
-  // ── Cloud sync ──────────────────────────────────────────────────────────────
-  /** Returns { enabled, url, hasToken } — token value is never exposed. */
-  getSyncConfig: () => ipcRenderer.invoke("sync:getConfig"),
-  /** Saves sync config and relaunches the app. @param {object} cfg */
-  setSyncConfig: (cfg) => ipcRenderer.invoke("sync:setConfig", cfg),
+  // Cloud sync is driven entirely by the backend's HTTP endpoints (P1b) —
+  // no preload bridge needed.
 });

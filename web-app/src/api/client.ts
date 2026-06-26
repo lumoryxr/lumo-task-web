@@ -9,6 +9,7 @@
  */
 
 import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, User } from "@/types/task";
+import type { SyncStatusResponse, SyncCycleResponse } from "@lumo/contracts";
 
 // ── Base URL ─────────────────────────────────────────────────────────────────
 
@@ -125,7 +126,11 @@ async function req<T>(
       // 401 with a token present (not during login/register) means session expired.
       // Guard token && to avoid mis-firing on wrong-password 401s at the login page.
       // Deduplicate concurrent 401s so only one event + one toast reaches the user.
-      if (res.status === 401 && token && path !== "/auth/signout" && !sessionExpiredNotified) {
+      // EXEMPT /sync/*: those 401s are about the CLOUD account (e.g. a wrong cloud
+      // password on /sync/enable), NOT the local session — they must not log the
+      // user out of the local app.
+      const isSyncAuth = path.startsWith("/sync/");
+      if (res.status === 401 && token && path !== "/auth/signout" && !isSyncAuth && !sessionExpiredNotified) {
         sessionExpiredNotified = true;
         clearToken();
         window.dispatchEvent(new Event("lumo:session-expired"));
@@ -136,7 +141,15 @@ async function req<T>(
         typeof errBody === "string"
           ? errBody
           : errBody?.message ?? `HTTP ${res.status} ${res.statusText}`;
-      throw new Error(errMsg);
+      // Surface the backend's error code + HTTP status on the thrown error so
+      // callers can map specific failures (e.g. CLOUD_AUTH_FAILED) instead of
+      // substring-matching a localized message.
+      const error = new Error(errMsg) as Error & { code?: string; status?: number };
+      error.status = res.status;
+      if (errBody && typeof errBody === "object" && typeof errBody.code === "string") {
+        error.code = errBody.code;
+      }
+      throw error;
     }
 
     if (res.status === 204) return undefined as T;
@@ -481,12 +494,28 @@ export const api = {
     return req("GET", `/outlook/calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
   },
 
-  async syncStatus(): Promise<{ mode: "local" | "replica" | "cloud"; syncUrl: string | null; lastSyncAt: string | null }> {
-    return req("GET", "/sync/status");
+  // ── Cloud sync (in-backend sync client; talks to the LOCAL backend) ─────────
+  // All four require the local JWT (user already signed into the local backend).
+  // The token is never returned by the backend in the status shape.
+
+  /** GET /sync/status → current binding status (never the cloud token). */
+  async syncStatus(): Promise<SyncStatusResponse> {
+    return req<SyncStatusResponse>("GET", "/sync/status");
   },
 
-  async syncNow(): Promise<{ ok: boolean; syncedAt: string }> {
-    return req("POST", "/sync");
+  /** POST /sync/enable → signs into the cloud account + first reconcile. */
+  async syncEnable(email: string, password: string): Promise<SyncStatusResponse> {
+    return req<SyncStatusResponse>("POST", "/sync/enable", { email, password });
+  },
+
+  /** POST /sync/disable → clears cloud creds; local data stays. */
+  async syncDisable(): Promise<SyncStatusResponse> {
+    return req<SyncStatusResponse>("POST", "/sync/disable");
+  },
+
+  /** POST /sync/now → runs one push-then-pull cycle on demand. */
+  async syncNow(): Promise<SyncCycleResponse> {
+    return req<SyncCycleResponse>("POST", "/sync/now");
   },
 };
 

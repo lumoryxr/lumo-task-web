@@ -469,6 +469,25 @@ export async function runMigrations() {
     );
   `);
 
+  // ── P1b desktop sync client binding/cursor state (ADR-0004 Addendum) ────────
+  // The LOCAL backend's sync client persists, per local user, whether sync is
+  // enabled, which cloud it is bound to, the (encrypted) cloud JWT, and the two
+  // HLC high-watermark cursors. Cursors default to MIN_HLC so a fresh enable
+  // does a full two-way reconcile. `cloud_token` is stored via encryptSecret.
+  // Idempotent: CREATE TABLE IF NOT EXISTS only.
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS sync_client_state (
+      user_id        TEXT PRIMARY KEY REFERENCES users(id),
+      enabled        INTEGER NOT NULL DEFAULT 0,
+      cloud_base     TEXT,
+      cloud_token    TEXT,
+      push_cursor    TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000000Z',
+      pull_cursor    TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000000Z',
+      last_synced_at TEXT,
+      last_error     TEXT
+    )
+  `);
+
   // GC floor (ADR-0003 Phase 5): the highest seq whose tombstones have been
   // pruned. A client whose cursor is below this may have missed a GC'd delete,
   // so the delta endpoint tells it to full-resync. Stored on the sync_seq row.
