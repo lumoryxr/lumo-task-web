@@ -12,9 +12,9 @@ import {
   LUNAR_MIN_YEAR,
   type LunarParts,
   lunarDayLabel,
-  lunarDaysInMonth,
   lunarLeapMonth,
   lunarMonthOptions,
+  lunarSelectableDays,
   lunarToSolarISO,
   solarISOToLunar,
 } from "@/utils/lunar";
@@ -99,7 +99,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
   /** Write a lunar selection back as a solar anchor, clamping leap + day. */
   function applyLunar(lYear: number, lMonth: number, lDay: number, isLeap: boolean) {
     const leap = isLeap && lunarLeapMonth(lYear) === lMonth;
-    const maxDay = lunarDaysInMonth(lYear, lMonth, leap) || lDay;
+    const maxDay = lunarSelectableDays(lYear, lMonth, leap) || lDay;
     const day = Math.min(lDay, maxDay);
     const iso = lunarToSolarISO(lYear, lMonth, day, leap);
     if (iso) {
@@ -288,11 +288,11 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
               <LunarPicker
                 sel={lunarSel}
                 onChange={applyLunar}
-                t={t}
                 labels={{
                   year: t("countdown.form.lunar.year"),
                   month: t("countdown.form.lunar.month"),
                   day: t("countdown.form.lunar.day"),
+                  rangeError: t("countdown.form.error.lunar.range"),
                 }}
               />
             )}
@@ -472,25 +472,28 @@ function selectStyle(): React.CSSProperties {
 
 // ── Lunar date picker (年 / 月 / 日, leap-aware) ─────────────────────────────────
 
+// The selectable lunar years are a fixed span — build the list once, not per render.
+const LUNAR_YEARS: number[] = Array.from(
+  { length: LUNAR_MAX_YEAR - LUNAR_MIN_YEAR + 1 },
+  (_, i) => LUNAR_MIN_YEAR + i,
+);
+
 interface LunarPickerProps {
   sel: LunarParts | null;
   onChange: (lYear: number, lMonth: number, lDay: number, isLeap: boolean) => void;
-  t: (key: string) => string;
-  labels: { year: string; month: string; day: string };
+  labels: { year: string; month: string; day: string; rangeError: string };
 }
 
-function LunarPicker({ sel, onChange, t, labels }: LunarPickerProps) {
+function LunarPicker({ sel, onChange, labels }: LunarPickerProps) {
   if (!sel) {
     // Defensive: an unconvertible anchor; the field-level error is shown above.
-    return <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("countdown.form.error.lunar.range")}</div>;
+    return <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{labels.rangeError}</div>;
   }
 
   const months = lunarMonthOptions(sel.lYear);
-  const dayCount = lunarDaysInMonth(sel.lYear, sel.lMonth, sel.isLeap) || 30;
+  // Offer only days that actually convert (trims the leap-month day-30 quirk).
+  const dayCount = lunarSelectableDays(sel.lYear, sel.lMonth, sel.isLeap) || 30;
   const monthValue = `${sel.lMonth}:${sel.isLeap ? 1 : 0}`;
-
-  const years: number[] = [];
-  for (let y = LUNAR_MIN_YEAR; y <= LUNAR_MAX_YEAR; y++) years.push(y);
 
   return (
     <div style={{ display: "flex", gap: 8 }}>
@@ -500,7 +503,7 @@ function LunarPicker({ sel, onChange, t, labels }: LunarPickerProps) {
         onChange={(e) => onChange(Number(e.target.value), sel.lMonth, sel.lDay, sel.isLeap)}
         style={selectStyle()}
       >
-        {years.map((y) => (
+        {LUNAR_YEARS.map((y) => (
           <option key={y} value={y}>{y}</option>
         ))}
       </select>

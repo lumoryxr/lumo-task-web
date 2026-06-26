@@ -188,4 +188,15 @@ describe("CountdownFormModal (lunar)", () => {
     expect(dateInput).toBeTruthy();
     expect(dateInput.value).toBe("2026-06-15");
   });
+
+  it("does not offer a lunar day the library can't convert (leap-month day-30 quirk)", () => {
+    // Anchor 1906-06-20 == 农历 1906 闰四月廿九. The leap 闰四月 reports 30 days, but
+    // solarlunar can't convert 闰四月三十 1906 — so the picker must cap the day list
+    // at 廿九 (29 options), never offering an option that would bounce on select.
+    const event: CountdownEvent = { ...LUNAR_EVENT, date: "1906-06-20" };
+    render(<CountdownFormModal event={event} onSave={vi.fn()} onClose={vi.fn()} />);
+    const day = screen.getByLabelText("countdown.form.lunar.day") as HTMLSelectElement;
+    expect(day.options.length).toBe(29);
+    expect(Array.from(day.options).some((o) => o.value === "30")).toBe(false);
+  });
 });

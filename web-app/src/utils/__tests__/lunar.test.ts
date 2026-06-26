@@ -7,6 +7,7 @@ import {
   isLunarSupportedYear,
   lunarLeapMonth,
   lunarDaysInMonth,
+  lunarSelectableDays,
   lunarMonthLabel,
   lunarDayLabel,
   lunarMonthOptions,
@@ -88,6 +89,15 @@ describe("picker helpers", () => {
     expect(lunarDaysInMonth(2025, 6, true)).toBe(29); // leap 闰六月
     expect(lunarDaysInMonth(2026, 5, false)).toBe(29); // 2026 五月 is short
     expect(lunarDaysInMonth(1800, 1, false)).toBe(0); // out of range → 0
+  });
+
+  it("trims trailing days the library can't convert (leap month reported as 30 but rejects day 30)", () => {
+    // 1906 闰四月: leapDays reports 30, but solarlunar rejects 闰四月三十 1906.
+    expect(lunarDaysInMonth(1906, 4, true)).toBe(30);
+    expect(lunarSelectableDays(1906, 4, true)).toBe(29);
+    // A normal month is unaffected.
+    expect(lunarSelectableDays(2026, 5, false)).toBe(lunarDaysInMonth(2026, 5, false));
+    expect(lunarSelectableDays(1800, 1, false)).toBe(0); // out of range → 0
   });
 
   it("labels months in Chinese, prefixing 闰 for a leap month", () => {

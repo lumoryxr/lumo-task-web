@@ -92,6 +92,19 @@ export function lunarDaysInMonth(lYear: number, lMonth: number, isLeap = false):
   return isLeap ? solarlunar.leapDays(lYear) : solarlunar.monthDays(lYear, lMonth);
 }
 
+/**
+ * Number of days in a lunar month that actually convert to a solar date.
+ * Normally identical to {@link lunarDaysInMonth}, but trims trailing days the
+ * library can't represent: a handful of leap months report 30 days yet reject
+ * day 30, and the 1900/2100 range edges reject days past the conversion
+ * boundary. Lets the picker offer only selectable days. 0 if fully unconvertible.
+ */
+export function lunarSelectableDays(lYear: number, lMonth: number, isLeap = false): number {
+  let days = lunarDaysInMonth(lYear, lMonth, isLeap);
+  while (days > 0 && lunarToSolarISO(lYear, lMonth, days, isLeap) === null) days--;
+  return days;
+}
+
 /** Chinese label for a lunar month, prefixing 闰 for a leap month (e.g. "闰六月"). */
 export function lunarMonthLabel(lMonth: number, isLeap = false): string {
   const base = solarlunar.toChinaMonth(lMonth);
