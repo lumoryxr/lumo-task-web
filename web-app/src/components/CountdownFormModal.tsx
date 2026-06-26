@@ -1,7 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { IconClose } from "@/components/icons";
 import { useT } from "@/i18n/useT";
-import type { CountdownColor, CountdownEvent, CountdownRepeat } from "@/types/task";
+import type {
+  CountdownCalendar,
+  CountdownColor,
+  CountdownEvent,
+  CountdownRepeat,
+} from "@/types/task";
+import {
+  LUNAR_MAX_YEAR,
+  LUNAR_MIN_YEAR,
+  type LunarParts,
+  lunarDayLabel,
+  lunarLeapMonth,
+  lunarMonthOptions,
+  lunarSelectableDays,
+  lunarToSolarISO,
+  solarISOToLunar,
+} from "@/utils/lunar";
 
 const COLORS: { id: CountdownColor; label: string; primary: string; edge: string; bg: string }[] = [
   { id: "green",  label: "绿",  primary: "var(--accent-primary)",  edge: "rgba(61,255,160,0.5)",  bg: "rgba(61,255,160,0.1)" },
@@ -17,6 +33,7 @@ interface FormValues {
   color: CountdownColor;
   repeat: CountdownRepeat;
   note: string;
+  calendar: CountdownCalendar;
 }
 
 interface CountdownFormModalProps {
@@ -38,6 +55,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
     color:  event?.color  ?? "green",
     repeat: event?.repeat ?? "none",
     note:   event?.note   ?? "",
+    calendar: event?.calendar ?? "solar",
   });
   const [errors, setErrors] = useState<Partial<Record<keyof FormValues, string>>>({});
 
@@ -49,6 +67,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
       color:  event?.color  ?? "green",
       repeat: event?.repeat ?? "none",
       note:   event?.note   ?? "",
+      calendar: event?.calendar ?? "solar",
     });
     setErrors({});
   }, [event]);
@@ -62,11 +81,41 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
     setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
+  // ── Calendar / lunar picker ───────────────────────────────────────────────
+  // `form.date` is always the solar anchor. In lunar mode the picker's selected
+  // values are derived from it, and any picker change converts back to a solar
+  // anchor — so the lunar UI never introduces a second source of truth.
+  const lunarSel = form.calendar === "lunar" ? solarISOToLunar(form.date) : null;
+
+  function switchCalendar(cal: CountdownCalendar) {
+    if (cal === form.calendar) return;
+    // Going lunar with an anchor outside the supported range would leave the
+    // picker without a valid selection — snap to today (always in range).
+    const date = cal === "lunar" && !solarISOToLunar(form.date) ? todayRef.current : form.date;
+    setForm((f) => ({ ...f, calendar: cal, date }));
+    setErrors((e) => ({ ...e, date: undefined }));
+  }
+
+  /** Write a lunar selection back as a solar anchor, clamping leap + day. */
+  function applyLunar(lYear: number, lMonth: number, lDay: number, isLeap: boolean) {
+    const leap = isLeap && lunarLeapMonth(lYear) === lMonth;
+    const maxDay = lunarSelectableDays(lYear, lMonth, leap) || lDay;
+    const day = Math.min(lDay, maxDay);
+    const iso = lunarToSolarISO(lYear, lMonth, day, leap);
+    if (iso) {
+      setForm((f) => ({ ...f, date: iso }));
+      setErrors((e) => ({ ...e, date: undefined }));
+    }
+  }
+
   function validate(): boolean {
     const errs: typeof errors = {};
     if (!form.title.trim())         errs.title = t("countdown.form.error.title");
     else if (form.title.trim().length > 100) errs.title = t("countdown.form.error.title.maxlen");
     if (!form.date)                 errs.date  = t("countdown.form.error.date");
+    else if (form.calendar === "lunar" && !solarISOToLunar(form.date)) {
+      errs.date = t("countdown.form.error.lunar.range");
+    }
     if (form.note.length > 500)     errs.note  = t("countdown.form.error.note.maxlen");
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -84,9 +133,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
         color:  form.color,
         repeat: form.repeat,
         note:   form.note.trim() || undefined,
-        // P1: countdowns are authored in the solar calendar; the lunar picker
-        // arrives in P2. Editing preserves an event's existing calendar.
-        calendar: event?.calendar ?? "solar",
+        calendar: form.calendar,
       });
       onClose();
     } finally {
@@ -191,18 +238,64 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
             </div>
           </div>
 
-          {/* Date */}
+          {/* Calendar toggle */}
+          <div style={{ marginBottom: 16 }}>
+            <Label text={t("countdown.form.calendar")} />
+            <div role="radiogroup" aria-label={t("countdown.form.calendar")}
+                 style={{ display: "flex", gap: 8, marginTop: 6 }}>
+              {(["solar", "lunar"] as CountdownCalendar[]).map((cal) => (
+                <button
+                  key={cal}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.calendar === cal}
+                  onClick={() => switchCalendar(cal)}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: "var(--radius-sm)",
+                    border: form.calendar === cal
+                      ? "1px solid var(--accent-edge)"
+                      : "1px solid var(--border-default)",
+                    background: form.calendar === cal ? "var(--accent-fog)" : "var(--bg-subtle)",
+                    color: form.calendar === cal ? "var(--accent-primary)" : "var(--text-secondary)",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    transition: "all 150ms",
+                  }}
+                >
+                  {cal === "solar" ? t("countdown.cal.solar") : t("countdown.cal.lunar")}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Date — solar input or lunar picker */}
           <div style={{ marginBottom: 16 }}>
             <Label text={t("countdown.form.date")} required />
-            <input
-              type="date"
-              value={form.date}
-              onChange={(e) => set("date", e.target.value)}
-              style={{
-                ...inputStyle(!!errors.date),
-                colorScheme: "dark",
-              }}
-            />
+            {form.calendar === "solar" ? (
+              <input
+                type="date"
+                aria-label={t("countdown.form.date")}
+                value={form.date}
+                onChange={(e) => set("date", e.target.value)}
+                style={{
+                  ...inputStyle(!!errors.date),
+                  colorScheme: "dark",
+                }}
+              />
+            ) : (
+              <LunarPicker
+                sel={lunarSel}
+                onChange={applyLunar}
+                labels={{
+                  year: t("countdown.form.lunar.year"),
+                  month: t("countdown.form.lunar.month"),
+                  day: t("countdown.form.lunar.day"),
+                  rangeError: t("countdown.form.error.lunar.range"),
+                }}
+              />
+            )}
             {errors.date && <FieldError msg={errors.date} />}
           </div>
 
@@ -365,4 +458,80 @@ function inputStyle(hasError: boolean): React.CSSProperties {
     transition: "border-color 150ms",
     boxSizing: "border-box",
   };
+}
+
+function selectStyle(): React.CSSProperties {
+  return {
+    ...inputStyle(false),
+    flex: 1,
+    padding: "0 8px",
+    cursor: "pointer",
+    colorScheme: "dark",
+  };
+}
+
+// ── Lunar date picker (年 / 月 / 日, leap-aware) ─────────────────────────────────
+
+// The selectable lunar years are a fixed span — build the list once, not per render.
+const LUNAR_YEARS: number[] = Array.from(
+  { length: LUNAR_MAX_YEAR - LUNAR_MIN_YEAR + 1 },
+  (_, i) => LUNAR_MIN_YEAR + i,
+);
+
+interface LunarPickerProps {
+  sel: LunarParts | null;
+  onChange: (lYear: number, lMonth: number, lDay: number, isLeap: boolean) => void;
+  labels: { year: string; month: string; day: string; rangeError: string };
+}
+
+function LunarPicker({ sel, onChange, labels }: LunarPickerProps) {
+  if (!sel) {
+    // Defensive: an unconvertible anchor; the field-level error is shown above.
+    return <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{labels.rangeError}</div>;
+  }
+
+  const months = lunarMonthOptions(sel.lYear);
+  // Offer only days that actually convert (trims the leap-month day-30 quirk).
+  const dayCount = lunarSelectableDays(sel.lYear, sel.lMonth, sel.isLeap) || 30;
+  const monthValue = `${sel.lMonth}:${sel.isLeap ? 1 : 0}`;
+
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      <select
+        aria-label={labels.year}
+        value={sel.lYear}
+        onChange={(e) => onChange(Number(e.target.value), sel.lMonth, sel.lDay, sel.isLeap)}
+        style={selectStyle()}
+      >
+        {LUNAR_YEARS.map((y) => (
+          <option key={y} value={y}>{y}</option>
+        ))}
+      </select>
+      <select
+        aria-label={labels.month}
+        value={monthValue}
+        onChange={(e) => {
+          const [m, leap] = e.target.value.split(":");
+          onChange(sel.lYear, Number(m), sel.lDay, leap === "1");
+        }}
+        style={selectStyle()}
+      >
+        {months.map((m) => (
+          <option key={`${m.lMonth}:${m.isLeap ? 1 : 0}`} value={`${m.lMonth}:${m.isLeap ? 1 : 0}`}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label={labels.day}
+        value={sel.lDay}
+        onChange={(e) => onChange(sel.lYear, sel.lMonth, Number(e.target.value), sel.isLeap)}
+        style={selectStyle()}
+      >
+        {Array.from({ length: dayCount }, (_, i) => i + 1).map((d) => (
+          <option key={d} value={d}>{lunarDayLabel(d)}</option>
+        ))}
+      </select>
+    </div>
+  );
 }

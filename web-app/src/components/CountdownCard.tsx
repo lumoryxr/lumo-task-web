@@ -301,8 +301,22 @@ export function CountdownCard({ event, locale, onEdit, onDelete }: CountdownCard
           paddingTop: 12,
           borderTop: "1px solid var(--border-faint)",
         }}>
-          <span style={{ fontSize: 11, color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
             {fmtDate(event.date, event.repeat, locale, event.calendar)}
+            {event.calendar === "lunar" && (
+              <span style={{
+                fontSize: 9,
+                color: "var(--text-secondary)",
+                background: "var(--bg-subtle)",
+                border: "1px solid var(--border-default)",
+                borderRadius: "var(--radius-sm)",
+                padding: "1px 5px",
+                letterSpacing: "0.04em",
+                fontWeight: 500,
+              }}>
+                {t("countdown.badge.lunar")}
+              </span>
+            )}
           </span>
           {event.repeat === "yearly" && (
             <span style={{

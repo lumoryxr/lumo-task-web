@@ -96,4 +96,14 @@ describe("CountdownCard", () => {
     setup({ repeat: "none" });
     expect(screen.queryByText("countdown.repeat.yearly")).toBeNull();
   });
+
+  it("shows the 农历 badge for a lunar event", () => {
+    setup({ calendar: "lunar", date: "2026-06-15" });
+    expect(screen.getByText("countdown.badge.lunar")).toBeTruthy();
+  });
+
+  it("does not show the 农历 badge for a solar event", () => {
+    setup({ calendar: "solar" });
+    expect(screen.queryByText("countdown.badge.lunar")).toBeNull();
+  });
 });

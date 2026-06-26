@@ -5,6 +5,12 @@ import {
   formatLunarISO,
   nextLunarYearlyISO,
   isLunarSupportedYear,
+  lunarLeapMonth,
+  lunarDaysInMonth,
+  lunarSelectableDays,
+  lunarMonthLabel,
+  lunarDayLabel,
+  lunarMonthOptions,
 } from "../lunar";
 
 describe("lunar conversions", () => {
@@ -68,5 +74,59 @@ describe("nextLunarYearlyISO", () => {
 
   it("returns null for an out-of-range anchor so callers fall back to solar", () => {
     expect(nextLunarYearlyISO("1800-01-01", new Date("2026-01-01T00:00:00"))).toBeNull();
+  });
+});
+
+describe("picker helpers", () => {
+  it("reports the leap month of a year (0 when none)", () => {
+    expect(lunarLeapMonth(2025)).toBe(6); // 2025 has a leap 6th month
+    expect(lunarLeapMonth(2026)).toBe(0); // 2026 has none
+    expect(lunarLeapMonth(1800)).toBe(0); // out of range → 0
+  });
+
+  it("returns the day count of a lunar month, leap-aware", () => {
+    expect(lunarDaysInMonth(2025, 6, false)).toBe(30); // regular 六月
+    expect(lunarDaysInMonth(2025, 6, true)).toBe(29); // leap 闰六月
+    expect(lunarDaysInMonth(2026, 5, false)).toBe(29); // 2026 五月 is short
+    expect(lunarDaysInMonth(1800, 1, false)).toBe(0); // out of range → 0
+  });
+
+  it("trims trailing days the library can't convert (leap month reported as 30 but rejects day 30)", () => {
+    // 1906 闰四月: leapDays reports 30, but solarlunar rejects 闰四月三十 1906.
+    expect(lunarDaysInMonth(1906, 4, true)).toBe(30);
+    expect(lunarSelectableDays(1906, 4, true)).toBe(29);
+    // A normal month is unaffected.
+    expect(lunarSelectableDays(2026, 5, false)).toBe(lunarDaysInMonth(2026, 5, false));
+    expect(lunarSelectableDays(1800, 1, false)).toBe(0); // out of range → 0
+  });
+
+  it("labels months in Chinese, prefixing 闰 for a leap month", () => {
+    expect(lunarMonthLabel(1, false)).toBe("正月");
+    expect(lunarMonthLabel(12, false)).toBe("腊月");
+    expect(lunarMonthLabel(6, true)).toBe("闰六月");
+  });
+
+  it("labels days in Chinese", () => {
+    expect(lunarDayLabel(1)).toBe("初一");
+    expect(lunarDayLabel(29)).toBe("廿九");
+    expect(lunarDayLabel(30)).toBe("三十");
+  });
+
+  it("builds the month option list, inserting the leap month after its regular month", () => {
+    const opts = lunarMonthOptions(2025); // leap month = 6
+    expect(opts).toHaveLength(13);
+    // regular 六月 at index 5, leap 闰六月 immediately after
+    expect(opts[5]).toMatchObject({ lMonth: 6, isLeap: false, label: "六月" });
+    expect(opts[6]).toMatchObject({ lMonth: 6, isLeap: true, label: "闰六月" });
+    // every regular month present, in order
+    expect(opts.filter((o) => !o.isLeap).map((o) => o.lMonth)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    ]);
+  });
+
+  it("builds a 12-entry month list for a year with no leap month", () => {
+    const opts = lunarMonthOptions(2026); // no leap
+    expect(opts).toHaveLength(12);
+    expect(opts.every((o) => !o.isLeap)).toBe(true);
   });
 });

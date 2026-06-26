@@ -18,6 +18,7 @@
  *   TC66–TC70  Account & Change-password pages
  *   TC71–TC74  Navigation (sidebar links, routing, 404 redirect)
  *   TC75–TC78  i18n (no raw key leaks across pages + habit modals, en + 中文)
+ *   TC79–TC81  Countdown lunar calendar (#43 P2: toggle, picker, card badge)
  */
 
 import { test, expect, type Page } from "@playwright/test";
@@ -165,6 +166,8 @@ const MOCK_HABITS = [
 const MOCK_COUNTDOWNS = [
   { id: "c1", title: "Product launch", date: "2026-12-01", repeat: "none", color: "green", createdAt: "2026-01-01T00:00:00.000Z" },
   { id: "c2", title: "Team offsite", date: "2026-08-15", repeat: "yearly", color: "cyan", createdAt: "2026-01-01T00:00:00.000Z" },
+  // Lunar anchor 2026-06-15 == 农历五月初一 (#43 P2).
+  { id: "c3", title: "Lunar birthday", date: "2026-06-15", repeat: "yearly", color: "amber", calendar: "lunar", createdAt: "2026-01-01T00:00:00.000Z" },
 ];
 
 const MOCK_COMPLETED = [
@@ -1071,6 +1074,61 @@ test("TC65 – Countdown: cards show time-remaining information", async ({ page 
   await page.goto("/#/countdown");
   await expect(page.getByText("Product launch")).toBeVisible({ timeout: 8_000 });
   await expect(page.getByText(/days|upcoming|past/i).first()).toBeVisible({ timeout: 10_000 });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC79–TC81  Countdown lunar calendar (#43 P2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("TC79 – Countdown form: Solar/Lunar toggle reveals the lunar year/month/day picker", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/countdown");
+  await page.getByRole("button", { name: /new event/i }).first().click();
+  const dialog = page.locator('[role="dialog"]');
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+
+  // Solar is the default → native date input present, no select-based picker.
+  await expect(dialog.locator('input[type="date"]')).toBeVisible();
+  await expect(dialog.locator("select")).toHaveCount(0);
+
+  // Switch to Lunar → date input gone, the three year/month/day selects appear.
+  await dialog.getByRole("radio", { name: "Lunar" }).click();
+  await expect(dialog.locator('input[type="date"]')).toHaveCount(0);
+  await expect(dialog.locator("select")).toHaveCount(3);
+  await expect(dialog.getByLabel("Year")).toBeVisible();
+  await expect(dialog.getByLabel("Month")).toBeVisible();
+  await expect(dialog.getByLabel("Day")).toBeVisible();
+});
+
+test("TC80 – Countdown lunar picker: no raw i18n keys leak in the open form", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/countdown");
+  await page.getByRole("button", { name: /new event/i }).first().click();
+  const dialog = page.locator('[role="dialog"]');
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await dialog.getByRole("radio", { name: "Lunar" }).click();
+  await expect(dialog.getByLabel("Month")).toBeVisible();
+
+  // No visible text inside the dialog should look like a bare countdown.* key.
+  const text = await dialog.innerText();
+  const leaked = text
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((s) => /^countdown\.[a-z0-9.]+$/i.test(s));
+  expect(leaked).toEqual([]);
+});
+
+test("TC81 – Countdown: lunar event card shows the Lunar badge and a Chinese lunar date", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/countdown");
+  await expect(page.getByText("Lunar birthday")).toBeVisible({ timeout: 10_000 });
+  // The amber lunar card carries the "Lunar" badge…
+  await expect(page.getByText("Lunar", { exact: true }).first()).toBeVisible({ timeout: 10_000 });
+  // …and renders the lunar date string (农历五月初一 → 五月初一) rather than a solar one.
+  await expect(page.getByText(/五月初一/).first()).toBeVisible({ timeout: 10_000 });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

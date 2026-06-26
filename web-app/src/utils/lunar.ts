@@ -75,6 +75,72 @@ export function lunarMonthDays(lYear: number, lMonth: number): number {
   return solarlunar.monthDays(lYear, lMonth);
 }
 
+// ── Picker helpers (P2 authoring UI) ───────────────────────────────────────────
+
+/** The leap month number of a lunar year, or 0 if it has none / is out of range. */
+export function lunarLeapMonth(lYear: number): number {
+  if (!isLunarSupportedYear(lYear)) return 0;
+  return solarlunar.leapMonth(lYear);
+}
+
+/**
+ * Day count (29/30) of a lunar month, leap-aware. For `isLeap` it returns the
+ * leap month's length; otherwise the regular month's. 0 if out of range.
+ */
+export function lunarDaysInMonth(lYear: number, lMonth: number, isLeap = false): number {
+  if (!isLunarSupportedYear(lYear)) return 0;
+  return isLeap ? solarlunar.leapDays(lYear) : solarlunar.monthDays(lYear, lMonth);
+}
+
+/**
+ * Number of days in a lunar month that actually convert to a solar date.
+ * Normally identical to {@link lunarDaysInMonth}, but trims trailing days the
+ * library can't represent: a handful of leap months report 30 days yet reject
+ * day 30, and the 1900/2100 range edges reject days past the conversion
+ * boundary. Lets the picker offer only selectable days. 0 if fully unconvertible.
+ */
+export function lunarSelectableDays(lYear: number, lMonth: number, isLeap = false): number {
+  let days = lunarDaysInMonth(lYear, lMonth, isLeap);
+  while (days > 0 && lunarToSolarISO(lYear, lMonth, days, isLeap) === null) days--;
+  return days;
+}
+
+/** Chinese label for a lunar month, prefixing 闰 for a leap month (e.g. "闰六月"). */
+export function lunarMonthLabel(lMonth: number, isLeap = false): string {
+  const base = solarlunar.toChinaMonth(lMonth);
+  return isLeap ? `闰${base}` : base;
+}
+
+/** Chinese label for a lunar day (e.g. "初一" / "廿九" / "三十"). */
+export function lunarDayLabel(lDay: number): string {
+  return solarlunar.toChinaDay(lDay);
+}
+
+export interface LunarMonthOption {
+  lMonth: number;
+  isLeap: boolean;
+  label: string;
+}
+
+/**
+ * The selectable months of a lunar year, in display order. Each regular month
+ * 正月…腊月 is present; if the year has a leap month, its leap variant (e.g.
+ * 闰六月) is inserted immediately after the matching regular month. Returns an
+ * empty list for out-of-range years.
+ */
+export function lunarMonthOptions(lYear: number): LunarMonthOption[] {
+  if (!isLunarSupportedYear(lYear)) return [];
+  const leap = lunarLeapMonth(lYear);
+  const opts: LunarMonthOption[] = [];
+  for (let m = 1; m <= 12; m++) {
+    opts.push({ lMonth: m, isLeap: false, label: lunarMonthLabel(m, false) });
+    if (m === leap) {
+      opts.push({ lMonth: m, isLeap: true, label: lunarMonthLabel(m, true) });
+    }
+  }
+  return opts;
+}
+
 /**
  * Display a solar anchor as its lunar date, e.g. "五月十二" (no year) or
  * "二零二六年五月十二" (with year). Returns null if out of range.
