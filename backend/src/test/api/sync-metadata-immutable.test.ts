@@ -1,11 +1,11 @@
 /**
- * Sync metadata is server-owned (ADR-0003 amendment #2).
+ * Sync metadata is server-owned.
  *
- * `deleted_at`, `updated_at`, `created_at` (and the future `seq`) are stamped by
- * the server only. A client that smuggles them into a write body must have them
- * ignored — otherwise it could backdate `updated_at` to hide from delta sync,
- * forward-date it to always win LWW, or pre-set `deleted_at` to tombstone a row
- * on creation. Zod strips unknown keys, but this locks the behaviour in.
+ * `deleted_at`, `updated_at`, `created_at` are stamped by the server only. A
+ * client that smuggles them into a write body must have them ignored —
+ * otherwise it could backdate `updated_at` to hide from delta sync, forward-date
+ * it to always win LWW, or pre-set `deleted_at` to tombstone a row on creation.
+ * Zod strips unknown keys, but this locks the behaviour in.
  */
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
@@ -29,7 +29,6 @@ describe("Clients cannot set sync metadata", () => {
         deleted_at: "2020-01-01T00:00:00.000Z",
         updated_at: "2000-01-01T00:00:00.000Z",
         created_at: "1999-01-01T00:00:00.000Z",
-        seq: 999999,
       } as any,
     });
     assert.equal(status, 201);
@@ -65,24 +64,23 @@ describe("Clients cannot set sync metadata", () => {
     assert.equal((await req("GET", `/v1/tasks/${t.id}`, { token })).status, 200);
   });
 
-  // Every create endpoint must server-own deleted_at / seq, regardless of body.
-  const META = { deleted_at: "2020-01-01T00:00:00.000Z", seq: 999999, created_at: "1999-01-01T00:00:00.000Z" };
+  // Every create endpoint must server-own deleted_at / created_at, regardless of body.
+  const META = { deleted_at: "2020-01-01T00:00:00.000Z", created_at: "1999-01-01T00:00:00.000Z" };
   const CREATES: { ep: string; table: string; body: Record<string, unknown> }[] = [
     { ep: "/v1/people", table: "people", body: { name: "N", initials: "NN", color: "#5bc8d4", ...META } },
     { ep: "/v1/habits", table: "habits", body: { title: "H", color: "green", frequency: "daily", ...META } },
     { ep: "/v1/countdowns", table: "countdown_events", body: { title: "C", date: "2026-12-01", color: "cyan", repeat: "none", ...META } },
   ];
   for (const { ep, table, body } of CREATES) {
-    test(`POST ${ep} ignores client deleted_at/seq (server-owned)`, async () => {
+    test(`POST ${ep} ignores client deleted_at/created_at (server-owned)`, async () => {
       const { status, body: created } = await req("POST", ep, { token, body: body as any });
       assert.equal(status, 201);
-      const row = await queryOne<{ deleted_at: string | null; seq: number | null }>(
-        `SELECT deleted_at, seq FROM ${table} WHERE id = :id`,
+      const row = await queryOne<{ deleted_at: string | null; created_at: string }>(
+        `SELECT deleted_at, created_at FROM ${table} WHERE id = :id`,
         { id: created.id },
       );
       assert.equal(row!.deleted_at, null, `${ep}: client deleted_at must be ignored`);
-      assert.notEqual(row!.seq, 999999, `${ep}: client seq must be ignored (server stamps it)`);
-      assert.ok(row!.seq != null && row!.seq < 999999, `${ep}: seq is server-assigned`);
+      assert.notEqual(row!.created_at, "1999-01-01T00:00:00.000Z", `${ep}: client created_at must be ignored`);
     });
   }
 });
