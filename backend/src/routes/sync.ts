@@ -1,9 +1,15 @@
 /**
- * API · Generic logical sync (ADR-0004 Addendum, 2026-06-26; P1a).
+ * API · Generic logical sync (ADR-0004 Addendum, 2026-06-26; P1a + P1b-core).
  *
- *   GET  /v1/sync/status  — report the DB mode (kept from the old endpoints).
+ * P1a (cloud side — the cloud backend serves these to desktop clients):
  *   POST /v1/sync/pull    — per-entity rows changed since an HLC cursor (own rows only).
  *   POST /v1/sync/push    — per-entity LWW upserts of the caller's own rows.
+ *
+ * P1b-core (local side — the desktop's LOCAL backend serves these to its own UI):
+ *   GET  /v1/sync/status  — { mode, enabled, lastSyncedAt, lastError, cursors } (no token).
+ *   POST /v1/sync/enable  — sign into the cloud + bind + first reconcile.
+ *   POST /v1/sync/disable — clear creds, stop syncing (local data stays).
+ *   POST /v1/sync/now     — run one push-then-pull cycle on demand.
  *
  * Isolation (the threat-model chokepoint): `user_id` is taken ONLY from the
  * verified JWT via `c.get("userId")`. Pull scopes every query to it; push forces
@@ -16,9 +22,15 @@ import { authMiddleware } from "../middleware/auth.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
 import { httpError } from "../lib/errors.js";
 import { dbMode } from "../db/client.js";
-import { SyncPullRequestSchema, SyncPushRequestSchema } from "@lumo/contracts";
+import {
+  SyncPullRequestSchema,
+  SyncPushRequestSchema,
+  SyncEnableRequestSchema,
+} from "@lumo/contracts";
 import { MIN_HLC } from "../lib/hlc.js";
 import { pull, push } from "../sync/engine.js";
+import { enableSync, disableSync, syncNow, syncStatus } from "../sync/client.js";
+import { CloudError } from "../sync/cloudClient.js";
 import type { Variables } from "../env.js";
 
 const app = new Hono<{ Variables: Variables }>();
@@ -29,8 +41,71 @@ const syncRateLimit = createRateLimiter<{ Variables: Variables }>(
   60, 60_000, (c) => c.get("userId") as string,
 );
 
-app.get("/status", (c) => {
-  return c.json({ mode: dbMode() });
+app.get("/status", async (c) => {
+  const userId = c.get("userId") as string;
+  return c.json(await syncStatus(userId, dbMode()));
+});
+
+app.post("/enable", syncRateLimit, async (c) => {
+  const userId = c.get("userId") as string;
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return httpError(c, 400, "INVALID_JSON", "Malformed JSON body");
+  }
+  const parsed = SyncEnableRequestSchema.safeParse(raw);
+  if (!parsed.success) {
+    return httpError(c, 400, "BAD_REQUEST", "Invalid enable request");
+  }
+  // The cloud base URL is a server-trusted constant ONLY — never from the request
+  // (that would be an SSRF / credential-exfiltration vector on the shared cloud
+  // deployment). The desktop's Electron launcher injects LUMO_CLOUD_API_BASE.
+  const cloudBase = process.env.LUMO_CLOUD_API_BASE;
+  if (!cloudBase) {
+    return httpError(c, 400, "NO_CLOUD_BASE", "Cloud sync is not configured on this build");
+  }
+  try {
+    const status = await enableSync(userId, {
+      email: parsed.data.email,
+      password: parsed.data.password,
+      cloudBase,
+    }, dbMode());
+    return c.json(status);
+  } catch (err) {
+    if (err instanceof CloudError) {
+      // A bad cloud sign-in (401) maps to a 401; other cloud faults to 502.
+      if (err.status === 401) {
+        return httpError(c, 401, "CLOUD_AUTH_FAILED", "Cloud sign-in failed");
+      }
+      return httpError(c, 502, "CLOUD_UNREACHABLE", "Cloud request failed");
+    }
+    console.error("[sync/enable] failed:", err instanceof Error ? err.message : err);
+    return httpError(c, 500, "SYNC_FAILED", "Sync enable failed");
+  }
+});
+
+app.post("/disable", async (c) => {
+  const userId = c.get("userId") as string;
+  return c.json(await disableSync(userId, dbMode()));
+});
+
+app.post("/now", syncRateLimit, async (c) => {
+  const userId = c.get("userId") as string;
+  try {
+    const result = await syncNow(userId);
+    return c.json(result);
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === "NOT_ENABLED") {
+      return httpError(c, 409, "NOT_ENABLED", "Sync is not enabled");
+    }
+    if (err instanceof CloudError) {
+      return httpError(c, 502, "CLOUD_UNREACHABLE", "Cloud request failed");
+    }
+    console.error("[sync/now] failed:", err instanceof Error ? err.message : err);
+    return httpError(c, 500, "SYNC_FAILED", "Sync cycle failed");
+  }
 });
 
 app.post("/pull", syncRateLimit, async (c) => {
