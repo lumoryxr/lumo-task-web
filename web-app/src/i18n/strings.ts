@@ -101,6 +101,10 @@ export const STRINGS: Record<Locale, Dict> = {
     "matrix.q2": "Schedule",
     "matrix.q3": "Delegate",
     "matrix.q4": "Drop",
+    "matrix.q1.sub": "Urgent · Important",
+    "matrix.q2.sub": "Important · Not urgent",
+    "matrix.q3.sub": "Urgent · Not important",
+    "matrix.q4.sub": "Neither",
 
     "focus.title": "Focus",
     "focus.sub": "One thing. 25 minutes.",
@@ -202,6 +206,8 @@ export const STRINGS: Record<Locale, Dict> = {
     "matrix.aiClassify.empty": "Nothing to classify — every task already has a quadrant.",
     "matrix.unclassified": "Unclassified",
     "matrix.dropHere": "Drop here",
+    "matrix.empty": "No tasks here.",
+    "matrix.moreActions": "More actions",
 
     "onb.welcome.title": "Welcome to Lumo",
     "onb.welcome.sub": "A quiet, local-first task app. Pick what you'd like and we'll get out of your way.",
@@ -746,6 +752,10 @@ export const STRINGS: Record<Locale, Dict> = {
     "matrix.q2": "安排做",
     "matrix.q3": "委托做",
     "matrix.q4": "减少做",
+    "matrix.q1.sub": "紧急 · 重要",
+    "matrix.q2.sub": "重要 · 不紧急",
+    "matrix.q3.sub": "紧急 · 不重要",
+    "matrix.q4.sub": "都不是",
 
     "focus.title": "专注",
     "focus.sub": "一件事。25 分钟。",
@@ -847,6 +857,8 @@ export const STRINGS: Record<Locale, Dict> = {
     "matrix.aiClassify.empty": "没有要分类的任务 — 都已经归位了。",
     "matrix.unclassified": "未分类",
     "matrix.dropHere": "拖到这里",
+    "matrix.empty": "这里还没有任务。",
+    "matrix.moreActions": "更多操作",
 
     "onb.welcome.title": "欢迎使用 Lumo",
     "onb.welcome.sub": "一个安静的本地优先任务工具。配置好后就让它退到一边。",
