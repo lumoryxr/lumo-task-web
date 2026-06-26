@@ -10,7 +10,7 @@ vi.mock("@/i18n/useT", () => ({
   useT: () => (k: string) => (k === "app.loading" ? "Loading…" : k),
 }));
 
-import { TaskListSkeleton, StatsSkeleton } from "../skeletons";
+import { TaskListSkeleton, StatsSkeleton, MatrixSkeleton } from "../skeletons";
 
 describe("TaskListSkeleton", () => {
   it("exposes a single polite, busy status region for screen readers", () => {
@@ -44,5 +44,21 @@ describe("StatsSkeleton", () => {
   it("renders three stat cards (3 bars each) plus a chart block", () => {
     const { container } = render(<StatsSkeleton />);
     expect(container.querySelectorAll(".skeleton")).toHaveLength(3 * 3 + 1);
+  });
+});
+
+describe("MatrixSkeleton", () => {
+  it("exposes a single polite, busy status region for screen readers", () => {
+    render(<MatrixSkeleton />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-busy", "true");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status.querySelectorAll("[aria-hidden='true']").length).toBeGreaterThan(0);
+  });
+
+  it("renders four quadrant placeholders (header + 2 card rows each)", () => {
+    const { container } = render(<MatrixSkeleton />);
+    // 4 quadrants × (1 header bar + 2 rows × 3 bars) = 4 × 7 = 28 shimmer bars
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(4 * (1 + 2 * 3));
   });
 });
