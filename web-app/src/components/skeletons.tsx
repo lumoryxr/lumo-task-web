@@ -52,3 +52,19 @@ export function StatsSkeleton() {
     </SkeletonScreen>
   );
 }
+
+/** Loading state for the Eisenhower Matrix: a 2×2 grid of quadrant placeholders. */
+export function MatrixSkeleton() {
+  return (
+    <SkeletonScreen className="p-7 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {Array.from({ length: 4 }, (_, q) => (
+        <div key={q} className="flex flex-col gap-3 p-4 rounded-2xl bg-surface border border-border-faint">
+          <Skeleton style={{ height: 14, width: "40%" }} />
+          {Array.from({ length: 2 }, (_, r) => (
+            <TaskRowSkeleton key={r} />
+          ))}
+        </div>
+      ))}
+    </SkeletonScreen>
+  );
+}

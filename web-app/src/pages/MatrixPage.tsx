@@ -13,6 +13,7 @@ import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { CalendarView } from "@/components/CalendarView";
+import { MatrixSkeleton } from "@/components/skeletons";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 /**
@@ -29,6 +30,7 @@ export function MatrixPage() {
   const t = useT();
   const isMobile = useIsMobile();
   const tasks = useTasksStore((s) => s.tasks);
+  const loading = useTasksStore((s) => s.loading);
   const unclassified = tasks.filter((x) => x.quadrant === "unclassified" && !x.completed);
   const allActive = tasks.filter((x) => !x.completed);
   const [classifyOpen, setClassifyOpen] = useState(false);
@@ -45,6 +47,12 @@ export function MatrixPage() {
     { id: "Q3", label: t("matrix.q3"), sub: t("matrix.q3.sub") },
     { id: "Q4", label: t("matrix.q4"), sub: t("matrix.q4.sub") },
   ];
+
+  // First paint while tasks are still loading and nothing is cached: show the
+  // quadrant skeleton instead of an empty grid (matches Today / Stats, #95).
+  if (loading && tasks.length === 0) {
+    return <MatrixSkeleton />;
+  }
 
   return (
     <div className="fade-in flex flex-col h-full">
