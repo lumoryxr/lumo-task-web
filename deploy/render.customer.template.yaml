@@ -1,0 +1,56 @@
+# Render Blueprint TEMPLATE for ONE B2B customer environment (ADR-0004).
+#
+# This is a per-customer copy of the root render.yaml: an isolated backend +
+# frontend, each suffixed with the customer slug, backed by that customer's OWN
+# Turso database. Cross-customer access is impossible — separate processes,
+# separate databases.
+#
+# Do NOT deploy this file directly. Render it with the provisioning script, which
+# substitutes {{SLUG}} and emits the secrets to paste:
+#   scripts/provision-customer.sh <slug> --frontend-url <url> --render
+#
+# Secrets (LUMO_JWT_SECRET, LUMO_ENCRYPTION_KEY, TURSO_*) are intentionally
+# `sync: false` here — set them per environment from the script's output; never
+# commit them.
+services:
+  # ── Backend API for {{SLUG}} ────────────────────────────────────────────────
+  - type: web
+    name: lumo-task-backend-{{SLUG}}
+    runtime: node
+    rootDir: backend
+    region: singapore
+    plan: free
+    buildCommand: npm --prefix ../packages/contracts ci --include=dev && npm --prefix ../packages/contracts run build && npm ci --include=dev && npm run build
+    startCommand: node dist/bundle.cjs
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: LUMO_JWT_SECRET
+        sync: false            # from provision-customer.sh (per-customer, unique)
+      - key: LUMO_ENCRYPTION_KEY
+        sync: false            # from provision-customer.sh (per-customer, unique)
+      - key: TURSO_DATABASE_URL
+        sync: false            # this customer's OWN Turso DB (lumo-task-{{SLUG}})
+      - key: TURSO_AUTH_TOKEN
+        sync: false            # scoped token for lumo-task-{{SLUG}} only
+      - key: LUMO_ALLOWED_ORIGINS
+        sync: false            # this customer's frontend origin (CORS)
+
+  # ── Frontend (static SPA) for {{SLUG}} ──────────────────────────────────────
+  - type: web
+    name: lumo-task-frontend-{{SLUG}}
+    runtime: static
+    buildCommand: cd packages/contracts && npm ci && npm run build && cd ../../web-app && npm ci && npm run build
+    staticPublishPath: web-app/dist
+    envVars:
+      - key: ELECTRON_SKIP_BINARY_DOWNLOAD
+        value: "1"
+      - key: VITE_API_BASE
+        sync: false            # set to lumo-task-backend-{{SLUG}}'s URL + /v1
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
