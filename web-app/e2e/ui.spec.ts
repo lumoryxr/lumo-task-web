@@ -1476,4 +1476,29 @@ test.describe("mobile viewport", () => {
     }
     expect(offenders, `horizontal overflow:\n${offenders.join("\n")}`).toEqual([]);
   });
+
+  // TC86 — the primary mobile navigation (bottom tab bar) must have comfortable
+  // touch targets. WCAG 2.5.5 (enhanced) asks for 44×44 CSS px; these are the
+  // most-tapped controls on mobile, so guard them against shrinking.
+  test("TC86 – mobile: bottom tab bar buttons meet the 44px touch target", async ({ page }) => {
+    await skipOnboardingAndSignIn(page);
+    await mockAPIWithData(page);
+    await page.goto("/#/today");
+    const tabbar = page.locator('nav[aria-label="tab bar"]');
+    await tabbar.waitFor({ state: "visible", timeout: 8_000 });
+
+    const buttons = tabbar.locator("button");
+    const count = await buttons.count();
+    expect(count, "tab bar should render its buttons").toBeGreaterThan(0);
+
+    const tooSmall: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const box = await buttons.nth(i).boundingBox();
+      const label = (await buttons.nth(i).innerText()).replace(/\s+/g, " ").trim();
+      if (!box || box.height < 44 || box.width < 44) {
+        tooSmall.push(`"${label}" ${box ? `${Math.round(box.width)}×${Math.round(box.height)}` : "no box"}`);
+      }
+    }
+    expect(tooSmall, `tab bar targets below 44px:\n${tooSmall.join("\n")}`).toEqual([]);
+  });
 });
