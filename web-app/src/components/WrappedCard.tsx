@@ -1,6 +1,8 @@
 import { useRef, useState, useEffect } from "react";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
+import { toast } from "@/store/useToastStore";
+import { isShareCancellation } from "@/utils/share";
 import { useAIStore } from "@/store/useAIStore";
 import { useDogStore } from "@/store/useDogStore";
 import { DogSvg } from "@/components/DogSvg";
@@ -99,8 +101,10 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
         setFeedback("downloaded");
         setTimeout(() => setFeedback("idle"), 2500);
       }
-    } catch {
-      // cancelled
+    } catch (e) {
+      // A dismissed share sheet is a normal cancellation; anything else is a
+      // real export failure the user should know about.
+      if (!isShareCancellation(e)) toast.error(t("wrapped.share.error"));
     } finally {
       setBusy(false);
     }
