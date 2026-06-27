@@ -128,7 +128,7 @@ function Field({
       </span>
       {children}
       {error && (
-        <span role="alert" className="block text-[11px] mt-1" style={{ color: "var(--danger, #e5484d)" }}>
+        <span role="alert" className="block text-[11px] mt-1" style={{ color: "var(--status-urgent)" }}>
           {error}
         </span>
       )}
