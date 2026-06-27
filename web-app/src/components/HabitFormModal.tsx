@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { IconClose } from "@/components/icons";
 import { useT } from "@/i18n/useT";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import type { Habit, HabitColor, HabitFrequency } from "@/types/task";
 
 const COLORS: HabitColor[] = ["green", "cyan", "amber", "red", "purple"];
@@ -72,13 +73,7 @@ export function HabitFormModal({ habit, onSave, onClose }: Props) {
     setErrors({});
   }, [habit]);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
 
   function validate(): boolean {
     const errs: typeof errors = {};
@@ -123,6 +118,8 @@ export function HabitFormModal({ habit, onSave, onClose }: Props) {
         className="w-full max-w-sm rounded-2xl bg-surface border border-border-faint shadow-2xl"
         role="dialog"
         aria-modal="true"
+        ref={dialogRef}
+        tabIndex={-1}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-faint">

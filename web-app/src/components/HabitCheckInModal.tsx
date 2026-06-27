@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { IconCheck } from "@/components/icons";
 import { useT } from "@/i18n/useT";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import type { Habit, HabitLog } from "@/types/task";
 import { currentStreak } from "@/utils/habits";
 
@@ -31,13 +32,7 @@ export function HabitCheckInModal({ habit, logs, onConfirm, onClose }: Props) {
   const motivationIndex = new Date().getDate() % MOTIVATION_COUNT;
   const motivation = t(`habit.checkin.motivation.${motivationIndex}`);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
 
   function handleConfirm() {
     if (confirmed) return;
@@ -52,7 +47,13 @@ export function HabitCheckInModal({ habit, logs, onConfirm, onClose }: Props) {
       style={{ background: "rgba(0,0,0,0.55)" }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-sm rounded-2xl bg-surface border border-border-faint shadow-2xl overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        ref={dialogRef}
+        tabIndex={-1}
+        className="w-full max-w-sm rounded-2xl bg-surface border border-border-faint shadow-2xl overflow-hidden"
+      >
         {/* Color accent header band */}
         <div
           className="h-24 w-full flex items-center justify-center relative"

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePetStore } from "@/store/usePetStore";
 import { fmtDuration } from "@/lib/format";
@@ -559,10 +560,13 @@ export function EveningReviewModal({ onClose }: EveningReviewModalProps) {
     .replace("{step}", String(stepIdx + 1))
     .replace("{total}", String(steps.length));
 
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
+      ref={dialogRef}
+      tabIndex={-1}
       aria-label={t("review.title")}
       style={{
         position: "fixed",

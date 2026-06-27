@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useAppStore } from "@/store/useAppStore";
 import { getStagnationDays, getUntouchedLabel } from "@/lib/stagnation";
@@ -409,10 +410,13 @@ export function WeeklyPlanningModal({ onClose, prevWeekStats, prevWeekFocusTasks
     .replace("{step}", String(stepIdx + 1))
     .replace("{total}", String(steps.length));
 
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
+      ref={dialogRef}
+      tabIndex={-1}
       aria-label={t("weekly.title")}
       style={{
         position: "fixed",

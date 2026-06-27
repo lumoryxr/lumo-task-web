@@ -1368,3 +1368,37 @@ test("TC82 – a11y: icon-only buttons across the shell expose an accessible nam
   await expect(form).toBeVisible({ timeout: 10_000 });
   await expectAllButtonsNamed(page, "countdown form modal");
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC83  Accessibility: modal keyboard behaviour (Esc closes, focus returns)
+//
+// Backs the shared useModalA11y hook end-to-end in a real browser: opening a
+// dialog moves focus inside it, Escape closes it, and focus returns to the
+// trigger that opened it (so keyboard users aren't dumped at the top of the page).
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("TC83 – a11y: dialog opens with focus inside, Esc closes it and returns focus to the trigger", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/countdown");
+
+  const trigger = page.getByRole("button", { name: /new event/i }).first();
+  await trigger.focus();
+  await trigger.press("Enter");
+
+  const dialog = page.locator('[role="dialog"]');
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+
+  // Focus moved into the dialog on open.
+  const focusInDialog = await dialog.evaluate(
+    (el) => el.contains(document.activeElement) && el !== document.activeElement,
+  );
+  expect(focusInDialog, "focus should be inside the dialog on open").toBe(true);
+
+  // Escape closes it…
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden({ timeout: 8_000 });
+
+  // …and focus returns to the button that opened it.
+  await expect(trigger).toBeFocused();
+});

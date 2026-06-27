@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { IconClose } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import type {
@@ -44,6 +45,7 @@ interface CountdownFormModalProps {
 
 export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModalProps) {
   const t = useT();
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
   const inputRef = useRef<HTMLInputElement>(null);
   const todayRef = useRef(new Date().toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
@@ -156,6 +158,8 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
       <div
         role="dialog"
         aria-modal="true"
+        ref={dialogRef}
+        tabIndex={-1}
         style={{
           background: "var(--bg-elevated)",
           border: "1px solid var(--border-default)",
@@ -166,7 +170,6 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
           maxHeight: "90vh",
           overflowY: "auto",
         }}
-        onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
       >
         {/* Header */}
         <div style={{

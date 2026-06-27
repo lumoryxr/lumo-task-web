@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePetStore } from "@/store/usePetStore";
@@ -516,10 +517,13 @@ export function MorningPlanningModal({ onClose }: MorningPlanningModalProps) {
     .replace("{step}", String(stepIdx + 1))
     .replace("{total}", String(steps.length));
 
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
+      ref={dialogRef}
+      tabIndex={-1}
       aria-label={t("planning.title")}
       style={{
         position: "fixed",

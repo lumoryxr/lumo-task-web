@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { IconArrowLeft, IconArrowRight, IconClose } from "@/components/icons";
 import { useT } from "@/i18n/useT";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import type { Habit, HabitLog } from "@/types/task";
 import {
   completionRate,
@@ -71,6 +72,7 @@ export function HabitCalendarModal({ habit, logs, onClose }: Props) {
     "July","August","September","October","November","December",
   ];
 
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -82,6 +84,8 @@ export function HabitCalendarModal({ habit, logs, onClose }: Props) {
         style={{ maxWidth: 420 }}
         role="dialog"
         aria-modal="true"
+        ref={dialogRef}
+        tabIndex={-1}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-faint">

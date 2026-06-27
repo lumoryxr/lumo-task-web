@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { IconClose, IconCalendar, IconClock, IconArrowRight, IconCheck } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
@@ -59,6 +60,8 @@ export function TaskDetailModal({ task, onClose }: Props) {
   const subtaskInputRef = useRef<HTMLInputElement>(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const [breakdownDraft, setBreakdownDraft] = useState<string[] | null>(null);
+  // Deactivated while the nested edit modal is open so only one focus-trap runs.
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose, !editOpen);
 
   const assignees = (liveTask.assignee_ids ?? []).map(byId).filter(Boolean) as import("@/types/task").Person[];
   const due = getDueLabel(liveTask.due, locale);
@@ -132,6 +135,8 @@ export function TaskDetailModal({ task, onClose }: Props) {
       <div
         role="dialog"
         aria-modal="true"
+        ref={dialogRef}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         className="w-full overflow-hidden rounded-[16px] border"
         style={{
