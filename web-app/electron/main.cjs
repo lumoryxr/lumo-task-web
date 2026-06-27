@@ -15,7 +15,7 @@ const os = require("os");
 //
 // OPERATOR: set LUMO_CLOUD_API_BASE to your deployed cloud backend origin
 // before packaging if it differs from the default below.
-const CLOUD_API_BASE = process.env.LUMO_CLOUD_API_BASE || "https://lumo-task-backend.onrender.com";
+const CLOUD_API_BASE = process.env.LUMO_CLOUD_API_BASE || "https://lumo-task-backend-1c3x.onrender.com";
 
 // ── File logger ───────────────────────────────────────────────────────────────
 

@@ -93,6 +93,36 @@ Web 应用运行在 `http://localhost:5173`，API 运行在 `http://localhost:30
 
 > 若 Windows SmartScreen 弹出提示，点击「更多信息」→「仍要运行」即可。
 
+#### 云同步（本地优先，默认关闭）
+
+桌面端是**本地优先**的：所有数据存在本地 SQLite 文件中，完全离线可用。云同步需手动开启。
+
+**开启方式（终端用户）：**
+
+1. 打开 **设置 → 数据与同步**。
+2. 点击 **开启云同步**。
+3. 用你的**云账号邮箱 + 密码**登录。
+
+就这样——**不需要填任何 URL、token 或配置文件**。应用会登录云后端，把返回的 token **加密存储**（AES-256-GCM），先做一次全量对账，之后后台自动同步（约每 30 秒一次），也可点**立即同步**。冲突按 last-write-wins（HLC 时间戳）解决。只同步你自己的数据——服务端按账号过滤。
+
+> 云同步**仅桌面端**。Web 版直接连它的云数据库，因此没有同步开关。
+
+**每台安装的密钥自动生成** —— `LUMO_JWT_SECRET`、`LUMO_ENCRYPTION_KEY` 在首次启动时生成并持久化到应用的 userData 目录，用户无需配置。
+
+**连哪个后端（打包相关）：** 安装包通过 `LUMO_CLOUD_API_BASE`（`web-app/electron/main.cjs`）烤入一个云后端地址。默认指向运营的生产后端：
+
+```
+https://lumo-task-backend-1c3x.onrender.com
+```
+
+若要打一版连别的后端，在**打包前**设置该环境变量（它是服务端可信常量，绝不接受客户端传入——否则是 SSRF 漏洞）：
+
+```bash
+LUMO_CLOUD_API_BASE=https://your-backend.example.com make package-win
+```
+
+要让同步真正成功，那个后端必须已部署且可达（提供 `/v1/auth/signin` 与 `/v1/sync/pull|push`）、有自己的 Turso 库 + 密钥，且用户在其上有账号。Windows 安装包由 **Package Windows** / **Release (Windows)** 这两个 GitHub Actions 流水线在 Windows runner 上构建（`workflow_dispatch` 手动触发）；二者都不设 `LUMO_CLOUD_API_BASE`，因此使用上面 `main.cjs` 的默认值。
+
 ---
 
 ## 项目结构
