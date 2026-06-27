@@ -36,6 +36,12 @@ export function SettingsPage() {
 
   const [activeTab, setActiveTab] = useState<TabId>("appearance");
 
+  // Cloud sync is a desktop-only, local-first feature: the Electron build syncs
+  // its local SQLite up to the cloud. The web build connects directly to its
+  // own cloud DB (one deployment per customer), so "sync" doesn't apply there —
+  // showing the toggle only yields a NO_CLOUD_BASE error (#112). Gate it to desktop.
+  const isElectron = typeof window !== "undefined" && !!window.electronAPI;
+
   const tabs: Array<{ id: TabId; label: string }> = [
     { id: "appearance", label: t("settings.appearance") },
     { id: "language",   label: t("settings.language") },
@@ -45,7 +51,7 @@ export function SettingsPage() {
     { id: "ai",         label: t("ai.config.title") },
     { id: "integrations", label: t("settings.integrations") },
     { id: "storage",    label: t("settings.storage") },
-    { id: "sync",       label: t("settings.sync") },
+    ...(isElectron ? [{ id: "sync" as const, label: t("settings.sync") }] : []),
     { id: "data",       label: locale === "zh" ? "数据" : "Data" },
   ];
 
@@ -176,7 +182,7 @@ export function SettingsPage() {
             <StoragePanel t={t} locale={locale} />
           )}
 
-          {activeTab === "sync" && (
+          {activeTab === "sync" && isElectron && (
             <SyncPanel t={t} locale={locale} />
           )}
 
