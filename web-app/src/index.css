@@ -21,8 +21,8 @@
   /* Text */
   --text-primary: #e8ede9;
   --text-secondary: #8fa89a;
-  --text-muted: #5a7268;
-  --text-faint: #3f524a;
+  --text-muted: #889992;
+  --text-faint: #86928d;
   --text-inverse: #0d1210;
 
   /* Accent — overridden by JS for theme switch */
