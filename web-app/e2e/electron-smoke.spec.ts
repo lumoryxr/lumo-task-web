@@ -35,6 +35,9 @@ const __dirname = path.dirname(__filename);
  * open and stalls the Playwright worker until the 90s teardown deadline trips —
  * failing an otherwise-green suite. We capture the tree while Electron is still
  * alive (descendants are still reachable from it) so we can reap every node.
+ *
+ * POSIX only — `pgrep` doesn't exist on Windows, where `taskkill /T` reaps the
+ * tree instead (see shutdownElectron).
  */
 function collectDescendants(rootPid: number): number[] {
   const all: number[] = [];
@@ -58,6 +61,45 @@ function collectDescendants(rootPid: number): number[] {
     }
   }
   return all;
+}
+
+/**
+ * Cross-platform teardown for a launched Electron app. Races a graceful
+ * `close()` against a deadline, then force-kills the whole process tree (the
+ * orphan-prone embedded backend + its children) so no lingering pipe/port
+ * blocks worker teardown. Windows has no `pgrep`/SIGKILL, so it uses
+ * `taskkill /T /F` by root pid; POSIX walks the pid tree and SIGKILLs each.
+ */
+async function shutdownElectron(app: ElectronApplication | undefined): Promise<void> {
+  if (!app) return;
+  const rootPid = app.process()?.pid;
+  // Snapshot descendants while Electron is still alive and parents them (POSIX).
+  const descendants =
+    rootPid && process.platform !== "win32" ? collectDescendants(rootPid) : [];
+  await Promise.race([
+    app.close().catch(() => {}),
+    new Promise((resolve) => setTimeout(resolve, 15_000)),
+  ]);
+  if (!rootPid) return;
+  if (process.platform === "win32") {
+    // taskkill walks and kills the child tree (/T) forcefully (/F). After a
+    // graceful close this is a harmless backstop (the tree is already gone).
+    try {
+      execSync(`taskkill /pid ${rootPid} /T /F`, { stdio: "ignore" });
+    } catch {
+      /* already gone */
+    }
+    return;
+  }
+  // POSIX: reap children first, then the root, so nothing holds a handle.
+  for (const pid of [...descendants, rootPid]) {
+    if (!pid) continue;
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      /* already gone */
+    }
+  }
 }
 
 const MAIN_CJS = path.resolve(__dirname, "../electron/main.cjs");
@@ -97,31 +139,7 @@ test.describe("Electron desktop smoke", () => {
   });
 
   test.afterAll(async () => {
-    if (!electronApp) return;
-    // electronApp.close() relies on a graceful app.quit(). Under xvfb in CI the
-    // embedded-backend child process can keep the Electron process alive past
-    // the teardown budget, hanging the worker and failing an otherwise-green
-    // suite (the render assertions all pass first). Race the graceful close
-    // against a short deadline, then force-kill the ENTIRE process tree —
-    // Electron AND the orphan-prone embedded backend (+ its own children) — so
-    // no lingering pipe/port can block worker teardown.
-    const proc = electronApp.process();
-    const rootPid = proc?.pid;
-    // Snapshot descendants while Electron is still alive and parents them.
-    const descendants = rootPid ? collectDescendants(rootPid) : [];
-    await Promise.race([
-      electronApp.close().catch(() => {}),
-      new Promise((resolve) => setTimeout(resolve, 15_000)),
-    ]);
-    // Reap children first, then the root, so nothing is left holding a handle.
-    for (const pid of [...descendants, rootPid]) {
-      if (!pid) continue;
-      try {
-        process.kill(pid, "SIGKILL");
-      } catch {
-        /* process already gone */
-      }
-    }
+    await shutdownElectron(electronApp);
   });
 
   test("SMOKE01 – embedded backend started and is reachable (self-provisioned secrets)", async () => {
@@ -140,5 +158,46 @@ test.describe("Electron desktop smoke", () => {
 
   test("SMOKE03 – frontend renders (onboarding welcome screen on fresh launch)", async () => {
     await expect(page.getByText("Welcome to Lumo")).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("SMOKE04 – core CRUD works against the embedded SQLite (register → create → read back)", async () => {
+    // Exercises the real write/read path through the bundled backend + SQLite:
+    // the migrations ran (tables exist), a row is inserted and read back. This
+    // is the basic-functionality guarantee beyond just /health.
+    const email = `smoke-${Date.now()}@lumo.test`;
+    const title = `smoke-task-${Date.now()}`;
+
+    const result = await page.evaluate(
+      async ({ port, email, title }: { port: number; email: string; title: string }) => {
+        const base = `http://127.0.0.1:${port}/v1`;
+        const json = (r: Response) => r.json();
+
+        const reg = await fetch(`${base}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password: "E2eTest!23", name: "Smoke" }),
+        });
+        if (!reg.ok) return { step: "register", status: reg.status };
+        const { token } = (await json(reg)) as { token: string };
+
+        const create = await fetch(`${base}/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ title: { en: title } }),
+        });
+        if (!create.ok) return { step: "create", status: create.status };
+
+        const list = await fetch(`${base}/tasks`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!list.ok) return { step: "list", status: list.status };
+        const { items } = (await json(list)) as { items: Array<{ title: { en: string } }> };
+        return { step: "ok", found: items.some((t) => t.title?.en === title) };
+      },
+      { port: backendPort, email, title }
+    );
+
+    expect(result.step, `failed at step "${result.step}" (status ${result.status ?? "-"})`).toBe("ok");
+    expect(result.found).toBe(true);
   });
 });

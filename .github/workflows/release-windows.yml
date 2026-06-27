@@ -66,12 +66,13 @@ jobs:
           npm test
 
   # ── Gate 2 — Windows desktop smoke (launch + basic functionality) ──────────
-  # Runs the full electron.spec walkthrough against the real packaged dist on the
-  # actual target OS. Secrets are scrubbed inside the suite, so it also proves the
-  # desktop app self-provisions LUMO_ENCRYPTION_KEY / LUMO_JWT_SECRET (the class
-  # of "packaged app won't start" bug). This is the first time the full desktop
-  # walkthrough runs on Windows — the per-PR electron-smoke job only does the
-  # minimal 3-case launch check on Linux.
+  # Runs the robust desktop smoke suite (electron-smoke*.spec.ts) against the real
+  # packaged dist on the actual target OS: launch + backend /health + render +
+  # CRUD against the embedded SQLite + data-survives-restart. Secrets are scrubbed
+  # inside the suite, so it also proves the desktop app self-provisions
+  # LUMO_ENCRYPTION_KEY / LUMO_JWT_SECRET (the "packaged app won't start" bug).
+  # The per-PR electron-smoke job runs this same suite on Linux; here it runs on
+  # the actual Windows target before a release can publish.
   smoke-windows:
     name: Windows desktop smoke (launch + use)
     runs-on: windows-latest
@@ -106,9 +107,9 @@ jobs:
         working-directory: web-app
         run: npx playwright install chromium
 
-      - name: Run Electron desktop walkthrough
+      - name: Run Electron desktop smoke suite
         working-directory: web-app
-        run: npm run test:electron
+        run: npx playwright test --config playwright.electron-smoke.config.ts
         env:
           # Run against the production build, not the dev server.
           LUMO_USE_DIST: '1'
@@ -121,7 +122,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: electron-report-windows-${{ github.run_id }}
-          path: web-app/playwright-report-electron/
+          path: web-app/playwright-report-electron-smoke/
           retention-days: 14
 
   # ── Release — package + publish (only after both gates pass) ───────────────
