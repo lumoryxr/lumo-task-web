@@ -5,13 +5,20 @@ import type { CompletedEntry } from "@/types/task";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-vi.mock("@/i18n/useT", () => ({
-  useT: () => (key: string) => key,
-  useLocaleString: () => (v: unknown) => {
-    if (v && typeof v === "object" && "en" in v) return (v as { en: string }).en;
-    return String(v ?? "");
-  },
-}));
+// Resolve t() against the real catalog so the format/plural assertions stay
+// meaningful. `tLocale` is set per test (the component takes locale as a prop
+// for fmtTime/fmtDuration, but useT reads the app locale separately).
+const h = vi.hoisted(() => ({ locale: "en" as "en" | "zh" }));
+vi.mock("@/i18n/useT", async () => {
+  const actual = await vi.importActual<typeof import("@/i18n/strings")>("@/i18n/strings");
+  return {
+    useT: () => (key: string) => actual.STRINGS[h.locale][key] ?? key,
+    useLocaleString: () => (v: unknown) => {
+      if (v && typeof v === "object" && "en" in v) return (v as { en: string }).en;
+      return String(v ?? "");
+    },
+  };
+});
 
 const mockReopen = vi.fn();
 vi.mock("@/store/useTasksStore", () => ({
@@ -56,6 +63,7 @@ const ENTRY_NO_TIME: CompletedEntry = {
 describe("CompletedTimeline", () => {
   beforeEach(() => {
     mockReopen.mockReset();
+    h.locale = "en";
   });
 
   it("renders section header with entry count and total time (en)", () => {
@@ -66,6 +74,7 @@ describe("CompletedTimeline", () => {
   });
 
   it("renders section header with entry count and total time (zh)", () => {
+    h.locale = "zh";
     render(<CompletedTimeline entries={[ENTRY_1]} locale="zh" />);
     expect(screen.getByText("今日已完成")).toBeInTheDocument();
     expect(screen.getByText("1 项")).toBeInTheDocument();
@@ -79,6 +88,7 @@ describe("CompletedTimeline", () => {
   });
 
   it("formats hours+minutes correctly when total >= 60 (zh)", () => {
+    h.locale = "zh";
     const long: CompletedEntry = { ...ENTRY_1, duration: 90 };
     render(<CompletedTimeline entries={[long]} locale="zh" />);
     expect(screen.getByText("共 1 小时 30 分")).toBeInTheDocument();
@@ -92,14 +102,14 @@ describe("CompletedTimeline", () => {
 
   it("renders reopen buttons for each entry", () => {
     render(<CompletedTimeline entries={[ENTRY_1, ENTRY_2]} locale="en" />);
-    const reopenBtns = screen.getAllByTitle("today.reopen");
+    const reopenBtns = screen.getAllByTitle("Reopen");
     expect(reopenBtns).toHaveLength(2);
   });
 
   it("calls reopen with correct entry id when button clicked", () => {
     mockReopen.mockResolvedValue(undefined);
     render(<CompletedTimeline entries={[ENTRY_1, ENTRY_2]} locale="en" />);
-    const reopenBtns = screen.getAllByTitle("today.reopen");
+    const reopenBtns = screen.getAllByTitle("Reopen");
     fireEvent.click(reopenBtns[0]);
     expect(mockReopen).toHaveBeenCalledWith("c1");
   });
