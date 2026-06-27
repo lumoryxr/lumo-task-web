@@ -61,6 +61,20 @@ describe("ShareCard", () => {
     await waitFor(() => expect(btn).toBeDisabled());
   });
 
+  it("routes the busy label through the message catalog (#122 — no hardcoded literal)", async () => {
+    // Regression: the busy label used to be an inline `locale === 'zh' ? '生成中…'
+    // : 'Exporting…'` ternary that bypassed the catalog. With useT mocked to echo
+    // the key, a catalog-routed label renders the KEY; a hardcoded literal would
+    // render "Exporting…"/"生成中…" instead.
+    const { default: html2canvas } = await import("html2canvas");
+    (html2canvas as ReturnType<typeof vi.fn>).mockReturnValueOnce(new Promise(() => {}));
+    render(<ShareCard {...BASE_PROPS} />);
+    const btn = screen.getByRole("button", { name: "stats.share.btn" });
+    fireEvent.click(btn);
+    await waitFor(() => expect(btn).toHaveTextContent("stats.share.busy"));
+    expect(btn).not.toHaveTextContent("Exporting");
+  });
+
   it("surfaces an error toast when export genuinely fails", async () => {
     const { default: html2canvas } = await import("html2canvas");
     (html2canvas as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("boom"));

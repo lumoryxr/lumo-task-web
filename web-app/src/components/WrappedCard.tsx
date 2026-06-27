@@ -111,7 +111,7 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
   }
 
   const btnLabel = busy
-    ? locale === "zh" ? "生成中…" : "Exporting…"
+    ? t("stats.share.busy")
     : feedback === "downloaded"
     ? t("stats.share.downloaded")
     : t("wrapped.share.btn");
