@@ -39,6 +39,15 @@ export const IconMatrix = (p: IconProps) => (
   </svg>
 );
 
+export const IconUsers = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1" />
+    <circle cx="9" cy="7" r="3.2" />
+    <path d="M22 19v-1a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.5a4 4 0 0 1 0 7" />
+  </svg>
+);
+
 export const IconSettings = (p: IconProps) => (
   <svg {...base(p)}>
     <circle cx="12" cy="12" r="3" />

@@ -15,6 +15,7 @@ import { WrappedCard } from "@/components/WrappedCard";
 import { HabitWeekSection } from "@/components/HabitWeekSection";
 import { QuadrantBreakdown } from "@/components/QuadrantBreakdown";
 import { StatsSkeleton } from "@/components/skeletons";
+import { EmptyState } from "@/components/EmptyState";
 import type { QuadrantCount } from "@/utils/stats";
 
 const DAY_KEYS = ["stats.day.sun","stats.day.mon","stats.day.tue","stats.day.wed","stats.day.thu","stats.day.fri","stats.day.sat"];
@@ -120,7 +121,12 @@ export function StatsPage() {
         {loading ? (
           <StatsSkeleton />
         ) : entries.length === 0 ? (
-          <div className="text-center py-16 text-text-muted text-[13px]">{t("stats.empty")}</div>
+          <EmptyState
+            icon={<IconStats size={28} />}
+            title={t("stats.empty.title")}
+            subtitle={t("stats.empty")}
+            cta={{ label: t("stats.empty.cta"), onClick: () => navigate("/matrix") }}
+          />
         ) : (
           <>
             {/* Weekly Wrapped — shown once on Monday */}
