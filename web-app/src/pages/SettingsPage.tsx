@@ -397,7 +397,9 @@ function MembersPanel({
     <div>
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-[15px] font-semibold text-text-primary">{t("settings.members")}</h2>
-        {!adding && (
+        {/* When the list is empty the EmptyState below shows its own "Add member"
+            CTA, so suppress this header button to avoid a duplicate control. */}
+        {!adding && people.length > 0 && (
           <button
             className="text-[12px] font-medium"
             style={{ color: "var(--accent-primary)" }}
