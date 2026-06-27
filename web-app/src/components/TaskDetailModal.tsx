@@ -481,6 +481,7 @@ function SubtaskItem({
   onToggle: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -513,6 +514,7 @@ function SubtaskItem({
       {hovered && !disabled && (
         <button
           onClick={onDelete}
+          aria-label={t("detail.subtask.delete")}
           className="flex-shrink-0 flex items-center justify-center w-[16px] h-[16px] rounded transition-colors"
           style={{ color: "var(--text-faint)" }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--status-urgent)"; }}

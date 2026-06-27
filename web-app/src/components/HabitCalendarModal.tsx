@@ -114,6 +114,7 @@ export function HabitCalendarModal({ habit, logs, onClose }: Props) {
         <div className="flex items-center justify-between px-5 py-3">
           <button
             onClick={prevMonth}
+            aria-label={t("habit.calendar.prevMonth")}
             className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-elevated transition-colors"
           >
             <IconArrowLeft size={14} />
@@ -123,6 +124,7 @@ export function HabitCalendarModal({ habit, logs, onClose }: Props) {
           </span>
           <button
             onClick={nextMonth}
+            aria-label={t("habit.calendar.nextMonth")}
             className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-elevated transition-colors"
             disabled={year === today.getFullYear() && month === today.getMonth()}
             style={{

@@ -181,6 +181,9 @@ export function CountdownCard({ event, locale, onEdit, onDelete }: CountdownCard
           <div ref={menuRef} style={{ position: "relative", flexShrink: 0 }}>
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+              aria-label={t("countdown.menu.open")}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
               style={{
                 width: 28, height: 28, borderRadius: "var(--radius-sm)",
                 display: "flex", alignItems: "center", justifyContent: "center",
