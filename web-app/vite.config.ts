@@ -38,6 +38,15 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Cap worker forks. Vitest's default forks pool spawns one worker per CPU
+    // core, and each loads a full jsdom + React environment. On high-core
+    // machines (e.g. 8 cores) that can spike memory enough to trigger an OOM
+    // kill (exit 137) on memory-constrained containers. Capping at 4 keeps the
+    // peak ~1.7GB while leaving CI runners (<=4 cores) effectively unchanged.
+    pool: "forks",
+    poolOptions: {
+      forks: { maxForks: 4, minForks: 1 },
+    },
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
