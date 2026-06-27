@@ -593,7 +593,7 @@ export function EveningReviewModal({ onClose }: EveningReviewModalProps) {
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.5)",
+          boxShadow: "var(--shadow-modal)",
           overflow: "hidden",
         }}
       >

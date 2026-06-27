@@ -60,6 +60,7 @@
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-lifted: 0 8px 24px rgba(0, 0, 0, 0.55);
   --shadow-window: 0 30px 80px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-modal: 0 24px 80px rgba(0, 0, 0, 0.5);
 
   /* Motion */
   --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
