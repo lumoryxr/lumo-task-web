@@ -32,12 +32,8 @@ export function CompletedTimeline({ entries, locale }: Props) {
   const total = entries.reduce((s, c) => s + c.duration, 0);
   const totalLabel =
     total >= 60
-      ? locale === "zh"
-        ? `${Math.floor(total / 60)} 小时 ${total % 60} 分`
-        : `${Math.floor(total / 60)}h ${total % 60}m`
-      : locale === "zh"
-      ? `${total} 分钟`
-      : `${total} min`;
+      ? t("timeline.dur.hm").replace("{h}", String(Math.floor(total / 60))).replace("{m}", String(total % 60))
+      : t("timeline.dur.min").replace("{m}", String(total));
 
   const sorted = [...entries].sort((a, b) => {
     const ta = a.completedAt ? new Date(a.completedAt).getTime() : 0;
@@ -49,17 +45,17 @@ export function CompletedTimeline({ entries, locale }: Props) {
     <section className="mt-10">
       <div className="flex items-center gap-3 mb-5">
         <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">
-          {locale === "zh" ? "今日已完成" : "Completed today"}
+          {t("timeline.today")}
         </span>
         <span
           className="text-[11px] tabular-nums text-text-faint px-2 py-0.5 rounded-full border"
           style={{ borderColor: "var(--border-faint)" }}
         >
-          {entries.length} {locale === "zh" ? "项" : entries.length === 1 ? "task" : "tasks"}
+          {entries.length} {t(entries.length === 1 ? "timeline.count.one" : "timeline.count.other")}
         </span>
         <span className="flex-1 h-px" style={{ background: "var(--border-faint)" }} />
         <span className="text-[11px] tabular-nums text-text-faint">
-          {locale === "zh" ? "共 " : ""}{totalLabel}{locale === "zh" ? "" : " total"}
+          {t("timeline.total").replace("{x}", totalLabel)}
         </span>
       </div>
 
