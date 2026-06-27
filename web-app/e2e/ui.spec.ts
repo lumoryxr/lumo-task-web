@@ -803,7 +803,7 @@ test("TC41 – Settings: Appearance tab shows accent swatch area and density con
   await skipOnboardingAndSignIn(page);
   await mockAPI(page);
   await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText("General").first()).toBeVisible({ timeout: 8_000 });
   await expect(page.getByText("Comfortable").first()).toBeVisible();
   await expect(page.getByText("Compact").first()).toBeVisible();
 });
@@ -812,16 +812,16 @@ test("TC42 – Settings: Appearance tab has Reduced motion toggle", async ({ pag
   await skipOnboardingAndSignIn(page);
   await mockAPI(page);
   await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText("General").first()).toBeVisible({ timeout: 8_000 });
   await expect(page.getByText(/reduced motion/i)).toBeVisible({ timeout: 10_000 });
 });
 
-test("TC43 – Settings: Language tab shows English / 中文 options", async ({ page }) => {
+test("TC43 – Settings: General tab shows English / 中文 language options", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
   await mockAPI(page);
   await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
-  await page.getByRole("button", { name: /language/i }).click();
+  // Language lives on the General tab now (consolidated with Appearance).
+  await expect(page.getByText("General").first()).toBeVisible({ timeout: 8_000 });
   await expect(page.getByText(/english/i)).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("中文")).toBeVisible();
 });
@@ -830,8 +830,7 @@ test("TC44 – Settings: switching to 中文 locale updates visible text", async
   await skipOnboardingAndSignIn(page);
   await mockAPI(page);
   await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
-  await page.getByRole("button", { name: /language/i }).click();
+  await expect(page.getByText("General").first()).toBeVisible({ timeout: 8_000 });
   await page.getByText("中文").click();
   await expect(page.getByText("中文")).toBeVisible({ timeout: 8_000 });
   // Restore English for subsequent tests
@@ -842,7 +841,7 @@ test("TC45 – Settings: Members tab shows 'Add member' button", async ({ page }
   await skipOnboardingAndSignIn(page);
   await mockAPIWithData(page);
   await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText("General").first()).toBeVisible({ timeout: 8_000 });
   await page.getByRole("button", { name: /members/i }).click();
   await expect(page.getByRole("button", { name: /add member/i })).toBeVisible({ timeout: 10_000 });
 });
@@ -851,7 +850,7 @@ test("TC46 – Settings: Members tab empty state hint is visible", async ({ page
   await skipOnboardingAndSignIn(page);
   await mockAPIWithData(page);
   await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 12_000 });
+  await expect(page.getByText("General").first()).toBeVisible({ timeout: 12_000 });
   await page.getByRole("button", { name: /members/i }).click();
   await expect(
     page.getByText(/no members|add teammates/i)
@@ -864,7 +863,7 @@ test("TC47 – Settings: AI tab shows provider / model controls", async ({ page 
   await skipOnboardingAndSignIn(page);
   await mockAPI(page);
   await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText("General").first()).toBeVisible({ timeout: 8_000 });
   const aiTab = page.getByRole("button", { name: /^AI$/i });
   if (await aiTab.isVisible({ timeout: 8_000 }).catch(() => false)) {
     await aiTab.click();
@@ -874,70 +873,27 @@ test("TC47 – Settings: AI tab shows provider / model controls", async ({ page 
   }
 });
 
-test("TC48 – Settings: Storage tab shows database info", async ({ page }) => {
+test("TC48 – Settings: Data & Sync tab shows database storage info", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
   await mockAPI(page);
   await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
-  const storageTab = page.getByRole("button", { name: /storage/i });
-  if (await storageTab.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    await storageTab.click();
-    await expect(
-      page.getByText(/database|storage|web app/i).first()
-    ).toBeVisible({ timeout: 10_000 });
-  }
-});
-
-test("TC49 – Settings: Sync tab shows cloud sync controls", async ({ page }) => {
-  await skipOnboardingAndSignIn(page);
-  await mockAPI(page);
-  await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
-  const syncTab = page.getByRole("button", { name: /^sync$/i });
-  if (await syncTab.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    await syncTab.click();
-    await expect(
-      page.getByText(/cloud sync|sync|turso/i).first()
-    ).toBeVisible({ timeout: 10_000 });
-  }
-});
-
-test("TC50 – Settings: Data tab shows 'Replay onboarding' button", async ({ page }) => {
-  await skipOnboardingAndSignIn(page);
-  await mockAPI(page);
-  await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 12_000 });
-  await page.getByRole("button", { name: /data/i }).click();
-  await expect(page.getByRole("button", { name: /^replay$/i })).toBeVisible({
-    timeout: 8_000,
-  });
-});
-
-test("TC51 – Settings: Data tab shows 'Reset demo data' button", async ({ page }) => {
-  await skipOnboardingAndSignIn(page);
-  await mockAPI(page);
-  await page.goto("/#/settings");
-  await page.getByRole("button", { name: /data/i }).click();
+  await expect(page.getByText("General").first()).toBeVisible({ timeout: 8_000 });
+  // Storage moved under the consolidated "Data & Sync" tab.
+  await page.getByRole("button", { name: /data & sync/i }).click();
   await expect(
-    page.getByRole("button", { name: /reset/i }).first()
+    page.getByText(/database|storage|web app/i).first()
   ).toBeVisible({ timeout: 10_000 });
 });
 
-test("TC52 – Settings: 'Replay onboarding' navigates back to onboarding", async ({ page }) => {
-  await skipOnboardingAndSignIn(page);
-  await mockAPI(page);
-  await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 12_000 });
-  await page.getByRole("button", { name: /data/i }).click();
-  await page.getByRole("button", { name: /^replay$/i }).click();
-  await expect(page).toHaveURL(/onboarding/, { timeout: 8_000 });
-});
+// NOTE: Cloud Sync is desktop-only (#112) — it is hidden on the web build, so
+// there is no web sync test here; desktop sync is covered in electron.spec.ts.
+// The old "Data" tab (Reset demo data / Replay onboarding) was removed in #111.
 
 test("TC53 – Settings: Pet tab shows pet management controls", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
   await mockAPI(page);
   await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText("General").first()).toBeVisible({ timeout: 8_000 });
   const petTab = page.getByRole("button", { name: /^pet$/i });
   if (await petTab.isVisible({ timeout: 8_000 }).catch(() => false)) {
     await petTab.click();
@@ -1330,10 +1286,9 @@ test("TC77 – i18n: Habit calendar modal shows no raw keys (en)", async ({ page
 test("TC78 – i18n: core pages + habit modal show no raw keys (中文)", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
   await mockAPIWithData(page);
-  // Switch to 中文 via Settings (same flow as TC44).
+  // Switch to 中文 via Settings (same flow as TC44; language is on the General tab).
   await page.goto("/#/settings");
-  await expect(page.getByText("Appearance").first()).toBeVisible({ timeout: 8_000 });
-  await page.getByRole("button", { name: /language/i }).click();
+  await expect(page.getByText("General").first()).toBeVisible({ timeout: 8_000 });
   await page.getByText("中文").click();
   await expect(page.getByText("中文")).toBeVisible({ timeout: 8_000 });
   for (const route of ["today", "matrix", "stats", "habits", "countdown", "settings"]) {

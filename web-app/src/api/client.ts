@@ -439,10 +439,6 @@ export const api = {
     await req("DELETE", `/people/${id}`);
   },
 
-  async reset(): Promise<void> {
-    // No-op in real API — data is persistent.
-  },
-
   async getSettings(): Promise<AppSettings> {
     return req<AppSettings>("GET", "/settings");
   },

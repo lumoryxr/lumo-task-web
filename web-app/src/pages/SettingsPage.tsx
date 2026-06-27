@@ -1,7 +1,5 @@
 import { useState, useEffect, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAppStore, type Accent, type Density } from "@/store/useAppStore";
-import { useTasksStore } from "@/store/useTasksStore";
 import { api } from "@/api/client";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useAIStore } from "@/store/useAIStore";
@@ -23,36 +21,32 @@ const ACCENT_SWATCHES: Array<{ id: Accent; hex: string; label: string }> = [
   { id: "graphite", hex: "#A0ADB0", label: "Graphite" },
 ];
 
-type TabId = "appearance" | "language" | "notifications" | "pet" | "members" | "ai" | "integrations" | "storage" | "sync" | "data";
+type TabId = "general" | "notifications" | "pet" | "members" | "ai" | "integrations" | "datasync";
 
 export function SettingsPage() {
   const t = useT();
-  const navigate = useNavigate();
-  const { accent, setAccent, density, setDensity, reducedMotion, setReducedMotion, locale, setLocale, setOnboarded } =
+  const { accent, setAccent, density, setDensity, reducedMotion, setReducedMotion, locale, setLocale } =
     useAppStore();
-  const reset = useTasksStore((s) => s.reset);
   const { people, create: createPerson, update: updatePerson, remove: removePerson } = usePeopleStore();
   const { species, petName, setSpecies, setPetName, visible, toggleVisible, setPos } = usePetStore();
 
-  const [activeTab, setActiveTab] = useState<TabId>("appearance");
+  const [activeTab, setActiveTab] = useState<TabId>("general");
 
   // Cloud sync is a desktop-only, local-first feature: the Electron build syncs
-  // its local SQLite up to the cloud. The web build connects directly to its
-  // own cloud DB (one deployment per customer), so "sync" doesn't apply there —
-  // showing the toggle only yields a NO_CLOUD_BASE error (#112). Gate it to desktop.
+  // its local SQLite up to the cloud. The web build connects directly to its own
+  // cloud DB (one deployment per customer), so "sync" doesn't apply there —
+  // showing it only yields a NO_CLOUD_BASE error (#112). The Sync panel lives in
+  // the "Data & Sync" tab and is gated to desktop below.
   const isElectron = typeof window !== "undefined" && !!window.electronAPI;
 
   const tabs: Array<{ id: TabId; label: string }> = [
-    { id: "appearance", label: t("settings.appearance") },
-    { id: "language",   label: t("settings.language") },
+    { id: "general",      label: t("settings.general") },
     { id: "notifications", label: t("settings.notifications") },
-    { id: "pet",        label: t("settings.pet") },
-    { id: "members",    label: t("settings.members") },
-    { id: "ai",         label: t("ai.config.title") },
+    { id: "pet",          label: t("settings.pet") },
+    { id: "members",      label: t("settings.members") },
+    { id: "ai",           label: t("ai.config.title") },
     { id: "integrations", label: t("settings.integrations") },
-    { id: "storage",    label: t("settings.storage") },
-    ...(isElectron ? [{ id: "sync" as const, label: t("settings.sync") }] : []),
-    { id: "data",       label: locale === "zh" ? "数据" : "Data" },
+    { id: "datasync",     label: t("settings.dataSync") },
   ];
 
   return (
@@ -89,8 +83,8 @@ export function SettingsPage() {
       <div className="flex-1 overflow-y-auto px-8 py-8" style={{ minWidth: 0 }}>
         <div style={{ maxWidth: 640 }}>
 
-          {activeTab === "appearance" && (
-            <Panel title={t("settings.appearance")}>
+          {activeTab === "general" && (
+            <Panel title={t("settings.general")}>
               <Row label={t("settings.accent")}>
                 <div className="flex gap-2">
                   {ACCENT_SWATCHES.map((sw) => (
@@ -124,11 +118,6 @@ export function SettingsPage() {
               <Row label={t("settings.reducedMotion")}>
                 <Toggle value={reducedMotion} onChange={setReducedMotion} />
               </Row>
-            </Panel>
-          )}
-
-          {activeTab === "language" && (
-            <Panel title={t("settings.language")}>
               <Row label={t("settings.language")}>
                 <Segmented<Locale>
                   value={locale}
@@ -178,33 +167,11 @@ export function SettingsPage() {
             <IntegrationsPanel t={t} locale={locale} />
           )}
 
-          {activeTab === "storage" && (
-            <StoragePanel t={t} locale={locale} />
-          )}
-
-          {activeTab === "sync" && isElectron && (
-            <SyncPanel t={t} locale={locale} />
-          )}
-
-          {activeTab === "data" && (
-            <Panel title={locale === "zh" ? "数据" : "Data"}>
-              <Row label={t("settings.resetData")} helper="Restores the seed tasks. Clears your local edits.">
-                <button className="btn btn-secondary" onClick={() => reset()}>
-                  Reset
-                </button>
-              </Row>
-              <Row label={t("settings.replayOnboarding")} helper="Walk through the welcome flow again.">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setOnboarded(false);
-                    navigate("/onboarding");
-                  }}
-                >
-                  Replay
-                </button>
-              </Row>
-            </Panel>
+          {activeTab === "datasync" && (
+            <div className="flex flex-col gap-8">
+              <StoragePanel t={t} locale={locale} />
+              {isElectron && <SyncPanel t={t} locale={locale} />}
+            </div>
           )}
 
         </div>
