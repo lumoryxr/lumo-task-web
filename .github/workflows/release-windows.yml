@@ -1,23 +1,136 @@
 name: Release (Windows)
 
-# Triggered manually. Supply a version like "1.2.3" or "v1.2.3".
-# The version is written into package.json before packaging so the
-# installer filename becomes LumoTask-Setup-{version}.exe.
+# Manually triggered. Publishing the official Windows installer is GATED behind
+# two checks that must pass first:
+#
+#   1. tests          — unit / contract / standards / security (Linux, fast)
+#   2. smoke-windows  — launch the real Electron desktop app on windows-latest
+#                       and walk the basic functionality (the full electron.spec
+#                       walkthrough: boot + self-provisioned secrets + nav + task
+#                       CRUD + settings + habits + …)
+#
+# Only if BOTH gates are green does the `release` job package the NSIS installer
+# and create the GitHub Release. Set `dry_run: true` to run the entire pipeline
+# (tests → smoke → package + verify installer, uploaded as an artifact) WITHOUT
+# publishing — use it to validate a release candidate before shipping.
 on:
   workflow_dispatch:
     inputs:
       version_label:
         description: 'Release version, e.g. 1.2.3 or v1.2.3 (required)'
         required: true
+      dry_run:
+        description: 'Run all gates + package, but DO NOT publish a GitHub Release'
+        type: boolean
+        default: false
 
 # GITHUB_TOKEN needs write access to create releases and tags.
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  # ── Gate 1 — correctness (Linux, cheap) ────────────────────────────────────
+  tests:
+    name: Tests (unit / contract / standards / security)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build shared contracts (@lumo/contracts)
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+
+      - name: Contract tests
+        working-directory: packages/contracts
+        run: npm test
+
+      - name: Backend — typecheck + API (coverage) + security + standards
+        working-directory: backend
+        run: |
+          npm ci --include=dev
+          npm run typecheck
+          npm run test:coverage
+          npm run test:security
+          npm run test:standards
+
+      - name: Frontend — typecheck + lint + unit
+        working-directory: web-app
+        run: |
+          npm ci
+          npm run typecheck
+          npm run lint
+          npm test
+
+  # ── Gate 2 — Windows desktop smoke (launch + basic functionality) ──────────
+  # Runs the robust desktop smoke suite (electron-smoke*.spec.ts) against the real
+  # packaged dist on the actual target OS: launch + backend /health + render +
+  # CRUD against the embedded SQLite + data-survives-restart. Secrets are scrubbed
+  # inside the suite, so it also proves the desktop app self-provisions
+  # LUMO_ENCRYPTION_KEY / LUMO_JWT_SECRET (the "packaged app won't start" bug).
+  # The per-PR electron-smoke job runs this same suite on Linux; here it runs on
+  # the actual Windows target before a release can publish.
+  smoke-windows:
+    name: Windows desktop smoke (launch + use)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build shared contracts (@lumo/contracts)
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+        shell: bash
+
+      - name: Install & build backend
+        working-directory: backend
+        run: |
+          npm ci --include=dev
+          npm run build
+        shell: bash
+
+      # Installs the Electron binary too (needed to launch the desktop app).
+      - name: Install & build frontend
+        working-directory: web-app
+        run: |
+          npm ci
+          npm run build
+        shell: bash
+
+      - name: Install Playwright driver
+        working-directory: web-app
+        run: npx playwright install chromium
+
+      - name: Run Electron desktop smoke suite
+        working-directory: web-app
+        run: npx playwright test --config playwright.electron-smoke.config.ts
+        env:
+          # Run against the production build, not the dev server.
+          LUMO_USE_DIST: '1'
+          # Electron's setuid sandbox can't initialise in CI; disable so launch
+          # failures reflect real bugs, not sandbox/infra.
+          ELECTRON_DISABLE_SANDBOX: '1'
+
+      - name: Upload Electron report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-report-windows-${{ github.run_id }}
+          path: web-app/playwright-report-electron-smoke/
+          retention-days: 14
+
+  # ── Release — package + publish (only after both gates pass) ───────────────
+  release:
     name: Build & Release (Windows x64)
     runs-on: windows-latest
+    needs: [tests, smoke-windows]
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -75,15 +188,34 @@ jobs:
         run: npx electron-builder --win --x64 --publish never
         working-directory: web-app
 
-      # ── Find the produced .exe ─────────────────────────────────────────────
-      - name: Locate installer
+      # ── Find the produced .exe + verify it is real ─────────────────────────
+      - name: Locate and verify installer
         id: installer
         shell: pwsh
         run: |
           $file = Get-ChildItem -Path "web-app/dist-electron" -Filter "*.exe" -Recurse |
                   Select-Object -First 1
+          if (-not $file) {
+            Write-Error "No .exe installer produced under web-app/dist-electron"
+            exit 1
+          }
+          $mb = [math]::Round($file.Length / 1MB, 1)
+          if ($file.Length -lt 20MB) {
+            Write-Error "Installer is suspiciously small ($mb MB) - packaging likely incomplete"
+            exit 1
+          }
+          Write-Host "Installer verified: $($file.Name) ($mb MB)"
           "path=$($file.FullName)"  | Out-File -Append $env:GITHUB_OUTPUT
           "name=$($file.Name)"      | Out-File -Append $env:GITHUB_OUTPUT
+
+      # ── Always keep the built installer as an artifact (incl. dry runs) ────
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumo-windows-installer-${{ github.run_id }}
+          path: ${{ steps.installer.outputs.path }}
+          retention-days: 7
+          if-no-files-found: error
 
       # ── Generate release tag and name ─────────────────────────────────────
       - name: Generate release tag and name
@@ -99,8 +231,9 @@ jobs:
           "tag=$tag"   | Out-File -Append $env:GITHUB_OUTPUT
           "name=$name" | Out-File -Append $env:GITHUB_OUTPUT
 
-      # ── Create GitHub Release & upload installer ───────────────────────────
+      # ── Create GitHub Release & upload installer (skipped on dry runs) ─────
       - name: Create GitHub Release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release-meta.outputs.tag }}
@@ -118,5 +251,13 @@ jobs:
             **构建信息**
             - Commit: [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
             - 版本标签: `${{ github.event.inputs.version_label || '(未设置)' }}`
+            - 门禁: 单元/契约/安全测试 + Windows 桌面冒烟（启动+基础功能）均已通过
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dry run — release publishing skipped
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        shell: bash
+        run: |
+          echo "dry_run=true -> gates passed, installer built & uploaded as an artifact, but NO GitHub Release was published."
+          echo "Installer: ${{ steps.installer.outputs.name }}"

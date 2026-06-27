@@ -22,43 +22,10 @@ import {
 } from "@playwright/test";
 import path from "path";
 import { fileURLToPath } from "url";
-import { execSync } from "child_process";
+import { shutdownElectron } from "./electron-teardown";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-/**
- * Collect the full descendant pid tree of `rootPid` (children, grandchildren, …)
- * by walking `pgrep -P` breadth-first. Electron spawns the embedded backend as a
- * child process (which under LUMO_USE_DIST may itself fork tsx→node), so killing
- * only the Electron pid orphans the backend; it keeps its stdio pipe / API port
- * open and stalls the Playwright worker until the 90s teardown deadline trips —
- * failing an otherwise-green suite. We capture the tree while Electron is still
- * alive (descendants are still reachable from it) so we can reap every node.
- */
-function collectDescendants(rootPid: number): number[] {
-  const all: number[] = [];
-  const stack = [rootPid];
-  while (stack.length) {
-    const pid = stack.pop();
-    if (pid === undefined) break;
-    let children: number[] = [];
-    try {
-      const out = execSync(`pgrep -P ${pid}`, { encoding: "utf8" }).trim();
-      children = out
-        ? out.split("\n").map((s) => parseInt(s, 10)).filter((n) => Number.isInteger(n))
-        : [];
-    } catch {
-      // pgrep exits 1 (no children) — nothing to add for this pid.
-      children = [];
-    }
-    for (const c of children) {
-      all.push(c);
-      stack.push(c);
-    }
-  }
-  return all;
-}
 
 const MAIN_CJS = path.resolve(__dirname, "../electron/main.cjs");
 const APP_DIR = path.resolve(__dirname, "..");
@@ -97,31 +64,7 @@ test.describe("Electron desktop smoke", () => {
   });
 
   test.afterAll(async () => {
-    if (!electronApp) return;
-    // electronApp.close() relies on a graceful app.quit(). Under xvfb in CI the
-    // embedded-backend child process can keep the Electron process alive past
-    // the teardown budget, hanging the worker and failing an otherwise-green
-    // suite (the render assertions all pass first). Race the graceful close
-    // against a short deadline, then force-kill the ENTIRE process tree —
-    // Electron AND the orphan-prone embedded backend (+ its own children) — so
-    // no lingering pipe/port can block worker teardown.
-    const proc = electronApp.process();
-    const rootPid = proc?.pid;
-    // Snapshot descendants while Electron is still alive and parents them.
-    const descendants = rootPid ? collectDescendants(rootPid) : [];
-    await Promise.race([
-      electronApp.close().catch(() => {}),
-      new Promise((resolve) => setTimeout(resolve, 15_000)),
-    ]);
-    // Reap children first, then the root, so nothing is left holding a handle.
-    for (const pid of [...descendants, rootPid]) {
-      if (!pid) continue;
-      try {
-        process.kill(pid, "SIGKILL");
-      } catch {
-        /* process already gone */
-      }
-    }
+    await shutdownElectron(electronApp);
   });
 
   test("SMOKE01 – embedded backend started and is reachable (self-provisioned secrets)", async () => {
@@ -140,5 +83,46 @@ test.describe("Electron desktop smoke", () => {
 
   test("SMOKE03 – frontend renders (onboarding welcome screen on fresh launch)", async () => {
     await expect(page.getByText("Welcome to Lumo")).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("SMOKE04 – core CRUD works against the embedded SQLite (register → create → read back)", async () => {
+    // Exercises the real write/read path through the bundled backend + SQLite:
+    // the migrations ran (tables exist), a row is inserted and read back. This
+    // is the basic-functionality guarantee beyond just /health.
+    const email = `smoke-${Date.now()}@lumo.test`;
+    const title = `smoke-task-${Date.now()}`;
+
+    const result = await page.evaluate(
+      async ({ port, email, title }: { port: number; email: string; title: string }) => {
+        const base = `http://127.0.0.1:${port}/v1`;
+        const json = (r: Response) => r.json();
+
+        const reg = await fetch(`${base}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password: "E2eTest!23", name: "Smoke" }),
+        });
+        if (!reg.ok) return { step: "register", status: reg.status };
+        const { token } = (await json(reg)) as { token: string };
+
+        const create = await fetch(`${base}/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ title: { en: title } }),
+        });
+        if (!create.ok) return { step: "create", status: create.status };
+
+        const list = await fetch(`${base}/tasks`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!list.ok) return { step: "list", status: list.status };
+        const { items } = (await json(list)) as { items: Array<{ title: { en: string } }> };
+        return { step: "ok", found: items.some((t) => t.title?.en === title) };
+      },
+      { port: backendPort, email, title }
+    );
+
+    expect(result.step, `failed at step "${result.step}" (status ${result.status ?? "-"})`).toBe("ok");
+    expect(result.found).toBe(true);
   });
 });
