@@ -1430,14 +1430,16 @@ test("TC84 – a11y: keyboard focus paints a visible outline, pointer focus does
   expect(kbd.style).not.toBe("none");
   expect(kbd.width).toBeGreaterThan(0);
 
-  // Pointer/programmatic focus: :focus without :focus-visible → no outline.
-  const ptr = await page.evaluate(() => {
-    const el = document.querySelector<HTMLElement>("a[href], button");
-    if (!el) return { found: false, style: "none", width: 0 };
-    el.focus();
+  // Pointer focus: a real mouse click sets the modality to pointer, so the
+  // clicked control matches :focus but NOT :focus-visible → no ring. (A
+  // programmatic .focus() can't be used here: :focus-visible keys off the last
+  // input modality, which the Tab above left as keyboard.)
+  const todayLink = page.getByRole("link", { name: /^Today\b/i }).first();
+  await todayLink.click();
+  const ptr = await todayLink.evaluate((el) => {
     const cs = getComputedStyle(el);
-    return { found: true, style: cs.outlineStyle, width: parseFloat(cs.outlineWidth || "0") };
+    return { focused: el === document.activeElement, style: cs.outlineStyle, width: parseFloat(cs.outlineWidth || "0") };
   });
-  expect(ptr.found, "a focusable control should exist").toBe(true);
+  expect(ptr.focused, "the clicked link should hold focus").toBe(true);
   expect(ptr.style === "none" || ptr.width === 0, "pointer focus should not paint a ring").toBe(true);
 });
