@@ -2,9 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const mockToBlob = vi.fn();
+const mockToastError = vi.fn();
 
 vi.mock("html2canvas", () => ({
   default: vi.fn().mockResolvedValue({ toBlob: mockToBlob }),
+}));
+
+vi.mock("@/store/useToastStore", () => ({
+  toast: { error: (...args: unknown[]) => mockToastError(...args) },
 }));
 
 vi.mock("@/i18n/useT", () => ({
@@ -54,5 +59,30 @@ describe("ShareCard", () => {
     const btn = screen.getByRole("button", { name: "stats.share.btn" });
     fireEvent.click(btn);
     await waitFor(() => expect(btn).toBeDisabled());
+  });
+
+  it("surfaces an error toast when export genuinely fails", async () => {
+    const { default: html2canvas } = await import("html2canvas");
+    (html2canvas as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("boom"));
+    render(<ShareCard {...BASE_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: "stats.share.btn" }));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("stats.share.error"));
+  });
+
+  it("stays silent when the user cancels the native share sheet", async () => {
+    // canShare → true so the code takes the navigator.share path, which the
+    // user dismisses (AbortError) — that must NOT raise an error toast.
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      share: vi.fn().mockRejectedValue(new DOMException("cancelled", "AbortError")),
+      canShare: vi.fn().mockReturnValue(true),
+    });
+    render(<ShareCard {...BASE_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: "stats.share.btn" }));
+    await waitFor(() =>
+      expect((navigator.share as ReturnType<typeof vi.fn>)).toHaveBeenCalled()
+    );
+    expect(mockToastError).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

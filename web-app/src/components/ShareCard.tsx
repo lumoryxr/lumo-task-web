@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
+import { toast } from "@/store/useToastStore";
+import { isShareCancellation } from "@/utils/share";
 
 const DAY_KEYS = [
   "stats.day.sun", "stats.day.mon", "stats.day.tue", "stats.day.wed",
@@ -66,8 +68,10 @@ export function ShareCard({
         setFeedback("downloaded");
         setTimeout(() => setFeedback("idle"), 2500);
       }
-    } catch {
-      // User cancelled or export failed — silently ignore
+    } catch (e) {
+      // A dismissed share sheet is a normal cancellation; anything else is a
+      // real export failure the user should know about.
+      if (!isShareCancellation(e)) toast.error(t("stats.share.error"));
     } finally {
       setBusy(false);
     }
