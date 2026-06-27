@@ -25,8 +25,8 @@ import {
 import path from "path";
 import os from "os";
 import fs from "fs";
-import { execSync } from "child_process";
 import { fileURLToPath } from "url";
+import { shutdownElectron } from "./electron-teardown";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,24 +58,12 @@ async function launch(): Promise<{ app: ElectronApplication; page: Page; port: n
   return { app, page, port };
 }
 
-/** Graceful close, then force-kill the tree so the SQLite file lock is released. */
+/**
+ * Reap the app + its embedded-backend process tree (shutdownElectron), then wait
+ * for the OS to release the SQLite file handle before the next launch reopens it.
+ */
 async function shutdown(app: ElectronApplication): Promise<void> {
-  const rootPid = app.process()?.pid;
-  await Promise.race([
-    app.close().catch(() => {}),
-    new Promise((resolve) => setTimeout(resolve, 15_000)),
-  ]);
-  if (!rootPid) return;
-  try {
-    if (process.platform === "win32") {
-      execSync(`taskkill /pid ${rootPid} /T /F`, { stdio: "ignore" });
-    } else {
-      process.kill(rootPid, "SIGKILL");
-    }
-  } catch {
-    /* already gone */
-  }
-  // Let the OS release the db file handle before the next launch reopens it.
+  await shutdownElectron(app);
   await new Promise((resolve) => setTimeout(resolve, 1_500));
 }
 
