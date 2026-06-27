@@ -108,6 +108,10 @@ export const STRINGS: Record<Locale, Dict> = {
 
     "focus.title": "Focus",
     "focus.sub": "One thing. 25 minutes.",
+    "focus.notify.title": "Lumo · Pomodoro done",
+    "focus.notify.body": "Time's up! Take a well-earned break ☕",
+    "focus.est": "Est.",
+    "focus.actual": "Actual",
     "focus.complete": "Mark complete",
     "focus.pause": "Pause",
     "focus.resume": "Resume",
@@ -798,6 +802,10 @@ export const STRINGS: Record<Locale, Dict> = {
     "matrix.q4.sub": "都不是",
 
     "focus.title": "专注",
+    "focus.notify.title": "Lumo · 番茄钟完成",
+    "focus.notify.body": "专注时间结束！去休息一下 ☕",
+    "focus.est": "预估",
+    "focus.actual": "实际",
     "focus.sub": "一件事。25 分钟。",
     "focus.complete": "完成任务",
     "focus.pause": "暂停",

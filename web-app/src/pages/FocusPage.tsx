@@ -51,6 +51,10 @@ export function FocusPage() {
   const notificationsEnabled = useNotificationStore((s) => s.enabled);
   const localeRef = useRef(locale);
   localeRef.current = locale;
+  // Kept current so the timer callback (fires outside render) localizes the
+  // completion notification with the latest locale.
+  const tRef = useRef(t);
+  tRef.current = t;
   const notifEnabledRef = useRef(notificationsEnabled);
   notifEnabledRef.current = notificationsEnabled;
 
@@ -94,10 +98,8 @@ export function FocusPage() {
       if (next === 0) {
         stopInterval();
         if (notifEnabledRef.current && typeof Notification !== "undefined" && Notification.permission === "granted") {
-          new Notification("Lumo · Pomodoro done", {
-            body: localeRef.current === "zh"
-              ? "专注时间结束！去休息一下 ☕"
-              : "Time's up! Take a well-earned break ☕",
+          new Notification(tRef.current("focus.notify.title"), {
+            body: tRef.current("focus.notify.body"),
             icon: "/favicon.ico",
           });
         }
@@ -489,12 +491,10 @@ export function FocusPage() {
           </div>
           <div className="mt-3.5 flex gap-5 text-[11px] text-text-muted tabular-nums">
             <span>
-              {locale === "zh" ? "预估 " : "Est. "}
-              {fmtDuration(task.duration, locale)}
+              {t("focus.est")} {fmtDuration(task.duration, locale)}
             </span>
             <span>
-              {locale === "zh" ? "实际 " : "Actual "}
-              {fmtMMSS(taskDuration - remaining)}
+              {t("focus.actual")} {fmtMMSS(taskDuration - remaining)}
             </span>
           </div>
         </div>
