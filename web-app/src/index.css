@@ -471,6 +471,25 @@ input[type="number"] { -moz-appearance: textfield; }
   }
 }
 
+/* ── Global reduced-motion reset ─────────────────────────────────────────
+   Respect the OS "reduce motion" preference everywhere: near-instant
+   animations/transitions and no smooth scroll, for users with vestibular
+   sensitivity. Covers every @keyframes (pet breathing, pulses, floats,
+   entrance/shimmer effects) — not just the few previously gated. Decorative
+   loops settle to a single static frame; entrance effects snap to their
+   resting state. The in-product reducedMotion setting still gates motion at
+   the component level; this is the OS-level safety net. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ── Loading skeletons (shimmer placeholders while content fetches) ───── */
 .skeleton {
   display: block;
