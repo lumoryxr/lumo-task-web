@@ -1456,7 +1456,7 @@ test.describe("mobile viewport", () => {
     const offenders: string[] = [];
     for (const route of ["today", "matrix", "stats", "habits", "countdown", "account", "settings"]) {
       await page.goto(`/#/${route}`);
-      await page.locator('nav[aria-label="tab bar"]').waitFor({ state: "visible", timeout: 8_000 });
+      await page.locator('nav[aria-label="Tab bar"]').waitFor({ state: "visible", timeout: 8_000 });
       const m = await page.evaluate(() => {
         const vw = window.innerWidth;
         const wide: string[] = [];
@@ -1484,7 +1484,7 @@ test.describe("mobile viewport", () => {
     await skipOnboardingAndSignIn(page);
     await mockAPIWithData(page);
     await page.goto("/#/today");
-    const tabbar = page.locator('nav[aria-label="tab bar"]');
+    const tabbar = page.locator('nav[aria-label="Tab bar"]');
     await tabbar.waitFor({ state: "visible", timeout: 8_000 });
 
     const buttons = tabbar.locator("button");
