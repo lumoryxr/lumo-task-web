@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { validate } from "../lib/validate.js";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
@@ -62,7 +62,7 @@ function makeInitials(name: string) {
     .join("");
 }
 
-app.post("/register", authRateLimit, zValidator("json", RegisterBody), async (c) => {
+app.post("/register", authRateLimit, validate("json", RegisterBody), async (c) => {
   const { email, password, name } = c.req.valid("json");
 
   const existing = await queryOne("SELECT id FROM users WHERE email = :email", { email });
@@ -92,7 +92,7 @@ app.post("/register", authRateLimit, zValidator("json", RegisterBody), async (c)
   }, 201);
 });
 
-app.post("/signin", authRateLimit, zValidator("json", SigninBody), async (c) => {
+app.post("/signin", authRateLimit, validate("json", SigninBody), async (c) => {
   const { email, password } = c.req.valid("json");
 
   const user = await queryOne<UserRow>("SELECT * FROM users WHERE email = :email", { email });
@@ -134,7 +134,7 @@ app.post("/signin", authRateLimit, zValidator("json", SigninBody), async (c) => 
   });
 });
 
-app.post("/change-password", authRateLimit, authMiddleware, zValidator("json", ChangePasswordBody), async (c) => {
+app.post("/change-password", authRateLimit, authMiddleware, validate("json", ChangePasswordBody), async (c) => {
   const userId = c.get("userId") as string;
   const { current_password, new_password } = c.req.valid("json");
 

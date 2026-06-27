@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { validate } from "../lib/validate.js";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { queryOne, execute } from "../db/client.js";
@@ -21,7 +21,7 @@ const FocusSessionBody = z.object({
 });
 
 // POST /focus/sessions
-app.post("/sessions", focusRateLimit, zValidator("json", FocusSessionBody), async (c) => {
+app.post("/sessions", focusRateLimit, validate("json", FocusSessionBody), async (c) => {
   const userId = c.get("userId") as string;
   const body = c.req.valid("json");
   const now = new Date().toISOString();

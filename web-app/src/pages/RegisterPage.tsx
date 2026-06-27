@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthShell } from "@/components/AuthShell";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
+import { presentError, fieldErrorsOf } from "@/lib/presentError";
 
 /**
  * /register — email + password + confirm + optional nickname + ToS.
@@ -18,15 +19,21 @@ export function RegisterPage() {
   const [confirm, setConfirm] = useState("");
   const [nickname, setNickname] = useState("");
   const [agreed, setAgreed] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!agreed) return;
+    setFieldErrors({});
     try {
       await register({ email, password, confirm, nickname });
       navigate("/today");
-    } catch {
-      // register dispatches toast.error; nothing else to do here
+    } catch (err) {
+      // Validation failures (e.g. password too weak, mismatched confirm) get
+      // inline messages under the right input; anything else surfaces via toast.
+      const fe = fieldErrorsOf(err);
+      if (Object.keys(fe).length > 0) setFieldErrors(fe);
+      else presentError(err, "error.auth.register");
     }
   }
 
@@ -41,7 +48,7 @@ export function RegisterPage() {
         </div>
 
         <div className="mt-5 flex flex-col gap-3">
-          <Field label={t("auth.email")}>
+          <Field label={t("auth.email")} error={fieldErrors.email}>
             <input
               className="input"
               type="email"
@@ -51,7 +58,7 @@ export function RegisterPage() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </Field>
-          <Field label={t("auth.password")}>
+          <Field label={t("auth.password")} error={fieldErrors.password}>
             <input
               className="input"
               type="password"
@@ -61,7 +68,7 @@ export function RegisterPage() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </Field>
-          <Field label={t("auth.confirm")}>
+          <Field label={t("auth.confirm")} error={fieldErrors.confirm}>
             <input
               className="input"
               type="password"
@@ -130,7 +137,15 @@ export function RegisterPage() {
   );
 }
 
-function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: React.ReactNode;
+  error?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span
@@ -140,6 +155,11 @@ function Field({ label, children }: { label: React.ReactNode; children: React.Re
         {label}
       </span>
       {children}
+      {error && (
+        <span role="alert" className="block text-[11px] mt-1" style={{ color: "var(--status-urgent)" }}>
+          {error}
+        </span>
+      )}
     </label>
   );
 }

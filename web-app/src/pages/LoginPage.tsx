@@ -4,6 +4,7 @@ import { AuthShell } from "@/components/AuthShell";
 import { OAuthButton } from "@/components/OAuthButton";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
+import { presentError, fieldErrorsOf } from "@/lib/presentError";
 
 /**
  * /login — email + password + 3 OAuth providers + "continue without
@@ -15,14 +16,20 @@ export function LoginPage() {
   const { signIn, loading } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
+    setFieldErrors({});
     try {
       await signIn(email, password);
       navigate("/today");
-    } catch {
-      // signIn dispatches toast.error; nothing else to do here
+    } catch (err) {
+      // Validation failures get inline messages under the offending input;
+      // everything else (e.g. wrong credentials) surfaces via the unified toast.
+      const fe = fieldErrorsOf(err);
+      if (Object.keys(fe).length > 0) setFieldErrors(fe);
+      else presentError(err, "error.auth.signin");
     }
   }
 
@@ -37,7 +44,7 @@ export function LoginPage() {
         </div>
 
         <div className="mt-[22px] flex flex-col gap-3">
-          <Field label={t("auth.email")}>
+          <Field label={t("auth.email")} error={fieldErrors.email}>
             <input
               className="input"
               type="email"
@@ -47,7 +54,7 @@ export function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </Field>
-          <Field label={t("auth.password")}>
+          <Field label={t("auth.password")} error={fieldErrors.password}>
             <input
               className="input"
               type="password"
@@ -102,7 +109,15 @@ export function LoginPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span
@@ -112,6 +127,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </span>
       {children}
+      {error && (
+        <span role="alert" className="block text-[11px] mt-1" style={{ color: "var(--status-urgent)" }}>
+          {error}
+        </span>
+      )}
     </label>
   );
 }

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { validate } from "../lib/validate.js";
 import { z } from "zod";
 import { TaskCreateBodySchema, TaskUpdateBodySchema, TaskListQuerySchema, TaskWireSchema, type TaskWire, type TaskCompleteResponse } from "@lumo/contracts";
 import { nanoid } from "nanoid";
@@ -82,7 +82,7 @@ export function rowToTask(row: TaskRow): TaskWire {
 // (user_id, completed, created_at) index, tie-broken by id for a stable total
 // order. Always re-scoped to the authenticated user — the cursor is just a
 // position, never an authorization token.
-app.get("/", zValidator("query", TaskListQuerySchema), async (c) => {
+app.get("/", validate("query", TaskListQuerySchema), async (c) => {
   const userId = c.get("userId") as string;
   const { q, limit, cursor } = c.req.valid("query");
 
@@ -129,7 +129,7 @@ app.get("/", zValidator("query", TaskListQuerySchema), async (c) => {
 });
 
 // POST /tasks
-app.post("/", taskMutateLimit, zValidator("json", TaskCreateBodySchema), async (c) => {
+app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const body = c.req.valid("json");
   const id = body.id ?? ("t_" + nanoid(10));
@@ -177,7 +177,7 @@ app.post("/", taskMutateLimit, zValidator("json", TaskCreateBodySchema), async (
 });
 
 // GET /tasks/:id
-app.get("/:id", zValidator("param", IdParam), async (c) => {
+app.get("/:id", validate("param", IdParam), async (c) => {
   const userId = c.get("userId") as string;
   const row = await queryOne<TaskRow>(
     "SELECT * FROM tasks WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
@@ -188,7 +188,7 @@ app.get("/:id", zValidator("param", IdParam), async (c) => {
 });
 
 // PATCH /tasks/:id
-app.patch("/:id", taskMutateLimit, zValidator("param", IdParam), zValidator("json", TaskUpdateBodySchema), async (c) => {
+app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", TaskUpdateBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const taskId = c.req.param("id");
   const body = c.req.valid("json");
@@ -242,7 +242,7 @@ app.patch("/:id", taskMutateLimit, zValidator("param", IdParam), zValidator("jso
 });
 
 // DELETE /tasks/:id
-app.delete("/:id", zValidator("param", IdParam), async (c) => {
+app.delete("/:id", validate("param", IdParam), async (c) => {
   const userId = c.get("userId") as string;
   // Tombstone: both `deleted_at` and `updated_at` are LWW-ordered → HLC.
   const now = hlcNow();
@@ -258,7 +258,7 @@ app.delete("/:id", zValidator("param", IdParam), async (c) => {
 });
 
 // POST /tasks/:id/complete
-app.post("/:id/complete", zValidator("param", IdParam), async (c) => {
+app.post("/:id/complete", validate("param", IdParam), async (c) => {
   const userId = c.get("userId") as string;
   const taskId = c.req.param("id");
 
@@ -329,7 +329,7 @@ app.post("/:id/complete", zValidator("param", IdParam), async (c) => {
 });
 
 // POST /tasks/:id/uncomplete
-app.post("/:id/uncomplete", zValidator("param", IdParam), async (c) => {
+app.post("/:id/uncomplete", validate("param", IdParam), async (c) => {
   const userId = c.get("userId") as string;
   const taskId = c.req.param("id");
 
