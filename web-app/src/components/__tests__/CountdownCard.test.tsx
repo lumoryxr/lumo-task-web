@@ -53,7 +53,7 @@ describe("CountdownCard", () => {
   it("calls onEdit when Edit menu item is clicked", () => {
     const { onEdit } = setup();
     // Open menu
-    const menuBtn = screen.getByRole("button", { name: "" });
+    const menuBtn = screen.getByRole("button", { name: "countdown.menu.open" });
     fireEvent.click(menuBtn);
     // Click edit
     const editBtn = screen.getByText("countdown.menu.edit");
@@ -63,7 +63,7 @@ describe("CountdownCard", () => {
 
   it("calls onDelete when Delete menu item is clicked", () => {
     const { onDelete } = setup();
-    const menuBtn = screen.getByRole("button", { name: "" });
+    const menuBtn = screen.getByRole("button", { name: "countdown.menu.open" });
     fireEvent.click(menuBtn);
     const deleteBtn = screen.getByText("countdown.menu.delete");
     fireEvent.click(deleteBtn);
@@ -72,7 +72,7 @@ describe("CountdownCard", () => {
 
   it("closes menu when clicking outside", () => {
     setup();
-    const menuBtn = screen.getByRole("button", { name: "" });
+    const menuBtn = screen.getByRole("button", { name: "countdown.menu.open" });
     fireEvent.click(menuBtn);
     expect(screen.getByText("countdown.menu.edit")).toBeTruthy();
     // Mousedown outside
