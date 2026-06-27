@@ -93,6 +93,36 @@ Download the latest `Lumo Task Setup x.x.x.exe` from [Releases](https://github.c
 
 > If Windows SmartScreen appears, click "More info" then "Run anyway".
 
+#### Cloud Sync (local-first, off by default)
+
+The desktop app is **local-first**: all data lives in a local SQLite file and works fully offline. Cloud sync is opt-in.
+
+**To turn it on (end user):**
+
+1. Open **Settings → Data & Sync**.
+2. Click **Enable cloud sync**.
+3. Sign in with your **cloud account email + password**.
+
+That's it — no URL, token, or config file. The app signs into the cloud backend, stores the returned token **encrypted at rest** (AES-256-GCM), runs a first reconcile, then syncs in the background (every ~30s) and on **Sync now**. Conflicts resolve by last-write-wins (HLC timestamps). Only your own data syncs — the server filters by your account.
+
+> Cloud sync is **desktop-only**. The web build talks to its cloud database directly, so it has no sync toggle.
+
+**Per-install secrets are automatic** — `LUMO_JWT_SECRET` and `LUMO_ENCRYPTION_KEY` are generated on first launch and persisted under the app's userData dir. Users never configure them.
+
+**Which backend it talks to (packaging):** the installer bakes in a cloud backend origin via `LUMO_CLOUD_API_BASE` (`web-app/electron/main.cjs`). The default points at the operated production backend:
+
+```
+https://lumo-task-backend-1c3x.onrender.com
+```
+
+To ship a build against a different backend, set the env var **before packaging** (it is a server-trusted constant, never accepted from the client — that would be an SSRF vector):
+
+```bash
+LUMO_CLOUD_API_BASE=https://your-backend.example.com make package-win
+```
+
+For sync to actually succeed, that backend must be deployed and reachable (serving `/v1/auth/signin` + `/v1/sync/pull|push`), have its own Turso DB + secrets, and the user must have an account on it. Windows installers are built on a Windows runner via the **Package Windows** / **Release (Windows)** GitHub Actions workflows (`workflow_dispatch`); neither sets `LUMO_CLOUD_API_BASE`, so they use the `main.cjs` default above.
+
 ---
 
 ## Project Structure
