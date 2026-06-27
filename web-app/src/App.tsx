@@ -52,6 +52,7 @@ import { useHabitsStore } from "@/store/useHabitsStore";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { useNotificationScheduler } from "@/hooks/useNotificationScheduler";
+import { useSyncEngine } from "@/hooks/useSyncEngine";
 import { ToastStack } from "@/components/ToastStack";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { toast } from "@/store/useToastStore";
@@ -110,6 +111,7 @@ export default function App() {
   }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadNotifications]);
 
   useNotificationScheduler();
+  useSyncEngine();
 
   const authPaths = ["/login", "/register", "/onboarding"];
   const isAuthPath = authPaths.includes(location.pathname);
