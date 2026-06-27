@@ -127,7 +127,7 @@ export function HabitCard({ habit, logs, onCheckIn, onEdit, onDelete, onShowCale
       <div className="relative flex-shrink-0" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          aria-label="open menu"
+          aria-label={t("habit.menu.open")}
           className="p-1.5 rounded-md text-text-faint hover:text-text-secondary hover:bg-elevated transition-colors"
         >
           <IconMore size={14} />

@@ -144,6 +144,10 @@ export const STRINGS: Record<Locale, Dict> = {
     "qc.create": "Create",
     "qc.cancel": "Cancel",
     "qc.close": "Close",
+    "habit.menu.open": "Open menu",
+    "nav.tabbar": "Tab bar",
+    "pet.chat.title": "AI Pet Chat",
+    "detail.breakdown.remove": "Remove",
 
     "settings.general": "General",
     "settings.dataSync": "Data & Sync",
@@ -845,6 +849,10 @@ export const STRINGS: Record<Locale, Dict> = {
     "qc.create": "创建",
     "qc.cancel": "取消",
     "qc.close": "关闭",
+    "habit.menu.open": "打开菜单",
+    "nav.tabbar": "标签栏",
+    "pet.chat.title": "AI 宠物对话",
+    "detail.breakdown.remove": "移除",
 
     "settings.general": "通用",
     "settings.dataSync": "数据与同步",

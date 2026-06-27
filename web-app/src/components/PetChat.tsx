@@ -139,7 +139,7 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="AI Pet Chat"
+      aria-label={t("pet.chat.title")}
       className="fade-in"
       style={{
         position: "fixed",
@@ -210,7 +210,7 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
           onClick={closeChat}
           className="flex items-center justify-center w-6 h-6 rounded-md text-text-muted hover:bg-subtle hover:text-text-primary transition-colors"
           style={{ border: "1px solid var(--border-default)" }}
-          aria-label="Close"
+          aria-label={t("qc.close")}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M1 1l8 8M9 1l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

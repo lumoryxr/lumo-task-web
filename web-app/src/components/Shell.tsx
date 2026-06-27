@@ -107,7 +107,7 @@ export function Shell() {
       {/* Mobile bottom tab bar */}
       {isMobile && !isFocus && (
         <nav
-          aria-label="tab bar"
+          aria-label={t("nav.tabbar")}
           style={{
             position: "fixed",
             bottom: 0,

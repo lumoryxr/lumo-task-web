@@ -160,7 +160,7 @@ describe("HabitCard", () => {
         onShowCalendar={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByLabelText("open menu"));
+    fireEvent.click(screen.getByLabelText("habit.menu.open"));
     fireEvent.click(screen.getByText("habit.menu.edit"));
     expect(onEdit).toHaveBeenCalledOnce();
   });
@@ -177,7 +177,7 @@ describe("HabitCard", () => {
         onShowCalendar={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByLabelText("open menu"));
+    fireEvent.click(screen.getByLabelText("habit.menu.open"));
     fireEvent.click(screen.getByText("habit.menu.delete"));
     expect(onDelete).toHaveBeenCalledOnce();
   });
@@ -193,7 +193,7 @@ describe("HabitCard", () => {
         onShowCalendar={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByLabelText("open menu"));
+    fireEvent.click(screen.getByLabelText("habit.menu.open"));
     expect(screen.getByText("habit.menu.edit")).toBeInTheDocument();
 
     fireEvent.mouseDown(document.body);

@@ -128,7 +128,7 @@ export function HabitFormModal({ habit, onSave, onClose }: Props) {
           </h2>
           <button
             onClick={onClose}
-            aria-label="close"
+            aria-label={t("qc.close")}
             className="p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-elevated transition-colors"
           >
             <IconClose size={15} />
