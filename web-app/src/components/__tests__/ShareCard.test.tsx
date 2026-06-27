@@ -61,6 +61,19 @@ describe("ShareCard", () => {
     await waitFor(() => expect(btn).toBeDisabled());
   });
 
+  it("shows the localized busy label (no hardcoded string) while exporting", async () => {
+    // html2canvas never resolves so the button stays in its busy state
+    const { default: html2canvas } = await import("html2canvas");
+    (html2canvas as ReturnType<typeof vi.fn>).mockReturnValueOnce(new Promise(() => {}));
+    render(<ShareCard {...BASE_PROPS} />);
+    const btn = screen.getByRole("button", { name: "stats.share.btn" });
+    fireEvent.click(btn);
+    // useT is mocked to echo the key, so the busy label must be the i18n key
+    // rather than a hardcoded literal like "Exporting…".
+    await waitFor(() => expect(btn).toHaveTextContent("stats.share.busy"));
+    expect(btn).not.toHaveTextContent("Exporting");
+  });
+
   it("surfaces an error toast when export genuinely fails", async () => {
     const { default: html2canvas } = await import("html2canvas");
     (html2canvas as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("boom"));
