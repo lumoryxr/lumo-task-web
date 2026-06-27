@@ -10,6 +10,7 @@
 
 import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, User } from "@/types/task";
 import type { SyncStatusResponse, SyncCycleResponse } from "@lumo/contracts";
+import { ApiError } from "@/api/ApiError";
 
 // ── Base URL ─────────────────────────────────────────────────────────────────
 
@@ -141,15 +142,19 @@ async function req<T>(
         typeof errBody === "string"
           ? errBody
           : errBody?.message ?? `HTTP ${res.status} ${res.statusText}`;
-      // Surface the backend's error code + HTTP status on the thrown error so
-      // callers can map specific failures (e.g. CLOUD_AUTH_FAILED) instead of
-      // substring-matching a localized message.
-      const error = new Error(errMsg) as Error & { code?: string; status?: number };
-      error.status = res.status;
-      if (errBody && typeof errBody === "object" && typeof errBody.code === "string") {
-        error.code = errBody.code;
-      }
-      throw error;
+      // Surface the backend's canonical envelope (code + full message + status +
+      // optional per-field detail) on a typed ApiError so callers can map
+      // specific failures (e.g. CLOUD_AUTH_FAILED) and render inline field
+      // messages, instead of substring-matching a localized string.
+      const code =
+        errBody && typeof errBody === "object" && typeof errBody.code === "string"
+          ? (errBody.code as string)
+          : undefined;
+      const fields =
+        errBody && typeof errBody === "object" && Array.isArray(errBody.fields)
+          ? (errBody.fields as ApiError["fields"])
+          : undefined;
+      throw new ApiError(errMsg, { code, status: res.status, fields });
     }
 
     if (res.status === 204) return undefined as T;

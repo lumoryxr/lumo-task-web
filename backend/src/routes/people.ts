@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { validate } from "../lib/validate.js";
 import { nanoid } from "nanoid";
 import { PersonCreateBodySchema, PersonUpdateBodySchema, type PersonWire } from "@lumo/contracts";
 import { query, queryOne, execute } from "../db/client.js";
@@ -40,7 +40,7 @@ app.get("/", async (c) => {
 });
 
 // POST /people
-app.post("/", zValidator("json", PersonCreateBodySchema), async (c) => {
+app.post("/", validate("json", PersonCreateBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const body = c.req.valid("json");
   const id = body.id ?? ("p_" + nanoid(10));
@@ -57,7 +57,7 @@ app.post("/", zValidator("json", PersonCreateBodySchema), async (c) => {
 });
 
 // PATCH /people/:id
-app.patch("/:id", zValidator("json", PersonUpdateBodySchema), async (c) => {
+app.patch("/:id", validate("json", PersonUpdateBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const personId = c.req.param("id");
   const body = c.req.valid("json");

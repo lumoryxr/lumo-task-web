@@ -10,8 +10,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "@/api/client";
 import type { User } from "@/types/task";
-import { toast } from "@/store/useToastStore";
-import { t } from "@/i18n/useT";
+import { presentError, detailOf } from "@/lib/presentError";
 import { useAIStore } from "@/store/useAIStore";
 
 const LOCAL_USER: User = {
@@ -50,9 +49,9 @@ export const useAuthStore = create<AuthState>()(
           const user = await api.signIn({ email, password });
           set({ user, loading: false });
         } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          set({ loading: false, error: msg });
-          toast.error(t("error.auth.signin"), msg);
+          // The form owns presentation (inline field errors + toast fallback) so
+          // validation detail lands under the right input; just record + rethrow.
+          set({ loading: false, error: detailOf(e) });
           throw e;
         }
       },
@@ -63,9 +62,9 @@ export const useAuthStore = create<AuthState>()(
           const user = await api.signInWithProvider(provider);
           set({ user, loading: false });
         } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          set({ loading: false, error: msg });
-          toast.error(t("error.auth.signin"), msg);
+          // No form fields involved — surface directly through the unified path.
+          set({ loading: false, error: detailOf(e) });
+          presentError(e, "error.auth.signin");
           throw e;
         }
       },
@@ -76,9 +75,8 @@ export const useAuthStore = create<AuthState>()(
           const user = await api.register(input);
           set({ user, loading: false });
         } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          set({ loading: false, error: msg });
-          toast.error(t("error.auth.register"), msg);
+          // The form owns presentation — see signIn.
+          set({ loading: false, error: detailOf(e) });
           throw e;
         }
       },
@@ -96,7 +94,7 @@ export const useAuthStore = create<AuthState>()(
           set({ user, loading: false });
         } catch (e) {
           set({ user: LOCAL_USER, loading: false });
-          toast.error(t("error.auth.signout"), e instanceof Error ? e.message : String(e));
+          presentError(e, "error.auth.signout");
         }
       },
 

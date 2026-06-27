@@ -43,3 +43,45 @@ describe("Global error handling — malformed JSON body", () => {
     assert.equal(res.status, 400);
   });
 });
+
+describe("Schema validation → canonical VALIDATION_ERROR envelope", () => {
+  test("a wrong-shape body returns the standard envelope, not the raw zValidator shape", async () => {
+    const res = await app.request("/v1/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ title: 12345 }),
+    });
+    assert.equal(res.status, 400);
+    const body = (await res.json()) as any;
+    // Must be our envelope, NOT zValidator's `{ success:false, error:{issues} }`.
+    assert.equal(body.success, undefined, "must not leak the raw zValidator shape");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+  });
+
+  test("the message is complete and specific — it names the offending field", async () => {
+    const res = await app.request("/v1/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ title: 12345 }),
+    });
+    const body = (await res.json()) as any;
+    assert.equal(typeof body.error?.message, "string");
+    assert.ok(body.error.message.length > 0, "message must not be empty");
+    assert.match(body.error.message, /title/, "message should name the offending field");
+  });
+
+  test("structured `fields` detail accompanies the message for inline form display", async () => {
+    const res = await app.request("/v1/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ title: 12345 }),
+    });
+    const body = (await res.json()) as any;
+    assert.ok(Array.isArray(body.error?.fields), "fields[] must be present");
+    assert.ok(body.error.fields.length >= 1);
+    const f = body.error.fields[0];
+    assert.equal(typeof f.path, "string");
+    assert.equal(typeof f.message, "string");
+    assert.match(f.path, /title/);
+  });
+});

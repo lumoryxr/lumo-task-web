@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { validate } from "../lib/validate.js";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
@@ -97,7 +97,7 @@ app.get("/logs", async (c) => {
 });
 
 // POST /habits/migrate — idempotent bulk import; must be before /:id
-app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
+app.post("/migrate", validate("json", MigrateBody), async (c) => {
   const userId = c.get("userId");
   const { habits, logs } = c.req.valid("json");
 
@@ -151,7 +151,7 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
 });
 
 // POST /habits
-app.post("/", zValidator("json", HabitBody), async (c) => {
+app.post("/", validate("json", HabitBody), async (c) => {
   const userId = c.get("userId");
   const body = c.req.valid("json");
   const id = body.id ?? ("habit_" + nanoid(10));
@@ -184,7 +184,7 @@ app.post("/", zValidator("json", HabitBody), async (c) => {
 });
 
 // PATCH /habits/:id
-app.patch("/:id", zValidator("param", IdParam), zValidator("json", HabitUpdateBody), async (c) => {
+app.patch("/:id", validate("param", IdParam), validate("json", HabitUpdateBody), async (c) => {
   const userId = c.get("userId");
   const habitId = c.req.param("id");
   const body = c.req.valid("json");
@@ -225,7 +225,7 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", HabitUpdateBo
 });
 
 // DELETE /habits/:id
-app.delete("/:id", zValidator("param", IdParam), async (c) => {
+app.delete("/:id", validate("param", IdParam), async (c) => {
   const userId = c.get("userId");
   const habitId = c.req.param("id");
 
@@ -249,8 +249,8 @@ app.delete("/:id", zValidator("param", IdParam), async (c) => {
 // POST /habits/:id/log
 app.post(
   "/:id/log",
-  zValidator("param", IdParam),
-  zValidator("json", z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })),
+  validate("param", IdParam),
+  validate("json", z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })),
   async (c) => {
     const userId = c.get("userId");
     const habitId = c.req.param("id");
@@ -278,7 +278,7 @@ app.post(
 );
 
 // DELETE /habits/:id/log/:date
-app.delete("/:id/log/:date", zValidator("param", LogParam), async (c) => {
+app.delete("/:id/log/:date", validate("param", LogParam), async (c) => {
   const userId = c.get("userId");
   const { id: habitId, date } = c.req.valid("param");
 

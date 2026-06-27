@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { validate } from "../lib/validate.js";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
@@ -68,7 +68,7 @@ app.get("/", async (c) => {
 });
 
 // POST /countdowns/migrate — idempotent bulk import; must be before /:id
-app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
+app.post("/migrate", validate("json", MigrateBody), async (c) => {
   const userId = c.get("userId");
   const { events } = c.req.valid("json");
 
@@ -101,7 +101,7 @@ app.post("/migrate", zValidator("json", MigrateBody), async (c) => {
 });
 
 // POST /countdowns
-app.post("/", zValidator("json", CountdownBody), async (c) => {
+app.post("/", validate("json", CountdownBody), async (c) => {
   const userId = c.get("userId");
   const body = c.req.valid("json");
   const id = body.id ?? ("cd_" + nanoid(10));
@@ -136,7 +136,7 @@ app.post("/", zValidator("json", CountdownBody), async (c) => {
 });
 
 // PATCH /countdowns/:id
-app.patch("/:id", zValidator("param", IdParam), zValidator("json", CountdownUpdateBody), async (c) => {
+app.patch("/:id", validate("param", IdParam), validate("json", CountdownUpdateBody), async (c) => {
   const userId = c.get("userId");
   const eventId = c.req.param("id");
   const body = c.req.valid("json");
@@ -176,7 +176,7 @@ app.patch("/:id", zValidator("param", IdParam), zValidator("json", CountdownUpda
 });
 
 // DELETE /countdowns/:id
-app.delete("/:id", zValidator("param", IdParam), async (c) => {
+app.delete("/:id", validate("param", IdParam), async (c) => {
   const userId = c.get("userId");
   // Tombstone: both `deleted_at` and `updated_at` ride the LWW order → HLC.
   const now = hlcNow();

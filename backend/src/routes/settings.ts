@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { validate } from "../lib/validate.js";
 import { z } from "zod";
 import { queryOne, execute, dbMode } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
@@ -105,7 +105,7 @@ app.get("/", async (c) => {
 });
 
 // PATCH /settings
-app.patch("/", zValidator("json", SettingsPatch), async (c) => {
+app.patch("/", validate("json", SettingsPatch), async (c) => {
   const userId = c.get("userId") as string;
   const body = c.req.valid("json");
 

@@ -10,7 +10,15 @@ vi.mock("@/components/AuthShell", () => ({
 
 vi.mock("@/i18n/useT", () => ({
   useT: () => (key: string) => key,
+  t: (key: string) => key,
 }));
+
+const mockToastError = vi.fn();
+vi.mock("@/store/useToastStore", () => ({
+  toast: { error: (...a: unknown[]) => mockToastError(...a) },
+}));
+
+import { ApiError } from "@/api/ApiError";
 
 const mockRegister = vi.fn();
 const mockNavigate = vi.fn();
@@ -130,13 +138,28 @@ describe("RegisterPage", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it("renders no inline error element after a failed registration", async () => {
+  it("shows no inline error for a non-validation failure — it surfaces via toast", async () => {
     mockRegister.mockRejectedValueOnce(new Error("Server error"));
     setup();
     fireEvent.click(getSubmitBtn());
     await waitFor(() => expect(mockRegister).toHaveBeenCalled());
-    // No inline error box — errors go exclusively through ToastStack
+    // A plain error carries no field detail → no inline box; routes to toast.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(document.querySelector("[data-error]")).toBeNull();
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+  });
+
+  it("renders an inline message under the field for a validation failure", async () => {
+    mockRegister.mockRejectedValueOnce(
+      new ApiError("password: must include a number", {
+        code: "VALIDATION_ERROR",
+        status: 400,
+        fields: [{ path: "password", message: "must include a number" }],
+      }),
+    );
+    setup();
+    fireEvent.click(getSubmitBtn());
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("must include a number");
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 });

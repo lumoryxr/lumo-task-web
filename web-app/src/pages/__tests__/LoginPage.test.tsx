@@ -14,7 +14,15 @@ vi.mock("@/components/OAuthButton", () => ({
 
 vi.mock("@/i18n/useT", () => ({
   useT: () => (key: string) => key,
+  t: (key: string) => key,
 }));
+
+const mockToastError = vi.fn();
+vi.mock("@/store/useToastStore", () => ({
+  toast: { error: (...a: unknown[]) => mockToastError(...a) },
+}));
+
+import { ApiError } from "@/api/ApiError";
 
 const mockSignIn = vi.fn();
 const mockNavigate = vi.fn();
@@ -97,13 +105,30 @@ describe("LoginPage", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it("renders no inline error element after a failed sign-in", async () => {
+  it("shows no inline error for a non-validation failure — it surfaces via toast", async () => {
     mockSignIn.mockRejectedValueOnce(new Error("Bad password"));
     setup();
     fireEvent.click(getSubmitBtn());
     await waitFor(() => expect(mockSignIn).toHaveBeenCalled());
-    // No inline error box — errors go exclusively through ToastStack
+    // A plain error (e.g. wrong credentials) carries no field detail → no inline
+    // box; it routes through the unified toast instead.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(document.querySelector("[data-error]")).toBeNull();
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+  });
+
+  it("renders an inline message under the field for a validation failure", async () => {
+    mockSignIn.mockRejectedValueOnce(
+      new ApiError("email: Invalid email", {
+        code: "VALIDATION_ERROR",
+        status: 400,
+        fields: [{ path: "email", message: "Invalid email" }],
+      }),
+    );
+    setup();
+    fireEvent.click(getSubmitBtn());
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Invalid email");
+    // Validation detail goes inline, NOT to the toast.
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 });

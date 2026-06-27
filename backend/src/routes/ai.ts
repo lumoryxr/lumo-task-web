@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { validate } from "../lib/validate.js";
 import { z } from "zod";
 import { BreakdownRequestSchema } from "@lumo/contracts";
 import { query, queryOne, execute } from "../db/client.js";
@@ -99,7 +99,7 @@ function heuristicQuadrant(task: any, today: string): { q: string; confidence: n
 }
 
 // POST /ai/classify — LLM-powered semantic classification (heuristic fallback)
-app.post("/classify", classifyRateLimit, zValidator("json", z.object({}).strict()), async (c) => {
+app.post("/classify", classifyRateLimit, validate("json", z.object({}).strict()), async (c) => {
   const userId = c.get("userId") as string;
   try {
   const today = new Date().toISOString().slice(0, 10);
@@ -202,7 +202,7 @@ Return ONLY a JSON array, no markdown:
 });
 
 // POST /ai/recommend — LLM-reasoned recommendation (SQL sort fallback)
-app.post("/recommend", classifyRateLimit, zValidator("json", z.object({}).strict()), async (c) => {
+app.post("/recommend", classifyRateLimit, validate("json", z.object({}).strict()), async (c) => {
   const userId = c.get("userId") as string;
   try {
   const q1Tasks = await query<any>(
@@ -288,7 +288,7 @@ const ParseBody = z.object({
   locale: z.enum(["en", "zh"]).optional(),
 });
 
-app.post("/parse", classifyRateLimit, zValidator("json", ParseBody), async (c) => {
+app.post("/parse", classifyRateLimit, validate("json", ParseBody), async (c) => {
   const userId = c.get("userId") as string;
   const { text, locale } = c.req.valid("json");
 
@@ -599,7 +599,7 @@ async function executeGetStats(locale: string, jwt: string): Promise<IntentResul
 }
 
 // POST /ai/breakdown — AI-powered subtask breakdown
-app.post("/breakdown", classifyRateLimit, zValidator("json", BreakdownRequestSchema), async (c) => {
+app.post("/breakdown", classifyRateLimit, validate("json", BreakdownRequestSchema), async (c) => {
   const userId = c.get("userId") as string;
   const { taskId, locale } = c.req.valid("json");
 
@@ -688,7 +688,7 @@ Return ONLY a JSON array of strings, no markdown, no explanation:
 });
 
 // POST /ai/chat
-app.post("/chat", chatRateLimit, zValidator("json", ChatBody), async (c) => {
+app.post("/chat", chatRateLimit, validate("json", ChatBody), async (c) => {
   const userId = c.get("userId") as string;
   const { messages, context } = c.req.valid("json");
 
