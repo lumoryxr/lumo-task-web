@@ -799,7 +799,7 @@ test("TC40 – Focus: 'Round N of M' label present", async ({ page }) => {
 // TC41–TC53  Settings page — all tabs
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("TC41 – Settings: Appearance tab shows accent swatch area and density controls", async ({ page }) => {
+test("TC41 – Settings: General tab shows accent swatch area and density controls", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
   await mockAPI(page);
   await page.goto("/#/settings");
@@ -808,7 +808,7 @@ test("TC41 – Settings: Appearance tab shows accent swatch area and density con
   await expect(page.getByText("Compact").first()).toBeVisible();
 });
 
-test("TC42 – Settings: Appearance tab has Reduced motion toggle", async ({ page }) => {
+test("TC42 – Settings: General tab has Reduced motion toggle", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
   await mockAPI(page);
   await page.goto("/#/settings");

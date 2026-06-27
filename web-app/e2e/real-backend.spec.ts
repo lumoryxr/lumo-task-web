@@ -175,8 +175,8 @@ test.describe("Settings — real API", () => {
   test("settings page loads without error", async ({ page }) => {
     await loginAs(page, token, user);
     await page.goto("/#/settings");
-    // Settings page renders section headings like "Appearance"
-    await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible({ timeout: 8_000 });
+    // Settings opens on the "General" tab, whose panel renders a "General" heading.
+    await expect(page.getByRole("heading", { name: "General" })).toBeVisible({ timeout: 8_000 });
   });
 });
 
