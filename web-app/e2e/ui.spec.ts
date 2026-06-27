@@ -1402,3 +1402,37 @@ test("TC83 – a11y: dialog opens with focus inside, Esc closes it and returns f
   // …and focus returns to the button that opened it.
   await expect(trigger).toBeFocused();
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC84  Accessibility: keyboard focus paints a visible ring
+//
+// Backs the global :focus-visible rule — Tab (keyboard) must paint an accent
+// outline on the focused control so keyboard users can see where they are.
+// (The mouse-focus "no ring" half is the standard :focus:not(:focus-visible)
+// branch; it's not asserted here because Chromium's focus-visible heuristic
+// after a prior keyboard event makes it flaky to drive in an e2e run.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("TC84 – a11y: keyboard focus paints a visible outline", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/today");
+  await expect(page.getByRole("link", { name: /^Today\b/i }).first()).toBeVisible({ timeout: 8_000 });
+
+  // Tab through the first several controls; each focused element must show a
+  // visible focus indicator — the global :focus-visible outline for buttons/links,
+  // or the .input:focus box-shadow ring for inputs — never nothing.
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press("Tab");
+    const focused = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el || el === document.body) return { focused: false, indicated: false, tag: "" };
+      const cs = getComputedStyle(el);
+      const hasOutline = cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth || "0") > 0;
+      const hasShadow = cs.boxShadow !== "none" && cs.boxShadow !== "";
+      return { focused: true, indicated: hasOutline || hasShadow, tag: el.tagName.toLowerCase() };
+    });
+    expect(focused.focused, `an element should be focused after Tab #${i + 1}`).toBe(true);
+    expect(focused.indicated, `focused <${focused.tag}> must show a focus indicator after Tab #${i + 1}`).toBe(true);
+  }
+});
