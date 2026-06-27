@@ -33,7 +33,6 @@ interface TasksState {
   complete: (id: string) => Promise<TaskCompleteResponse>;
   reopen: (logId: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
-  reset: () => Promise<void>;
   classifyTasks: () => Promise<Array<{ task_id: string; quadrant: string; confidence: number; reason?: string }>>;
   parseTaskText: (text: string, locale?: string) => Promise<{ title: string; quadrant: string; due: string | null; duration: number | null; confidence: number }>;
   fetchAllCompleted: () => Promise<import("@/types/task").CompletedEntry[]>;
@@ -134,11 +133,6 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       toast.error(t("error.task.delete"), msg);
       throw e;
     }
-  },
-
-  async reset() {
-    await api.reset();
-    await get().load();
   },
 
   async classifyTasks() {

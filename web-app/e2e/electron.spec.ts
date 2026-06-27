@@ -235,9 +235,9 @@ test.describe("Electron app", () => {
     await expect(page.getByText(/\d{1,2}:\d{2}/).first()).toBeVisible({ timeout: 8_000 });
   });
 
-  test("NAV04 – Settings page loads with Appearance heading", async () => {
+  test("NAV04 – Settings page loads with General heading", async () => {
     await goto(page, "/settings");
-    await expect(page.getByText("Appearance")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText("General")).toBeVisible({ timeout: 8_000 });
   });
 
   test("NAV05 – Stats page loads with This week section", async () => {
@@ -403,19 +403,19 @@ test.describe("Electron app", () => {
   // Settings — all tabs
   // ─────────────────────────────────────────────────────────────────────────
 
-  test("SET01 – Appearance tab shows Comfortable / Compact density controls", async () => {
+  test("SET01 – General tab shows Comfortable / Compact density controls", async () => {
     await goto(page, "/settings");
-    await expect(page.getByText("Appearance")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText("General")).toBeVisible({ timeout: 8_000 });
     await expect(page.getByText("Comfortable")).toBeVisible();
     await expect(page.getByText("Compact")).toBeVisible();
   });
 
-  test("SET02 – Appearance tab has Reduced motion toggle", async () => {
+  test("SET02 – General tab has Reduced motion toggle", async () => {
     await expect(page.getByText(/reduced motion/i)).toBeVisible({ timeout: 5_000 });
   });
 
-  test("SET03 – Language tab shows English and 中文 options", async () => {
-    await page.getByRole("button", { name: /language/i }).click();
+  test("SET03 – General tab shows English and 中文 language options", async () => {
+    // Language is consolidated into the General tab (still active from SET01).
     await expect(page.getByText(/english/i)).toBeVisible({ timeout: 5_000 });
     await expect(page.getByText("中文")).toBeVisible();
   });
@@ -432,24 +432,18 @@ test.describe("Electron app", () => {
     await expect(page.getByRole("button", { name: /add member/i })).toBeVisible({ timeout: 5_000 });
   });
 
-  test("SET06 – Storage tab shows database location (Electron-specific)", async () => {
-    const storageTab = page.getByRole("button", { name: /storage/i });
-    if (await storageTab.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await storageTab.click();
-      await expect(
-        page.getByText(/database location|lumo\.db|show in/i).first()
-      ).toBeVisible({ timeout: 5_000 });
-    }
+  test("SET06 – Data & Sync tab shows database location (Electron-specific)", async () => {
+    await page.getByRole("button", { name: /data & sync/i }).click();
+    await expect(
+      page.getByText(/database location|lumo\.db|show in/i).first()
+    ).toBeVisible({ timeout: 5_000 });
   });
 
-  test("SET07 – Sync tab shows cloud sync section", async () => {
-    const syncTab = page.getByRole("button", { name: /^sync$/i });
-    if (await syncTab.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await syncTab.click();
-      await expect(
-        page.getByText(/cloud sync|enable cloud sync|sync now/i).first()
-      ).toBeVisible({ timeout: 5_000 });
-    }
+  test("SET07 – Data & Sync tab shows cloud sync section (desktop only)", async () => {
+    await page.getByRole("button", { name: /data & sync/i }).click();
+    await expect(
+      page.getByText(/cloud sync|enable cloud sync|sync now/i).first()
+    ).toBeVisible({ timeout: 5_000 });
   });
 
   test("SET08 – AI tab shows provider / model controls", async () => {
@@ -462,18 +456,7 @@ test.describe("Electron app", () => {
     }
   });
 
-  test("SET09 – Data tab shows 'Replay onboarding' button", async () => {
-    await page.getByRole("button", { name: /data/i }).click();
-    await expect(page.getByRole("button", { name: /replay onboarding/i })).toBeVisible({
-      timeout: 5_000,
-    });
-  });
-
-  test("SET10 – Data tab shows 'Reset demo data' button", async () => {
-    await expect(
-      page.getByRole("button", { name: /reset/i }).first()
-    ).toBeVisible({ timeout: 5_000 });
-  });
+  // The old "Data" tab (Reset demo data / Replay onboarding) was removed in #111.
 
   // ─────────────────────────────────────────────────────────────────────────
   // Habits
