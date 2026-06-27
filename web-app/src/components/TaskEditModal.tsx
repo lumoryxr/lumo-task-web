@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconClose } from "@/components/icons";
 import { useT } from "@/i18n/useT";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
@@ -72,15 +73,16 @@ export function TaskEditModal({ task, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const onCloseRef = useRef(onClose);
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
+
   const handleSaveRef = useRef(handleSave);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
 
+  // Esc / focus-trap / focus-return come from the shared hook; this keeps the
+  // Cmd/Ctrl+Enter save shortcut.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
-      else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSaveRef.current();
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSaveRef.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -127,6 +129,8 @@ export function TaskEditModal({ task, onClose }: Props) {
       <div
         role="dialog"
         aria-modal="true"
+        ref={dialogRef}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         className="w-full overflow-hidden border rounded-[14px]"
         style={{

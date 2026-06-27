@@ -4,6 +4,7 @@ import { useDogStore, getTierFromLevel, getTierName } from "@/store/useDogStore"
 import { DogSvg } from "@/components/DogSvg";
 import { useAppStore } from "@/store/useAppStore";
 import { useT } from "@/i18n/useT";
+import { useModalA11y } from "@/hooks/useModalA11y";
 
 const TIER_COLORS = {
   puppy:     "#c89645",
@@ -18,6 +19,7 @@ export function DogLevelUpModal() {
   const t = useT();
   const cardRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
+  const dialogRef = useModalA11y<HTMLDivElement>(clearPendingLevelUp, !!pendingLevelUp);
 
   if (!pendingLevelUp) return null;
 
@@ -61,6 +63,8 @@ export function DogLevelUpModal() {
     <div
       role="dialog"
       aria-modal="true"
+      ref={dialogRef}
+      tabIndex={-1}
       style={{
         position: "fixed",
         inset: 0,

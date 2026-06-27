@@ -5,6 +5,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useT } from "@/i18n/useT";
 import { TaskEditModal } from "@/components/TaskEditModal";
 import { QuickCreate } from "@/components/QuickCreate";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import type { Subtask, Task } from "@/types/task";
 
 const Q_CHIP_CLASS: Record<string, string> = {
@@ -124,14 +125,13 @@ export function CommandPalette({ open, onClose }: Props) {
           e.preventDefault();
           if (results[selectedIndex]) selectTask(results[selectedIndex]);
           break;
-        case "Escape":
-          e.preventDefault();
-          onClose();
-          break;
       }
     },
-    [results, selectedIndex, selectTask, onClose],
+    [results, selectedIndex, selectTask],
   );
+
+  // Inactive while a nested modal (edit / quick-create) is open or the palette is closed.
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose, open && !editTask && !createWithTitle);
 
   if (editTask) {
     return (
@@ -171,6 +171,8 @@ export function CommandPalette({ open, onClose }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label={t("search.placeholder")}
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-50 flex items-start justify-center"
       style={{ paddingTop: "15vh", background: "rgba(0,0,0,0.6)" }}
       onClick={onClose}

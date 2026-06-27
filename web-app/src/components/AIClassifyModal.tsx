@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { IconClose, IconSparkle } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { useTasksStore } from "@/store/useTasksStore";
@@ -81,13 +82,9 @@ export function AIClassifyModal({ onClose }: AIClassifyModalProps) {
       .finally(() => setIsClassifying(false));
   }, [unclassifiedCount]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [busy, onClose]);
+  // Esc/focus-trap/focus-return via the shared hook; keep the busy guard so a
+  // classify in flight isn't interrupted by Escape.
+  const dialogRef = useModalA11y<HTMLDivElement>(() => { if (!busy) onClose(); });
 
   const counts = QUADRANTS.reduce<Record<Quadrant, number>>(
     (acc, q) => {
@@ -127,6 +124,8 @@ export function AIClassifyModal({ onClose }: AIClassifyModalProps) {
       <div
         role="dialog"
         aria-modal="true"
+        ref={dialogRef}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         className="flex flex-col w-full overflow-hidden border rounded-[14px] bg-elevated shadow-lifted"
         style={{
