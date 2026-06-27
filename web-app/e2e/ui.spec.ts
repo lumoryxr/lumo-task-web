@@ -1436,3 +1436,44 @@ test("TC84 – a11y: keyboard focus paints a visible outline", async ({ page }) 
     expect(focused.indicated, `focused <${focused.tag}> must show a focus indicator after Tab #${i + 1}`).toBe(true);
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC85  Mobile: no horizontal overflow on a Pixel-5-class viewport
+//
+// The most common mobile bug is content wider than the screen (a fixed-width row,
+// an un-wrapping flex line, a too-wide card) — it clips or forces a sideways
+// scroll. This walks every shell page at 393px wide and fails if the document
+// is wider than the viewport, listing the widest visible offenders to debug.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test.describe("mobile viewport", () => {
+  test.use({ viewport: { width: 393, height: 851 } });
+
+  test("TC85 – mobile: shell pages have no horizontal overflow", async ({ page }) => {
+    await skipOnboardingAndSignIn(page);
+    await mockAPIWithData(page);
+
+    const offenders: string[] = [];
+    for (const route of ["today", "matrix", "stats", "habits", "countdown", "account", "settings"]) {
+      await page.goto(`/#/${route}`);
+      await page.locator('nav[aria-label="tab bar"]').waitFor({ state: "visible", timeout: 8_000 });
+      const m = await page.evaluate(() => {
+        const vw = window.innerWidth;
+        const wide: string[] = [];
+        document.querySelectorAll<HTMLElement>("body *").forEach((el) => {
+          const r = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          if (cs.visibility === "hidden" || cs.display === "none" || r.width === 0) return;
+          if (r.right > vw + 1 && r.width <= vw + 200) {
+            wide.push(`${el.tagName.toLowerCase()}.${String(el.className).replace(/\s+/g, ".").slice(0, 40)} right=${Math.round(r.right)}`);
+          }
+        });
+        return { vw, scrollW: document.body.scrollWidth, wide: wide.slice(0, 4) };
+      });
+      if (m.scrollW > m.vw + 1) {
+        offenders.push(`${route}: body ${m.scrollW}px > ${m.vw}px [${m.wide.join(" | ")}]`);
+      }
+    }
+    expect(offenders, `horizontal overflow:\n${offenders.join("\n")}`).toEqual([]);
+  });
+});
