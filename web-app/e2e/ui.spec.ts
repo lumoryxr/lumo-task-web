@@ -1402,3 +1402,42 @@ test("TC83 – a11y: dialog opens with focus inside, Esc closes it and returns f
   // …and focus returns to the button that opened it.
   await expect(trigger).toBeFocused();
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC84  Accessibility: keyboard focus shows a visible ring; pointer focus doesn't
+//
+// Backs the global :focus-visible rule. Tab (keyboard) must paint an accent
+// outline on the focused control so keyboard users can see where they are;
+// programmatic/pointer focus (which sets :focus but not :focus-visible) must
+// stay ring-free so mouse users don't get stray outlines.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("TC84 – a11y: keyboard focus paints a visible outline, pointer focus does not", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/today");
+  await expect(page.getByRole("link", { name: /^Today\b/i }).first()).toBeVisible({ timeout: 8_000 });
+
+  // Keyboard: Tab to the first focusable control → it should have a real outline.
+  await page.keyboard.press("Tab");
+  const kbd = await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    if (!el || el === document.body) return { focused: false, style: "none", width: 0 };
+    const cs = getComputedStyle(el);
+    return { focused: true, style: cs.outlineStyle, width: parseFloat(cs.outlineWidth || "0") };
+  });
+  expect(kbd.focused, "an element should be focused after Tab").toBe(true);
+  expect(kbd.style).not.toBe("none");
+  expect(kbd.width).toBeGreaterThan(0);
+
+  // Pointer/programmatic focus: :focus without :focus-visible → no outline.
+  const ptr = await page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>("a[href], button");
+    if (!el) return { found: false, style: "none", width: 0 };
+    el.focus();
+    const cs = getComputedStyle(el);
+    return { found: true, style: cs.outlineStyle, width: parseFloat(cs.outlineWidth || "0") };
+  });
+  expect(ptr.found, "a focusable control should exist").toBe(true);
+  expect(ptr.style === "none" || ptr.width === 0, "pointer focus should not paint a ring").toBe(true);
+});

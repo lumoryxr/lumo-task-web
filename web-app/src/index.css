@@ -32,6 +32,9 @@
   --accent-fog: rgba(61, 255, 160, 0.1);
   --accent-edge: rgba(61, 255, 160, 0.5);
 
+  /* Keyboard focus ring */
+  --focus-ring: 2px solid var(--accent-primary);
+
   /* Semantic */
   --status-urgent: #ff6b6b;
   --status-success: #a8e64b;
@@ -75,6 +78,21 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "cv11", "ss01", "ss03";
+}
+
+/* ── Keyboard focus ring ────────────────────────────────────────────────
+   A consistent accent outline for keyboard (Tab) users on any focusable
+   element — buttons, links, inputs, role="switch", custom controls. Mouse
+   and touch focus set :focus but not :focus-visible, so they get nothing
+   extra. outline (not box-shadow) so it stays visible on any background and
+   never shifts layout. Inputs keep their own .input:focus ring (more
+   specific), so no double ring there. */
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* ── Quadrant accents ──────────────────────────────────────────────── */
