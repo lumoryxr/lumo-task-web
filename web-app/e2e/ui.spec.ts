@@ -1307,3 +1307,64 @@ test("TC78 – i18n: core pages + habit modal show no raw keys (中文)", async 
     await expectNoRawKeys(page, `zh habit modal (${pill})`);
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC82  Accessibility: every icon-only button has an accessible name
+//
+// Screen-reader users hit an icon-only button (close ✕, "more options" ⋯, month
+// arrows) as a nameless "button" with no idea what it does — WCAG 4.1.2. This
+// guard scans every visible <button> for an accessible name (text content, or
+// aria-label / title / aria-labelledby) and fails listing any that lack one, so
+// a new unlabeled icon button can't regress in. Covers the core shell (incl. the
+// countdown card "more options" menu) plus the countdown form's close button.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function findUnlabeledButtons(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const visible = (el: Element) => {
+      const cs = getComputedStyle(el as HTMLElement);
+      if (cs.visibility === "hidden" || cs.display === "none") return false;
+      const r = (el as HTMLElement).getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
+    const named = (el: Element): boolean => {
+      if ((el.textContent || "").trim()) return true;
+      const label = el.getAttribute("aria-label");
+      if (label && label.trim()) return true;
+      const title = el.getAttribute("title");
+      if (title && title.trim()) return true;
+      const lb = el.getAttribute("aria-labelledby");
+      if (lb && lb.split(/\s+/).some((id) => (document.getElementById(id)?.textContent || "").trim())) return true;
+      return false;
+    };
+    const bad: string[] = [];
+    document.querySelectorAll("button").forEach((el) => {
+      if (visible(el) && !named(el)) {
+        bad.push(el.outerHTML.replace(/\s+/g, " ").slice(0, 120));
+      }
+    });
+    return bad;
+  });
+}
+
+async function expectAllButtonsNamed(page: Page, where: string) {
+  const bad = await findUnlabeledButtons(page);
+  expect(bad, `icon-only button(s) without an accessible name at ${where}:\n${bad.join("\n")}`).toEqual([]);
+}
+
+test("TC82 – a11y: icon-only buttons across the shell expose an accessible name", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  for (const route of ["today", "matrix", "focus", "stats", "habits", "countdown", "account", "settings"]) {
+    await page.goto(`/#/${route}`);
+    await expect(page.getByRole("link", { name: /^Today\b/i }).first()).toBeVisible({ timeout: 8_000 });
+    await expectAllButtonsNamed(page, `/#/${route}`);
+  }
+
+  // Countdown form modal — the close button was previously nameless.
+  await page.goto("/#/countdown");
+  await page.getByRole("button", { name: /new event/i }).first().click();
+  const form = page.locator('[role="dialog"]');
+  await expect(form).toBeVisible({ timeout: 10_000 });
+  await expectAllButtonsNamed(page, "countdown form modal");
+});

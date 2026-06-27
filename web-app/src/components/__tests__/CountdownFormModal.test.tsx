@@ -63,7 +63,7 @@ describe("CountdownFormModal (create)", () => {
   it("calls onClose when close (X) button is clicked", () => {
     const onClose = vi.fn();
     render(<CountdownFormModal onSave={vi.fn()} onClose={onClose} />);
-    fireEvent.click(screen.getByRole("button", { name: "" }));
+    fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
     expect(onClose).toHaveBeenCalled();
   });
 

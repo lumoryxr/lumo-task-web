@@ -179,6 +179,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
           </h2>
           <button
             onClick={onClose}
+            aria-label={t("qc.close")}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
               width: 28, height: 28, borderRadius: "var(--radius-sm)",

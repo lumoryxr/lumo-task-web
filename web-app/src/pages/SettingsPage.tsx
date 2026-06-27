@@ -120,7 +120,7 @@ export function SettingsPage() {
                 />
               </Row>
               <Row label={t("settings.reducedMotion")}>
-                <Toggle value={reducedMotion} onChange={setReducedMotion} />
+                <Toggle value={reducedMotion} onChange={setReducedMotion} ariaLabel={t("settings.reducedMotion")} />
               </Row>
               <Row label={t("settings.language")}>
                 <Segmented<Locale>
@@ -272,7 +272,7 @@ function PetPanel({
             >
               {t("settings.pet.resetPos")}
             </button>
-            <Toggle value={visible} onChange={onToggleVisible} />
+            <Toggle value={visible} onChange={onToggleVisible} ariaLabel={t("settings.pet.show")} />
           </div>
         </div>
         {/* Species selector */}
@@ -1275,11 +1275,14 @@ function Segmented<T extends string>({
   );
 }
 
-function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+function Toggle({ value, onChange, disabled, ariaLabel }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean; ariaLabel: string }) {
   return (
     <button
       onClick={() => { if (!disabled) onChange(!value); }}
       disabled={disabled}
+      role="switch"
+      aria-checked={value}
+      aria-label={ariaLabel}
       className="relative rounded-full transition-colors"
       style={{
         width: 36,
@@ -1385,7 +1388,7 @@ function NotificationsPanel({ t, locale: _locale }: { t: (k: string) => string; 
   return (
     <Panel title={t("settings.notifications")}>
       <Row label={t("settings.notifications.enabled")} helper={t("settings.notifications.enabled.helper")}>
-        <Toggle value={enabled} onChange={handleToggleEnabled} />
+        <Toggle value={enabled} onChange={handleToggleEnabled} ariaLabel={t("settings.notifications.enabled")} />
       </Row>
       {permDenied && (
         <div
@@ -1415,7 +1418,7 @@ function NotificationsPanel({ t, locale: _locale }: { t: (k: string) => string; 
         />
       </Row>
       <Row label={t("settings.notifications.due")} helper={t("settings.notifications.due.helper")}>
-        <Toggle value={dueAlertsEnabled} onChange={handleDueAlertsChange} disabled={!enabled} />
+        <Toggle value={dueAlertsEnabled} onChange={handleDueAlertsChange} disabled={!enabled} ariaLabel={t("settings.notifications.due")} />
       </Row>
       <Row label={t("settings.notifications.evening")} helper={t("settings.notifications.evening.helper")}>
         <input
