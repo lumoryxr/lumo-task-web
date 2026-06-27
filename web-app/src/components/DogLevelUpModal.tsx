@@ -93,7 +93,7 @@ export function DogLevelUpModal() {
       >
         <button
           onClick={clearPendingLevelUp}
-          aria-label="Close"
+          aria-label={t("qc.close")}
           style={{
             position: "absolute",
             top: 16,

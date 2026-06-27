@@ -95,7 +95,7 @@ export function HabitCalendarModal({ habit, logs, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            aria-label="close"
+            aria-label={t("qc.close")}
             className="p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-elevated transition-colors"
           >
             <IconClose size={15} />

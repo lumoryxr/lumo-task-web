@@ -337,7 +337,7 @@ export function TaskDetailModal({ task, onClose }: Props) {
                       }}
                       className="flex-shrink-0 text-[11px] w-[18px] h-[18px] flex items-center justify-center rounded-full transition-opacity hover:opacity-80"
                       style={{ color: "var(--text-faint)", background: "var(--bg-subtle)" }}
-                      aria-label="Remove"
+                      aria-label={t("detail.breakdown.remove")}
                     >
                       ×
                     </button>
