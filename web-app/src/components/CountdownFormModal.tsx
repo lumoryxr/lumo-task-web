@@ -20,11 +20,11 @@ import {
   solarISOToLunar,
 } from "@/utils/lunar";
 
-const COLORS: { id: CountdownColor; label: string; primary: string; edge: string; bg: string }[] = [
-  { id: "green",  label: "绿",  primary: "var(--accent-primary)",  edge: "rgba(61,255,160,0.5)",  bg: "rgba(61,255,160,0.1)" },
-  { id: "cyan",   label: "青",  primary: "var(--status-info)",      edge: "rgba(91,200,212,0.5)",  bg: "rgba(91,200,212,0.1)" },
-  { id: "amber",  label: "琥",  primary: "var(--status-warning)",   edge: "rgba(255,179,71,0.5)",  bg: "rgba(255,179,71,0.1)" },
-  { id: "red",    label: "红",  primary: "var(--status-urgent)",    edge: "rgba(255,107,107,0.5)", bg: "rgba(255,107,107,0.1)" },
+const COLORS: { id: CountdownColor; labelKey: string; primary: string; edge: string; bg: string }[] = [
+  { id: "green",  labelKey: "habit.color.green", primary: "var(--accent-primary)",  edge: "rgba(61,255,160,0.5)",  bg: "rgba(61,255,160,0.1)" },
+  { id: "cyan",   labelKey: "habit.color.cyan",  primary: "var(--status-info)",      edge: "rgba(91,200,212,0.5)",  bg: "rgba(91,200,212,0.1)" },
+  { id: "amber",  labelKey: "habit.color.amber", primary: "var(--status-warning)",   edge: "rgba(255,179,71,0.5)",  bg: "rgba(255,179,71,0.1)" },
+  { id: "red",    labelKey: "habit.color.red",   primary: "var(--status-urgent)",    edge: "rgba(255,107,107,0.5)", bg: "rgba(255,107,107,0.1)" },
 ];
 
 interface FormValues {
@@ -235,7 +235,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
                 ref={inputRef}
                 value={form.title}
                 onChange={(e) => set("title", e.target.value)}
-                placeholder="新年快乐、我的生日…"
+                placeholder={t("countdown.form.title.ph")}
                 style={inputStyle(!!errors.title)}
               />
               {errors.title && <FieldError msg={errors.title} />}
@@ -312,7 +312,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
                   key={c.id}
                   type="button"
                   onClick={() => set("color", c.id)}
-                  title={c.label}
+                  title={t(c.labelKey)}
                   style={{
                     width: 32, height: 32,
                     borderRadius: "50%",
@@ -371,7 +371,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
             <textarea
               value={form.note}
               onChange={(e) => set("note", e.target.value)}
-              placeholder="给自己写点什么…"
+              placeholder={t("countdown.form.note.ph")}
               rows={2}
               style={{
                 ...inputStyle(false),
