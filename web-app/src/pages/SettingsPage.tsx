@@ -7,6 +7,8 @@ import { useCalendarStore } from "@/store/useCalendarStore";
 import { usePetStore } from "@/store/usePetStore";
 import { useT } from "@/i18n/useT";
 import { toast } from "@/store/useToastStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { reloadAllData } from "@/lib/reloadData";
 import type { Locale, Person } from "@/types/task";
 import { PERSON_COLORS } from "@/lib/personColors";
 import { PersonAvatar } from "@/components/PersonAvatar";
@@ -1034,6 +1036,7 @@ function StoragePanel({ t, locale }: { t: (k: string) => string; locale: string 
  *    (`api.syncNow`) + "Disable" (`api.syncDisable`).
  */
 function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) {
+  const userId = useAuthStore((s) => s.user.id);
   const [status, setStatus] = useState<SyncStatusResponse | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState("");
@@ -1078,6 +1081,13 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
       setShowForm(false);
       setEmail("");
       setPassword("");
+      // Enable runs a first full reconcile; any cloud rows it pulled are now in
+      // the local DB. Re-hydrate the stores so they show without an app restart.
+      try {
+        await reloadAllData(userId);
+      } catch {
+        /* best-effort UI refresh; the data is safely in the local DB regardless */
+      }
     } catch (err) {
       setFormError(explainEnableError(err));
     } finally {
@@ -1089,7 +1099,16 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
     if (syncing) return;
     setSyncing(true);
     try {
-      await api.syncNow();
+      const res = await api.syncNow();
+      // Only re-hydrate when the cycle actually pulled cloud rows — otherwise the
+      // stores are already current and a refetch would be wasted work / flicker.
+      if (res.pulled > 0) {
+        try {
+          await reloadAllData(userId);
+        } catch {
+          /* best-effort UI refresh; pulled rows are safely in the local DB */
+        }
+      }
       await refresh();
     } catch {
       toast.error(t("settings.sync.error.trigger"), "");
