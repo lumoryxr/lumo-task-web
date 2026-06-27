@@ -29,7 +29,7 @@ describe("CountdownFormModal (create)", () => {
   it("shows validation error when submitting empty title", async () => {
     render(<CountdownFormModal onSave={vi.fn()} onClose={vi.fn()} />);
     // Clear any default value and submit
-    const titleInput = screen.getByPlaceholderText("新年快乐、我的生日…");
+    const titleInput = screen.getByPlaceholderText("countdown.form.title.ph");
     await userEvent.clear(titleInput);
     fireEvent.submit(document.querySelector("form")!);
     await waitFor(() => {
@@ -41,7 +41,7 @@ describe("CountdownFormModal (create)", () => {
     const onSave = vi.fn();
     const onClose = vi.fn();
     render(<CountdownFormModal onSave={onSave} onClose={onClose} />);
-    const titleInput = screen.getByPlaceholderText("新年快乐、我的生日…");
+    const titleInput = screen.getByPlaceholderText("countdown.form.title.ph");
     await userEvent.clear(titleInput);
     await userEvent.type(titleInput, "New Year");
     // submit
@@ -81,7 +81,7 @@ describe("CountdownFormModal (edit)", () => {
   it("renders the edit heading and pre-fills fields", () => {
     render(<CountdownFormModal event={EDIT_EVENT} onSave={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByText("countdown.form.edit")).toBeTruthy();
-    const titleInput = screen.getByPlaceholderText("新年快乐、我的生日…") as HTMLInputElement;
+    const titleInput = screen.getByPlaceholderText("countdown.form.title.ph") as HTMLInputElement;
     expect(titleInput.value).toBe("My Birthday");
   });
 
@@ -101,7 +101,7 @@ describe("CountdownFormModal (edit)", () => {
 
   it("shows title.maxlen error when title exceeds 100 chars", async () => {
     render(<CountdownFormModal onSave={vi.fn()} onClose={vi.fn()} />);
-    const titleInput = screen.getByPlaceholderText("新年快乐、我的生日…");
+    const titleInput = screen.getByPlaceholderText("countdown.form.title.ph");
     await userEvent.clear(titleInput);
     await userEvent.type(titleInput, "a".repeat(101));
     fireEvent.submit(document.querySelector("form")!);
@@ -139,7 +139,7 @@ describe("CountdownFormModal (lunar)", () => {
   it("saves a lunar event with calendar='lunar' and a solar ISO anchor", async () => {
     const onSave = vi.fn();
     render(<CountdownFormModal onSave={onSave} onClose={vi.fn()} />);
-    const titleInput = screen.getByPlaceholderText("新年快乐、我的生日…");
+    const titleInput = screen.getByPlaceholderText("countdown.form.title.ph");
     await userEvent.clear(titleInput);
     await userEvent.type(titleInput, "Lunar New Year");
     await userEvent.click(screen.getByRole("radio", { name: "countdown.cal.lunar" }));

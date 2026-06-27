@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useToastStore, type Toast, type ToastType } from "@/store/useToastStore";
+import { useT } from "@/i18n/useT";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ const CONFIG: Record<ToastType, {
 // ── Single toast ──────────────────────────────────────────────────────────────
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+  const t = useT();
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(100);
   const startRef = useRef<number | null>(null);
@@ -218,7 +220,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
             (e.currentTarget as HTMLElement).style.background = "transparent";
             (e.currentTarget as HTMLElement).style.color = "var(--text-muted)";
           }}
-          aria-label="关闭"
+          aria-label={t("toast.dismiss")}
         >
           <IconClose />
         </button>
@@ -244,6 +246,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
 // ── Stack ─────────────────────────────────────────────────────────────────────
 
 export function ToastStack() {
+  const t = useT();
   const { toasts, dismiss } = useToastStore();
 
   if (toasts.length === 0) return null;
@@ -261,7 +264,7 @@ export function ToastStack() {
         pointerEvents: "none",
       }}
       aria-live="assertive"
-      aria-label="通知"
+      aria-label={t("toast.region")}
     >
       {toasts.map((t) => (
         <div key={t.id} style={{ pointerEvents: "auto" }}>

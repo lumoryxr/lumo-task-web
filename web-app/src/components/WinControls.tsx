@@ -1,3 +1,5 @@
+import { useT } from "@/i18n/useT";
+
 const isElectron = typeof window !== "undefined" && !!window.electronAPI;
 
 const ctrlBase: React.CSSProperties = {
@@ -17,12 +19,13 @@ const ctrlBase: React.CSSProperties = {
 };
 
 export function WinControls({ height = 56 }: { height?: number }) {
+  const t = useT();
   if (!isElectron) return null;
   return (
     <div style={{ display: "flex", WebkitAppRegion: "no-drag" }}>
       <button
         style={{ ...ctrlBase, height }}
-        title="最小化"
+        title={t("win.minimize")}
         onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-subtle)"; e.currentTarget.style.color = "var(--text-primary)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; }}
         onClick={() => window.electronAPI?.minimize()}
@@ -31,7 +34,7 @@ export function WinControls({ height = 56 }: { height?: number }) {
       </button>
       <button
         style={{ ...ctrlBase, height }}
-        title="最大化 / 还原"
+        title={t("win.maximize")}
         onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-subtle)"; e.currentTarget.style.color = "var(--text-primary)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; }}
         onClick={() => window.electronAPI?.maximize()}
@@ -40,7 +43,7 @@ export function WinControls({ height = 56 }: { height?: number }) {
       </button>
       <button
         style={{ ...ctrlBase, height }}
-        title="关闭"
+        title={t("win.close")}
         onMouseEnter={(e) => { e.currentTarget.style.background = "#c42b1c"; e.currentTarget.style.color = "#fff"; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; }}
         onClick={() => window.electronAPI?.close()}
