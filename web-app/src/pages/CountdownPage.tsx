@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CountdownCard } from "@/components/CountdownCard";
 import { CountdownFormModal } from "@/components/CountdownFormModal";
 import { IconCountdown, IconPlus } from "@/components/icons";
+import { EmptyState } from "@/components/EmptyState";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
@@ -155,43 +156,12 @@ export function CountdownPage() {
 
       {/* Empty state */}
       {events.length === 0 && (
-        <div style={{
-          display: "flex", flexDirection: "column", alignItems: "center",
-          justifyContent: "center", paddingTop: 80, gap: 16,
-          textAlign: "center",
-        }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: "50%",
-            background: "var(--accent-fog)",
-            border: "1px solid var(--accent-edge)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "var(--accent-primary)",
-          }}>
-            <IconCountdown size={28} />
-          </div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 6 }}>
-              {t("countdown.empty.title")}
-            </div>
-            <div style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 320 }}>
-              {t("countdown.empty.sub")}
-            </div>
-          </div>
-          <button
-            onClick={openCreate}
-            style={{
-              marginTop: 8,
-              padding: "9px 22px",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--accent-edge)",
-              background: "var(--accent-fog)",
-              color: "var(--accent-primary)",
-              fontSize: 13, fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            {t("countdown.add")}
-          </button>
-        </div>
+        <EmptyState
+          icon={<IconCountdown size={28} />}
+          title={t("countdown.empty.title")}
+          subtitle={t("countdown.empty.sub")}
+          cta={{ label: t("countdown.add"), onClick: openCreate }}
+        />
       )}
 
       {/* Upcoming section */}

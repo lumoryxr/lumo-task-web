@@ -10,6 +10,8 @@ import { toast } from "@/store/useToastStore";
 import type { Locale, Person } from "@/types/task";
 import { PERSON_COLORS } from "@/lib/personColors";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { EmptyState } from "@/components/EmptyState";
+import { IconUsers } from "@/components/icons";
 import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import type { SyncStatusResponse } from "@lumo/contracts";
@@ -407,7 +409,13 @@ function MembersPanel({
       </div>
       <div className="rounded-[10px] border bg-surface overflow-hidden" style={{ borderColor: "var(--border-default)" }}>
         {people.length === 0 && !adding && (
-          <div className="px-5 py-4 text-[12px] text-text-muted italic">{t("settings.members.empty")}</div>
+          <EmptyState
+            variant="panel"
+            icon={<IconUsers size={22} />}
+            title={t("settings.members.empty.title")}
+            subtitle={t("settings.members.empty")}
+            cta={{ label: t("settings.members.add"), onClick: () => { setAdding(true); setDraft(emptyDraft()); } }}
+          />
         )}
         {people.map((person) => (
           <div key={person.id} className="border-t border-border-faint first:border-t-0">
