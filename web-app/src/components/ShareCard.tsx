@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { useT } from "@/i18n/useT";
-import { useAppStore } from "@/store/useAppStore";
 import { toast } from "@/store/useToastStore";
 import { isShareCancellation } from "@/utils/share";
 
@@ -27,7 +26,6 @@ export function ShareCard({
   weekLabel,
 }: ShareCardProps) {
   const t = useT();
-  const locale = useAppStore((s) => s.locale);
   const cardRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<"idle" | "downloaded">("idle");
@@ -79,7 +77,7 @@ export function ShareCard({
 
   const btnLabel =
     busy
-      ? locale === "zh" ? "生成中…" : "Exporting…"
+      ? t("stats.share.busy")
       : feedback === "downloaded"
       ? t("stats.share.downloaded")
       : t("stats.share.btn");
