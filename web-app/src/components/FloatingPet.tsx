@@ -57,7 +57,7 @@ function SpeechBubble({ text }: { text: string }) {
         transform: "translateX(-50%)",
         background: "var(--bg-elevated)",
         border: "1px solid var(--border-strong)",
-        borderRadius: "12px",
+        borderRadius: "var(--radius-lg)",
         padding: "8px 14px",
         fontSize: "12px",
         lineHeight: "1.5",

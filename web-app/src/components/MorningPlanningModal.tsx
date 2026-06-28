@@ -233,7 +233,7 @@ function SelectStep({ pool, selected, onToggle }: SelectStepProps) {
                   alignItems: "center",
                   gap: 12,
                   padding: "10px 12px",
-                  borderRadius: 8,
+                  borderRadius: "var(--radius-md)",
                   border: "1px solid",
                   borderColor: isSelected ? "var(--accent-primary)" : "var(--border-faint)",
                   background: isSelected ? "var(--accent-dim)" : "var(--bg-deep)",
@@ -249,7 +249,7 @@ function SelectStep({ pool, selected, onToggle }: SelectStepProps) {
                   style={{
                     width: 18,
                     height: 18,
-                    borderRadius: 4,
+                    borderRadius: "var(--radius-sm)",
                     border: `2px solid ${isSelected ? "var(--accent-primary)" : "var(--border-default)"}`,
                     background: isSelected ? "var(--accent-primary)" : "transparent",
                     display: "flex",
@@ -544,7 +544,7 @@ export function MorningPlanningModal({ onClose }: MorningPlanningModalProps) {
         style={{
           background: "var(--bg-surface)",
           border: "1px solid var(--border-default)",
-          borderRadius: 20,
+          borderRadius: "var(--radius-xl)",
           width: "100%",
           maxWidth: 480,
           maxHeight: "90vh",

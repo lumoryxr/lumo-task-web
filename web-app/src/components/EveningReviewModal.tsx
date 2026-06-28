@@ -237,7 +237,7 @@ function UnfinishedStep({
               onClick={onAbandonConfirm}
               style={{
                 minHeight: 36, fontSize: 13, padding: "0 14px",
-                borderRadius: 8, border: "1px solid #ef4444",
+                borderRadius: "var(--radius-md)", border: "1px solid #ef4444",
                 background: "rgba(239,68,68,0.08)", color: "#ef4444",
                 cursor: "pointer", fontWeight: 500,
               }}
@@ -255,7 +255,7 @@ function UnfinishedStep({
           className="text-sm"
           style={{
             padding: "7px 14px",
-            borderRadius: 8,
+            borderRadius: "var(--radius-md)",
             border: "1px solid var(--border-default)",
             background: "var(--bg-deep)",
             color: "var(--text-secondary)",
@@ -587,7 +587,7 @@ export function EveningReviewModal({ onClose }: EveningReviewModalProps) {
         style={{
           background: "var(--bg-surface)",
           border: "1px solid var(--border-default)",
-          borderRadius: 20,
+          borderRadius: "var(--radius-xl)",
           width: "100%",
           maxWidth: 480,
           maxHeight: "90vh",

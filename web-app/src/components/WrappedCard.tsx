@@ -124,7 +124,7 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
         style={{
           background: "linear-gradient(160deg, var(--bg-elevated) 0%, var(--bg-base) 100%)",
           border: "1px solid var(--border-default)",
-          borderRadius: 20,
+          borderRadius: "var(--radius-xl)",
           padding: "28px 28px 20px",
           position: "relative",
           overflow: "hidden",
@@ -143,19 +143,19 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
 
         {/* Big stat row */}
         <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
-          <div style={{ flex: 1, padding: "12px 16px", borderRadius: 12, background: "var(--bg-deep)" }}>
+          <div style={{ flex: 1, padding: "12px 16px", borderRadius: "var(--radius-lg)", background: "var(--bg-deep)" }}>
             <div style={{ fontSize: 28, fontWeight: 700, color: "var(--accent-primary)", lineHeight: 1 }}>
               {stats.tasksCompleted}
             </div>
             <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 3 }}>{t("stats.tasks")}</div>
           </div>
-          <div style={{ flex: 1, padding: "12px 16px", borderRadius: 12, background: "var(--bg-deep)" }}>
+          <div style={{ flex: 1, padding: "12px 16px", borderRadius: "var(--radius-lg)", background: "var(--bg-deep)" }}>
             <div style={{ fontSize: 28, fontWeight: 700, color: "var(--accent-primary)", lineHeight: 1 }}>
               {(stats.focusMinutes / 60).toFixed(1)}h
             </div>
             <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 3 }}>{t("stats.focus")}</div>
           </div>
-          <div style={{ flex: 1, padding: "12px 16px", borderRadius: 12, background: "var(--bg-deep)" }}>
+          <div style={{ flex: 1, padding: "12px 16px", borderRadius: "var(--radius-lg)", background: "var(--bg-deep)" }}>
             <div style={{ fontSize: 28, fontWeight: 700, color: "var(--accent-primary)", lineHeight: 1 }}>
               🔥{currentStreak}
             </div>

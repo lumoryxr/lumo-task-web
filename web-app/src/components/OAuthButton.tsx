@@ -57,7 +57,7 @@ export function OAuthButton({
             fontWeight: 500,
             color: "var(--text-faint)",
             border: "1px solid var(--border-default)",
-            borderRadius: "4px",
+            borderRadius: "var(--radius-sm)",
             padding: "1px 5px",
             lineHeight: "1.4",
           }}

@@ -48,7 +48,7 @@ export function StatsSkeleton() {
           </div>
         ))}
       </div>
-      <Skeleton style={{ height: 140, width: "100%", borderRadius: 12 }} />
+      <Skeleton style={{ height: 140, width: "100%", borderRadius: "var(--radius-lg)" }} />
     </SkeletonScreen>
   );
 }
