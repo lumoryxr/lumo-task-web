@@ -38,7 +38,6 @@ export function Shell() {
   const location = useLocation();
   const outlet = useOutlet();
   const t = useT();
-  const reducedMotion = useAppStore((s) => s.reducedMotion);
   const density = useAppStore((s) => s.density);
   const isMobile = useIsMobile();
   const [quickOpen, setQuickOpen] = useState(false);
@@ -70,7 +69,7 @@ export function Shell() {
   const isFocus = location.pathname === "/focus";
 
   return (
-    <div className={`${reducedMotion ? "reduce-motion" : ""} density-${density}`}>
+    <div className={`density-${density}`}>
       <div className="fixed inset-0 flex bg-base">
         <div className="lumo-pulse" />
         {!isMobile && <Sidebar />}

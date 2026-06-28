@@ -53,6 +53,7 @@ import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { useNotificationScheduler } from "@/hooks/useNotificationScheduler";
 import { useSyncEngine } from "@/hooks/useSyncEngine";
+import { useReducedMotionClass } from "@/hooks/useReducedMotionClass";
 import { ToastStack } from "@/components/ToastStack";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { toast } from "@/store/useToastStore";
@@ -68,6 +69,7 @@ import { t } from "@/i18n/useT";
 export default function App() {
   const accent = useAppStore((s) => s.accent);
   const onboarded = useAppStore((s) => s.onboarded);
+  useReducedMotionClass();
   const loadTasks = useTasksStore((s) => s.load);
   const clearTasks = useTasksStore((s) => s.clear);
   const loadPeople = usePeopleStore((s) => s.load);
