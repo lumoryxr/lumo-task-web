@@ -178,8 +178,8 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
           {/* ··· more menu — Edit + Delete */}
           <button
             ref={moreRef}
-            title={locale === "zh" ? "更多操作" : "More actions"}
-            aria-label={locale === "zh" ? "更多操作" : "More actions"}
+            title={t("matrix.moreActions")}
+            aria-label={t("matrix.moreActions")}
             onClick={(e) => {
               e.stopPropagation();
               const rect = moreRef.current?.getBoundingClientRect();
