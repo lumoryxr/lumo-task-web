@@ -373,8 +373,22 @@ export const api = {
   },
 
   async listAllCompleted(): Promise<CompletedEntry[]> {
-    const rows = await req<any[]>("GET", "/completed");
-    return rows.map(adaptEntry);
+    // The no-date /completed is keyset-paginated; page through the whole history
+    // so all-time stats (streaks/totals/wrapped) are computed over everything,
+    // not just the first page. Bounded by a sane page cap to avoid a runaway loop.
+    const all: CompletedEntry[] = [];
+    let cursor: string | null = null;
+    for (let pages = 0; pages < 200; pages++) {
+      const path: string = cursor
+        ? `/completed?limit=200&cursor=${encodeURIComponent(cursor)}`
+        : "/completed?limit=200";
+      const res: { items: any[]; nextCursor: string | null } =
+        await req("GET", path);
+      all.push(...res.items.map(adaptEntry));
+      if (!res.nextCursor) break;
+      cursor = res.nextCursor;
+    }
+    return all;
   },
 
   async classifyTasks(): Promise<Array<{

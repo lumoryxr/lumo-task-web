@@ -212,10 +212,12 @@ async function mockAPI(page: Page) {
       });
     }
     if (url.includes("/v1/completed")) {
+      // ?date= → array (per-day, bounded); no-date → paginated { items, nextCursor }.
+      const body = url.includes("date=") ? [] : { items: [], nextCursor: null };
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([]),
+        body: JSON.stringify(body),
       });
     }
     if (url.includes("/v1/user")) {
@@ -278,10 +280,12 @@ async function mockAPIWithData(page: Page) {
       });
     }
     if (url.includes("/v1/completed")) {
+      // ?date= → array (per-day, bounded); no-date → paginated { items, nextCursor }.
+      const body = url.includes("date=") ? MOCK_COMPLETED : { items: MOCK_COMPLETED, nextCursor: null };
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(MOCK_COMPLETED),
+        body: JSON.stringify(body),
       });
     }
     if (url.includes("/v1/tasks")) {

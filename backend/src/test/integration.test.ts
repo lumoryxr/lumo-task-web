@@ -465,16 +465,16 @@ describe("Task complete → reopen lifecycle", () => {
   test("completed task appears in GET /v1/completed", async () => {
     const { status, body } = await api("GET", "/v1/completed", { token: aliceToken });
     assert.equal(status, 200);
-    assert.ok(Array.isArray(body));
+    assert.ok(Array.isArray(body.items));
     assert.ok(
-      body.some((e: any) => e.id === completedEntryId),
+      body.items.some((e: any) => e.id === completedEntryId),
       "completed entry missing from log",
     );
   });
 
   test("completed entry has correct shape", async () => {
-    const { body: entries } = await api("GET", "/v1/completed", { token: aliceToken });
-    const entry = entries.find((e: any) => e.id === completedEntryId);
+    const { body } = await api("GET", "/v1/completed", { token: aliceToken });
+    const entry = body.items.find((e: any) => e.id === completedEntryId);
     assert.ok(entry, "entry not found");
     assert.ok(entry.completedAt, "completedAt missing");
     assert.ok(entry.title, "title missing");
@@ -786,11 +786,11 @@ describe("Multi-user data isolation", () => {
 
     // Bob should not see alice's completed entries
     const { body: bobCompleted } = await api("GET", "/v1/completed", { token: bobToken });
-    assert.ok(Array.isArray(bobCompleted));
+    assert.ok(Array.isArray(bobCompleted.items));
     // All entries in bob's log should belong to bob's tasks (none from alice)
     // We verify by checking alice can still see her entry
     const { body: aliceCompleted } = await api("GET", "/v1/completed", { token: aliceToken });
-    const aliceEntry = aliceCompleted.find((e: any) =>
+    const aliceEntry = aliceCompleted.items.find((e: any) =>
       e.title?.en === "Alice private task",
     );
     assert.ok(aliceEntry, "alice should see her own completed entry");

@@ -414,18 +414,51 @@ const spec = {
     "/v1/completed": {
       get: {
         tags: ["Completed"],
-        summary: "List completed entries (latest 200, or filtered by date)",
+        summary: "List completed entries — one day (array) or full history (keyset paginated)",
         parameters: [
           {
             name: "date",
             in: "query",
             required: false,
             schema: { type: "string", format: "date", example: "2026-05-19" },
-            description: "Filter to entries completed on this local date (YYYY-MM-DD)",
+            description: "Filter to entries completed on this local date (YYYY-MM-DD). Returns a plain array.",
+          },
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, maximum: 500, default: 200 },
+            description: "Page size for the no-date (paginated) form.",
+          },
+          {
+            name: "cursor",
+            in: "query",
+            required: false,
+            schema: { type: "string" },
+            description: "Opaque keyset cursor from a previous response's nextCursor (no-date form).",
           },
         ],
         responses: {
-          "200": { description: "Entries", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/CompletedEntry" } } } } },
+          "200": {
+            description: "With ?date= a plain array; otherwise a paginated page.",
+            content: {
+              "application/json": {
+                schema: {
+                  oneOf: [
+                    { type: "array", items: { $ref: "#/components/schemas/CompletedEntry" } },
+                    {
+                      type: "object",
+                      required: ["items", "nextCursor"],
+                      properties: {
+                        items: { type: "array", items: { $ref: "#/components/schemas/CompletedEntry" } },
+                        nextCursor: { type: "string", nullable: true },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
           "401": { description: "Unauthorized" },
         },
       },
