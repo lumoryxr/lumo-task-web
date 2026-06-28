@@ -15,7 +15,9 @@
  * (derived from dbMode()).
  */
 import { lookup } from "node:dns/promises";
+import { lookup as lookupCb } from "node:dns";
 import { isIP } from "node:net";
+import { Agent, fetch as undiciFetch } from "undici";
 
 export class SsrfError extends Error {
   constructor(message: string) {
@@ -156,29 +158,78 @@ type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 const MAX_REDIRECTS = 5;
 
+// A Node `dns.lookup`-shaped resolver, injectable for tests.
+type LookupCb = typeof lookupCb;
+
 /**
- * SSRF-safe fetch. Validates the destination, then follows redirects MANUALLY,
- * re-validating each hop's Location before connecting — so a public URL that
- * 302-redirects to an internal/metadata host (which stock `fetch` would follow
- * blindly, leaking forwarded credentials) is refused.
+ * Build a `net.connect`-compatible `lookup` that resolves the hostname and
+ * refuses the connection if ANY resolved address is internal. undici threads
+ * this option straight into `net.connect`/`tls.connect`, so it runs at the
+ * moment of connection — meaning the address we validate is the exact address
+ * the socket connects to. This closes the DNS-rebinding TOCTOU window that a
+ * validate-then-connect scheme leaves open (the name could re-resolve to an
+ * internal IP in between). TLS SNI / cert validation still use the original
+ * hostname, so pinning the connect target does not weaken the handshake.
  *
- * Residual: a single host can still DNS-rebind between our validation and the
- * connection (TOCTOU); fully closing that needs an IP-pinning dispatcher and is
- * tracked separately. This wrapper closes the redirect vector entirely.
+ * Robust to both `lookup` callback contracts: with `{all:true}` it returns the
+ * validated address array; otherwise the single `(address, family)` form.
+ */
+export function makeValidatingLookup(resolver: LookupCb = lookupCb): LookupCb {
+  return ((hostname: string, options: any, callback: any) => {
+    const cb = typeof options === "function" ? options : callback;
+    const wantAll = typeof options === "object" && options?.all === true;
+    resolver(hostname, { all: true, verbatim: true }, (err, addresses: any) => {
+      if (err) return cb(err);
+      const list = Array.isArray(addresses)
+        ? addresses
+        : [{ address: addresses as unknown as string, family: 4 }];
+      if (list.length === 0) return cb(new SsrfError("Destination host could not be resolved"));
+      for (const a of list) {
+        if (isBlockedAddress(a.address)) {
+          return cb(new SsrfError("Destination resolves to a blocked address"));
+        }
+      }
+      if (wantAll) return cb(null, list);
+      const first = list[0];
+      cb(null, first.address, first.family);
+    });
+  }) as unknown as LookupCb;
+}
+
+// Shared dispatcher for cloud/enforced mode: every fresh connection re-resolves
+// through the validating lookup, so pooled keep-alive connections (already to a
+// validated IP) are reused safely while any new connection is re-checked.
+const pinnedDispatcher = new Agent({ connect: { lookup: makeValidatingLookup() } });
+
+/**
+ * SSRF-safe fetch. Three layers of defense:
+ *   1. Validates the destination URL up front (scheme + pre-resolution).
+ *   2. Follows redirects MANUALLY, re-validating each hop's Location — so a
+ *      public URL that 302s to an internal/metadata host (which stock `fetch`
+ *      follows blindly, leaking forwarded credentials) is refused.
+ *   3. In cloud/enforced mode connects through an IP-pinning dispatcher whose
+ *      connect-time lookup re-validates the resolved address, closing the
+ *      DNS-rebinding TOCTOU between validation and connection.
  *
- * @param fetchImpl injectable for tests; defaults to global fetch.
+ * Desktop mode (`allowPrivate`) skips pinning: the host is the user's own
+ * machine and may legitimately be localhost / a LAN address.
+ *
+ * @param fetchImpl injectable for tests; defaults to undici fetch (so the
+ *                  dispatcher option is honored — it must share undici's instance).
  */
 export async function safeFetch(
   url: string,
   init: RequestInit,
   allowPrivate: boolean,
   schemes: Set<string> = ALLOWED_SCHEMES,
-  fetchImpl: FetchLike = fetch,
+  fetchImpl: FetchLike = undiciFetch as unknown as FetchLike,
 ): Promise<Response> {
   let current = url;
   for (let hop = 0; ; hop++) {
     await assertSafeOutboundUrl(current, allowPrivate, schemes);
-    const res = await fetchImpl(current, { ...init, redirect: "manual" });
+    const reqInit = { ...init, redirect: "manual" as const };
+    if (!allowPrivate) (reqInit as { dispatcher?: unknown }).dispatcher = pinnedDispatcher;
+    const res = await fetchImpl(current, reqInit);
     const isRedirect = res.status >= 300 && res.status < 400 && res.headers.get("location");
     if (!isRedirect) return res;
     if (hop >= MAX_REDIRECTS) throw new SsrfError("Too many redirects");
