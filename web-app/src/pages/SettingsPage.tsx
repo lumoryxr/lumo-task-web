@@ -168,13 +168,13 @@ export function SettingsPage() {
           )}
 
           {activeTab === "integrations" && (
-            <IntegrationsPanel t={t} locale={locale} />
+            <IntegrationsPanel t={t} />
           )}
 
           {activeTab === "datasync" && (
             <div className="flex flex-col gap-8">
-              <StoragePanel t={t} locale={locale} />
-              {isElectron && <SyncPanel t={t} locale={locale} />}
+              <StoragePanel t={t} />
+              {isElectron && <SyncPanel t={t} />}
             </div>
           )}
 
@@ -316,7 +316,7 @@ function PetPanel({
             }}
           />
           <p className="text-[11px] text-text-faint mt-1">
-            {locale === "zh" ? "留空则使用默认名称" : "Leave empty to use the default name"}
+            {t("settings.pet.name.helper")}
           </p>
         </div>
       </div>
@@ -636,7 +636,7 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder={currentCfg?.hasKey
-                ? (locale === "zh" ? "输入新 Key 以替换" : "Enter new key to replace")
+                ? t("settings.ai.key.replacePlaceholder")
                 : (isClaude ? "sk-ant-..." : "sk-...")}
               className="input flex-1"
               style={{ height: 34, fontSize: 13 }}
@@ -646,7 +646,7 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
                 onClick={() => setShowKey(!showKey)}
                 className="text-[11px] text-text-muted hover:text-text-primary transition-colors px-1.5"
               >
-                {showKey ? (locale === "zh" ? "隐藏" : "Hide") : (locale === "zh" ? "显示" : "Show")}
+                {showKey ? t("settings.ai.key.hide") : t("settings.ai.key.show")}
               </button>
             )}
           </div>
@@ -670,7 +670,7 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
             style={{ gridTemplateColumns: "200px 1fr", gap: 32 }}>
             <div>
               <div className="text-[13px] font-medium text-text-primary">{t("ai.config.baseUrl")}</div>
-              <div className="text-[11px] text-text-muted mt-0.5">{locale === "zh" ? "留空用默认地址" : "Leave blank for default"}</div>
+              <div className="text-[11px] text-text-muted mt-0.5">{t("settings.ai.baseUrl.helper")}</div>
             </div>
             <input
               type="text"
@@ -691,7 +691,7 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
             style={{ height: 32, fontSize: 12 }}
           >
             {testStatus === "loading"
-              ? (locale === "zh" ? "测试中..." : "Testing...")
+              ? t("settings.ai.testing")
               : t("ai.config.test")}
           </button>
           {testStatus === "ok" && (
@@ -724,7 +724,7 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
 
 const MS_CLIENT_ID = (import.meta as any).env?.VITE_MS_CLIENT_ID as string | undefined;
 
-function IntegrationsPanel({ t, locale }: { t: (k: string) => string; locale: string }) {
+function IntegrationsPanel({ t }: { t: (k: string) => string }) {
   const { connected, userEmail, serverMode, serverEmail, loading, connect, disconnect } = useCalendarStore();
   const [busy, setBusy] = useState(false);
 
@@ -781,7 +781,7 @@ function IntegrationsPanel({ t, locale }: { t: (k: string) => string; locale: st
               title={!MS_CLIENT_ID ? t("outlook.notConfigured") : undefined}
             >
               {busy || loading
-                ? locale === "zh" ? "连接中…" : "Connecting…"
+                ? t("settings.outlook.connecting")
                 : t("outlook.connect")}
             </button>
           )}
@@ -887,7 +887,7 @@ function fmtBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function StoragePanel({ t, locale }: { t: (k: string) => string; locale: string }) {
+function StoragePanel({ t }: { t: (k: string) => string }) {
   const isElectron = typeof window !== "undefined" && !!window.electronAPI;
   const isMac = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
   const [info, setInfo] = useState<{ dbPath: string; dbSize: number } | null>(null);
@@ -970,7 +970,7 @@ function StoragePanel({ t, locale }: { t: (k: string) => string; locale: string 
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {copied ? (locale === "zh" ? "已复制" : "Copied!") : (locale === "zh" ? "复制" : "Copy")}
+                  {copied ? t("settings.storage.copied") : t("settings.storage.copy")}
                 </button>
               </div>
             ) : (
@@ -1011,9 +1011,7 @@ function StoragePanel({ t, locale }: { t: (k: string) => string; locale: string 
         <div className="px-5 py-3 flex items-center gap-2">
           <span className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--accent-primary)" }} />
           <span className="text-[11.5px] text-text-muted">
-            {locale === "zh"
-              ? "100% 本地存储 · 数据永不离开你的设备"
-              : "100% local · your data never leaves this device"}
+            {t("settings.storage.localNote")}
           </span>
         </div>
       </div>
@@ -1035,7 +1033,7 @@ function StoragePanel({ t, locale }: { t: (k: string) => string; locale: string 
  *  - enabled === true  → enabled state + last-synced + last-error + "Sync now"
  *    (`api.syncNow`) + "Disable" (`api.syncDisable`).
  */
-function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) {
+function SyncPanel({ t }: { t: (k: string) => string }) {
   const userId = useAuthStore((s) => s.user.id);
   const [status, setStatus] = useState<SyncStatusResponse | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -1133,9 +1131,9 @@ function SyncPanel({ t, locale }: { t: (k: string) => string; locale: string }) 
   function fmtRelative(iso: string | null) {
     if (!iso) return t("settings.sync.never");
     const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-    if (diff < 60) return locale === "zh" ? "刚刚" : "just now";
-    if (diff < 3600) return locale === "zh" ? `${Math.floor(diff / 60)} 分钟前` : `${Math.floor(diff / 60)} min ago`;
-    return locale === "zh" ? `${Math.floor(diff / 3600)} 小时前` : `${Math.floor(diff / 3600)} hr ago`;
+    if (diff < 60) return t("settings.sync.relative.justNow");
+    if (diff < 3600) return t("settings.sync.relative.minAgo").replace("{n}", String(Math.floor(diff / 60)));
+    return t("settings.sync.relative.hrAgo").replace("{n}", String(Math.floor(diff / 3600)));
   }
 
   const enabled = status?.enabled ?? false;
