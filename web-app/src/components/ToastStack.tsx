@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useToastStore, type Toast, type ToastType } from "@/store/useToastStore";
 import { useT } from "@/i18n/useT";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -248,6 +249,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
 export function ToastStack() {
   const t = useT();
   const { toasts, dismiss } = useToastStore();
+  const isMobile = useIsMobile();
 
   if (toasts.length === 0) return null;
 
@@ -255,7 +257,9 @@ export function ToastStack() {
     <div
       style={{
         position: "fixed",
-        bottom: 24,
+        // On mobile, clear the fixed bottom tab bar (64px) + the device safe-area
+        // inset so toasts aren't hidden behind it; desktop keeps the corner offset.
+        bottom: isMobile ? "calc(76px + env(safe-area-inset-bottom))" : 24,
         right: 24,
         zIndex: 9999,
         display: "flex",

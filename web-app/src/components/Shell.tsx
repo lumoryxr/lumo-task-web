@@ -85,7 +85,7 @@ export function Shell() {
           )}
           <div
             className="relative flex-1 min-h-0 scroll-y"
-            style={{ paddingBottom: isMobile && !isFocus ? 64 : 0 }}
+            style={{ paddingBottom: isMobile && !isFocus ? "calc(64px + env(safe-area-inset-bottom))" : 0 }}
           >
             {outlet}
           </div>
