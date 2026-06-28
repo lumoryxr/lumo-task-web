@@ -137,7 +137,7 @@ const spec = {
           },
         },
         responses: {
-          "201": { description: "Created", content: { "application/json": { schema: { type: "object", properties: { token: { type: "string" }, user: { $ref: "#/components/schemas/User" } } } } } },
+          "201": { description: "Created", content: { "application/json": { schema: { type: "object", properties: { token: { type: "string" }, refreshToken: { type: "string" }, user: { $ref: "#/components/schemas/User" } } } } } },
           "400": { description: "Validation error" },
           "409": { description: "Email already registered" },
         },
@@ -164,8 +164,31 @@ const spec = {
           },
         },
         responses: {
-          "200": { description: "Token + user", content: { "application/json": { schema: { type: "object", properties: { token: { type: "string" }, user: { $ref: "#/components/schemas/User" } } } } } },
+          "200": { description: "Token + user", content: { "application/json": { schema: { type: "object", properties: { token: { type: "string" }, refreshToken: { type: "string" }, user: { $ref: "#/components/schemas/User" } } } } } },
           "401": { description: "Invalid credentials" },
+        },
+      },
+    },
+    "/v1/auth/refresh": {
+      post: {
+        tags: ["Auth"],
+        summary: "Exchange a refresh token for a fresh access token (rotates the refresh token)",
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["refreshToken"],
+                properties: { refreshToken: { type: "string" } },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "New access token + rotated refresh token", content: { "application/json": { schema: { type: "object", properties: { token: { type: "string" }, refreshToken: { type: "string" } } } } } },
+          "401": { description: "Invalid or expired refresh token" },
         },
       },
     },
