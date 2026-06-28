@@ -241,6 +241,19 @@ body {
   100% { transform: translateY(70px)  rotate(360deg); opacity: 0; }
 }
 
+/* Task-complete confirmation: the circle fills with the accent and gives a
+   short, satisfying pop before the row leaves the list. Auto-gated by the
+   reduce-motion resets above (animation-duration collapses to ~0), and the
+   JS dwell that keeps the row visible is skipped when reduced motion is on. */
+@keyframes taskCompletePop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+.task-complete-circle--done {
+  animation: taskCompletePop 0.24s var(--ease-enter, ease-out);
+}
+
 /* Task action popover */
 @keyframes popoverIn {
   from { opacity: 0; transform: scale(0.94) translateY(4px); }

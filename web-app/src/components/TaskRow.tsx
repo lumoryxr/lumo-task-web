@@ -30,6 +30,7 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
   const [hovered, setHovered] = useState(false);
   const [circleHover, setCircleHover] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [moreAnchor, setMoreAnchor] = useState<DOMRect | null>(null);
@@ -61,21 +62,36 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
           onMouseLeave={() => setCircleHover(false)}
           onClick={async (e) => {
             e.stopPropagation();
-            if (busy) return;
+            if (busy || completing) return;
+            // Show the filled-check pop, then let the row leave. The dwell that
+            // keeps the confirmation visible is skipped under reduced motion
+            // (in-product setting or OS preference) so it stays instant there.
+            setCompleting(true);
+            const reduce =
+              useAppStore.getState().reducedMotion ||
+              (typeof window !== "undefined" &&
+                !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+            if (!reduce) await new Promise((r) => setTimeout(r, 240));
             setBusy(true);
-            try { await complete(task.id); } finally { setBusy(false); }
+            try {
+              await complete(task.id);
+            } finally {
+              // Row usually unmounts on success; reset covers the failure path.
+              setBusy(false);
+              setCompleting(false);
+            }
           }}
           disabled={busy}
           aria-label={t("row.complete")}
-          className="flex-shrink-0 flex items-center justify-center w-[18px] h-[18px] rounded-full border-[1.5px] transition-all"
+          className={`flex-shrink-0 flex items-center justify-center w-[18px] h-[18px] rounded-full border-[1.5px] transition-all${completing ? " task-complete-circle--done" : ""}`}
           style={{
-            borderColor: circleHover ? "var(--accent-primary)" : "var(--border-strong)",
-            background: circleHover ? "var(--accent-fog)" : "transparent",
-            boxShadow: circleHover ? "0 0 6px var(--accent-glow)" : "none",
-            color: "var(--accent-primary)",
+            borderColor: circleHover || completing ? "var(--accent-primary)" : "var(--border-strong)",
+            background: completing ? "var(--accent-primary)" : circleHover ? "var(--accent-fog)" : "transparent",
+            boxShadow: circleHover || completing ? "0 0 6px var(--accent-glow)" : "none",
+            color: completing ? "var(--text-inverse)" : "var(--accent-primary)",
           }}
         >
-          {circleHover && <IconCheck size={10} strokeWidth={2.5} />}
+          {(circleHover || completing) && <IconCheck size={10} strokeWidth={2.5} />}
         </button>
 
         {/* ── Center: clickable content area ───────────────────── */}
