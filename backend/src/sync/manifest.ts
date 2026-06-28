@@ -79,9 +79,10 @@ const countdownEventRowSchema = requiringNotNull({
 });
 const templateRowSchema = requiringNotNull({
   name: z.string(),
-  kind: z.string(),
-  // `payload` travels as an opaque JSON string column (validated against the
-  // contracts payload schema only at the route boundary, not on sync).
+  // `kind` is NOT required: it has a SQLite DEFAULT 'task', so an omitted value
+  // binds to the default (per this file's rule — only NOT-NULL-without-default
+  // columns are listed). `payload` travels as an opaque JSON string column
+  // (validated against the contracts payload schema only at the route boundary).
   payload: z.string(),
 });
 

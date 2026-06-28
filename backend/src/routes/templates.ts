@@ -21,9 +21,12 @@ app.use("/*", authMiddleware);
 
 const IdParam = z.object({ id: z.string().min(1).max(64) });
 
-// Map a DB row → wire shape. `payload` is stored as a JSON string; parse it back
-// and re-validate through the contract schema so a malformed/legacy row is
-// coerced to its defaults rather than leaking raw text to the client.
+// Map a DB row → wire shape. `payload` is stored as a JSON string. Read is
+// LENIENT: a malformed/legacy payload (bad JSON, or missing a required field
+// like `title` — reachable because the sync engine treats `payload` as an
+// opaque string and never validates its contents) must NOT throw, or one bad
+// row would 500 the entire list and hide every template. We `safeParse` and, on
+// failure, fall back to a minimal valid payload seeded from the template name.
 export function rowToTemplate(row: TemplateRow): TemplateWire {
   let parsed: unknown = {};
   try {
@@ -31,11 +34,15 @@ export function rowToTemplate(row: TemplateRow): TemplateWire {
   } catch {
     parsed = {};
   }
+  const result = TemplatePayloadSchema.safeParse(parsed);
+  const payload = result.success
+    ? result.data
+    : TemplatePayloadSchema.parse({ title: { en: row.name } });
   return {
     id: row.id,
     name: row.name,
     kind: row.kind,
-    payload: TemplatePayloadSchema.parse(parsed),
+    payload,
     created_at: row.created_at,
   };
 }

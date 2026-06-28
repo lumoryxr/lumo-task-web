@@ -784,7 +784,9 @@ export const countdownApi = {
 export const templateApi = {
   async list(): Promise<TaskTemplate[]> {
     const rows = await req<any[]>("GET", "/templates");
-    return rows.map(adaptTemplate);
+    // Defensive: tolerate a non-array body (e.g. a stubbed endpoint) instead of
+    // throwing a raw TypeError from .map.
+    return Array.isArray(rows) ? rows.map(adaptTemplate) : [];
   },
 
   async create(name: string, payload: TemplatePayload, id?: string): Promise<TaskTemplate> {

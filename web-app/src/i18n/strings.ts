@@ -353,6 +353,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "template.error.create": "Failed to save template",
     "template.error.update": "Failed to update template",
     "template.error.delete": "Failed to delete template",
+    "template.error.instantiate": "Failed to create task from template",
 
     "detail.due": "Due",
     "detail.estimate": "Estimate",
@@ -1094,6 +1095,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "template.error.create": "保存模板失败",
     "template.error.update": "更新模板失败",
     "template.error.delete": "删除模板失败",
+    "template.error.instantiate": "从模板创建任务失败",
 
     "detail.due": "截止",
     "detail.estimate": "预估",

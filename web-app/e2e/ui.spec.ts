@@ -204,6 +204,15 @@ async function mockAPI(page: Page) {
         body: JSON.stringify([]),
       });
     }
+    if (url.includes("/v1/templates")) {
+      // GET → array; mutations → empty object. Without this the catch-all returns
+      // {} and templateApi.list()'s .map throws on sign-in.
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(method === "GET" ? [] : {}),
+      });
+    }
     if (url.includes("/v1/settings")) {
       return route.fulfill({
         status: 200,

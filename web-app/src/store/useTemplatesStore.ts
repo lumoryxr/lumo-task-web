@@ -30,9 +30,15 @@ export function payloadFromTask(task: Task): TemplatePayload {
     assignee_ids: task.assignee_ids ?? [],
     recurrence: task.recurrence ?? "none",
     scheduled_start: task.scheduled_start ?? undefined,
-    remind_at: task.remind_at ?? undefined,
-    // Subtasks travel as titles only; ids + completion are regenerated on use.
-    subtasks: (task.subtasks ?? []).map((s) => ({ title: s.title })),
+    // NB: `remind_at` is intentionally NOT captured — a template is reused later,
+    // so a baked-in wall-clock reminder would be stale/in the past. This also
+    // matches useTasksStore.duplicate, which likewise does not copy remind_at.
+    // Subtasks travel as titles only (ids + completion regenerated on use);
+    // drop blank titles — the template schema requires title.min(1) whereas a
+    // live task may hold an empty-title subtask.
+    subtasks: (task.subtasks ?? [])
+      .map((s) => ({ title: s.title.trim() }))
+      .filter((s) => s.title.length > 0),
   };
 }
 
@@ -50,7 +56,6 @@ export function inputFromPayload(payload: TemplatePayload): TaskCreateInput {
     assignee_ids: payload.assignee_ids ?? [],
     recurrence: payload.recurrence ?? "none",
     scheduled_start: payload.scheduled_start ?? undefined,
-    remind_at: payload.remind_at ?? undefined,
     subtasks: (payload.subtasks ?? []).map((s) => ({
       id: clientId("st"),
       title: s.title,
@@ -100,8 +105,10 @@ export const useTemplatesStore = create<TemplatesState>((set, get) => ({
       toast.success(t("template.saved"));
       return tpl;
     } catch (e) {
+      // Toast and swallow — callers fire-and-forget from the ⋯ menu, so a
+      // re-throw here would surface as an unhandled rejection.
       toast.error(t("template.error.create"), e instanceof Error ? e.message : String(e));
-      throw e;
+      return undefined;
     }
   },
 
@@ -109,10 +116,17 @@ export const useTemplatesStore = create<TemplatesState>((set, get) => ({
     const tpl = get().templates.find((x) => x.id === id);
     if (!tpl) throw new Error("template not found");
     // Reuse the tasks store create path so the new task lands in the cache and
-    // fires all the usual side effects, exactly like Duplicate.
-    const task = await useTasksStore.getState().create(inputFromPayload(tpl.payload));
-    toast.success(t("template.instantiated"));
-    return task;
+    // fires all the usual side effects, exactly like Duplicate. Self-contained
+    // error handling: the library button fire-and-forgets, so a thrown API error
+    // must be toasted here, not left to become an unhandled rejection.
+    try {
+      const task = await useTasksStore.getState().create(inputFromPayload(tpl.payload));
+      toast.success(t("template.instantiated"));
+      return task;
+    } catch (e) {
+      toast.error(t("template.error.instantiate"), e instanceof Error ? e.message : String(e));
+      return undefined;
+    }
   },
 
   async rename(id, name) {

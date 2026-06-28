@@ -31,6 +31,18 @@ export function TemplateLibraryModal({ onClose }: Props) {
   const instantiate = useTemplatesStore((s) => s.instantiate);
   const rename = useTemplatesStore((s) => s.rename);
   const remove = useTemplatesStore((s) => s.remove);
+  // Guards the Use button against rapid double-clicks creating duplicate tasks.
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function handleUse(id: string) {
+    if (busyId) return;
+    setBusyId(id);
+    try {
+      await instantiate(id);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <div
@@ -100,7 +112,8 @@ export function TemplateLibraryModal({ onClose }: Props) {
                 key={tpl.id}
                 tpl={tpl}
                 title={ls(tpl.payload.title) || tpl.name}
-                onUse={() => instantiate(tpl.id)}
+                busy={busyId === tpl.id}
+                onUse={() => handleUse(tpl.id)}
                 onRename={(name) => rename(tpl.id, name)}
                 onDelete={() => remove(tpl.id)}
               />
@@ -115,12 +128,14 @@ export function TemplateLibraryModal({ onClose }: Props) {
 function TemplateRow({
   tpl,
   title,
+  busy,
   onUse,
   onRename,
   onDelete,
 }: {
   tpl: TaskTemplate;
   title: string;
+  busy: boolean;
   onUse: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
@@ -197,7 +212,12 @@ function TemplateRow({
 
       {!editing && (
         <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-          <button className="btn btn-secondary" style={{ height: 30, fontSize: 12 }} onClick={onUse}>
+          <button
+            className="btn btn-secondary"
+            style={{ height: 30, fontSize: 12 }}
+            onClick={onUse}
+            disabled={busy}
+          >
             {t("template.use")}
           </button>
           <RowIconBtn label={t("template.rename")} onClick={() => { setDraft(tpl.name); setEditing(true); }}>
