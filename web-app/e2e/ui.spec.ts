@@ -1494,14 +1494,22 @@ test("TC87 – templates: save a task as a template and instantiate it from the 
   await page.goto("/#/today");
 
   // A seeded task is visible.
-  const seededTask = page.getByText("Write integration tests").first();
-  await expect(seededTask).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Write integration tests").first()).toBeVisible({ timeout: 10_000 });
 
-  // The row's action buttons (incl. ⋯) are opacity:0 until the row is hovered,
-  // so hover first — otherwise Playwright waits forever for an invisible target.
-  await seededTask.hover();
+  // The row's action buttons (incl. ⋯) are opacity:0 / pointer-events:none until
+  // the row is hovered. Scope to the exact row that owns the ⋯ button, hover THAT
+  // row (so the same element is hovered and clicked), then wait for the button to
+  // become visible before clicking — otherwise Playwright waits on an invisible target.
+  const taskRow = page
+    .locator("div")
+    .filter({ hasText: "Write integration tests" })
+    .filter({ has: page.getByRole("button", { name: "More actions" }) })
+    .last();
+  await taskRow.hover();
+  const moreBtn = taskRow.getByRole("button", { name: "More actions" });
+  await expect(moreBtn).toBeVisible({ timeout: 5_000 });
   // Open its ⋯ menu and save it as a template.
-  await page.getByRole("button", { name: "More actions" }).first().click();
+  await moreBtn.click();
   await page.getByRole("button", { name: "Save as template" }).click();
   // Confirmation toast.
   await expect(page.getByText("Saved as template")).toBeVisible({ timeout: 8_000 });
