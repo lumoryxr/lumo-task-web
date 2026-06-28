@@ -254,6 +254,18 @@ body {
   animation: taskCompletePop 0.24s var(--ease-enter, ease-out);
 }
 
+/* Matrix drag-settle: a dropped card jumps to its new quadrant instantly, so
+   it gives a short settle (scale-in + accent ring fading out) to let the eye
+   follow where it landed. Auto-collapsed by the reduce-motion resets above. */
+@keyframes matrixCardSettle {
+  0%   { transform: scale(0.95); box-shadow: 0 0 0 2px var(--accent-fog); }
+  60%  { transform: scale(1.015); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+}
+.matrix-card-settle {
+  animation: matrixCardSettle 0.36s var(--ease-spring, ease-out);
+}
+
 /* Task action popover */
 @keyframes popoverIn {
   from { opacity: 0; transform: scale(0.94) translateY(4px); }

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTasksStore } from "@/store/useTasksStore";
+import { useDragSettleStore } from "@/store/useDragSettleStore";
 import { useT, useLocaleString } from "@/i18n/useT";
 import type { Quadrant, Task } from "@/types/task";
 import { useAppStore } from "@/store/useAppStore";
@@ -234,6 +235,8 @@ function useTaskDrop(target: Quadrant | "unclassified") {
         const id = e.dataTransfer.getData(DND_MIME);
         if (!id) return;
         update(id, { quadrant: target as Task["quadrant"] });
+        // Flag the moved card so it plays a short settle in its new quadrant.
+        useDragSettleStore.getState().settle(id);
       },
     },
   };
@@ -312,6 +315,7 @@ function MatrixTaskCard({ task }: { task: Task }) {
   const [editOpen, setEditOpen] = useState(false);
   const [moreAnchor, setMoreAnchor] = useState<DOMRect | null>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
+  const settling = useDragSettleStore((s) => s.settleId === task.id);
 
   const assignees = (task.assignee_ids ?? []).map(byId).filter(Boolean) as import("@/types/task").Person[];
   const due = getDueLabel(task.due, locale);
@@ -322,7 +326,7 @@ function MatrixTaskCard({ task }: { task: Task }) {
         {...makeDragProps(task.id)}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className="flex items-center gap-2 border-b border-border-faint rounded-md transition-colors cursor-grab active:cursor-grabbing"
+        className={`flex items-center gap-2 border-b border-border-faint rounded-md transition-colors cursor-grab active:cursor-grabbing${settling ? " matrix-card-settle" : ""}`}
         style={{
           padding: "8px 6px",
           marginLeft: -6,
