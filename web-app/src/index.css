@@ -491,6 +491,19 @@ input[type="number"] { -moz-appearance: textfield; }
   }
 }
 
+/* In-product "Reduce motion" setting. Driven onto <html> from the app store
+   (see useReducedMotionClass) so the toggle works app-wide — including
+   root-level toasts and portals — independently of the OS preference. Mirrors
+   the OS reset above. */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
 /* ── Loading skeletons (shimmer placeholders while content fetches) ───── */
 .skeleton {
   display: block;
