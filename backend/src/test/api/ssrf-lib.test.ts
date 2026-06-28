@@ -8,7 +8,7 @@
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { assertSafeOutboundUrl, isBlockedAddress, SsrfError, safeFetch } from "../../lib/ssrf.js";
+import { assertSafeOutboundUrl, isBlockedAddress, SsrfError, safeFetch, makeValidatingLookup } from "../../lib/ssrf.js";
 
 describe("lib/ssrf · IPv4-in-IPv6 forms (the hex-normalized bypass)", () => {
   // new URL("http://[::ffff:127.0.0.1]") normalizes to the hex form below
@@ -69,6 +69,63 @@ describe("lib/ssrf · safeFetch redirect re-validation", () => {
   test("returns a non-redirect response directly", async () => {
     const res = await safeFetch("https://api.openai.com/v1", {}, false, undefined, async () => ok(201));
     assert.equal(res.status, 201);
+  });
+});
+
+describe("lib/ssrf · makeValidatingLookup (connect-time DNS-rebind guard)", () => {
+  // Fake resolver matching node:dns.lookup(host, {all:true}, cb) shape.
+  const resolverReturning = (addrs: { address: string; family: number }[]) =>
+    ((_host: string, _opts: any, cb: any) => cb(null, addrs)) as any;
+  const resolverError = ((_host: string, _opts: any, cb: any) =>
+    cb(new Error("ENOTFOUND"))) as any;
+
+  const run = (lookup: any, opts: any): Promise<{ err: any; address?: any; family?: any }> =>
+    new Promise((resolve) =>
+      lookup("evil.example.com", opts, (err: any, address: any, family: any) =>
+        resolve({ err, address, family }),
+      ),
+    );
+
+  test("connects to a validated public address (single-address form)", async () => {
+    const lookup = makeValidatingLookup(resolverReturning([{ address: "93.184.216.34", family: 4 }]));
+    const { err, address, family } = await run(lookup, { family: 0 });
+    assert.equal(err, null);
+    assert.equal(address, "93.184.216.34");
+    assert.equal(family, 4);
+  });
+
+  test("REFUSES when the host resolves to cloud metadata (the rebind attack)", async () => {
+    const lookup = makeValidatingLookup(resolverReturning([{ address: "169.254.169.254", family: 4 }]));
+    const { err } = await run(lookup, {});
+    assert.ok(err instanceof SsrfError);
+  });
+
+  test("REFUSES if ANY resolved address is internal (mixed answer)", async () => {
+    const lookup = makeValidatingLookup(
+      resolverReturning([{ address: "8.8.8.8", family: 4 }, { address: "10.0.0.5", family: 4 }]),
+    );
+    const { err } = await run(lookup, {});
+    assert.ok(err instanceof SsrfError);
+  });
+
+  test("returns the full validated list when {all:true} is requested", async () => {
+    const addrs = [{ address: "1.1.1.1", family: 4 }, { address: "8.8.8.8", family: 4 }];
+    const lookup = makeValidatingLookup(resolverReturning(addrs));
+    const { err, address } = await run(lookup, { all: true });
+    assert.equal(err, null);
+    assert.deepEqual(address, addrs);
+  });
+
+  test("propagates resolver errors", async () => {
+    const lookup = makeValidatingLookup(resolverError);
+    const { err } = await run(lookup, {});
+    assert.ok(err instanceof Error);
+  });
+
+  test("rejects an empty resolution", async () => {
+    const lookup = makeValidatingLookup(resolverReturning([]));
+    const { err } = await run(lookup, {});
+    assert.ok(err instanceof SsrfError);
   });
 });
 
