@@ -252,6 +252,7 @@ export function buildTaskUpdateBody(patch: TaskUpdateInput) {
     ...(patch.recurrence !== undefined && { recurrence: patch.recurrence }),
     ...(patch.subtasks !== undefined && { subtasks: patch.subtasks }),
     ...(patch.scheduled_start !== undefined && { scheduled_start: patch.scheduled_start }),
+    ...(patch.remind_at !== undefined && { remind_at: patch.remind_at }),
   };
 }
 
@@ -303,6 +304,7 @@ export function buildTaskCreateBody(input: TaskCreateInput, id?: string) {
     recurrence: input.recurrence ?? "none",
     subtasks: input.subtasks ?? [],
     scheduled_start: input.scheduled_start ?? null,
+    remind_at: input.remind_at ?? null,
   };
 }
 
@@ -328,6 +330,7 @@ function adaptTask(raw: any): Task {
     recurrence: raw.recurrence ?? "none",
     subtasks: raw.subtasks ?? [],
     scheduled_start: raw.scheduled_start ?? null,
+    remind_at: raw.remind_at ?? null,
     created_at: raw.created_at ?? undefined,
     updated_at: raw.updated_at ?? undefined,
   };

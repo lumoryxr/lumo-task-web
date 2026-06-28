@@ -187,6 +187,9 @@ export async function runMigrations() {
   if (!taskColsV3.some((c) => c.name === "subtasks_json")) {
     await execRaw("ALTER TABLE tasks ADD COLUMN subtasks_json TEXT NOT NULL DEFAULT '[]'");
   }
+  if (!taskColsV3.some((c) => c.name === "remind_at")) {
+    await execRaw("ALTER TABLE tasks ADD COLUMN remind_at TEXT");
+  }
   if (!taskColsV3.some((c) => c.name === "scheduled_start")) {
     await execRaw("ALTER TABLE tasks ADD COLUMN scheduled_start TEXT");
   }

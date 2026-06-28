@@ -66,6 +66,13 @@ export const TaskCreateBodySchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)
     .nullable()
     .optional(),
+  // Optional per-task reminder: a local wall-clock datetime at which the client
+  // surfaces a notification for this task. Same format as scheduled_start.
+  remind_at: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)
+    .nullable()
+    .optional(),
 });
 
 export const TaskUpdateBodySchema = TaskCreateBodySchema.partial();
@@ -106,6 +113,7 @@ export const TaskWireSchema = z.object({
   recurrence: RecurrenceSchema,
   subtasks: z.array(SubtaskSchema),
   scheduled_start: z.string().nullable(),
+  remind_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -185,6 +193,8 @@ export interface Task {
   subtasks?: Subtask[];
   /** ISO datetime (YYYY-MM-DDTHH:MM:SS) for a specific time block on the calendar. */
   scheduled_start?: string | null;
+  /** ISO datetime (YYYY-MM-DDTHH:MM) at which to surface a reminder notification. */
+  remind_at?: string | null;
   /** ISO 8601 server timestamp — when the task was created. Read-only. */
   created_at?: string;
   /** ISO 8601 server timestamp — last write (edit, AI classify, focus). Read-only. Powers Q2 stagnation. */

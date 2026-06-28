@@ -30,6 +30,7 @@ const wireTask = {
   recurrence: "none" as const,
   subtasks: [{ id: "s_1", title: "stub", completed: false }],
   scheduled_start: null,
+  remind_at: null,
   created_at: "2026-06-20T10:00:00.000Z",
   updated_at: "2026-06-20T10:00:00.000Z",
 };
