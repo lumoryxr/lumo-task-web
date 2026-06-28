@@ -237,9 +237,41 @@ async function mockAPI(page: Page) {
 
 /** Full mock with realistic tasks, habits, countdowns, and auth responses. */
 async function mockAPIWithData(page: Page) {
+  // Stateful in-memory templates store so the save → list → instantiate flow works.
+  const templates: any[] = [];
   await page.route("**/v1/**", (route) => {
     const url = route.request().url();
     const method = route.request().method();
+
+    // Templates (#173) — stateful: POST appends, GET returns the list.
+    if (url.includes("/v1/templates")) {
+      if (method === "POST") {
+        const body = JSON.parse(route.request().postData() || "{}");
+        const tpl = {
+          id: body.id || `tpl_${templates.length + 1}`,
+          name: body.name,
+          kind: "task",
+          payload: body.payload,
+          created_at: "2026-06-28T00:00:00.000Z",
+        };
+        templates.unshift(tpl);
+        return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(tpl) });
+      }
+      if (method === "DELETE") {
+        const id = url.split("/v1/templates/")[1];
+        const idx = templates.findIndex((x) => x.id === id);
+        if (idx >= 0) templates.splice(idx, 1);
+        return route.fulfill({ status: 204, body: "" });
+      }
+      if (method === "PATCH") {
+        const id = url.split("/v1/templates/")[1];
+        const body = JSON.parse(route.request().postData() || "{}");
+        const tpl = templates.find((x) => x.id === id);
+        if (tpl && body.name) tpl.name = body.name;
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(tpl ?? {}) });
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(templates) });
+    }
 
     // Auth
     if (method === "POST" && url.includes("/v1/auth/signin")) {
@@ -1439,6 +1471,43 @@ test("TC84 – a11y: keyboard focus paints a visible outline", async ({ page }) 
     expect(focused.focused, `an element should be focused after Tab #${i + 1}`).toBe(true);
     expect(focused.indicated, `focused <${focused.tag}> must show a focus indicator after Tab #${i + 1}`).toBe(true);
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC87  Templates (#173): save a task as a template, then instantiate it from
+// the library. Exercises the full vertical slice — ⋯ menu → save → library →
+// Use → tasks POST — against the stateful templates mock.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("TC87 – templates: save a task as a template and instantiate it from the library", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/today");
+
+  // A seeded task is visible.
+  await expect(page.getByText("Write integration tests").first()).toBeVisible({ timeout: 10_000 });
+
+  // Open its ⋯ menu and save it as a template.
+  await page.getByRole("button", { name: "More actions" }).first().click();
+  await page.getByRole("button", { name: "Save as template" }).click();
+  // Confirmation toast.
+  await expect(page.getByText("Saved as template")).toBeVisible({ timeout: 8_000 });
+
+  // Open the template library from the Matrix toolbar.
+  await page.goto("/#/matrix");
+  await page.getByRole("button", { name: "Templates" }).click();
+  const dialog = page.locator('[role="dialog"]');
+  await expect(dialog).toBeVisible({ timeout: 8_000 });
+  // The saved template (named after the task title) shows up.
+  await expect(dialog.getByText("Write integration tests").first()).toBeVisible({ timeout: 8_000 });
+
+  // Instantiating it fires a task-create request.
+  const createReq = page.waitForRequest(
+    (r) => r.url().includes("/v1/tasks") && r.method() === "POST",
+    { timeout: 8_000 },
+  );
+  await dialog.getByRole("button", { name: "Use" }).first().click();
+  await createReq;
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

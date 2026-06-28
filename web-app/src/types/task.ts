@@ -25,6 +25,9 @@ import type {
   Person,
   PersonCreateInput,
   PersonUpdateInput,
+  TaskTemplate,
+  TemplatePayload,
+  TemplateCreateInput,
 } from "@lumo/contracts";
 
 export type {
@@ -40,6 +43,9 @@ export type {
   Person,
   PersonCreateInput,
   PersonUpdateInput,
+  TaskTemplate,
+  TemplatePayload,
+  TemplateCreateInput,
 };
 
 export type Locale = "en" | "zh";

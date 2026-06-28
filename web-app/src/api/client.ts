@@ -8,7 +8,7 @@
  * JWT token is stored in localStorage and attached to every request.
  */
 
-import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, User } from "@/types/task";
+import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, TemplatePayload, User } from "@/types/task";
 import type { SyncStatusResponse, SyncCycleResponse } from "@lumo/contracts";
 import { ApiError } from "@/api/ApiError";
 
@@ -638,6 +638,16 @@ function adaptHabitLog(raw: any): HabitLog {
   };
 }
 
+function adaptTemplate(raw: any): TaskTemplate {
+  return {
+    id: raw.id,
+    name: raw.name,
+    kind: raw.kind ?? "task",
+    payload: raw.payload as TemplatePayload,
+    createdAt: raw.created_at ?? raw.createdAt,
+  };
+}
+
 function adaptCountdownEvent(raw: any): CountdownEvent {
   return {
     id: raw.id,
@@ -766,5 +776,32 @@ export const countdownApi = {
         createdAt: e.createdAt,
       })),
     });
+  },
+};
+
+// ── Template REST API (#173) ──────────────────────────────────────────────────
+
+export const templateApi = {
+  async list(): Promise<TaskTemplate[]> {
+    const rows = await req<any[]>("GET", "/templates");
+    return rows.map(adaptTemplate);
+  },
+
+  async create(name: string, payload: TemplatePayload, id?: string): Promise<TaskTemplate> {
+    const raw = await req<any>("POST", "/templates", {
+      ...(id ? { id } : {}),
+      name,
+      payload,
+    });
+    return adaptTemplate(raw);
+  },
+
+  async rename(id: string, name: string): Promise<TaskTemplate> {
+    const raw = await req<any>("PATCH", `/templates/${id}`, { name });
+    return adaptTemplate(raw);
+  },
+
+  async delete(id: string): Promise<void> {
+    await req<void>("DELETE", `/templates/${id}`);
   },
 };
