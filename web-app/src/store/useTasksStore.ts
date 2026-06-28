@@ -102,6 +102,9 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       set({ tasks, completed });
       if (completingTask?.quadrant === "Q1") {
         usePetStore.getState().celebrate("pet.celebrate.q1");
+      } else {
+        // Smaller wins still get a brief, message-less pet bounce as feedback.
+        usePetStore.getState().react();
       }
       useDogStore.getState().addXP(XP_PER_TASK);
       return result;
