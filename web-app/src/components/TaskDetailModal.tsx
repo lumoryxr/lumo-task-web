@@ -138,9 +138,12 @@ export function TaskDetailModal({ task, onClose }: Props) {
         ref={dialogRef}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full overflow-hidden rounded-[16px] border"
+        className="w-full overflow-x-hidden overflow-y-auto rounded-[16px] border"
         style={{
           maxWidth: 480,
+          // Cap to the viewport and scroll internally so the action area stays
+          // reachable on short / mobile screens (was overflow-hidden → clipped).
+          maxHeight: "90vh",
           background: "var(--bg-elevated)",
           borderColor: "var(--border-default)",
           boxShadow: "var(--shadow-lifted)",
