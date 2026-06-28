@@ -193,6 +193,98 @@ describe("DFX · Security — authentication & authorization", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — cross-tenant isolation across EVERY user-scoped resource
+//
+// The block above proves IDOR protection for /v1/tasks. That alone is a false
+// sense of security: an isolation regression in any *other* user-scoped CRUD
+// resource (a handler that forgets `WHERE user_id = …`) would ship green because
+// nothing exercises it. This block proves the same guarantee — attacker can
+// neither mutate nor even see the owner's row — holds for countdowns, habits,
+// and people. All three are list-based (no GET /:id), so we assert via the
+// owner's surviving list + the attacker's empty list.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Pull rows out of either a bare-array list or a `{ items, nextCursor }` page. */
+function listRows(body: any): any[] {
+  if (Array.isArray(body)) return body;
+  if (body && Array.isArray(body.items)) return body.items;
+  return [];
+}
+
+describe("DFX · Security — cross-tenant isolation across all user-scoped resources", () => {
+  let owner: { token: string; id: string };
+  let attacker: { token: string; id: string };
+
+  before(async () => {
+    owner = await registerUser("res-owner");
+    attacker = await registerUser("res-attacker");
+  });
+
+  // [name, CRUD base path, a valid create body, a valid patch body]
+  const RESOURCES: Array<{
+    name: string;
+    base: string;
+    create: Record<string, unknown>;
+    patch: Record<string, unknown>;
+  }> = [
+    {
+      name: "countdowns",
+      base: "/v1/countdowns",
+      create: { title: "Owner anniversary", date: "2030-01-01" },
+      patch: { title: "hijacked" },
+    },
+    {
+      name: "habits",
+      base: "/v1/habits",
+      create: { title: "Owner habit" },
+      patch: { title: "hijacked" },
+    },
+    {
+      name: "people",
+      base: "/v1/people",
+      create: { name: "Owner person", initials: "OP", color: "#5bc8d4" },
+      patch: { name: "hijacked" },
+    },
+  ];
+
+  for (const r of RESOURCES) {
+    test(`${r.name}: attacker cannot PATCH or DELETE the owner's row → 404, no mutation`, async () => {
+      const created = await api("POST", r.base, { token: owner.token, body: r.create });
+      assert.equal(created.status, 201, `${r.name} create should 201`);
+      const id = created.body?.id;
+      assert.ok(id, `${r.name} create must return a server id`);
+
+      const patch = await api("PATCH", `${r.base}/${id}`, { token: attacker.token, body: r.patch });
+      assert.equal(patch.status, 404, `${r.name} cross-tenant PATCH must 404 (no leak)`);
+
+      const del = await api("DELETE", `${r.base}/${id}`, { token: attacker.token });
+      assert.equal(del.status, 404, `${r.name} cross-tenant DELETE must 404 (no leak)`);
+
+      // The owner's row is still present and untouched after the failed attack.
+      const ownerList = await api("GET", r.base, { token: owner.token });
+      assert.equal(ownerList.status, 200);
+      assert.ok(
+        listRows(ownerList.body).some((x) => x.id === id),
+        `${r.name} owner row must survive a cross-tenant attack`,
+      );
+    });
+
+    test(`${r.name}: the attacker's own list never contains the owner's row`, async () => {
+      const created = await api("POST", r.base, { token: owner.token, body: r.create });
+      assert.equal(created.status, 201);
+      const id = created.body?.id;
+
+      const attackerList = await api("GET", r.base, { token: attacker.token });
+      assert.equal(attackerList.status, 200);
+      assert.ok(
+        !listRows(attackerList.body).some((x) => x.id === id),
+        `${r.name} list must be tenant-scoped (no cross-tenant rows)`,
+      );
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — malformed / wrong-typed / missing input
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -230,6 +322,17 @@ describe("DFX · Robustness — hostile & malformed input", () => {
   test("unknown route → 404", async () => {
     const { status } = await api("GET", "/v1/does-not-exist", { token: alice.token });
     assert.equal(status, 404);
+  });
+
+  test("malformed JSON is rejected the same way on non-tasks resources (global envelope)", async () => {
+    // Proves the INVALID_JSON 400 envelope comes from a global handler, not a
+    // per-route quirk of /v1/tasks — a malformed body to people/countdowns must
+    // also be a 4xx client error, never a 5xx that pages an on-call.
+    for (const path of ["/v1/people", "/v1/countdowns", "/v1/habits"]) {
+      const { status, body } = await rawApi("POST", path, "{ broken", alice.token);
+      assert.equal(status, 400, `${path} malformed JSON must be 400, not 5xx`);
+      assert.equal(body.error?.code, "INVALID_JSON", `${path} must use the shared INVALID_JSON code`);
+    }
   });
 });
 
