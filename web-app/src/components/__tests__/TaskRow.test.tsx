@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TaskRow } from "../TaskRow";
@@ -17,9 +17,15 @@ vi.mock("@/store/usePeopleStore", () => ({
   usePeopleStore: (sel: any) => sel({ people: [], byId: () => undefined }),
 }));
 
-vi.mock("@/store/useAppStore", () => ({
-  useAppStore: (sel: any) => sel({ locale: "en" }),
-}));
+// Mutable so individual tests can flip reduced-motion (name must start with
+// "mock" to satisfy vi.mock hoisting rules).
+const mockAppState = { reducedMotion: true };
+vi.mock("@/store/useAppStore", () => {
+  const useAppStore: any = (sel: any) =>
+    sel({ locale: "en", reducedMotion: mockAppState.reducedMotion });
+  useAppStore.getState = () => ({ reducedMotion: mockAppState.reducedMotion });
+  return { useAppStore };
+});
 
 const TASK: Task = {
   id: "t_test1",
@@ -43,6 +49,12 @@ function renderRow(task = TASK) {
 }
 
 describe("TaskRow", () => {
+  beforeEach(() => {
+    mockComplete.mockReset();
+    mockComplete.mockResolvedValue(undefined);
+    mockAppState.reducedMotion = true; // default: instant, deterministic
+  });
+
   it("renders the task title", () => {
     renderRow();
     expect(screen.getByText("Test task")).toBeInTheDocument();
@@ -88,5 +100,35 @@ describe("TaskRow", () => {
     // Resolve and confirm it re-enables
     resolveComplete();
     await waitFor(() => expect(btn).not.toBeDisabled());
+  });
+
+  it("under reduced motion, completes immediately with no dwell", async () => {
+    mockAppState.reducedMotion = true;
+    renderRow();
+    fireEvent.click(screen.getByRole("button", { name: /complete/i }));
+    // No timer advance needed — the dwell is skipped.
+    await waitFor(() => expect(mockComplete).toHaveBeenCalledWith("t_test1"));
+  });
+
+  it("with motion enabled, shows the pop then dwells before completing", async () => {
+    vi.useFakeTimers();
+    try {
+      mockAppState.reducedMotion = false;
+      renderRow();
+      const btn = screen.getByRole("button", { name: /complete/i });
+      fireEvent.click(btn);
+
+      // The confirmation pop is applied right away…
+      expect(btn.className).toContain("task-complete-circle--done");
+      // …and a checkmark is rendered (the circle is filled).
+      expect(btn.querySelector("svg")).toBeTruthy();
+      // …but the actual completion is deferred until the dwell elapses.
+      expect(mockComplete).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(240);
+      expect(mockComplete).toHaveBeenCalledWith("t_test1");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
