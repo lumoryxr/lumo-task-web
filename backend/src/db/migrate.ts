@@ -146,6 +146,30 @@ export async function runMigrations() {
   // Prune expired tokens
   await execRaw("DELETE FROM revoked_tokens WHERE expires_at < datetime('now')");
 
+  // Refresh tokens: long-lived, single-use, rotated on each use. Only the
+  // SHA-256 hash of the opaque token is stored — never the raw value — so a DB
+  // leak cannot be replayed. `session_version` snapshots the user's version at
+  // issue so a password change (which bumps it) invalidates refresh tokens too.
+  // `revoked_at` marks rotated/revoked tokens; presenting one again is treated
+  // as theft (the whole user's tokens are then revoked).
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id              TEXT PRIMARY KEY,
+      user_id         TEXT NOT NULL,
+      token_hash      TEXT NOT NULL UNIQUE,
+      session_version INTEGER NOT NULL DEFAULT 0,
+      expires_at      TEXT NOT NULL,
+      created_at      TEXT NOT NULL,
+      revoked_at      TEXT
+    )
+  `);
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash)");
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)");
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at)");
+
+  // Prune long-expired refresh tokens (keep the table from growing unbounded).
+  await execRaw("DELETE FROM refresh_tokens WHERE expires_at < datetime('now', '-7 days')");
+
   // Migrate: add recurrence column
   const taskColsV2 = await query<{ name: string }>("PRAGMA table_info(tasks)");
   if (!taskColsV2.some((c) => c.name === "recurrence")) {

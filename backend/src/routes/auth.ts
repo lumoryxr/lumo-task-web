@@ -4,6 +4,7 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
 import { signToken } from "../lib/jwt.js";
+import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from "../lib/refreshToken.js";
 import { hashPassword, verifyPassword, dummyVerify } from "../lib/password.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
@@ -50,6 +51,10 @@ const ChangePasswordBody = z.object({
   new_password: strongPassword,
 });
 
+const RefreshBody = z.object({
+  refreshToken: z.string().min(1).max(512),
+});
+
 function clientIp(c: Context<{ Variables: Variables }>): string {
   return getClientIp(c);
 }
@@ -81,10 +86,12 @@ app.post("/register", authRateLimit, validate("json", RegisterBody), async (c) =
   await execute("INSERT INTO settings (user_id) VALUES (:user_id)", { user_id: id });
 
   const token = await signToken(id, 0);
+  const refreshToken = await issueRefreshToken(id, 0);
   audit("auth.register", { userId: id, email, ip: clientIp(c) });
 
   return c.json({
     token,
+    refreshToken,
     user: {
       id, email, name, initials, local: false, plan: "free", renewsAt: null,
       stats: { tasks: 0, pomodoros: 0, syncOK: syncOk() },
@@ -118,9 +125,11 @@ app.post("/signin", authRateLimit, validate("json", SigninBody), async (c) => {
   `, { uid: user.id });
 
   const token = await signToken(user.id, user.session_version ?? 0);
+  const refreshToken = await issueRefreshToken(user.id, user.session_version ?? 0);
 
   return c.json({
     token,
+    refreshToken,
     user: {
       id: user.id,
       email: user.email,
@@ -160,6 +169,21 @@ app.post("/change-password", authRateLimit, authMiddleware, validate("json", Cha
   return c.json({ ok: true });
 });
 
+// Exchange a valid refresh token for a fresh access token + a rotated refresh
+// token. No access token required (the access token may already be expired —
+// that is the whole point). Rate-limited like the other auth endpoints.
+app.post("/refresh", authRateLimit, validate("json", RefreshBody), async (c) => {
+  const { refreshToken } = c.req.valid("json");
+  const rotated = await rotateRefreshToken(refreshToken);
+  if (!rotated) {
+    audit("auth.refresh.fail", { ip: clientIp(c) });
+    return httpError(c, 401, "INVALID_REFRESH_TOKEN", "Invalid or expired refresh token");
+  }
+  const token = await signToken(rotated.userId, rotated.sessionVersion);
+  audit("auth.refresh.ok", { userId: rotated.userId, ip: clientIp(c) });
+  return c.json({ token, refreshToken: rotated.token });
+});
+
 app.post("/signout", authMiddleware, async (c) => {
   const jti = c.get("jti") as string;
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -167,6 +191,12 @@ app.post("/signout", authMiddleware, async (c) => {
     "INSERT OR IGNORE INTO revoked_tokens (jti, expires_at) VALUES (:jti, :expires_at)",
     { jti, expires_at: expiresAt }
   );
+  // Also revoke the presented refresh token, if the client sent one, so it can't
+  // be used to mint new access tokens after sign-out. Body is optional to stay
+  // backward-compatible with older clients that sign out with no body.
+  const body = await c.req.json().catch(() => null);
+  const rt = body && typeof body.refreshToken === "string" ? body.refreshToken : null;
+  if (rt) await revokeRefreshToken(rt);
   audit("auth.signout", { userId: c.get("userId"), ip: clientIp(c) });
   return c.json({ ok: true });
 });
