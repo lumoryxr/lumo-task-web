@@ -491,7 +491,7 @@ test("AC-API.2 — GET /v1/settings returns user preferences", async ({ request 
   expect(body).toHaveProperty("accent");
 });
 
-test("AC-API.3 — GET /v1/completed returns array for new user", async ({ request }) => {
+test("AC-API.3 — GET /v1/completed returns a list for new user", async ({ request }) => {
   const { token } = await registerViaApi(request);
   const res = await request.get(`${API_BASE}/v1/completed`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -499,7 +499,9 @@ test("AC-API.3 — GET /v1/completed returns array for new user", async ({ reque
   });
   expect(res.status()).toBe(200);
   const body = await res.json();
-  const arr = Array.isArray(body) ? body : body.completed ?? body.entries ?? [];
+  // No-date /completed is keyset-paginated ({ items, nextCursor }); tolerate the
+  // legacy array shape too so this stays green across the deploy boundary.
+  const arr = Array.isArray(body) ? body : body.items ?? body.completed ?? body.entries ?? [];
   expect(Array.isArray(arr)).toBe(true);
 });
 
