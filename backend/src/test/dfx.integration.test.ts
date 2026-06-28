@@ -193,6 +193,83 @@ describe("DFX · Security — authentication & authorization", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — tenant isolation across ALL user-scoped resources (#158)
+//
+// The cases above prove isolation for /v1/tasks; the coverage-gap audit found the
+// same guarantees were never exercised for the other user-scoped CRUD resources.
+// These parametrized cases close that gap: an IDOR regression (a handler dropping
+// `WHERE user_id`) or a 5xx-on-malformed-body in any of these would now fail CI.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const TENANT_RESOURCES: Array<{
+  name: string;
+  path: string;
+  create: () => Record<string, unknown>;
+  patch: Record<string, unknown>;
+}> = [
+  {
+    name: "people",
+    path: "/v1/people",
+    create: () => ({ name: "Owner Person", initials: "OP", color: "#5bc8d4", email: "owner@example.com" }),
+    patch: { name: "Hijacked" },
+  },
+  {
+    name: "countdowns",
+    path: "/v1/countdowns",
+    create: () => ({ title: "Owner Event", date: "2026-12-01", color: "cyan", repeat: "yearly" }),
+    patch: { title: "Hijacked" },
+  },
+  {
+    name: "habits",
+    path: "/v1/habits",
+    create: () => ({ title: "Owner Habit", color: "green", frequency: "daily" }),
+    patch: { title: "Hijacked" },
+  },
+];
+
+describe("DFX · Security — tenant isolation across user-scoped resources (#158)", () => {
+  for (const r of TENANT_RESOURCES) {
+    test(`${r.name}: attacker cannot PATCH another tenant's row → 404, owner's row survives`, async () => {
+      const { status: createStatus, body: row } = await api("POST", r.path, { token: alice.token, body: r.create() });
+      assert.equal(createStatus, 201, `${r.name} create should succeed`);
+
+      const patch = await api("PATCH", `${r.path}/${row.id}`, { token: bob.token, body: r.patch });
+      assert.equal(patch.status, 404, `${r.name} cross-tenant PATCH must 404 (no IDOR)`);
+
+      // Owner's row must be untouched.
+      const { body: list } = await api("GET", r.path, { token: alice.token });
+      const still = (list as any[]).find((x) => x.id === row.id);
+      assert.ok(still, `${r.name} owner's row must still exist after a failed cross-tenant PATCH`);
+      const patchedKey = Object.keys(r.patch)[0];
+      assert.notEqual(still[patchedKey], (r.patch as any)[patchedKey], `${r.name} owner's field must not be mutated`);
+    });
+
+    test(`${r.name}: attacker cannot DELETE another tenant's row → 404`, async () => {
+      const { body: row } = await api("POST", r.path, { token: alice.token, body: r.create() });
+      const del = await api("DELETE", `${r.path}/${row.id}`, { token: bob.token });
+      assert.equal(del.status, 404, `${r.name} cross-tenant DELETE must 404`);
+
+      const { body: list } = await api("GET", r.path, { token: alice.token });
+      assert.ok((list as any[]).some((x) => x.id === row.id), `${r.name} owner's row must survive a cross-tenant DELETE`);
+    });
+
+    test(`${r.name}: attacker's list never contains the owner's row (tenant-scoped reads)`, async () => {
+      const { body: row } = await api("POST", r.path, { token: alice.token, body: r.create() });
+      const { status, body: bobList } = await api("GET", r.path, { token: bob.token });
+      assert.equal(status, 200);
+      assert.ok(Array.isArray(bobList), `${r.name} list should be an array`);
+      assert.ok(!(bobList as any[]).some((x) => x.id === row.id), `${r.name} attacker's read must not leak the owner's row`);
+    });
+
+    test(`${r.name}: malformed JSON body → 400 INVALID_JSON (global handler, not a tasks quirk)`, async () => {
+      const { status, body } = await rawApi("POST", r.path, "{ not valid json ", alice.token);
+      assert.equal(status, 400, `${r.name} malformed JSON must be a client error, not 5xx`);
+      assert.equal(body.error?.code, "INVALID_JSON", `${r.name} should use the global INVALID_JSON envelope`);
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — malformed / wrong-typed / missing input
 // ═══════════════════════════════════════════════════════════════════════════════
 
