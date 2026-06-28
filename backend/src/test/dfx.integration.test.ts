@@ -270,6 +270,137 @@ describe("DFX · Security — tenant isolation across user-scoped resources (#15
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — tenant isolation on ACTION / SUB-RESOURCE endpoints (#162)
+//
+// The parametrized block above proves isolation for the base CRUD verbs
+// (PATCH/DELETE /:id, GET /). It is structurally blind to the *action* and
+// *sub-resource* mutating-by-id endpoints — complete / uncomplete / reopen / log —
+// which are an equally real IDOR surface and had zero cross-tenant coverage. Each
+// handler was audited and already scopes by `WHERE … user_id = :uid`; these cases
+// lock that in so a dropped guard fails the daily regression.
+//
+// Note the deliberate asymmetry: a cross-tenant DELETE of a habit log is an
+// *idempotent* no-op → 204 (it deletes 0 rows), NOT a 404. So we never trust the
+// status code alone — every case also proves the owner's state is unchanged.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security — tenant isolation on action / sub-resource endpoints (#162)", () => {
+  let owner: { token: string; id: string };
+  let attacker: { token: string; id: string };
+
+  before(async () => {
+    owner = await registerUser("act-owner");
+    attacker = await registerUser("act-attacker");
+  });
+
+  /** Create a task owned by `owner` and return its server id. */
+  async function ownerTask(): Promise<string> {
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token: owner.token,
+      body: { title: { en: "Owner task" }, quadrant: "Q1" },
+    });
+    assert.equal(status, 201, "owner task create should 201");
+    assert.ok(body.id, "task create must return a server id");
+    return body.id;
+  }
+
+  /** Create a habit owned by `owner` and return its server id. */
+  async function ownerHabit(): Promise<string> {
+    const { status, body } = await api("POST", "/v1/habits", {
+      token: owner.token,
+      body: { title: "Owner habit", color: "green", frequency: "daily" },
+    });
+    assert.equal(status, 201, "owner habit create should 201");
+    assert.ok(body.id, "habit create must return a server id");
+    return body.id;
+  }
+
+  test("POST /tasks/:id/complete: attacker cannot complete the owner's task → 404, no entry created", async () => {
+    const taskId = await ownerTask();
+
+    const attack = await api("POST", `/v1/tasks/${taskId}/complete`, { token: attacker.token });
+    assert.equal(attack.status, 404, "cross-tenant complete must 404 (no IDOR)");
+
+    // The owner's task must not have been completed — no completed entry references it.
+    const { body: completed } = await api("GET", "/v1/completed", { token: owner.token });
+    assert.ok(
+      !(completed as any[]).some((e) => e.task_id === taskId),
+      "owner's task must not be completed by a cross-tenant attack",
+    );
+  });
+
+  test("POST /tasks/:id/uncomplete: attacker cannot uncomplete the owner's completed task → 404, stays completed", async () => {
+    const taskId = await ownerTask();
+    const done = await api("POST", `/v1/tasks/${taskId}/complete`, { token: owner.token });
+    assert.equal(done.status, 200, "owner completes their own task");
+
+    const attack = await api("POST", `/v1/tasks/${taskId}/uncomplete`, { token: attacker.token });
+    assert.equal(attack.status, 404, "cross-tenant uncomplete must 404");
+
+    // The owner's completed entry must survive the failed attack.
+    const { body: completed } = await api("GET", "/v1/completed", { token: owner.token });
+    assert.ok(
+      (completed as any[]).some((e) => e.task_id === taskId),
+      "owner's completed entry must survive a cross-tenant uncomplete",
+    );
+  });
+
+  test("POST /completed/:id/reopen: attacker cannot reopen the owner's completed entry → 404, entry survives", async () => {
+    const taskId = await ownerTask();
+    const done = await api("POST", `/v1/tasks/${taskId}/complete`, { token: owner.token });
+    assert.equal(done.status, 200);
+    const entryId = done.body.entry_id;
+    assert.ok(entryId, "complete must return an entry_id");
+
+    const attack = await api("POST", `/v1/completed/${entryId}/reopen`, { token: attacker.token });
+    assert.equal(attack.status, 404, "cross-tenant reopen must 404");
+
+    const { body: completed } = await api("GET", "/v1/completed", { token: owner.token });
+    assert.ok(
+      (completed as any[]).some((e) => e.id === entryId),
+      "owner's completed entry must survive a cross-tenant reopen",
+    );
+  });
+
+  test("POST /habits/:id/log: attacker cannot check in against the owner's habit → 404, no log created", async () => {
+    const habitId = await ownerHabit();
+
+    const attack = await api("POST", `/v1/habits/${habitId}/log`, {
+      token: attacker.token,
+      body: { date: "2026-01-01" },
+    });
+    assert.equal(attack.status, 404, "cross-tenant habit log must 404");
+
+    // No log must exist for the owner's habit on that date.
+    const { body: logs } = await api("GET", "/v1/habits/logs", { token: owner.token });
+    assert.ok(
+      !(logs as any[]).some((l) => l.habitId === habitId && l.date === "2026-01-01"),
+      "no log may be created on the owner's habit by a cross-tenant attack",
+    );
+  });
+
+  test("DELETE /habits/:id/log/:date: cross-tenant delete is an idempotent no-op (204) and the owner's log survives", async () => {
+    const habitId = await ownerHabit();
+    const date = "2026-02-02";
+
+    // Owner legitimately checks in.
+    const log = await api("POST", `/v1/habits/${habitId}/log`, { token: owner.token, body: { date } });
+    assert.equal(log.status, 201, "owner can log their own habit");
+
+    // Attacker's delete touches 0 rows → idempotent 204, NOT 404, but must not
+    // delete the owner's log (the guard is the WHERE user_id, not the status code).
+    const attack = await api("DELETE", `/v1/habits/${habitId}/log/${date}`, { token: attacker.token });
+    assert.equal(attack.status, 204, "cross-tenant habit-log delete is an idempotent no-op (204)");
+
+    const { body: logs } = await api("GET", "/v1/habits/logs", { token: owner.token });
+    assert.ok(
+      (logs as any[]).some((l) => l.habitId === habitId && l.date === date),
+      "owner's habit log must survive a cross-tenant delete",
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — malformed / wrong-typed / missing input
 // ═══════════════════════════════════════════════════════════════════════════════
 
