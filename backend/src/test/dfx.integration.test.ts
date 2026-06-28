@@ -270,6 +270,97 @@ describe("DFX · Security — tenant isolation across user-scoped resources (#15
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — tenant isolation on state-changing SUB-RESOURCE endpoints (#165)
+//
+// The #158 cases cover CRUD-by-id (PATCH/DELETE /:id). They do NOT cover the
+// id-addressed, state-changing sub-resource endpoints — the classic IDOR surface:
+//   • POST   /v1/completed/:id/reopen   (un-complete by entry id)
+//   • POST   /v1/habits/:id/log         (check-in)
+//   • DELETE /v1/habits/:id/log/:date   (un-check-in — idempotent 204!)
+// A dropped `WHERE user_id` on any of these is an IDOR. The un-check-in case is
+// especially insidious: it returns 204 even when nothing matches, so a regression
+// would leak SILENTLY — only the "owner's row survives" assertion catches it.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security — tenant isolation on state-changing sub-resource endpoints (#165)", () => {
+  let owner: { token: string; id: string };
+  let attacker: { token: string; id: string };
+  before(async () => {
+    owner = await registerUser("sub-owner");
+    attacker = await registerUser("sub-attacker");
+  });
+
+  test("completed/reopen: attacker cannot reopen another tenant's completed entry → 404; owner's entry survives", async () => {
+    // Owner creates + completes a task, producing a completed entry.
+    const { body: task } = await api("POST", "/v1/tasks", {
+      token: owner.token,
+      body: { title: { en: "Owner finished" }, quadrant: "Q1" },
+    });
+    const comp = await api("POST", `/v1/tasks/${task.id}/complete`, { token: owner.token });
+    assert.ok(comp.status >= 200 && comp.status < 300, "owner can complete own task");
+
+    const { body: entries } = await api("GET", "/v1/completed", { token: owner.token });
+    const entry = (entries as any[]).find((e) => e.task_id === task.id);
+    assert.ok(entry, "owner has a completed entry to target");
+
+    // Attacker tries to reopen the owner's entry by its id.
+    const res = await api("POST", `/v1/completed/${entry.id}/reopen`, { token: attacker.token });
+    assert.equal(res.status, 404, "cross-tenant reopen must 404 (no IDOR)");
+
+    // Owner's entry must still exist (not tombstoned by the attacker).
+    const { body: after } = await api("GET", "/v1/completed", { token: owner.token });
+    assert.ok(
+      (after as any[]).some((e) => e.id === entry.id),
+      "owner's completed entry must survive a cross-tenant reopen",
+    );
+  });
+
+  test("habits check-in: attacker cannot log a check-in on another tenant's habit → 404; no log written", async () => {
+    const { body: habit } = await api("POST", "/v1/habits", {
+      token: owner.token,
+      body: { title: "Owner Habit", color: "green", frequency: "daily" },
+    });
+    const date = "2026-06-20";
+
+    const res = await api("POST", `/v1/habits/${habit.id}/log`, { token: attacker.token, body: { date } });
+    assert.equal(res.status, 404, "cross-tenant check-in must 404 (no IDOR)");
+
+    // No log should exist for that habit/date under either tenant.
+    const ownerLogs = await api("GET", "/v1/habits/logs", { token: owner.token });
+    assert.ok(
+      !(ownerLogs.body as any[]).some((l) => l.habitId === habit.id && l.date === date),
+      "no check-in should have been written to the owner's habit",
+    );
+    const attackerLogs = await api("GET", "/v1/habits/logs", { token: attacker.token });
+    assert.ok(
+      !(attackerLogs.body as any[]).some((l) => l.habitId === habit.id),
+      "attacker must not hold a log referencing the owner's habit",
+    );
+  });
+
+  test("habits un-check-in: attacker's delete of another tenant's check-in is a no-op → owner's log survives (silent-IDOR guard)", async () => {
+    const { body: habit } = await api("POST", "/v1/habits", {
+      token: owner.token,
+      body: { title: "Owner Streak", color: "cyan", frequency: "daily" },
+    });
+    const date = "2026-06-21";
+    const checkIn = await api("POST", `/v1/habits/${habit.id}/log`, { token: owner.token, body: { date } });
+    assert.equal(checkIn.status, 201, "owner can check in own habit");
+
+    // The endpoint is idempotent (204 even when nothing matches), so a dropped
+    // `WHERE user_id` would be a SILENT IDOR — only the survival check below catches it.
+    const del = await api("DELETE", `/v1/habits/${habit.id}/log/${date}`, { token: attacker.token });
+    assert.equal(del.status, 204, "idempotent un-check-in returns 204");
+
+    const ownerLogs = await api("GET", "/v1/habits/logs", { token: owner.token });
+    assert.ok(
+      (ownerLogs.body as any[]).some((l) => l.habitId === habit.id && l.date === date),
+      "owner's check-in must survive a cross-tenant delete (no silent IDOR)",
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — malformed / wrong-typed / missing input
 // ═══════════════════════════════════════════════════════════════════════════════
 
