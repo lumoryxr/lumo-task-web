@@ -343,6 +343,56 @@ describe("useNotificationScheduler", () => {
     });
   });
 
+  describe("per-task reminders", () => {
+    const reminderCalls = () =>
+      mockNotification.mock.calls.filter(([title]) => String(title).includes("Reminder"));
+
+    it("fires a reminder at the task's remind_at time", () => {
+      // Frozen now is 07:00; remind at 08:00 (before the 08:30 due-alert).
+      TASKS = [makeTask({ remind_at: "2026-06-21T08:00" })];
+      renderHook(() => useNotificationScheduler());
+
+      vi.advanceTimersByTime(60 * 60 * 1000 - 1);
+      expect(reminderCalls()).toHaveLength(0);
+
+      vi.advanceTimersByTime(1);
+      expect(reminderCalls()).toHaveLength(1);
+      expect(reminderCalls()[0][0]).toContain("Task A");
+    });
+
+    it("fires immediately (catch-up) for a remind_at already in the past", () => {
+      TASKS = [makeTask({ remind_at: "2026-06-21T06:00" })]; // 1h before frozen now
+      renderHook(() => useNotificationScheduler());
+      // No timer advance: a past-due reminder fires synchronously on mount.
+      expect(reminderCalls()).toHaveLength(1);
+    });
+
+    it("does not fire for a completed task", () => {
+      TASKS = [makeTask({ remind_at: "2026-06-21T06:00", completed: true })];
+      renderHook(() => useNotificationScheduler());
+      expect(reminderCalls()).toHaveLength(0);
+    });
+
+    it("does not fire twice for the same remind_at (dedup)", () => {
+      TASKS = [makeTask({ remind_at: "2026-06-21T06:00" })];
+      const { unmount } = renderHook(() => useNotificationScheduler());
+      expect(reminderCalls()).toHaveLength(1);
+      unmount();
+
+      renderHook(() => useNotificationScheduler());
+      vi.advanceTimersByTime(1000);
+      expect(reminderCalls()).toHaveLength(1); // still one — dedup key persists
+    });
+
+    it("uses the Chinese reminder title when locale is zh", () => {
+      LOCALE = "zh";
+      TASKS = [makeTask({ remind_at: "2026-06-21T06:00" })];
+      renderHook(() => useNotificationScheduler());
+      const zhCall = mockNotification.mock.calls.find(([t]) => String(t).includes("提醒"));
+      expect(zhCall).toBeTruthy();
+    });
+  });
+
   describe("cleanup", () => {
     it("clears scheduled timers on unmount", () => {
       const clearSpy = vi.spyOn(globalThis, "clearTimeout");

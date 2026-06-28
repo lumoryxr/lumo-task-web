@@ -166,6 +166,43 @@ export function useNotificationScheduler(): void {
       timers.current.push(id);
     }
 
+    // ── Per-task reminders ───────────────────────────────────────────
+    // Each open task with a `remind_at` fires once at its (local wall-clock)
+    // time. Dedup key includes the timestamp, so editing the time re-arms it.
+    // A reminder whose time already passed while the app was closed fires on
+    // open (catch-up); ones beyond the horizon are armed on a later effect run
+    // (task-list change / app reopen), keeping setTimeout delays bounded.
+    {
+      const HORIZON_MS = 24 * 60 * 60 * 1000;
+      for (const t of tasks) {
+        if (t.completed || !t.remind_at) continue;
+        const ts = new Date(t.remind_at).getTime();
+        if (Number.isNaN(ts)) continue;
+        const key = `lumo:notif:task:${t.id}:${t.remind_at}`;
+        if (localStorage.getItem(key) === "1") continue;
+
+        const fire = () => {
+          if (localStorage.getItem(key) === "1") return;
+          sendNotification(
+            locale === "zh" ? `⏰ 提醒：${taskTitle(t, locale)}` : `⏰ Reminder: ${taskTitle(t, locale)}`,
+            {
+              body: locale === "zh" ? "该处理这个任务了" : "Time to work on this task",
+              icon: "/favicon.ico",
+              data: { action: "due" },
+            }
+          );
+          localStorage.setItem(key, "1");
+        };
+
+        const delay = ts - Date.now();
+        if (delay <= 0) {
+          fire(); // catch-up for a reminder that elapsed while the app was closed
+        } else if (delay <= HORIZON_MS) {
+          timers.current.push(setTimeout(fire, delay));
+        }
+      }
+    }
+
     return () => {
       timers.current.forEach(clearTimeout);
       timers.current = [];

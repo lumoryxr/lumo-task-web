@@ -325,6 +325,8 @@ export const STRINGS: Record<Locale, Dict> = {
     "edit.desc.placeholder": "Add a description…",
     "edit.scheduledStart": "Scheduled time",
     "edit.clearSchedule": "Clear",
+    "edit.remindAt": "Reminder",
+    "edit.clearReminder": "Clear",
 
     "popover.edit": "Edit",
     "popover.duplicate": "Duplicate",
@@ -1044,6 +1046,8 @@ export const STRINGS: Record<Locale, Dict> = {
     "edit.desc.placeholder": "添加备注…",
     "edit.scheduledStart": "排期时间",
     "edit.clearSchedule": "清除",
+    "edit.remindAt": "提醒",
+    "edit.clearReminder": "清除",
 
     "popover.edit": "编辑",
     "popover.duplicate": "复制",

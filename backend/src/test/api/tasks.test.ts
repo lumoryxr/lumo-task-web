@@ -308,3 +308,55 @@ describe("DELETE /v1/tasks/:id", () => {
     assert.equal(status, 401);
   });
 });
+
+describe("task remind_at (per-task reminder)", () => {
+  test("create persists remind_at; PATCH updates and clears it", async () => {
+    const remindAt = "2026-09-01T09:30";
+    const { status, body: created } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Reminder task" }, remind_at: remindAt },
+    });
+    assert.equal(status, 201);
+    assert.equal(created.remind_at, remindAt, "remind_at should persist on create");
+
+    const upd = await req("PATCH", `/v1/tasks/${created.id}`, {
+      token: demoToken,
+      body: { remind_at: "2026-09-02T18:00" },
+    });
+    assert.equal(upd.status, 200);
+    assert.equal(upd.body.remind_at, "2026-09-02T18:00", "remind_at should update");
+
+    const cleared = await req("PATCH", `/v1/tasks/${created.id}`, {
+      token: demoToken,
+      body: { remind_at: null },
+    });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.remind_at, null, "remind_at should clear to null");
+  });
+
+  test("defaults to null when omitted, and a PATCH without remind_at preserves it", async () => {
+    const { body: created } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "No reminder" } },
+    });
+    assert.equal(created.remind_at, null);
+
+    const withReminder = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Keep reminder" }, remind_at: "2026-10-10T10:00" },
+    });
+    const patched = await req("PATCH", `/v1/tasks/${withReminder.body.id}`, {
+      token: demoToken,
+      body: { title: { en: "Renamed" } },
+    });
+    assert.equal(patched.body.remind_at, "2026-10-10T10:00", "an unrelated PATCH must not drop remind_at");
+  });
+
+  test("rejects a malformed remind_at → 400", async () => {
+    const { status } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Bad reminder" }, remind_at: "not-a-datetime" },
+    });
+    assert.equal(status, 400);
+  });
+});

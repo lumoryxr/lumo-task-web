@@ -55,6 +55,7 @@ export function TaskEditModal({ task, onClose }: Props) {
   const initialScheduledStart = task.scheduled_start
     ? task.scheduled_start.slice(0, 16)
     : "";
+  const initialRemindAt = task.remind_at ? task.remind_at.slice(0, 16) : "";
 
   const [title, setTitle] = useState(initialTitle);
   const [desc, setDesc] = useState(initialDesc);
@@ -65,6 +66,7 @@ export function TaskEditModal({ task, onClose }: Props) {
     task.due === "today" ? todayISO : (task.due ?? "")
   );
   const [scheduledStart, setScheduledStart] = useState<string>(initialScheduledStart);
+  const [remindAt, setRemindAt] = useState<string>(initialRemindAt);
   const [recurrence, setRecurrence] = useState<TaskRecurrence>(task.recurrence ?? "none");
   const [assigneeIds, setAssigneeIds] = useState<string[]>(task.assignee_ids ?? []);
   function toggleAssignee(id: string) {
@@ -100,6 +102,7 @@ export function TaskEditModal({ task, onClose }: Props) {
         pomos_total: Math.max(1, Math.ceil(duration / 25)),
         due: dueDate || null,
         scheduled_start: scheduledStart || null,
+        remind_at: remindAt || null,
         recurrence,
         assignee_ids: assigneeIds,
       });
@@ -365,6 +368,32 @@ export function TaskEditModal({ task, onClose }: Props) {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Reminder */}
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint">
+                {t("edit.remindAt")}
+              </div>
+              {remindAt && (
+                <button
+                  type="button"
+                  onClick={() => setRemindAt("")}
+                  className="text-[10px] transition-colors"
+                  style={{ color: "var(--text-faint)" }}
+                >
+                  {t("edit.clearReminder")}
+                </button>
+              )}
+            </div>
+            <input
+              type="datetime-local"
+              value={remindAt}
+              onChange={(e) => setRemindAt(e.target.value)}
+              className="input"
+              style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13 }}
+            />
           </div>
 
           {/* Assignees — multi-select */}
