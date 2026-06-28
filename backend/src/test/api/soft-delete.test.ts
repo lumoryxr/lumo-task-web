@@ -142,7 +142,7 @@ describe("Soft delete · completed entries (reopen tombstones the log)", () => {
 
     const list = await req("GET", "/v1/completed", { token });
     assert.ok(
-      !list.body.some((x: any) => x.id === entryId),
+      !list.body.items.some((x: any) => x.id === entryId),
       "reopened (tombstoned) entry must not appear in the completed list",
     );
   });
