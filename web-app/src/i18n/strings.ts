@@ -327,6 +327,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "edit.clearSchedule": "Clear",
 
     "popover.edit": "Edit",
+    "popover.duplicate": "Duplicate",
     "popover.delete": "Delete",
     "popover.today.add": "Add to today",
     "popover.today.remove": "Remove from today",
@@ -1045,6 +1046,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "edit.clearSchedule": "清除",
 
     "popover.edit": "编辑",
+    "popover.duplicate": "复制",
     "popover.delete": "删除",
     "popover.today.add": "加入今天",
     "popover.today.remove": "从今天移除",

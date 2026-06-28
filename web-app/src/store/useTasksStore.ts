@@ -29,6 +29,7 @@ interface TasksState {
   load: () => Promise<void>;
   clear: () => void;
   create: (input: TaskCreateInput) => Promise<Task>;
+  duplicate: (id: string) => Promise<Task>;
   update: (id: string, patch: TaskUpdateInput) => Promise<void>;
   complete: (id: string) => Promise<TaskCompleteResponse>;
   reopen: (logId: string) => Promise<void>;
@@ -81,6 +82,37 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       toast.error(t("error.task.create"), msg);
       throw e;
     }
+  },
+
+  async duplicate(id) {
+    const src = get().tasks.find((tk) => tk.id === id);
+    if (!src) throw new Error("task not found");
+    // Copy the editable fields into a fresh task. Reset per-instance progress
+    // (completion, pomodoros, completion state) and give subtasks new ids so the
+    // copy is independent of the original. Title gets a per-locale "copy" suffix.
+    const title: typeof src.title = {
+      en: `${src.title.en} (copy)`,
+      ...(src.title.zh !== undefined ? { zh: `${src.title.zh}（副本）` } : {}),
+    };
+    const input: TaskCreateInput = {
+      title,
+      desc: src.desc ?? undefined,
+      quadrant: src.quadrant,
+      today: src.today,
+      week_focus: src.week_focus,
+      due: src.due ?? undefined,
+      duration: src.duration,
+      pomos_total: src.pomos_total,
+      assignee_ids: src.assignee_ids ?? [],
+      recurrence: src.recurrence ?? "none",
+      scheduled_start: src.scheduled_start ?? undefined,
+      subtasks: (src.subtasks ?? []).map((s) => ({
+        id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        title: s.title,
+        completed: false,
+      })),
+    };
+    return get().create(input);
   },
 
   async update(id, patch) {
