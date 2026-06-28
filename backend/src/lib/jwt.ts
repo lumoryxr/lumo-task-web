@@ -8,12 +8,17 @@ const secret = () => {
   return new TextEncoder().encode(assertStrongSecret("LUMO_JWT_SECRET", process.env.LUMO_JWT_SECRET));
 };
 
+// Short-lived access token: clients transparently rotate it via the refresh
+// token (POST /v1/auth/refresh). Override with LUMO_ACCESS_TTL (a jose duration
+// string, e.g. "15m" / "1h"); defaults to 30 minutes.
+const ACCESS_TTL = process.env.LUMO_ACCESS_TTL?.trim() || "30m";
+
 export async function signToken(userId: string, sessionVersion = 0): Promise<string> {
   return new SignJWT({ sub: userId, sv: sessionVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setJti(randomUUID())
-    .setExpirationTime("7d")
+    .setExpirationTime(ACCESS_TTL)
     .sign(secret());
 }
 

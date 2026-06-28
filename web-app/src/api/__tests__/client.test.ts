@@ -89,6 +89,88 @@ describe("API client — 401 session-expired handling", () => {
   });
 });
 
+describe("API client — transparent token refresh on 401", () => {
+  const json = (status: number, body: unknown) =>
+    ({ ok: status >= 200 && status < 300, status, statusText: String(status), json: () => Promise.resolve(body) }) as Response;
+
+  it("refreshes the access token on 401 and replays the original request", async () => {
+    localStorage.setItem("lumo.token", "old-access");
+    localStorage.setItem("lumo.refresh_token", "rt1");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(401, { error: { code: "UNAUTHORIZED" } }))      // GET /user
+      .mockResolvedValueOnce(json(200, { token: "new-access", refreshToken: "rt2" })) // /auth/refresh
+      .mockResolvedValueOnce(json(200, { id: "u1", name: "X" }));                 // replayed GET /user
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("../client");
+    const user = await api.getUser();
+
+    expect((user as { id: string }).id).toBe("u1");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[1][0])).toContain("/auth/refresh");
+    expect(localStorage.getItem("lumo.token")).toBe("new-access");
+    expect(localStorage.getItem("lumo.refresh_token")).toBe("rt2");
+  });
+
+  it("shares a single refresh across concurrent 401s (no token-reuse storm)", async () => {
+    localStorage.setItem("lumo.token", "old-access");
+    localStorage.setItem("lumo.refresh_token", "rt1");
+    const fetchMock = vi.fn((url: string) => {
+      if (String(url).includes("/auth/refresh")) {
+        localStorage.setItem("lumo.token", "new-access");
+        return Promise.resolve(json(200, { token: "new-access", refreshToken: "rt2" }));
+      }
+      // /user: 401 while the access token is stale, 200 once refreshed.
+      const fresh = localStorage.getItem("lumo.token") === "new-access";
+      return Promise.resolve(fresh ? json(200, { id: "u1" }) : json(401, { error: { code: "UNAUTHORIZED" } }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("../client");
+    await Promise.all([api.getUser(), api.getUser(), api.getUser()]);
+
+    const refreshCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/auth/refresh"));
+    expect(refreshCalls.length).toBe(1);
+  });
+
+  it("fires session-expired and clears tokens when the refresh itself fails", async () => {
+    localStorage.setItem("lumo.token", "old-access");
+    localStorage.setItem("lumo.refresh_token", "rt-bad");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(401, { error: { code: "UNAUTHORIZED" } }))            // GET /user
+      .mockResolvedValueOnce(json(401, { error: { code: "INVALID_REFRESH_TOKEN" } }));  // /auth/refresh
+    vi.stubGlobal("fetch", fetchMock);
+
+    const dispatched: Event[] = [];
+    const handler = (e: Event) => dispatched.push(e);
+    window.addEventListener("lumo:session-expired", handler);
+
+    const { api } = await import("../client");
+    await expect(api.getUser()).rejects.toBeTruthy();
+
+    expect(dispatched).toHaveLength(1);
+    expect(localStorage.getItem("lumo.token")).toBeNull();
+    expect(localStorage.getItem("lumo.refresh_token")).toBeNull();
+
+    window.removeEventListener("lumo:session-expired", handler);
+  });
+
+  it("signOut sends the refresh token for revocation and clears both tokens", async () => {
+    localStorage.setItem("lumo.token", "acc");
+    localStorage.setItem("lumo.refresh_token", "rt1");
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(200, { ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("../client");
+    await api.signOut();
+
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(sentBody.refreshToken).toBe("rt1");
+    expect(localStorage.getItem("lumo.token")).toBeNull();
+    expect(localStorage.getItem("lumo.refresh_token")).toBeNull();
+  });
+});
+
 describe("API client — listAllCompleted pagination", () => {
   const page = (items: unknown[], nextCursor: string | null) =>
     ({ ok: true, status: 200, statusText: "200", json: () => Promise.resolve({ items, nextCursor }) }) as Response;
