@@ -1494,8 +1494,12 @@ test("TC87 – templates: save a task as a template and instantiate it from the 
   await page.goto("/#/today");
 
   // A seeded task is visible.
-  await expect(page.getByText("Write integration tests").first()).toBeVisible({ timeout: 10_000 });
+  const seededTask = page.getByText("Write integration tests").first();
+  await expect(seededTask).toBeVisible({ timeout: 10_000 });
 
+  // The row's action buttons (incl. ⋯) are opacity:0 until the row is hovered,
+  // so hover first — otherwise Playwright waits forever for an invisible target.
+  await seededTask.hover();
   // Open its ⋯ menu and save it as a template.
   await page.getByRole("button", { name: "More actions" }).first().click();
   await page.getByRole("button", { name: "Save as template" }).click();
