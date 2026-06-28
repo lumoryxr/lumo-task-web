@@ -16,6 +16,7 @@ import docsRoutes from "./routes/docs.js";
 import habitsRoutes from "./routes/habits.js";
 import countdownsRoutes from "./routes/countdowns.js";
 import { queryOne } from "./db/client.js";
+import { log, resolveRequestId } from "./lib/logger.js";
 
 const allowedOrigins = (process.env.LUMO_ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -25,7 +26,29 @@ const allowedOrigins = (process.env.LUMO_ALLOWED_ORIGINS ?? "")
 const exactOrigins = allowedOrigins.filter((o) => !o.startsWith("."));
 const suffixPatterns = allowedOrigins.filter((o) => o.startsWith("."));
 
-export const app = new Hono();
+type AppVariables = { requestId: string };
+export const app = new Hono<{ Variables: AppVariables }>();
+
+// Request correlation + structured access log. Assigns each request a trace id
+// (honoring a safe inbound x-request-id), echoes it on the response, and emits
+// one JSON line per request so a prod 500 can be traced back to its request.
+const QUIET_LOG = process.env.NODE_ENV === "test";
+app.use("/*", async (c, next) => {
+  const requestId = resolveRequestId(c.req.header("x-request-id"));
+  c.set("requestId", requestId);
+  const start = Date.now();
+  await next();
+  c.header("x-request-id", requestId);
+  if (!QUIET_LOG) {
+    log("info", {
+      requestId,
+      method: c.req.method,
+      path: c.req.path,
+      status: c.res.status,
+      durationMs: Date.now() - start,
+    });
+  }
+});
 
 // Baseline security headers on every response (defense-in-depth for the API).
 app.use("/*", async (c, next) => {
@@ -83,7 +106,7 @@ app.get("/ready", async (c) => {
     await queryOne("SELECT 1 AS ok");
     return c.json({ ok: true, db: "up" });
   } catch (err) {
-    console.error("[ready] db check failed:", (err as Error)?.message ?? err);
+    log("error", { msg: "ready: db check failed", requestId: c.get("requestId"), error: (err as Error)?.message ?? String(err) });
     return c.json({ ok: false, db: "down" }, 503);
   }
 });
@@ -103,6 +126,19 @@ app.onError((err, c) => {
     const message = isBadJson ? "Malformed JSON body" : err.message;
     return c.json({ error: { code, message } }, err.status);
   }
-  console.error("[unhandled]", err?.message ?? err);
-  return c.json({ error: { code: "INTERNAL_ERROR", message: "Internal server error" } }, 500);
+  // Real server fault — log it with the request id (and stack, server-side only)
+  // and hand the id back to the caller so a user-reported error is traceable to
+  // this exact request in the logs, without leaking the internal message.
+  const requestId = c.get("requestId");
+  log("error", {
+    requestId,
+    msg: err?.message ?? String(err),
+    stack: err?.stack,
+    method: c.req.method,
+    path: c.req.path,
+  });
+  return c.json(
+    { error: { code: "INTERNAL_ERROR", message: "Internal server error", requestId } },
+    500
+  );
 });
