@@ -23,7 +23,7 @@ push/PR.
 
 | DFX dimension | What it guarantees | Covered cases (in `dfx.integration.test.ts`) |
 |---|---|---|
-| **Design for Security** | No unauthorized access, no cross-tenant leakage, no injection, no weak credentials | missing token → 401; garbage/malformed bearer → 401; cross-tenant read/patch/delete → 404 (no leak); weak password rejected at registration; SQL-injection-shaped input stored as literal data (table survives). **Tenant isolation now exercised across all user-scoped CRUD resources** — `tasks` **+ `people` / `countdowns` / `habits`**: attacker PATCH/DELETE of another tenant's row → 404 (owner's row survives & unmutated); attacker's list never contains the owner's row (#158) |
+| **Design for Security** | No unauthorized access, no cross-tenant leakage, no injection, no weak credentials | missing token → 401; garbage/malformed bearer → 401; cross-tenant read/patch/delete → 404 (no leak); weak password rejected at registration; SQL-injection-shaped input stored as literal data (table survives). **Tenant isolation now exercised across all user-scoped CRUD resources** — `tasks` **+ `people` / `countdowns` / `habits`**: attacker PATCH/DELETE of another tenant's row → 404 (owner's row survives & unmutated); attacker's list never contains the owner's row (#158). **Plus the id-addressed state-changing sub-resource endpoints** (#165): cross-tenant `POST /completed/:id/reopen` → 404 (owner's entry not tombstoned); `POST /habits/:id/log` → 404 (no check-in written); `DELETE /habits/:id/log/:date` → 204 idempotent **but owner's check-in survives** (silent-IDOR guard) |
 | **Design for Robustness** | Malformed / wrong-typed / missing input degrades to 4xx, never a 5xx crash | malformed JSON body → 400 `INVALID_JSON` (proven a **global** handler — exercised on `tasks` + `people` / `countdowns` / `habits`, #158); missing required field → 400; wrong field type → 400; out-of-enum value → 400; unknown route → 404 |
 | **Design for Recoverability** | A bad request never poisons the server; the next request still works | invalid pagination cursor → 400 `INVALID_CURSOR`; burst of bad requests followed by a healthy request → 200; operation on non-existent id → 404 |
 | **Design for Observability** | Health/readiness are meaningful; every error has a consistent, machine-readable shape | `/health` → 200 `{ok:true}` (liveness); `/ready` reflects a real DB probe (readiness); business errors all carry `{ error: { code, message } }` |
@@ -58,3 +58,11 @@ here rather than leaving a silent hole.
   Closed by parametrizing the isolation + `INVALID_JSON` cases over `people`,
   `countdowns`, and `habits` (12 new cases). All three were verified to already
   scope correctly — **the gap was in the tests, not the code** (no production change).
+- **2026-06-28 (#165)** — Follow-up audit found #158 only covered **CRUD-by-id**
+  (`PATCH`/`DELETE /:id`). The id-addressed **state-changing sub-resource** endpoints
+  — `POST /completed/:id/reopen`, `POST /habits/:id/log`, `DELETE /habits/:id/log/:date`
+  — had **no** tenant-isolation coverage despite being the classic IDOR surface. The
+  un-check-in `DELETE` is the riskiest: it's idempotent (`204` on no-match), so a
+  dropped `WHERE user_id` would leak **silently** with no status-code change — only an
+  "owner's row survives" assertion catches it. Closed with 3 new cases. All three
+  handlers verified to already scope by `user_id` — **gap in the tests, not the code**.
