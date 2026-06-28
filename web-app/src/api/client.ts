@@ -30,6 +30,7 @@ async function getBase(): Promise<string> {
 // ── Token ─────────────────────────────────────────────────────────────────────
 
 const TOKEN_KEY = "lumo.token";
+const REFRESH_KEY = "lumo.refresh_token";
 
 // Prevents concurrent 401s from firing multiple lumo:session-expired events.
 let sessionExpiredNotified = false;
@@ -45,6 +46,53 @@ function setToken(token: string) {
 
 function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
+}
+
+function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_KEY);
+}
+
+function setRefreshToken(token: string) {
+  localStorage.setItem(REFRESH_KEY, token);
+}
+
+function clearRefreshToken() {
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+// A single in-flight refresh shared by all concurrent 401s. Refresh tokens are
+// single-use with server-side reuse detection, so two parallel refreshes with
+// the same token would trip the theft guard and revoke the whole family. This
+// guard ensures exactly one rotation happens; everyone else awaits its result.
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefresh(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  const rt = getRefreshToken();
+  if (!rt) return false;
+  refreshPromise = (async (): Promise<boolean> => {
+    try {
+      const base = await getBase();
+      const res = await fetch(`${base}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: rt }),
+      });
+      if (!res.ok) {
+        clearRefreshToken(); // unknown/expired/revoked → stop trying
+        return false;
+      }
+      const data = await res.json().catch(() => null);
+      if (data?.token) setToken(data.token);
+      if (data?.refreshToken) setRefreshToken(data.refreshToken);
+      return Boolean(data?.token);
+    } catch {
+      return false; // network blip — keep the refresh token, try again later
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
 }
 
 // ── Resilience config ───────────────────────────────────────────────────────
@@ -83,11 +131,16 @@ async function req<T>(
   opts?: { idempotencyKey?: string }
 ): Promise<T> {
   const base = await getBase();
-  const token = getToken();
+  let token = getToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (opts?.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
   const retryable = isIdempotent(method);
+  const isAuthPath = path.startsWith("/auth/");
+  // One transparent access-token refresh per call: a 401 is rejected at the auth
+  // middleware before the handler runs, so retrying once after a refresh is safe
+  // even for writes (the original never executed → no duplicate).
+  let refreshAttempted = false;
 
   for (let attempt = 0; ; attempt++) {
     const controller = new AbortController();
@@ -131,10 +184,25 @@ async function req<T>(
       // password on /sync/enable), NOT the local session — they must not log the
       // user out of the local app.
       const isSyncAuth = path.startsWith("/sync/");
-      if (res.status === 401 && token && path !== "/auth/signout" && !isSyncAuth && !sessionExpiredNotified) {
-        sessionExpiredNotified = true;
-        clearToken();
-        window.dispatchEvent(new Event("lumo:session-expired"));
+      if (res.status === 401 && token && !isAuthPath && !isSyncAuth) {
+        // Access token likely expired — try a one-time transparent refresh and
+        // replay the request before declaring the session dead.
+        if (!refreshAttempted) {
+          refreshAttempted = true;
+          const refreshed = await tryRefresh();
+          if (refreshed) {
+            token = getToken();
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            continue; // replay the original request with the fresh access token
+          }
+        }
+        // Refresh unavailable or failed → the session is truly over.
+        if (!sessionExpiredNotified) {
+          sessionExpiredNotified = true;
+          clearToken();
+          clearRefreshToken();
+          window.dispatchEvent(new Event("lumo:session-expired"));
+        }
       }
       const err = await res.json().catch(() => ({ error: res.statusText }));
       const errBody = (err as any).error;
@@ -307,8 +375,9 @@ export const api = {
   },
 
   async signIn(input: { email: string; password: string }): Promise<User> {
-    const res = await req<{ token: string; user: User }>("POST", "/auth/signin", input);
+    const res = await req<{ token: string; refreshToken?: string; user: User }>("POST", "/auth/signin", input);
     setToken(res.token);
+    if (res.refreshToken) setRefreshToken(res.refreshToken);
     return res.user;
   },
 
@@ -323,18 +392,22 @@ export const api = {
     nickname?: string;
   }): Promise<User> {
     if (input.password !== input.confirm) throw new Error("Passwords don't match.");
-    const res = await req<{ token: string; user: User }>("POST", "/auth/register", {
+    const res = await req<{ token: string; refreshToken?: string; user: User }>("POST", "/auth/register", {
       email: input.email,
       password: input.password,
       name: input.nickname?.trim() || input.email.split("@")[0],
     });
     setToken(res.token);
+    if (res.refreshToken) setRefreshToken(res.refreshToken);
     return res.user;
   },
 
   async signOut(): Promise<User> {
-    await req("POST", "/auth/signout").catch(() => {});
+    // Send the refresh token so the server can revoke it (best-effort).
+    const refreshToken = getRefreshToken() ?? undefined;
+    await req("POST", "/auth/signout", refreshToken ? { refreshToken } : undefined).catch(() => {});
     clearToken();
+    clearRefreshToken();
     return LOCAL_USER;
   },
 
