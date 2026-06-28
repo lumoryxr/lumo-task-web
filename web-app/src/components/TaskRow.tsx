@@ -26,6 +26,7 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
   const byId = usePeopleStore((s) => s.byId);
   const complete = useTasksStore((s) => s.complete);
   const remove = useTasksStore((s) => s.remove);
+  const duplicate = useTasksStore((s) => s.duplicate);
 
   const [hovered, setHovered] = useState(false);
   const [circleHover, setCircleHover] = useState(false);
@@ -243,6 +244,7 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
           anchor={moreAnchor}
           onClose={() => setMoreAnchor(null)}
           onEdit={() => setEditOpen(true)}
+          onDuplicate={() => duplicate(task.id)}
           onDelete={() => remove(task.id)}
         />
       )}

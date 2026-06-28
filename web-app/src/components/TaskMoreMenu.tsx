@@ -1,17 +1,18 @@
 import type React from "react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { IconEdit, IconTrash } from "@/components/icons";
+import { IconCopy, IconEdit, IconTrash } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 
 interface Props {
   anchor: DOMRect;
   onClose: () => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }
 
-export function TaskMoreMenu({ anchor, onClose, onEdit, onDelete }: Props) {
+export function TaskMoreMenu({ anchor, onClose, onEdit, onDuplicate, onDelete }: Props) {
   const t = useT();
 
   useEffect(() => {
@@ -20,7 +21,7 @@ export function TaskMoreMenu({ anchor, onClose, onEdit, onDelete }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const popoverH = 88;
+  const popoverH = 132;
   const gap = 6;
   const spaceBelow = window.innerHeight - anchor.bottom;
   const openAbove = spaceBelow < popoverH + gap + 16;
@@ -48,6 +49,11 @@ export function TaskMoreMenu({ anchor, onClose, onEdit, onDelete }: Props) {
           icon={<IconEdit size={13} />}
           label={t("popover.edit")}
           onClick={() => { onClose(); onEdit(); }}
+        />
+        <MenuBtn
+          icon={<IconCopy size={13} />}
+          label={t("popover.duplicate")}
+          onClick={() => { onClose(); onDuplicate(); }}
         />
         <div style={{ height: 1, background: "var(--border-faint)" }} />
         <MenuBtn
