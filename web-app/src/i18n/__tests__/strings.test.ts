@@ -101,6 +101,21 @@ describe("i18n strings", () => {
       expect(missing).toEqual([]);
     });
 
+    it("no UI attribute is localized with a raw inline locale ternary (use t())", () => {
+      // Catches the regression class `aria-label={locale === "zh" ? "更多" : "More"}`
+      // — a hardcoded UI string that bypasses the catalog. Narrow by design: it
+      // only flags a RAW string literal right after `?`, so the legitimate
+      // `placeholder={locale === "zh" ? t("a") : t("b")}` form (both branches via
+      // the catalog) is intentionally allowed. Prompt/text ternaries aren't in
+      // attributes and are unaffected.
+      const attrRe = /(aria-label|title|placeholder)\s*=\s*\{\s*locale\s*===?\s*["']zh["']\s*\?\s*["']/g;
+      const offenders: string[] = [];
+      SOURCE_ENTRIES.forEach(([path, src]) => {
+        for (const m of src.matchAll(attrRe)) offenders.push(`${m[1]}  <- ${path}`);
+      });
+      expect(offenders).toEqual([]);
+    });
+
     it("guards every dynamic t(`prefix.${…}`) call site found in source", () => {
       // Ensures DYNAMIC_KEY_FAMILIES stays in sync: any template-literal t()
       // prefix in the source must have an enumerated domain above.
