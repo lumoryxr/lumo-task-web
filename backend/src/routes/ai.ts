@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { validate } from "../lib/validate.js";
 import { z } from "zod";
 import { BreakdownRequestSchema } from "@lumo/contracts";
-import { query, queryOne, execute } from "../db/client.js";
+import { query, queryOne, execute, batch } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
@@ -116,14 +116,22 @@ app.post("/classify", classifyRateLimit, validate("json", z.object({}).strict())
 
   const { llmConfig, usingCloud, limitReached } = await getProviderConfig(userId);
 
+  // One UPDATE statement per classified task, flushed as a single atomic batch
+  // instead of N sequential round-trips (avoids the N+1 write pattern).
+  const SUGGEST_SQL = "UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id";
+  const suggestStmt = (q: string, id: string) => ({ sql: SUGGEST_SQL, args: { q, now: hlcNow(), id } });
+  const flush = async (stmts: ReturnType<typeof suggestStmt>[]) => {
+    if (stmts.length) await batch(stmts);
+  };
+
   if (limitReached) {
     // Quota exhausted — fall through to heuristic, surface the flag
-    for (const task of tasks) {
+    const stmts = tasks.map((task: any) => {
       const h = heuristicQuadrant(task, today);
-      await execute("UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id",
-          { q: h.q, now: hlcNow(), id: task.id });
       suggestions.push({ task_id: task.id, quadrant: h.q, confidence: h.confidence });
-    }
+      return suggestStmt(h.q, task.id);
+    });
+    await flush(stmts);
     return c.json({ suggestions, cloudLimitReached: true });
   }
 
@@ -157,13 +165,13 @@ Return ONLY a JSON array, no markdown:
         const m = result.text.match(/\[[\s\S]*\]/);
         const parsed = JSON.parse(m ? m[0] : result.text) as any[];
         const covered = new Set<string>();
+        const stmts: ReturnType<typeof suggestStmt>[] = [];
 
         for (const item of parsed) {
           const q = ["Q1","Q2","Q3","Q4"].includes(item.quadrant) ? item.quadrant : "Q3";
           const confidence = typeof item.confidence === "number" ? Math.min(1, Math.max(0, item.confidence)) : 0.7;
           const reason = typeof item.reason === "string" ? item.reason.slice(0, 200) : undefined;
-          await execute("UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id",
-            { q, now: hlcNow(), id: item.task_id });
+          stmts.push(suggestStmt(q, item.task_id));
           suggestions.push({ task_id: item.task_id, quadrant: q, confidence, reason });
           covered.add(item.task_id);
         }
@@ -172,12 +180,12 @@ Return ONLY a JSON array, no markdown:
         for (const task of tasks) {
           if (!covered.has(task.id)) {
             const h = heuristicQuadrant(task, today);
-            await execute("UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id",
-          { q: h.q, now: hlcNow(), id: task.id });
+            stmts.push(suggestStmt(h.q, task.id));
             suggestions.push({ task_id: task.id, quadrant: h.q, confidence: h.confidence });
           }
         }
 
+        await flush(stmts);
         if (usingCloud) await incrementCloudUsage(userId);
         return c.json({ suggestions });
       }
@@ -187,12 +195,12 @@ Return ONLY a JSON array, no markdown:
   }
 
   // Pure heuristic (no API key or LLM failed)
-  for (const task of tasks) {
+  const heuristicStmts = tasks.map((task: any) => {
     const h = heuristicQuadrant(task, today);
-    await execute("UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id",
-          { q: h.q, now: hlcNow(), id: task.id });
     suggestions.push({ task_id: task.id, quadrant: h.q, confidence: h.confidence });
-  }
+    return suggestStmt(h.q, task.id);
+  });
+  await flush(heuristicStmts);
 
   return c.json({ suggestions });
   } catch (err: any) {

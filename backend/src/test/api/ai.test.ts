@@ -36,6 +36,29 @@ describe("POST /v1/ai/classify", () => {
     await req("DELETE", `/v1/tasks/${task.id}`, { token: demoToken });
   });
 
+  test("200 → classifies many tasks in one call, all persisted (batch write)", async () => {
+    const { token } = await newUserWithToken("aibatch");
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const { body: task } = await req("POST", "/v1/tasks", {
+        token,
+        body: { title: { en: `Batch task ${i}` }, quadrant: "unclassified" },
+      });
+      ids.push(task.id);
+    }
+
+    const { status, body } = await req("POST", "/v1/ai/classify", { token, body: {} });
+    assert.equal(status, 200);
+    assert.equal(body.suggestions.length, 5, "every unclassified task should get a suggestion");
+
+    // All five rows must have ai_suggest persisted (the batch committed atomically).
+    for (const id of ids) {
+      const { body: t } = await req("GET", `/v1/tasks/${id}`, { token });
+      assert.ok(t.ai_suggest !== null, `ai_suggest missing for ${id}`);
+      assert.ok(["Q1", "Q2", "Q3", "Q4"].includes(t.ai_suggest), `invalid ai_suggest for ${id}`);
+    }
+  });
+
   test("200 → returns empty array when no unclassified tasks", async () => {
     const { body } = await req("POST", "/v1/ai/classify", { token: demoToken, body: {} });
     assert.equal(typeof body.suggestions, "object");
