@@ -294,7 +294,7 @@ export function FocusPage() {
             color: nearDone ? "var(--accent-primary)" : "var(--text-secondary)",
             background: "var(--bg-elevated)",
             border: `1px solid ${nearDone ? "var(--accent-edge)" : "var(--border-faint)"}`,
-            borderRadius: 8,
+            borderRadius: "var(--radius-md)",
             padding: "2px 8px",
             boxShadow: nearDone ? "0 0 8px var(--accent-fog)" : undefined,
             transition: "color 300ms, border-color 300ms",

@@ -616,7 +616,7 @@ function WeekFocusSection({ weekFocusTasks }: WeekFocusSectionProps) {
                     border: "none",
                     cursor: addingId === task.id ? "default" : "pointer",
                     padding: "2px 6px",
-                    borderRadius: 4,
+                    borderRadius: "var(--radius-sm)",
                     opacity: addingId === task.id ? 0.5 : 1,
                   }}
                 >

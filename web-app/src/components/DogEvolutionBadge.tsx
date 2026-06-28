@@ -22,7 +22,7 @@ export function DogEvolutionBadge() {
         alignItems: "center",
         gap: 6,
         padding: "4px 10px",
-        borderRadius: 20,
+        borderRadius: "var(--radius-xl)",
         background: c.bg,
         border: `1px solid ${c.border}`,
         fontSize: 12,

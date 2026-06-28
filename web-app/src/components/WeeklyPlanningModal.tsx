@@ -437,7 +437,7 @@ export function WeeklyPlanningModal({ onClose, prevWeekStats, prevWeekFocusTasks
         style={{
           background: "var(--bg-surface)",
           border: "1px solid var(--border-default)",
-          borderRadius: 20,
+          borderRadius: "var(--radius-xl)",
           width: "100%",
           maxWidth: 480,
           maxHeight: "90vh",

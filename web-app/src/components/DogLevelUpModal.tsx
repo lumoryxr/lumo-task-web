@@ -131,7 +131,7 @@ export function DogLevelUpModal() {
             style={{
               marginTop: 14,
               padding: "8px 16px",
-              borderRadius: 12,
+              borderRadius: "var(--radius-lg)",
               background: `${accentColor}18`,
               border: `1px solid ${accentColor}40`,
               fontSize: 13,
