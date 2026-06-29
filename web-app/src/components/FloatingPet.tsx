@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePetStore } from "@/store/usePetStore";
+import { petStatusFromEntries } from "@/utils/petStatus";
 import { useAIStore } from "@/store/useAIStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useAppStore } from "@/store/useAppStore";
@@ -252,11 +253,21 @@ export function FloatingPet() {
     }
   }
 
-  const hoverMsgKey = species !== "dog" ? `pet.hover.${species}` : "pet.hover";
+  // The pet's hover voice reflects real productivity (#174): an active streak,
+  // a win today, or a gentle come-back nudge after idle days; otherwise it falls
+  // back to the normal species greeting.
+  const petStatus = useMemo(
+    () => petStatusFromEntries(completed, computeAllTimeStats(completed).currentStreak, new Date()),
+    [completed],
+  );
+  const greetingKey = species !== "dog" ? `pet.hover.${species}` : "pet.hover";
+  const hoverMsg = petStatus.key
+    ? t(petStatus.key).replace("{n}", String(petStatus.streak))
+    : t(greetingKey);
   const displayMsg = activeMsg
     ? t(activeMsg)
     : isHovered
-    ? t(hoverMsgKey)
+    ? hoverMsg
     : null;
 
   if (!visible) return null;

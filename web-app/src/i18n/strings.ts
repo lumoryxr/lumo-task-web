@@ -395,6 +395,9 @@ export const STRINGS: Record<Locale, Dict> = {
     "error.ai.chat": "AI chat error",
 
     "pet.hover": "Woof! I'm Lumo Dog 🐕",
+    "pet.status.thriving": "🔥 {n}-day streak — you're on fire! Keep it going.",
+    "pet.status.today": "You've checked something off today — nice work! ✨",
+    "pet.status.comeback": "Missed you! Let's knock out one small task today. 🌱",
     "pet.hover.cat": "Meow… I suppose I can help 🐱",
     "pet.hover.fox": "Hey! Clever fox at your service 🦊",
     "pet.hover.panda": "🐼 Breathe. I'm here to help.",
@@ -1147,6 +1150,9 @@ export const STRINGS: Record<Locale, Dict> = {
     "error.ai.chat": "AI 对话出错",
 
     "pet.hover": "汪！我是 Lumo 狗 🐕",
+    "pet.status.thriving": "🔥 连续 {n} 天，状态超棒！继续保持。",
+    "pet.status.today": "今天已经完成任务啦，干得漂亮！✨",
+    "pet.status.comeback": "好久不见！今天一起完成一个小任务吧。🌱",
     "pet.hover.cat": "喵……我勉强帮你吧 🐱",
     "pet.hover.fox": "嘿！狡猾的狐狸为你效劳 🦊",
     "pet.hover.panda": "🐼 深呼吸，我在这里。",
