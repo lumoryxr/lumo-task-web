@@ -405,6 +405,15 @@ export const api = {
     return res.user;
   },
 
+  // Change the signed-in user's password. The server verifies `current_password`
+  // (400 WRONG_PASSWORD on mismatch) and, on success, bumps the account's
+  // session_version — which invalidates THIS session's access + refresh tokens.
+  // Callers must re-authenticate afterwards to mint fresh tokens (see the auth
+  // store action), otherwise the next request will 401 the user out.
+  async changePassword(input: { current_password: string; new_password: string }): Promise<void> {
+    await req<{ ok: true }>("POST", "/auth/change-password", input);
+  },
+
   async signOut(): Promise<User> {
     // Send the refresh token so the server can revoke it (best-effort).
     const refreshToken = getRefreshToken() ?? undefined;
