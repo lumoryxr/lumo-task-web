@@ -5,6 +5,8 @@ import { DogSvg } from "@/components/DogSvg";
 import { useAppStore } from "@/store/useAppStore";
 import { useT } from "@/i18n/useT";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import { captureAndShare, isShareCancellation } from "@/utils/share";
+import { toast } from "@/store/useToastStore";
 
 const TIER_COLORS = {
   puppy:     "#c89645",
@@ -31,29 +33,15 @@ export function DogLevelUpModal() {
     if (!cardRef.current || busy) return;
     setBusy(true);
     try {
-      const { default: html2canvas } = await import("html2canvas");
-      const canvas = await html2canvas(cardRef.current, {
-        useCORS: true,
-        scale: 2,
-        backgroundColor: null,
-        logging: false,
-      });
-      const blob = await new Promise<Blob>((res, rej) =>
-        canvas.toBlob((b) => (b ? res(b) : rej(new Error("export failed"))), "image/png")
+      await captureAndShare(
+        cardRef.current,
+        "lumo-dog-levelup.png",
+        `Lumo Dog reached Lv.${pendingLevelUp}!`,
       );
-      const file = new File([blob], "lumo-dog-levelup.png", { type: "image/png" });
-      if (typeof navigator.share === "function" && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `Lumo Dog reached Lv.${pendingLevelUp}!` });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "lumo-dog-levelup.png";
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } catch {
-      // user cancelled
+    } catch (e) {
+      // A user-cancelled share is silent; a genuine export failure must NOT be
+      // swallowed — surface it like the other share cards do.
+      if (!isShareCancellation(e)) toast.error(t("stats.share.error"));
     } finally {
       setBusy(false);
     }

@@ -1,10 +1,10 @@
 /**
- * Task store — backed by the mock API client.
+ * Task store — backed by the real API client (@/api/client).
  *
  * Holds an in-memory cache plus loading flags so components can render
  * skeletons / show errors. Mutations call the API then update local
  * state from the response, which keeps the cache in sync with whatever
- * the (real or mock) backend says is canonical.
+ * the backend says is canonical.
  */
 
 import { create } from "zustand";
