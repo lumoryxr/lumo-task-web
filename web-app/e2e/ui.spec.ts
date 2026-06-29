@@ -918,21 +918,20 @@ test("TC47 – Settings: AI tab shows provider / model controls", async ({ page 
   }
 });
 
-test("TC48 – Settings: Data & Sync tab shows database storage info", async ({ page }) => {
+test("TC48 – Settings: Data & Sync tab is hidden on the web build", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
   await mockAPI(page);
   await page.goto("/#/settings");
   await expect(page.getByText("General").first()).toBeVisible({ timeout: 8_000 });
-  // Storage moved under the consolidated "Data & Sync" tab.
-  await page.getByRole("button", { name: /data & sync/i }).click();
-  await expect(
-    page.getByText(/database|storage|web app/i).first()
-  ).toBeVisible({ timeout: 10_000 });
+  // Data & Sync (storage location + cloud sync) is a desktop-only concern, so the
+  // whole tab is hidden on web — neither the tab nor its storage panel renders.
+  await expect(page.getByRole("button", { name: /data & sync/i })).toHaveCount(0);
 });
 
-// NOTE: Cloud Sync is desktop-only (#112) — it is hidden on the web build, so
-// there is no web sync test here; desktop sync is covered in electron.spec.ts.
-// The old "Data" tab (Reset demo data / Replay onboarding) was removed in #111.
+// NOTE: Data & Sync is desktop-only (#112): the whole tab (storage location +
+// cloud sync) is hidden on the web build (TC48), so there is no web storage/sync
+// test here; desktop coverage lives in electron.spec.ts. The old "Data" tab
+// (Reset demo data / Replay onboarding) was removed in #111.
 
 test("TC53 – Settings: Pet tab shows pet management controls", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
