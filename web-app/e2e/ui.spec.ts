@@ -1493,22 +1493,23 @@ test("TC87 – templates: save a task as a template and instantiate it from the 
   await mockAPIWithData(page);
   await page.goto("/#/today");
 
-  // A seeded task is visible.
-  await expect(page.getByText("Write integration tests").first()).toBeVisible({ timeout: 10_000 });
+  // Take the first task row that actually exposes a ⋯ menu. Today special-cases its
+  // hero/active task as a heading WITHOUT a ⋯, and does not render rows in seed
+  // order, so we don't assume a particular title — we capture whichever row this is
+  // and assert that same title round-trips through the template library.
+  const moreBtn = page.getByRole("button", { name: "More actions" }).first();
+  await expect(moreBtn).toBeAttached({ timeout: 10_000 });
+  const row = moreBtn.locator(
+    "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' border-b ')][1]",
+  );
+  const savedTitle = (await row.locator(".truncate").first().innerText()).trim();
 
-  // Open the ⋯ menu of the "Write integration tests" row specifically (Today does
-  // not render rows in seed order, so .first() would grab the wrong task). Walk up
-  // from the title to its row, then take that row's ⋯ button.
   // The ⋯ lives in a container that is opacity:0 / pointer-events:none until the
-  // row's `hovered` state is true; under Playwright that boolean races and a normal
+  // row's `hovered` state is true; under Playwright that boolean races and a real
   // click is intercepted by the parent row div. Dispatch the click straight to the
   // button instead — its onClick only reads the button's own rect, so it is
   // functionally identical to a user click but immune to the pointer-events gate.
-  const taskRow = page
-    .getByText("Write integration tests")
-    .first()
-    .locator("xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' border-b ')][1]");
-  await taskRow.getByRole("button", { name: "More actions" }).dispatchEvent("click");
+  await moreBtn.dispatchEvent("click");
   await page.getByRole("button", { name: "Save as template" }).click();
   // Confirmation toast.
   await expect(page.getByText("Saved as template")).toBeVisible({ timeout: 8_000 });
@@ -1518,8 +1519,8 @@ test("TC87 – templates: save a task as a template and instantiate it from the 
   await page.getByRole("button", { name: "Templates" }).click();
   const dialog = page.locator('[role="dialog"]');
   await expect(dialog).toBeVisible({ timeout: 8_000 });
-  // The saved template (named after the task title) shows up.
-  await expect(dialog.getByText("Write integration tests").first()).toBeVisible({ timeout: 8_000 });
+  // The saved template (named after the task) shows up.
+  await expect(dialog.getByText(savedTitle).first()).toBeVisible({ timeout: 8_000 });
 
   // Instantiating it fires a task-create request.
   const createReq = page.waitForRequest(
