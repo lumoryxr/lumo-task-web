@@ -432,6 +432,8 @@ export const STRINGS: Record<Locale, Dict> = {
     "dog.badge.level": "Lv.",
 
     "wrapped.title": "Weekly Wrapped",
+    "wrapped.month.title": "Monthly Wrapped",
+    "wrapped.month.section.title": "Your Month Wrapped",
     "wrapped.share.title": "My Lumo Week",
     "wrapped.share.btn": "Share",
     "wrapped.share.error": "Couldn't export the card. Please try again.",
@@ -1176,6 +1178,8 @@ export const STRINGS: Record<Locale, Dict> = {
     "dog.badge.level": "Lv.",
 
     "wrapped.title": "每周回顾",
+    "wrapped.month.title": "每月回顾",
+    "wrapped.month.section.title": "本月回顾",
     "wrapped.share.title": "我的 Lumo 周报",
     "wrapped.share.btn": "分享",
     "wrapped.share.error": "导出卡片失败，请重试。",
