@@ -283,12 +283,17 @@ describe("DFX · Security — tenant isolation across user-scoped resources (#15
 //
 // The #158 cases cover CRUD-by-id (PATCH/DELETE /:id). They do NOT cover the
 // id-addressed, state-changing sub-resource endpoints — the classic IDOR surface:
-//   • POST   /v1/completed/:id/reopen   (un-complete by entry id)
-//   • POST   /v1/habits/:id/log         (check-in)
-//   • DELETE /v1/habits/:id/log/:date   (un-check-in — idempotent 204!)
+//   • POST   /v1/completed/:id/reopen   (un-complete by entry id)        — #165
+//   • POST   /v1/habits/:id/log         (check-in)                       — #165
+//   • DELETE /v1/habits/:id/log/:date   (un-check-in — idempotent 204!)  — #165
+//   • POST   /v1/tasks/:id/complete     (complete by task id)            — #194
+//   • POST   /v1/tasks/:id/uncomplete   (un-complete by task id)         — #194
 // A dropped `WHERE user_id` on any of these is an IDOR. The un-check-in case is
 // especially insidious: it returns 204 even when nothing matches, so a regression
 // would leak SILENTLY — only the "owner's row survives" assertion catches it.
+// `tasks/:id/complete` is the highest-impact of these: a regression would not only
+// flip the owner's task state but also write a completed-log entry (and spawn a new
+// recurrence) under the wrong tenant's scope.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe("DFX · Security — tenant isolation on state-changing sub-resource endpoints (#165)", () => {
@@ -366,6 +371,55 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
     assert.ok(
       (ownerLogs.body as any[]).some((l) => l.habitId === habit.id && l.date === date),
       "owner's check-in must survive a cross-tenant delete (no silent IDOR)",
+    );
+  });
+
+  test("tasks/complete: attacker cannot complete another tenant's task → 404; owner's task stays open, no completed entry written (#194)", async () => {
+    const { body: task } = await api("POST", "/v1/tasks", {
+      token: owner.token,
+      body: { title: { en: "Owner open task" }, quadrant: "Q1" },
+    });
+
+    const res = await api("POST", `/v1/tasks/${task.id}/complete`, { token: attacker.token });
+    assert.equal(res.status, 404, "cross-tenant complete must 404 (no IDOR)");
+
+    // The owner's task must still be incomplete (a dropped WHERE user_id would have flipped it).
+    const { body: ownerTask } = await api("GET", `/v1/tasks/${task.id}`, { token: owner.token });
+    assert.equal(ownerTask.completed, false, "owner's task must not have been completed by the attacker");
+
+    // No completed-log entry must have been spawned for that task — under either tenant.
+    const { body: ownerCompleted } = await api("GET", "/v1/completed", { token: owner.token });
+    assert.ok(
+      !((ownerCompleted as any).items as any[]).some((e) => e.task_id === task.id),
+      "no completed entry should exist for the owner's still-open task",
+    );
+    const { body: attackerCompleted } = await api("GET", "/v1/completed", { token: attacker.token });
+    assert.ok(
+      !((attackerCompleted as any).items as any[]).some((e) => e.task_id === task.id),
+      "attacker must not hold a completed entry referencing the owner's task",
+    );
+  });
+
+  test("tasks/uncomplete: attacker cannot un-complete another tenant's task → 404; owner's task stays completed and its entry survives (#194)", async () => {
+    // Owner creates + completes a task, producing a completed entry.
+    const { body: task } = await api("POST", "/v1/tasks", {
+      token: owner.token,
+      body: { title: { en: "Owner done task" }, quadrant: "Q2" },
+    });
+    const comp = await api("POST", `/v1/tasks/${task.id}/complete`, { token: owner.token });
+    assert.ok(comp.status >= 200 && comp.status < 300, "owner can complete own task");
+
+    // Attacker tries to un-complete the owner's task by its id.
+    const res = await api("POST", `/v1/tasks/${task.id}/uncomplete`, { token: attacker.token });
+    assert.equal(res.status, 404, "cross-tenant uncomplete must 404 (no IDOR)");
+
+    // Owner's task must remain completed and its completed entry must survive.
+    const { body: ownerTask } = await api("GET", `/v1/tasks/${task.id}`, { token: owner.token });
+    assert.equal(ownerTask.completed, true, "owner's task must stay completed after a cross-tenant uncomplete");
+    const { body: ownerCompleted } = await api("GET", "/v1/completed", { token: owner.token });
+    assert.ok(
+      ((ownerCompleted as any).items as any[]).some((e) => e.task_id === task.id),
+      "owner's completed entry must survive a cross-tenant uncomplete",
     );
   });
 });
