@@ -80,6 +80,7 @@ export default function App() {
   const loadHabits = useHabitsStore((s) => s.load);
   const clearHabits = useHabitsStore((s) => s.clear);
   const loadNotifications = useNotificationStore((s) => s.load);
+  const loadAppearance = useAppStore((s) => s.loadAppearance);
   const loadTemplates = useTemplatesStore((s) => s.load);
   const clearTemplates = useTemplatesStore((s) => s.clear);
   const isSignedIn = useAuthStore(selectIsSignedIn);
@@ -108,6 +109,7 @@ export default function App() {
       loadHabits(userId);
       loadNotifications();
       loadTemplates();
+      loadAppearance();
     } else {
       clearTasks();
       clearPeople();
@@ -115,7 +117,7 @@ export default function App() {
       clearHabits();
       clearTemplates();
     }
-  }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadNotifications, loadTemplates, clearTemplates]);
+  }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadNotifications, loadTemplates, clearTemplates, loadAppearance]);
 
   useNotificationScheduler();
   useSyncEngine();

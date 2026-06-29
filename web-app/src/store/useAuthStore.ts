@@ -12,6 +12,7 @@ import { api } from "@/api/client";
 import type { User } from "@/types/task";
 import { presentError, detailOf } from "@/lib/presentError";
 import { useAIStore } from "@/store/useAIStore";
+import { useAppStore } from "@/store/useAppStore";
 
 const LOCAL_USER: User = {
   id: "local",
@@ -74,6 +75,14 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true, error: null });
         try {
           const user = await api.register(input);
+          // The user picked appearance/language during onboarding, before this
+          // account existed. Adopt those local choices into the new account so
+          // the sign-in hydration (loadAppearance) doesn't reset them to server
+          // defaults. Best-effort — never block account creation on it.
+          const { locale, accent, density, reducedMotion } = useAppStore.getState();
+          await api
+            .patchSettings({ locale, accent, density, reduced_motion: reducedMotion })
+            .catch(() => {});
           set({ user, loading: false });
         } catch (e) {
           // The form owns presentation — see signIn.
