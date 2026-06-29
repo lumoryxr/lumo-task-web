@@ -8,7 +8,7 @@ import { useTasksStore } from "@/store/useTasksStore";
 import type { CompletedEntry } from "@/types/task";
 import { computeWeekStats, computeAllTimeStats, fmtHour } from "@/utils/stats";
 import { currentStreak as habitStreak, toDateStr } from "@/utils/habits";
-import { shouldShowWrapped, markWrappedShown, computePrevWeekStats } from "@/utils/wrapped";
+import { shouldShowWrapped, markWrappedShown, computePrevWeekStats, computeMonthStats, shouldShowMonthlyWrapped, markMonthlyWrappedShown } from "@/utils/wrapped";
 import { pendingStreakMilestone, markStreakMilestoneCelebrated } from "@/utils/streakMilestone";
 import { useNavigate } from "react-router-dom";
 import { ShareCard } from "@/components/ShareCard";
@@ -54,6 +54,7 @@ export function StatsPage() {
   const [entries, setEntries] = useState<CompletedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showWrapped, setShowWrapped] = useState(false);
+  const [showMonthlyWrapped, setShowMonthlyWrapped] = useState(false);
   const [streakMilestone, setStreakMilestone] = useState<number | null>(null);
 
   useEffect(() => {
@@ -64,6 +65,10 @@ export function StatsPage() {
       if (shouldShowWrapped(userId)) {
         setShowWrapped(true);
         markWrappedShown(userId);
+      }
+      if (shouldShowMonthlyWrapped(userId)) {
+        setShowMonthlyWrapped(true);
+        markMonthlyWrappedShown(userId);
       }
       // Celebrate a freshly-reached completion-streak milestone, once per user.
       const reached = pendingStreakMilestone(userId, computeAllTimeStats(data).currentStreak);
@@ -98,6 +103,7 @@ export function StatsPage() {
   const week = computeWeekStats(entries);
   const allTime = computeAllTimeStats(entries);
   const prevWeekStats = computePrevWeekStats(entries);
+  const monthStats = computeMonthStats(entries);
 
   const bestHabitStreak = habits.length > 0
     ? Math.max(...habits.map((h) => habitStreak(h, habitLogs)))
@@ -154,6 +160,20 @@ export function StatsPage() {
                   currentStreak={allTime.currentStreak}
                   userName={userName}
                   onDismiss={() => setShowWrapped(false)}
+                />
+              </section>
+            )}
+
+            {/* Monthly Wrapped — shown once at the start of a new month */}
+            {showMonthlyWrapped && monthStats.tasksCompleted > 0 && (
+              <section>
+                <h2 className="text-[13px] font-semibold text-text-secondary mb-3">{t("wrapped.month.section.title")}</h2>
+                <WrappedCard
+                  stats={monthStats}
+                  currentStreak={allTime.currentStreak}
+                  userName={userName}
+                  period="month"
+                  onDismiss={() => setShowMonthlyWrapped(false)}
                 />
               </section>
             )}

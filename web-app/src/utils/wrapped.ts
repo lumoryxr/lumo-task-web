@@ -57,37 +57,83 @@ export function computePrevWeekStats(entries: CompletedEntry[]): PrevWeekStats {
     return d >= prevWeekStart && d <= prevWeekEnd;
   });
 
+  const startLabel = prevWeekStart.toLocaleDateString("en", { month: "short", day: "numeric" });
+  const endLabel = new Date(prevWeekEnd).toLocaleDateString("en", { month: "short", day: "numeric" });
+  return buildPeriodStats(weekEntries, `${startLabel} – ${endLabel}`);
+}
+
+/** Recap of the previous calendar month over the full completed history. */
+export function computeMonthStats(entries: CompletedEntry[]): PrevWeekStats {
+  const now = new Date();
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  prevMonthEnd.setMilliseconds(-1);
+
+  const monthEntries = entries.filter((e) => {
+    if (!e.completedAt) return false;
+    const d = new Date(e.completedAt);
+    return d >= prevMonthStart && d <= prevMonthEnd;
+  });
+
+  const label = `${MONTH_NAMES[prevMonthStart.getMonth()]} ${prevMonthStart.getFullYear()}`;
+  return buildPeriodStats(monthEntries, label);
+}
+
+function monthlyWrappedKey(userId: string): string {
+  const now = new Date();
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `lumo.wrapped.month.${userId}.${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Offer the monthly recap during the first 3 days of a new month, once per month. */
+export function shouldShowMonthlyWrapped(userId: string): boolean {
+  if (new Date().getDate() > 3) return false;
+  return !localStorage.getItem(monthlyWrappedKey(userId));
+}
+
+export function markMonthlyWrappedShown(userId: string): void {
+  localStorage.setItem(monthlyWrappedKey(userId), "1");
+}
+
+const QUADRANT_ORDER = ["Q1", "Q2", "Q3", "Q4", "unclassified"] as const;
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * Shared aggregation for a recap period (week or month): a weekday histogram
+ * (`byDay` indexed by JS `getDay()`, 0=Sun…6=Sat — "which weekday you ship the
+ * most"), quadrant mix, focus minutes, and Q1 count. The weekly and monthly
+ * cards render the same shape, differing only in their date range + label.
+ */
+function buildPeriodStats(periodEntries: CompletedEntry[], label: string): PrevWeekStats {
   const byDay = [0, 0, 0, 0, 0, 0, 0];
-  for (const e of weekEntries) {
+  for (const e of periodEntries) {
     if (e.completedAt) byDay[new Date(e.completedAt).getDay()]++;
   }
-
   const maxDay = Math.max(...byDay);
   const peakDayIndex = maxDay > 0 ? byDay.indexOf(maxDay) : null;
 
-  const startLabel = prevWeekStart.toLocaleDateString("en", { month: "short", day: "numeric" });
-  const endLabel = new Date(prevWeekEnd).toLocaleDateString("en", { month: "short", day: "numeric" });
-
-  const quadrantOrder = ["Q1", "Q2", "Q3", "Q4", "unclassified"] as const;
   const counts: Record<string, number> = { Q1: 0, Q2: 0, Q3: 0, Q4: 0, unclassified: 0 };
-  for (const e of weekEntries) {
+  for (const e of periodEntries) {
     const q = e.quadrant ?? "unclassified";
     counts[q] = (counts[q] ?? 0) + 1;
   }
-  const total = weekEntries.length;
-  const quadrantBreakdown: QuadrantCount[] = quadrantOrder.map((q) => ({
+  const total = periodEntries.length;
+  const quadrantBreakdown: QuadrantCount[] = QUADRANT_ORDER.map((q) => ({
     quadrant: q,
     count: counts[q],
     percent: total > 0 ? Math.round((counts[q] / total) * 100) : 0,
   }));
 
   return {
-    tasksCompleted: weekEntries.length,
-    focusMinutes: weekEntries.reduce((s, e) => s + (e.duration ?? 0), 0),
-    q1Tasks: weekEntries.filter((e) => e.quadrant === "Q1").length,
+    tasksCompleted: periodEntries.length,
+    focusMinutes: periodEntries.reduce((s, e) => s + (e.duration ?? 0), 0),
+    q1Tasks: periodEntries.filter((e) => e.quadrant === "Q1").length,
     peakDayIndex,
     byDay,
-    weekLabel: `${startLabel} – ${endLabel}`,
+    weekLabel: label,
     quadrantBreakdown,
   };
 }

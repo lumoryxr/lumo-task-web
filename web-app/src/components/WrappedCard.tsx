@@ -25,9 +25,11 @@ interface WrappedCardProps {
   currentStreak: number;
   userName: string;
   onDismiss: () => void;
+  /** Recap period — drives the title and the coaching-insight wording. */
+  period?: "week" | "month";
 }
 
-export function WrappedCard({ stats, currentStreak, userName, onDismiss }: WrappedCardProps) {
+export function WrappedCard({ stats, currentStreak, userName, onDismiss, period = "week" }: WrappedCardProps) {
   const t = useT();
   const locale = useAppStore((s) => s.locale);
   const { level } = useDogStore();
@@ -52,19 +54,23 @@ export function WrappedCard({ stats, currentStreak, userName, onDismiss }: Wrapp
     const q2Pct = getQ("Q2");
     const q3Pct = getQ("Q3");
     const q4Pct = getQ("Q4");
+    const pastZh = period === "month" ? "上月" : "上周";
+    const nextZh = period === "month" ? "下月" : "下周";
+    const pastEn = period === "month" ? "last month's" : "last week's";
+    const nextEn = period === "month" ? "next-month" : "next-week";
     fetchWrappedInsight(
       [{
         role: "user",
         content: locale === "zh"
-          ? `你是Lumo专注教练。根据以下上周数据给出三段式教练反馈，直接输出三段文字，每段之间空一行，不要标题或编号：
+          ? `你是Lumo专注教练。根据以下${pastZh}数据给出三段式教练反馈，直接输出三段文字，每段之间空一行，不要标题或编号：
 1. 数据解读（1-2句）：用艾森豪威尔语言解读象限分布模式
-2. 行动建议（1条具体可执行的下周行动）：针对当前最突出的象限问题
+2. 行动建议（1条具体可执行的${nextZh}行动）：针对当前最突出的象限问题
 3. 积极收尾（1句轻松鼓励）
 
 数据：完成${stats.tasksCompleted}个任务，专注${focusHours}小时，Q1紧急重要${q1Pct}%，Q2重要不紧急${q2Pct}%，Q3紧急不重要${q3Pct}%，Q4不紧急不重要${q4Pct}%，连击${currentStreak}天。总字数不超过80字。`
-          : `You're a Lumo focus coach. Based on last week's data, give 3-part coaching feedback. Output 3 short paragraphs separated by blank lines, no headings or numbers:
+          : `You're a Lumo focus coach. Based on ${pastEn} data, give 3-part coaching feedback. Output 3 short paragraphs separated by blank lines, no headings or numbers:
 1. Data insight (1-2 sentences): Interpret quadrant distribution using Eisenhower language
-2. Coaching action (1 specific, actionable next-week suggestion): Target the most prominent quadrant issue
+2. Coaching action (1 specific, actionable ${nextEn} suggestion): Target the most prominent quadrant issue
 3. Positive close (1 light, encouraging sentence)
 
 Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important ${q1Pct}%, Q2 important ${q2Pct}%, Q3 urgent ${q3Pct}%, Q4 low-priority ${q4Pct}%, ${currentStreak}-day streak. Max 60 words total.`,
@@ -72,7 +78,7 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
       { page: "stats", locale },
     ).then((reply) => { if (!cancelled && reply) setInsight(reply); });
     return () => { cancelled = true; };
-  }, [stats, currentStreak, locale, fetchWrappedInsight]);
+  }, [stats, currentStreak, locale, fetchWrappedInsight, period]);
 
   async function handleShare() {
     if (!cardRef.current || busy) return;
@@ -134,7 +140,7 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 2 }}>
-              {userName ? `${userName} · ` : ""}{t("wrapped.title")}
+              {userName ? `${userName} · ` : ""}{t(period === "month" ? "wrapped.month.title" : "wrapped.title")}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{stats.weekLabel}</div>
           </div>
