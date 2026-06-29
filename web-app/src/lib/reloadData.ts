@@ -16,6 +16,7 @@ import { usePeopleStore } from "@/store/usePeopleStore";
 import { useCountdownStore } from "@/store/useCountdownStore";
 import { useHabitsStore } from "@/store/useHabitsStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import { useTemplatesStore } from "@/store/useTemplatesStore";
 
 export async function reloadAllData(userId: string): Promise<void> {
   await Promise.all([
@@ -24,5 +25,6 @@ export async function reloadAllData(userId: string): Promise<void> {
     useCountdownStore.getState().load(userId),
     useHabitsStore.getState().load(userId),
     useNotificationStore.getState().load(),
+    useTemplatesStore.getState().load(),
   ]);
 }

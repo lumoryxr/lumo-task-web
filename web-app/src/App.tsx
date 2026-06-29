@@ -48,6 +48,7 @@ import { applyAccentTheme, useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useCountdownStore } from "@/store/useCountdownStore";
+import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { useHabitsStore } from "@/store/useHabitsStore";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
@@ -79,6 +80,8 @@ export default function App() {
   const loadHabits = useHabitsStore((s) => s.load);
   const clearHabits = useHabitsStore((s) => s.clear);
   const loadNotifications = useNotificationStore((s) => s.load);
+  const loadTemplates = useTemplatesStore((s) => s.load);
+  const clearTemplates = useTemplatesStore((s) => s.clear);
   const isSignedIn = useAuthStore(selectIsSignedIn);
   const userId = useAuthStore((s) => s.user.id);
   const forceSignOut = useAuthStore((s) => s.forceSignOut);
@@ -104,13 +107,15 @@ export default function App() {
       loadCountdowns(userId);
       loadHabits(userId);
       loadNotifications();
+      loadTemplates();
     } else {
       clearTasks();
       clearPeople();
       clearCountdowns();
       clearHabits();
+      clearTemplates();
     }
-  }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadNotifications]);
+  }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadNotifications, loadTemplates, clearTemplates]);
 
   useNotificationScheduler();
   useSyncEngine();

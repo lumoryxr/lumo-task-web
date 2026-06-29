@@ -307,6 +307,24 @@ export async function runMigrations() {
     )
   `);
 
+  // Reusable task templates (#173 V1). A lightweight per-user entity: a named
+  // snapshot of a task's authored fields stored as a single JSON `payload` blob
+  // (kept opaque here; validated by the contracts schema at the route). Created
+  // with the full four-tuple { id, user_id, updated_at, deleted_at } so it is
+  // syncable from day one with no follow-up ALTER. Idempotent.
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS templates (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'task',
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      deleted_at TEXT
+    )
+  `);
+
   // Migrate: per-user session version. Tokens embed the version they were minted
   // with; bumping it (on password change) invalidates all prior tokens.
   const userColsSV = await query<{ name: string }>("PRAGMA table_info(users)");
@@ -411,6 +429,7 @@ export async function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_completed_user_updated ON completed_entries(user_id, updated_at);
     CREATE INDEX IF NOT EXISTS idx_habits_user_updated ON habits(user_id, updated_at);
     CREATE INDEX IF NOT EXISTS idx_countdowns_user_updated ON countdown_events(user_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_templates_user_updated ON templates(user_id, updated_at);
   `);
 
   // Secondary indexes on the multi-tenant tables. Every list/read query filters
@@ -431,6 +450,7 @@ export async function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_habits_user_created ON habits(user_id, created_at) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_habit_logs_user_date ON habit_logs(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_countdowns_user_created ON countdown_events(user_id, created_at) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_templates_user_created ON templates(user_id, created_at) WHERE deleted_at IS NULL;
   `);
 
   // ── Drop dead ADR-0003 sync machinery (P3) ──────────────────────────────────

@@ -9,6 +9,7 @@ import { TaskDetailModal } from "@/components/TaskDetailModal";
 import { TaskEditModal } from "@/components/TaskEditModal";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useTasksStore } from "@/store/useTasksStore";
+import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { IconArrowRight, IconCheck, IconMore, IconRepeat } from "@/components/icons";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
@@ -27,6 +28,7 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
   const complete = useTasksStore((s) => s.complete);
   const remove = useTasksStore((s) => s.remove);
   const duplicate = useTasksStore((s) => s.duplicate);
+  const saveAsTemplate = useTemplatesStore((s) => s.saveFromTask);
 
   const [hovered, setHovered] = useState(false);
   const [circleHover, setCircleHover] = useState(false);
@@ -245,6 +247,7 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
           onClose={() => setMoreAnchor(null)}
           onEdit={() => setEditOpen(true)}
           onDuplicate={() => duplicate(task.id)}
+          onSaveAsTemplate={() => saveAsTemplate(task)}
           onDelete={() => remove(task.id)}
         />
       )}

@@ -77,6 +77,14 @@ const countdownEventRowSchema = requiringNotNull({
   title: z.string(),
   date: z.string(),
 });
+const templateRowSchema = requiringNotNull({
+  name: z.string(),
+  // `kind` is NOT required: it has a SQLite DEFAULT 'task', so an omitted value
+  // binds to the default (per this file's rule — only NOT-NULL-without-default
+  // columns are listed). `payload` travels as an opaque JSON string column
+  // (validated against the contracts payload schema only at the route boundary).
+  payload: z.string(),
+});
 
 export const SYNC_MANIFEST: SyncEntity[] = [
   {
@@ -122,6 +130,14 @@ export const SYNC_MANIFEST: SyncEntity[] = [
     columns: [
       "id", "user_id", "title", "date", "emoji", "color", "repeat", "note",
       "calendar", "created_at", "updated_at", "deleted_at",
+    ],
+  },
+  {
+    table: "templates",
+    schema: templateRowSchema,
+    columns: [
+      "id", "user_id", "name", "kind", "payload", "created_at", "updated_at",
+      "deleted_at",
     ],
   },
 ];

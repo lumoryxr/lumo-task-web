@@ -141,6 +141,12 @@ export const IconCopy = (p: IconProps) => (
   </svg>
 );
 
+export const IconBookmark = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
+  </svg>
+);
+
 export const IconSparkle = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />
