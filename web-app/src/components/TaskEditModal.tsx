@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconClose } from "@/components/icons";
+import { TagInput } from "@/components/TagInput";
 import { useT } from "@/i18n/useT";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { useAppStore } from "@/store/useAppStore";
@@ -69,6 +70,7 @@ export function TaskEditModal({ task, onClose }: Props) {
   const [remindAt, setRemindAt] = useState<string>(initialRemindAt);
   const [recurrence, setRecurrence] = useState<TaskRecurrence>(task.recurrence ?? "none");
   const [assigneeIds, setAssigneeIds] = useState<string[]>(task.assignee_ids ?? []);
+  const [tags, setTags] = useState<string[]>(task.tags ?? []);
   function toggleAssignee(id: string) {
     setAssigneeIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   }
@@ -105,6 +107,7 @@ export function TaskEditModal({ task, onClose }: Props) {
         remind_at: remindAt || null,
         recurrence,
         assignee_ids: assigneeIds,
+        tags,
       });
       onClose();
     } finally {
@@ -393,6 +396,19 @@ export function TaskEditModal({ task, onClose }: Props) {
               onChange={(e) => setRemindAt(e.target.value)}
               className="input"
               style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13 }}
+            />
+          </div>
+
+          {/* Tags */}
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
+              {t("edit.tags")}
+            </div>
+            <TagInput
+              tags={tags}
+              onChange={setTags}
+              placeholder={t("edit.tags.placeholder")}
+              inputAriaLabel={t("edit.tags")}
             />
           </div>
 

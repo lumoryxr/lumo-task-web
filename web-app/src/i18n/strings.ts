@@ -327,6 +327,11 @@ export const STRINGS: Record<Locale, Dict> = {
     "edit.clearSchedule": "Clear",
     "edit.remindAt": "Reminder",
     "edit.clearReminder": "Clear",
+    "edit.tags": "Tags",
+    "edit.tags.placeholder": "Add a tag and press Enter…",
+    "tag.filter.all": "All",
+    "tag.filter.label": "Filter by tag",
+    "tag.filter.clear": "Clear filter",
 
     "popover.edit": "Edit",
     "popover.duplicate": "Duplicate",
@@ -1083,6 +1088,11 @@ export const STRINGS: Record<Locale, Dict> = {
     "edit.clearSchedule": "清除",
     "edit.remindAt": "提醒",
     "edit.clearReminder": "清除",
+    "edit.tags": "标签",
+    "edit.tags.placeholder": "输入标签后按回车…",
+    "tag.filter.all": "全部",
+    "tag.filter.label": "按标签筛选",
+    "tag.filter.clear": "清除筛选",
 
     "popover.edit": "编辑",
     "popover.duplicate": "复制",

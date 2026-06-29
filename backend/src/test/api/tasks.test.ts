@@ -161,6 +161,69 @@ describe("POST /v1/tasks", () => {
   });
 });
 
+describe("task tags", () => {
+  test("201 → create with tags persists and round-trips on GET", async () => {
+    const { status, body } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Tagged" }, tags: ["work", "urgent"] },
+    });
+    assert.equal(status, 201);
+    assert.deepEqual(body.tags, ["work", "urgent"]);
+    TaskWireSchema.parse(body);
+
+    const got = await req("GET", `/v1/tasks/${body.id}`, { token: demoToken });
+    assert.deepEqual(got.body.tags, ["work", "urgent"]);
+  });
+
+  test("201 → tags default to [] when omitted", async () => {
+    const { status, body } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Untagged" } },
+    });
+    assert.equal(status, 201);
+    assert.deepEqual(body.tags, []);
+  });
+
+  test("200 → PATCH replaces the tag set", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Retag me" }, tags: ["old"] },
+    });
+    const { status, body } = await req("PATCH", `/v1/tasks/${created.body.id}`, {
+      token: demoToken,
+      body: { tags: ["fresh", "home"] },
+    });
+    assert.equal(status, 200);
+    assert.deepEqual(body.tags, ["fresh", "home"]);
+  });
+
+  test("200 → PATCH without tags leaves the existing set untouched", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Keep tags" }, tags: ["keep"] },
+    });
+    const { body } = await req("PATCH", `/v1/tasks/${created.body.id}`, {
+      token: demoToken,
+      body: { today: true },
+    });
+    assert.deepEqual(body.tags, ["keep"]);
+  });
+
+  test("201 → tags are trimmed; 400 when a tag exceeds the length cap", async () => {
+    const trimmed = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Trim" }, tags: ["  spaced  "] },
+    });
+    assert.deepEqual(trimmed.body.tags, ["spaced"]);
+
+    const tooLong = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Too long" }, tags: ["x".repeat(31)] },
+    });
+    assert.equal(tooLong.status, 400);
+  });
+});
+
 describe("GET /v1/tasks/:id", () => {
   test("200 → returns single task by id", async () => {
     const { status, body } = await req("GET", `/v1/tasks/${taskId}`, { token: demoToken });

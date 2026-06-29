@@ -142,6 +142,19 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
                 {stagTag}
               </span>
             )}
+            {(task.tags ?? []).map((tag) => (
+              <span
+                key={tag}
+                className="flex-shrink-0 rounded px-1.5 py-px text-[10.5px] font-medium leading-none"
+                style={{
+                  color: "var(--accent-primary)",
+                  background: "var(--accent-fog)",
+                  border: "1px solid var(--accent-edge)",
+                }}
+              >
+                {tag}
+              </span>
+            ))}
           </div>
         </div>
 

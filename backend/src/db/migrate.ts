@@ -194,6 +194,12 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE tasks ADD COLUMN scheduled_start TEXT");
   }
 
+  // Migrate: free-form task tags (JSON array of strings).
+  const taskColsV4 = await query<{ name: string }>("PRAGMA table_info(tasks)");
+  if (!taskColsV4.some((c) => c.name === "tags_json")) {
+    await execRaw("ALTER TABLE tasks ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'");
+  }
+
   // Migrate: normalize due field to strict ISO YYYY-MM-DD (or null)
   {
     const now = new Date();
