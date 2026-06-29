@@ -891,8 +891,9 @@ function fmtBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Rendered only inside the desktop-only Data & Sync tab, so this panel always
+// runs in Electron (configurable DB path + reveal/move controls).
 function StoragePanel({ t }: { t: (k: string) => string }) {
-  const isElectron = typeof window !== "undefined" && !!window.electronAPI;
   const isMac = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
   const [info, setInfo] = useState<{ dbPath: string; dbSize: number } | null>(null);
   const [moving, setMoving] = useState(false);
@@ -986,30 +987,23 @@ function StoragePanel({ t }: { t: (k: string) => string }) {
                 <span className="text-[11px] text-text-secondary tabular-nums">{fmtBytes(info.dbSize)}</span>
               </div>
             )}
-            {isElectron && (
-              <div className="flex items-center gap-2 mt-1">
-                <button
-                  onClick={handleChangeLocation}
-                  disabled={moving}
-                  className="btn btn-secondary"
-                  style={{ height: 30, fontSize: 12, opacity: moving ? 0.6 : 1 }}
-                >
-                  {moving ? t("settings.storage.moving") : t("settings.storage.change")}
-                </button>
-                <button
-                  onClick={() => window.electronAPI?.showDbInFolder()}
-                  className="btn btn-secondary"
-                  style={{ height: 30, fontSize: 12 }}
-                >
-                  {revealLabel}
-                </button>
-              </div>
-            )}
-            {!isElectron && (
-              <p className="text-[11px] text-text-faint leading-relaxed max-w-[340px]">
-                {t("settings.storage.web.note")}
-              </p>
-            )}
+            <div className="flex items-center gap-2 mt-1">
+              <button
+                onClick={handleChangeLocation}
+                disabled={moving}
+                className="btn btn-secondary"
+                style={{ height: 30, fontSize: 12, opacity: moving ? 0.6 : 1 }}
+              >
+                {moving ? t("settings.storage.moving") : t("settings.storage.change")}
+              </button>
+              <button
+                onClick={() => window.electronAPI?.showDbInFolder()}
+                className="btn btn-secondary"
+                style={{ height: 30, fontSize: 12 }}
+              >
+                {revealLabel}
+              </button>
+            </div>
           </div>
         </div>
         <div className="px-5 py-3 flex items-center gap-2">
