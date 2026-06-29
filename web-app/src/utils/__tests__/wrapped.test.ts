@@ -7,6 +7,7 @@ import {
   computeMonthStats,
   shouldShowMonthlyWrapped,
   markMonthlyWrappedShown,
+  listRecaps,
 } from "../wrapped";
 import type { CompletedEntry } from "@/types/task";
 
@@ -228,5 +229,45 @@ describe("shouldShowMonthlyWrapped / markMonthlyWrappedShown", () => {
     // Next month is a fresh key.
     vi.setSystemTime(new Date("2024-03-01T09:00:00"));
     expect(shouldShowMonthlyWrapped("u1")).toBe(true);
+  });
+});
+
+describe("listRecaps", () => {
+  // Mid-month so several prior weeks and the prior month are all in the past.
+  const MID_MARCH = new Date("2024-03-20T10:00:00");
+
+  it("returns only past periods that had activity, weeks before months", () => {
+    vi.setSystemTime(MID_MARCH);
+    const recaps = listRecaps([
+      makeEntry({ completedAt: "2024-03-12T10:00:00" }), // last week
+      makeEntry({ completedAt: "2024-02-10T10:00:00" }), // a past week + February month
+    ]);
+    // Every returned recap is non-empty.
+    expect(recaps.length).toBeGreaterThan(0);
+    expect(recaps.every((r) => r.stats.tasksCompleted > 0)).toBe(true);
+    // Weeks come before months, and February shows up as a month recap.
+    const kinds = recaps.map((r) => r.kind);
+    expect(kinds.indexOf("week")).toBeLessThan(kinds.lastIndexOf("month"));
+    expect(recaps.some((r) => r.kind === "month" && r.stats.weekLabel === "February 2024")).toBe(true);
+    // Ids are stable + unique.
+    expect(new Set(recaps.map((r) => r.id)).size).toBe(recaps.length);
+  });
+
+  it("excludes the current (in-progress) week/month and empty periods", () => {
+    vi.setSystemTime(MID_MARCH);
+    const recaps = listRecaps([
+      makeEntry({ completedAt: "2024-03-20T10:00:00" }), // current week → excluded
+    ]);
+    expect(recaps).toEqual([]);
+  });
+
+  it("respects the weeks/months window", () => {
+    vi.setSystemTime(MID_MARCH);
+    const recaps = listRecaps(
+      [makeEntry({ completedAt: "2024-01-10T10:00:00" })], // ~10 weeks ago, 2 months ago
+      { weeks: 2, months: 1 },
+    );
+    // Outside a 2-week / 1-month window → nothing.
+    expect(recaps).toEqual([]);
   });
 });

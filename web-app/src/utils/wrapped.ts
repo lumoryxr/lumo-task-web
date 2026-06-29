@@ -11,6 +11,13 @@ export interface PrevWeekStats {
   quadrantBreakdown: QuadrantCount[];
 }
 
+/** A past recap the user can re-open from the Recaps gallery (#171 V2b). */
+export interface RecapRef {
+  id: string;
+  kind: "week" | "month";
+  stats: PrevWeekStats;
+}
+
 function startOfWeek(date: Date): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -43,40 +50,73 @@ export function markWrappedShown(userId: string): void {
   localStorage.setItem(wrappedKey(userId), "1");
 }
 
-export function computePrevWeekStats(entries: CompletedEntry[]): PrevWeekStats {
-  const now = new Date();
-  const thisWeekStart = startOfWeek(now);
-  const prevWeekStart = new Date(thisWeekStart);
-  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
-  const prevWeekEnd = new Date(thisWeekStart);
-  prevWeekEnd.setMilliseconds(-1);
+interface PeriodRange { start: Date; end: Date; label: string; id: string }
 
-  const weekEntries = entries.filter((e) => {
+/** Range + label + stable id for the week `weeksAgo` weeks before the current one (1 = last week). */
+function weekRangeAgo(now: Date, weeksAgo: number): PeriodRange {
+  const thisWeekStart = startOfWeek(now);
+  const start = new Date(thisWeekStart);
+  start.setDate(start.getDate() - 7 * weeksAgo);
+  const end = new Date(thisWeekStart);
+  end.setDate(end.getDate() - 7 * (weeksAgo - 1));
+  end.setMilliseconds(-1);
+  const startLabel = start.toLocaleDateString("en", { month: "short", day: "numeric" });
+  const endLabel = new Date(end).toLocaleDateString("en", { month: "short", day: "numeric" });
+  return { start, end, label: `${startLabel} – ${endLabel}`, id: `week:${getISOWeekKey(start)}` };
+}
+
+/** Range + label + stable id for the calendar month `monthsAgo` months back (1 = last month). */
+function monthRangeAgo(now: Date, monthsAgo: number): PeriodRange {
+  const start = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1, 0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth() - monthsAgo + 1, 1, 0, 0, 0, 0);
+  end.setMilliseconds(-1);
+  const label = `${MONTH_NAMES[start.getMonth()]} ${start.getFullYear()}`;
+  const id = `month:${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`;
+  return { start, end, label, id };
+}
+
+function statsForRange(entries: CompletedEntry[], r: PeriodRange): PrevWeekStats {
+  const inRange = entries.filter((e) => {
     if (!e.completedAt) return false;
     const d = new Date(e.completedAt);
-    return d >= prevWeekStart && d <= prevWeekEnd;
+    return d >= r.start && d <= r.end;
   });
+  return buildPeriodStats(inRange, r.label);
+}
 
-  const startLabel = prevWeekStart.toLocaleDateString("en", { month: "short", day: "numeric" });
-  const endLabel = new Date(prevWeekEnd).toLocaleDateString("en", { month: "short", day: "numeric" });
-  return buildPeriodStats(weekEntries, `${startLabel} – ${endLabel}`);
+export function computePrevWeekStats(entries: CompletedEntry[]): PrevWeekStats {
+  return statsForRange(entries, weekRangeAgo(new Date(), 1));
 }
 
 /** Recap of the previous calendar month over the full completed history. */
 export function computeMonthStats(entries: CompletedEntry[]): PrevWeekStats {
+  return statsForRange(entries, monthRangeAgo(new Date(), 1));
+}
+
+/**
+ * Past recaps (most recent first within each kind) that had ≥1 completed task,
+ * for the re-accessible Recaps gallery (#171 V2b): up to `weeks` past weeks
+ * followed by up to `months` past months.
+ */
+export function listRecaps(
+  entries: CompletedEntry[],
+  opts: { weeks?: number; months?: number } = {},
+): RecapRef[] {
+  const weeks = opts.weeks ?? 8;
+  const months = opts.months ?? 6;
   const now = new Date();
-  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-  prevMonthEnd.setMilliseconds(-1);
-
-  const monthEntries = entries.filter((e) => {
-    if (!e.completedAt) return false;
-    const d = new Date(e.completedAt);
-    return d >= prevMonthStart && d <= prevMonthEnd;
-  });
-
-  const label = `${MONTH_NAMES[prevMonthStart.getMonth()]} ${prevMonthStart.getFullYear()}`;
-  return buildPeriodStats(monthEntries, label);
+  const out: RecapRef[] = [];
+  for (let w = 1; w <= weeks; w++) {
+    const r = weekRangeAgo(now, w);
+    const stats = statsForRange(entries, r);
+    if (stats.tasksCompleted > 0) out.push({ id: r.id, kind: "week", stats });
+  }
+  for (let m = 1; m <= months; m++) {
+    const r = monthRangeAgo(now, m);
+    const stats = statsForRange(entries, r);
+    if (stats.tasksCompleted > 0) out.push({ id: r.id, kind: "month", stats });
+  }
+  return out;
 }
 
 function monthlyWrappedKey(userId: string): string {
