@@ -368,6 +368,47 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
       "owner's check-in must survive a cross-tenant delete (no silent IDOR)",
     );
   });
+
+  // `POST /v1/focus/sessions` is the same sub-resource IDOR class the #165 sweep
+  // covered — it writes (a completed_entries row + the task's pomos_done) keyed by
+  // a caller-supplied task_id — but was MISSED there (#190). It is the most
+  // insidious of the set: a cross-tenant task_id is silently skipped and the
+  // endpoint still returns 200 {ok:true}, so a dropped scope leaks with NO
+  // status-code change. Only a state-survival assertion (owner's pomos_done
+  // unchanged + no leaked completed entry) catches it.
+  test("focus/sessions: attacker recording a session against another tenant's task is a no-op → owner's pomos_done unchanged, no entry leaked (silent-IDOR guard, #190)", async () => {
+    const { body: task } = await api("POST", "/v1/tasks", {
+      token: owner.token,
+      body: { title: { en: "Owner deep work" }, quadrant: "Q1", pomos_total: 3 },
+    });
+    assert.equal(task.pomos_done, 0, "owner's task starts at 0 pomos");
+
+    // Attacker posts a focus session referencing the owner's task by id. The
+    // endpoint does NOT 404 on a cross-tenant id — it silently no-ops and still
+    // returns 200. That silence is exactly why the survival assertions matter.
+    const res = await api("POST", "/v1/focus/sessions", {
+      token: attacker.token,
+      body: { task_id: task.id, duration: 25 },
+    });
+    assert.equal(res.status, 200, "cross-tenant focus session degrades gracefully (no 5xx)");
+
+    // AC1: the owner's pomos_done must NOT have been incremented.
+    const { body: afterTask } = await api("GET", `/v1/tasks/${task.id}`, { token: owner.token });
+    assert.equal(afterTask.pomos_done, 0, "owner's pomos_done must not move on a cross-tenant focus session (no IDOR)");
+
+    // AC2: no completed entry referencing the owner's task may exist under either
+    // tenant (GET /completed with no ?date is the { items, nextCursor } shape, #164).
+    const ownerCompleted = await api("GET", "/v1/completed", { token: owner.token });
+    assert.ok(
+      !((ownerCompleted.body as any).items as any[]).some((e) => e.task_id === task.id),
+      "no completed entry for the owner's task should exist",
+    );
+    const attackerCompleted = await api("GET", "/v1/completed", { token: attacker.token });
+    assert.ok(
+      !((attackerCompleted.body as any).items as any[]).some((e) => e.task_id === task.id),
+      "attacker must not hold a completed entry referencing the owner's task",
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

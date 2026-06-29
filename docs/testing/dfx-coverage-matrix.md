@@ -23,7 +23,7 @@ push/PR.
 
 | DFX dimension | What it guarantees | Covered cases (in `dfx.integration.test.ts`) |
 |---|---|---|
-| **Design for Security** | No unauthorized access, no cross-tenant leakage, no injection, no weak credentials | missing token → 401; garbage/malformed bearer → 401; cross-tenant read/patch/delete → 404 (no leak); weak password rejected at registration; SQL-injection-shaped input stored as literal data (table survives). **Tenant isolation now exercised across all user-scoped CRUD resources** — `tasks` **+ `people` / `countdowns` / `habits` / `templates`**: attacker PATCH/DELETE of another tenant's row → 404 (owner's row survives & unmutated); attacker's list never contains the owner's row (#158; `templates` added 2026-06-29). **Plus the id-addressed state-changing sub-resource endpoints** (#165): cross-tenant `POST /completed/:id/reopen` → 404 (owner's entry not tombstoned); `POST /habits/:id/log` → 404 (no check-in written); `DELETE /habits/:id/log/:date` → 204 idempotent **but owner's check-in survives** (silent-IDOR guard) |
+| **Design for Security** | No unauthorized access, no cross-tenant leakage, no injection, no weak credentials | missing token → 401; garbage/malformed bearer → 401; cross-tenant read/patch/delete → 404 (no leak); weak password rejected at registration; SQL-injection-shaped input stored as literal data (table survives). **Tenant isolation now exercised across all user-scoped CRUD resources** — `tasks` **+ `people` / `countdowns` / `habits` / `templates`**: attacker PATCH/DELETE of another tenant's row → 404 (owner's row survives & unmutated); attacker's list never contains the owner's row (#158; `templates` added 2026-06-29). **Plus the id-addressed state-changing sub-resource endpoints** (#165 + #190): cross-tenant `POST /completed/:id/reopen` → 404 (owner's entry not tombstoned); `POST /habits/:id/log` → 404 (no check-in written); `DELETE /habits/:id/log/:date` → 204 idempotent **but owner's check-in survives** (silent-IDOR guard); `POST /focus/sessions` with another tenant's `task_id` → 200 no-op **but owner's `pomos_done` unchanged & no completed entry leaked** (silent-IDOR guard — endpoint never 404s, so only state-survival catches it; #190) |
 | **Design for Robustness** | Malformed / wrong-typed / missing input degrades to 4xx, never a 5xx crash | malformed JSON body → 400 `INVALID_JSON` (proven a **global** handler — exercised on `tasks` + `people` / `countdowns` / `habits` / `templates`, #158); missing required field → 400; wrong field type → 400; out-of-enum value → 400; **nested-payload violation (templates `payload.duration` out of range) → 400** (validation reaches into the JSON payload column, #184); unknown route → 404 |
 | **Design for Recoverability** | A bad request never poisons the server; the next request still works | invalid pagination cursor → 400 `INVALID_CURSOR`; burst of bad requests followed by a healthy request → 200; operation on non-existent id → 404 |
 | **Design for Observability** | Health/readiness are meaningful; every error has a consistent, machine-readable shape | `/health` → 200 `{ok:true}` (liveness); `/ready` reflects a real DB probe (readiness); business errors all carry `{ error: { code, message } }` |
@@ -81,3 +81,17 @@ here rather than leaving a silent hole.
   0..1440) → 400 (not 5xx). Handler verified to already scope by `user_id` and
   re-encode the payload through the schema — **gap in the tests, not the code** (no
   production change).
+- **2026-06-29 (#190 focus/sessions)** — Follow-up to the #165 sub-resource IDOR
+  sweep: that sweep enumerated `completed/reopen` + `habits/:id/log` (×2) but
+  **missed `POST /v1/focus/sessions`**, which is the same class — it writes a
+  `completed_entries` row and increments the referenced task's `pomos_done` keyed
+  by a caller-supplied `task_id`. It is the **most insidious** of the set: a
+  cross-tenant `task_id` is silently skipped and the endpoint still returns
+  `200 {ok:true}` (never 404), so a dropped scope would leak with **no status-code
+  change** — only a state-survival assertion (owner's `pomos_done` unmoved + no
+  leaked completed entry) catches it. Added 1 DFX case. The handler was already
+  gated by the SELECT's `WHERE user_id`, but the `pomos_done` UPDATE itself was
+  **unscoped** (`WHERE id`), relying solely on that upstream gate; hardened the
+  UPDATE with `AND user_id` as defense-in-depth so the write is self-defending
+  (no happy-path change). **Test gap + latent footgun closed** — not an active
+  vulnerability.

@@ -46,9 +46,14 @@ app.post("/sessions", focusRateLimit, validate("json", FocusSessionBody), async 
         started_at: body.started_at ?? null, completed_at: now, sync_ts: syncTs,
       });
 
+      // Scope the write by `user_id` too: the SELECT above already gates this
+      // branch to the caller's own task, but keeping the UPDATE self-defending
+      // means a future refactor of that gate can't silently turn this into a
+      // cross-tenant IDOR (pomos_done is the only mutable cross-tenant surface
+      // here). Defense-in-depth — no happy-path change.
       await execute(
-        "UPDATE tasks SET pomos_done = pomos_done + 1, updated_at = :sync_ts WHERE id = :id",
-        { id: body.task_id, sync_ts: syncTs }
+        "UPDATE tasks SET pomos_done = pomos_done + 1, updated_at = :sync_ts WHERE id = :id AND user_id = :uid",
+        { id: body.task_id, sync_ts: syncTs, uid: userId }
       );
     }
   }
