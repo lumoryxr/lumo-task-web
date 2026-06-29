@@ -226,9 +226,12 @@ const TENANT_RESOURCES: Array<{
     patch: { title: "Hijacked" },
   },
   {
+    // Templates (#173) were added after the original isolation sweep (#158/#160),
+    // so the matrix never exercised them. The payload uses schema defaults so the
+    // create body stays minimal.
     name: "templates",
     path: "/v1/templates",
-    create: () => ({ name: "Owner Template", payload: { title: { en: "Owner blueprint" } } }),
+    create: () => ({ name: "Owner Template", payload: { title: { en: "Owner Template" } } }),
     patch: { name: "Hijacked" },
   },
 ];
@@ -305,12 +308,9 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
     const comp = await api("POST", `/v1/tasks/${task.id}/complete`, { token: owner.token });
     assert.ok(comp.status >= 200 && comp.status < 300, "owner can complete own task");
 
-    // The unfiltered history endpoint is keyset-paginated → { items, nextCursor }
-    // (a date-filtered query returns a bare array; this call uses neither). This
-    // test predates that pagination (#165 branched before the completed-history
-    // pagination landed) — read the paginated envelope so the next daily run is green.
-    const { body: completed } = await api("GET", "/v1/completed", { token: owner.token });
-    const entry = (completed.items as any[]).find((e) => e.task_id === task.id);
+    // GET /completed (no ?date) is the paginated full-history shape: { items, nextCursor } (#164).
+    const { body: entries } = await api("GET", "/v1/completed", { token: owner.token });
+    const entry = ((entries as any).items as any[]).find((e) => e.task_id === task.id);
     assert.ok(entry, "owner has a completed entry to target");
 
     // Attacker tries to reopen the owner's entry by its id.
@@ -320,7 +320,7 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
     // Owner's entry must still exist (not tombstoned by the attacker).
     const { body: after } = await api("GET", "/v1/completed", { token: owner.token });
     assert.ok(
-      (after.items as any[]).some((e) => e.id === entry.id),
+      ((after as any).items as any[]).some((e) => e.id === entry.id),
       "owner's completed entry must survive a cross-tenant reopen",
     );
   });
