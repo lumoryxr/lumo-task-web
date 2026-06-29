@@ -1496,15 +1496,19 @@ test("TC87 – templates: save a task as a template and instantiate it from the 
   // A seeded task is visible.
   await expect(page.getByText("Write integration tests").first()).toBeVisible({ timeout: 10_000 });
 
-  // The row's ⋯ button lives in a container that is opacity:0 AND
-  // pointer-events:none until the row's `hovered` state is true. Under Playwright
-  // that boolean races (scroll/move re-renders flip it back to false), so a normal
-  // click gets intercepted by the parent row div ("intercepts pointer events").
-  // Dispatch the click straight to the button instead — its onClick only reads the
-  // button's own bounding rect, so this is functionally identical to a user click
-  // but immune to the opacity / pointer-events gate. "Write integration tests" is
-  // the first seeded task, so its ⋯ is the first More-actions button.
-  await page.getByRole("button", { name: "More actions" }).first().dispatchEvent("click");
+  // Open the ⋯ menu of the "Write integration tests" row specifically (Today does
+  // not render rows in seed order, so .first() would grab the wrong task). Walk up
+  // from the title to its row, then take that row's ⋯ button.
+  // The ⋯ lives in a container that is opacity:0 / pointer-events:none until the
+  // row's `hovered` state is true; under Playwright that boolean races and a normal
+  // click is intercepted by the parent row div. Dispatch the click straight to the
+  // button instead — its onClick only reads the button's own rect, so it is
+  // functionally identical to a user click but immune to the pointer-events gate.
+  const taskRow = page
+    .getByText("Write integration tests")
+    .first()
+    .locator("xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' border-b ')][1]");
+  await taskRow.getByRole("button", { name: "More actions" }).dispatchEvent("click");
   await page.getByRole("button", { name: "Save as template" }).click();
   // Confirmation toast.
   await expect(page.getByText("Saved as template")).toBeVisible({ timeout: 8_000 });
