@@ -437,6 +437,9 @@ export const STRINGS: Record<Locale, Dict> = {
     "wrapped.share.error": "Couldn't export the card. Please try again.",
     "wrapped.dismiss": "Got it",
     "wrapped.section.title": "Your Week Wrapped",
+    "streak.milestone.label": "Streak Milestone",
+    "streak.milestone.days": "{n}-day streak",
+    "streak.milestone.caption": "Days in a row getting things done. Keep the fire going!",
     "wrapped.quadrant.section": "Last Week by Quadrant",
 
     "ai.config.title": "AI Assistant",
@@ -1178,6 +1181,9 @@ export const STRINGS: Record<Locale, Dict> = {
     "wrapped.share.error": "导出卡片失败，请重试。",
     "wrapped.dismiss": "好的",
     "wrapped.section.title": "本周回顾",
+    "streak.milestone.label": "连击里程碑",
+    "streak.milestone.days": "连续 {n} 天",
+    "streak.milestone.caption": "连续多天完成任务，继续保持这股劲！",
     "wrapped.quadrant.section": "上周象限分布",
 
     "ai.config.title": "AI 助手",

@@ -10,3 +10,42 @@
 export function isShareCancellation(e: unknown): boolean {
   return e instanceof DOMException && e.name === "AbortError";
 }
+
+/**
+ * Capture a DOM node to a PNG and share it: the Web Share API where the browser
+ * supports sharing files, otherwise a plain download. Resolves with which path
+ * was taken. Rejects on real failures (html2canvas/toBlob) and propagates the
+ * Web Share `AbortError` so callers can treat a dismissed sheet as a silent
+ * cancellation via {@link isShareCancellation}.
+ */
+export async function captureAndShare(
+  el: HTMLElement,
+  filename: string,
+  title: string,
+): Promise<"shared" | "downloaded"> {
+  const { default: html2canvas } = await import("html2canvas");
+  const canvas = await html2canvas(el, {
+    useCORS: true,
+    scale: 2,
+    backgroundColor: null,
+    logging: false,
+  });
+  const blob = await new Promise<Blob>((res, rej) =>
+    canvas.toBlob(
+      (b) => (b ? res(b) : rej(new Error("Canvas export failed"))),
+      "image/png",
+    ),
+  );
+  const file = new File([blob], filename, { type: "image/png" });
+  if (typeof navigator.share === "function" && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title });
+    return "shared";
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  return "downloaded";
+}
