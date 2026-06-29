@@ -82,25 +82,35 @@ afterEach(() => {
 });
 
 describe("SettingsPage · consolidated tabs (#111)", () => {
-  const EXPECTED_TABS = [
+  // On web, Data & Sync is hidden (desktop-only), so the web build shows six tabs.
+  const WEB_TABS = [
     "settings.general",
     "settings.notifications",
     "settings.pet",
     "settings.members",
     "ai.config.title",
     "settings.integrations",
-    "settings.dataSync",
   ];
 
-  it("renders exactly the seven consolidated tabs", () => {
+  it("renders exactly the six consolidated tabs on web (Data & Sync is desktop-only)", () => {
     renderPage();
-    for (const label of EXPECTED_TABS) {
+    for (const label of WEB_TABS) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
+    // Data & Sync tab is hidden on the web build.
+    expect(screen.queryByRole("button", { name: "settings.dataSync" })).not.toBeInTheDocument();
     // Old, now-removed standalone tabs are gone.
     expect(screen.queryByRole("button", { name: "settings.appearance" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "settings.language" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "settings.storage" })).not.toBeInTheDocument();
+  });
+
+  it("adds the Data & Sync tab on the desktop build", () => {
+    (window as any).electronAPI = { isElectron: true };
+    renderPage();
+    for (const label of [...WEB_TABS, "settings.dataSync"]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
   });
 
   it("folds language into the General tab", () => {
@@ -117,16 +127,16 @@ describe("SettingsPage · consolidated tabs (#111)", () => {
   });
 });
 
-describe("SettingsPage · Cloud Sync gating inside Data & Sync (#112)", () => {
-  it("hides the Sync panel on the web build, keeping only Storage", () => {
+describe("SettingsPage · Data & Sync is desktop-only (#112)", () => {
+  it("hides the whole Data & Sync tab (Storage + Sync) on the web build", () => {
     renderPage();
-    clickTab("settings.dataSync");
-    expect(screen.getByText("settings.storage")).toBeInTheDocument();
-    // SyncPanel heading must NOT render on web (would only yield NO_CLOUD_BASE).
+    // No tab to open, and neither panel renders anywhere on web.
+    expect(screen.queryByRole("button", { name: "settings.dataSync" })).not.toBeInTheDocument();
+    expect(screen.queryByText("settings.storage")).not.toBeInTheDocument();
     expect(screen.queryByText("settings.sync")).not.toBeInTheDocument();
   });
 
-  it("shows the Sync panel on the desktop build alongside Storage", () => {
+  it("shows Storage + Sync inside the Data & Sync tab on the desktop build", () => {
     (window as any).electronAPI = { isElectron: true };
     renderPage();
     clickTab("settings.dataSync");
