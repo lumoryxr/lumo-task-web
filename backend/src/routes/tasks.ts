@@ -66,6 +66,7 @@ export function rowToTask(row: TaskRow): TaskWire {
     not_now: safeParse<unknown[]>(row.not_now_json, []),
     recurrence: row.recurrence ?? "none",
     subtasks: safeParse<unknown[]>(row.subtasks_json, []),
+    tags: safeParse<string[]>(row.tags_json, []),
     scheduled_start: row.scheduled_start ?? null,
     remind_at: row.remind_at ?? null,
     created_at: row.created_at,
@@ -144,12 +145,12 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
       id, user_id, assignee_ids, title_en, title_zh, desc_en, desc_zh,
       quadrant, today, week_focus, due, duration, pomos_done, pomos_total, conviction,
       next_step_en, next_step_zh, reason_en, reason_zh, ai_suggest, not_now_json,
-      recurrence, subtasks_json, scheduled_start, remind_at, created_at, updated_at
+      recurrence, subtasks_json, tags_json, scheduled_start, remind_at, created_at, updated_at
     ) VALUES (
       :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
       :quadrant, :today, :week_focus, :due, :duration, 0, :pomos_total, :conviction,
       :next_step_en, :next_step_zh, :reason_en, :reason_zh, :ai_suggest, :not_now_json,
-      :recurrence, :subtasks_json, :scheduled_start, :remind_at, :now, :sync_ts
+      :recurrence, :subtasks_json, :tags_json, :scheduled_start, :remind_at, :now, :sync_ts
     )
   `, {
     id, user_id: userId,
@@ -169,6 +170,7 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
     ai_suggest: body.ai_suggest ?? null,
     not_now_json: JSON.stringify(body.not_now ?? []),
     subtasks_json: JSON.stringify(body.subtasks ?? []),
+    tags_json: JSON.stringify(body.tags ?? []),
     scheduled_start: body.scheduled_start ?? null,
     remind_at: body.remind_at ?? null,
     now, sync_ts: syncTs,
@@ -224,6 +226,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
     not_now_json: "not_now" in body ? JSON.stringify(body.not_now) : existing.not_now_json,
     recurrence: body.recurrence ?? existing.recurrence ?? "none",
     subtasks_json: "subtasks" in body ? JSON.stringify(body.subtasks) : (existing.subtasks_json ?? "[]"),
+    tags_json: "tags" in body ? JSON.stringify(body.tags) : (existing.tags_json ?? "[]"),
     scheduled_start: "scheduled_start" in body ? (body.scheduled_start ?? null) : existing.scheduled_start,
     remind_at: "remind_at" in body ? (body.remind_at ?? null) : existing.remind_at,
   };
@@ -236,7 +239,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
       conviction = :conviction, next_step_en = :next_step_en, next_step_zh = :next_step_zh,
       reason_en = :reason_en, reason_zh = :reason_zh, ai_suggest = :ai_suggest,
       not_now_json = :not_now_json, recurrence = :recurrence,
-      subtasks_json = :subtasks_json, scheduled_start = :scheduled_start, remind_at = :remind_at, updated_at = :now
+      subtasks_json = :subtasks_json, tags_json = :tags_json, scheduled_start = :scheduled_start, remind_at = :remind_at, updated_at = :now
     WHERE id = :id AND user_id = :uid
   `, { ...merged, id: taskId, uid: userId, now });
 
@@ -305,12 +308,12 @@ app.post("/:id/complete", validate("param", IdParam), async (c) => {
               id, user_id, assignee_ids, title_en, title_zh, desc_en, desc_zh,
               quadrant, today, due, duration, pomos_done, pomos_total, conviction,
               next_step_en, next_step_zh, reason_en, reason_zh, ai_suggest, not_now_json,
-              recurrence, created_at, updated_at
+              recurrence, tags_json, created_at, updated_at
             ) VALUES (
               :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
               :quadrant, 0, :due, :duration, 0, :pomos_total, NULL,
               NULL, NULL, NULL, NULL, NULL, '[]',
-              :recurrence, :now, :sync_ts
+              :recurrence, :tags_json, :now, :sync_ts
             )`,
       args: {
         id: nextId, user_id: userId,
@@ -321,6 +324,9 @@ app.post("/:id/complete", validate("param", IdParam), async (c) => {
         due: nextDue,
         duration: task.duration, pomos_total: task.pomos_total,
         recurrence,
+        // Tags are an organizing label, not per-instance progress — carry them
+        // to the next occurrence (subtasks intentionally reset).
+        tags_json: task.tags_json ?? "[]",
         now, sync_ts: syncTs,
       },
     });
