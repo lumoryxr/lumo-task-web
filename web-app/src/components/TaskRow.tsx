@@ -17,9 +17,11 @@ import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 interface TaskRowProps {
   task: Task;
   compact?: boolean;
+  /** Opt into multi-select: when the store's selectMode is on, the row becomes a checkbox toggle. */
+  selectable?: boolean;
 }
 
-export function TaskRow({ task, compact = false }: TaskRowProps) {
+export function TaskRow({ task, compact = false, selectable = false }: TaskRowProps) {
   const t = useT();
   const ls = useLocaleString();
   const locale = useAppStore((s) => s.locale);
@@ -29,6 +31,10 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
   const remove = useTasksStore((s) => s.remove);
   const duplicate = useTasksStore((s) => s.duplicate);
   const saveAsTemplate = useTemplatesStore((s) => s.saveFromTask);
+  // Subscribe to narrow booleans so only the rows whose state actually flips re-render.
+  const selecting = useTasksStore((s) => s.selectMode) && selectable;
+  const selected = useTasksStore((s) => s.selectedIds.includes(task.id)) && selecting;
+  const toggleSelected = useTasksStore((s) => s.toggleSelected);
 
   const [hovered, setHovered] = useState(false);
   const [circleHover, setCircleHover] = useState(false);
@@ -56,10 +62,26 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
           padding: compact ? "9px 8px" : "13px 8px",
           marginLeft: -8,
           marginRight: -8,
-          background: hovered ? "var(--bg-subtle)" : "transparent",
+          background: selected ? "var(--accent-dim)" : hovered ? "var(--bg-subtle)" : "transparent",
         }}
       >
-        {/* ── Left: complete circle ─────────────────────────────── */}
+        {/* ── Left: selection checkbox (select mode) or complete circle ── */}
+        {selecting ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleSelected(task.id); }}
+            role="checkbox"
+            aria-checked={selected}
+            aria-label={ls(task.title)}
+            className="flex-shrink-0 flex items-center justify-center w-[18px] h-[18px] rounded transition-all"
+            style={{
+              border: `1.5px solid ${selected ? "var(--accent-primary)" : "var(--border-strong)"}`,
+              background: selected ? "var(--accent-primary)" : "transparent",
+              color: "var(--text-inverse)",
+            }}
+          >
+            {selected && <IconCheck size={11} strokeWidth={2.5} />}
+          </button>
+        ) : (
         <button
           onMouseEnter={() => setCircleHover(true)}
           onMouseLeave={() => setCircleHover(false)}
@@ -96,13 +118,14 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
         >
           {(circleHover || completing) && <IconCheck size={10} strokeWidth={2.5} />}
         </button>
+        )}
 
         {/* ── Center: clickable content area ───────────────────── */}
         <span className={`qdot qdot-${q} flex-shrink-0`} />
 
         <div
           className="flex-1 min-w-0 cursor-pointer"
-          onClick={() => setDetailOpen(true)}
+          onClick={() => (selecting ? toggleSelected(task.id) : setDetailOpen(true))}
         >
           <div className="text-sm font-medium text-text-primary truncate leading-snug">
             {ls(task.title)}
@@ -158,12 +181,12 @@ export function TaskRow({ task, compact = false }: TaskRowProps) {
           </div>
         </div>
 
-        {/* ── Right: hover actions + meta ───────────────────────── */}
+        {/* ── Right: hover actions + meta (suppressed in select mode) ── */}
         <div
           className="flex items-center gap-1.5 transition-all"
           style={{
-            opacity: hovered ? 1 : 0,
-            pointerEvents: hovered ? "auto" : "none",
+            opacity: hovered && !selecting ? 1 : 0,
+            pointerEvents: hovered && !selecting ? "auto" : "none",
           }}
         >
           {/* Start focus — labeled accent pill */}
