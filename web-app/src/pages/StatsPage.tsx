@@ -9,8 +9,10 @@ import type { CompletedEntry } from "@/types/task";
 import { computeWeekStats, computeAllTimeStats, fmtHour } from "@/utils/stats";
 import { currentStreak as habitStreak, toDateStr } from "@/utils/habits";
 import { shouldShowWrapped, markWrappedShown, computePrevWeekStats } from "@/utils/wrapped";
+import { pendingStreakMilestone, markStreakMilestoneCelebrated } from "@/utils/streakMilestone";
 import { useNavigate } from "react-router-dom";
 import { ShareCard } from "@/components/ShareCard";
+import { StreakMilestoneCard } from "@/components/StreakMilestoneCard";
 import { WrappedCard } from "@/components/WrappedCard";
 import { HabitWeekSection } from "@/components/HabitWeekSection";
 import { QuadrantBreakdown } from "@/components/QuadrantBreakdown";
@@ -52,6 +54,7 @@ export function StatsPage() {
   const [entries, setEntries] = useState<CompletedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showWrapped, setShowWrapped] = useState(false);
+  const [streakMilestone, setStreakMilestone] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -61,6 +64,12 @@ export function StatsPage() {
       if (shouldShowWrapped(userId)) {
         setShowWrapped(true);
         markWrappedShown(userId);
+      }
+      // Celebrate a freshly-reached completion-streak milestone, once per user.
+      const reached = pendingStreakMilestone(userId, computeAllTimeStats(data).currentStreak);
+      if (reached !== null) {
+        setStreakMilestone(reached);
+        markStreakMilestoneCelebrated(userId, reached);
       }
     }).catch(() => setLoading(false));
   }, [isSignedIn, userId]);
@@ -109,6 +118,13 @@ export function StatsPage() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
+      {streakMilestone !== null && (
+        <StreakMilestoneCard
+          milestone={streakMilestone}
+          userName={userName}
+          onDismiss={() => setStreakMilestone(null)}
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between px-7 pt-7 pb-4 flex-shrink-0">
         <div>
