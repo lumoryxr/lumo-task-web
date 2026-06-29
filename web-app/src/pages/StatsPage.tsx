@@ -13,6 +13,7 @@ import { pendingStreakMilestone, markStreakMilestoneCelebrated } from "@/utils/s
 import { useNavigate } from "react-router-dom";
 import { ShareCard } from "@/components/ShareCard";
 import { StreakMilestoneCard } from "@/components/StreakMilestoneCard";
+import { RecapsModal } from "@/components/RecapsModal";
 import { WrappedCard } from "@/components/WrappedCard";
 import { HabitWeekSection } from "@/components/HabitWeekSection";
 import { QuadrantBreakdown } from "@/components/QuadrantBreakdown";
@@ -56,6 +57,7 @@ export function StatsPage() {
   const [showWrapped, setShowWrapped] = useState(false);
   const [showMonthlyWrapped, setShowMonthlyWrapped] = useState(false);
   const [streakMilestone, setStreakMilestone] = useState<number | null>(null);
+  const [showRecaps, setShowRecaps] = useState(false);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -131,12 +133,27 @@ export function StatsPage() {
           onDismiss={() => setStreakMilestone(null)}
         />
       )}
+      {showRecaps && (
+        <RecapsModal
+          entries={entries}
+          currentStreak={allTime.currentStreak}
+          userName={userName}
+          onClose={() => setShowRecaps(false)}
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between px-7 pt-7 pb-4 flex-shrink-0">
         <div>
           <h1 className="text-[20px] font-semibold text-text-primary">{t("stats.title")}</h1>
           <p className="text-[13px] text-text-muted mt-0.5">{t("stats.sub")}</p>
         </div>
+        <button
+          onClick={() => setShowRecaps(true)}
+          className="btn btn-secondary"
+          style={{ height: 32, fontSize: 12 }}
+        >
+          {t("recaps.title")}
+        </button>
       </div>
 
       <div className="px-7 pb-7 space-y-6">
