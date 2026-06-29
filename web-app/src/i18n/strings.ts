@@ -299,6 +299,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "account.changePass.err.empty": "All fields are required.",
     "account.changePass.err.mismatch": "New passwords do not match.",
     "account.changePass.err.short": "New password must be at least 8 characters.",
+    "account.changePass.err.weak": "New password must include at least one letter and one number.",
     "account.changePass.err.wrong": "Current password is incorrect.",
     "account.signOutAll": "Sign out everywhere",
 
@@ -1054,6 +1055,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "account.changePass.err.empty": "所有字段均为必填。",
     "account.changePass.err.mismatch": "两次输入的新密码不一致。",
     "account.changePass.err.short": "新密码至少需要 8 位字符。",
+    "account.changePass.err.weak": "新密码必须至少包含一个字母和一个数字。",
     "account.changePass.err.wrong": "当前密码不正确。",
     "account.signOutAll": "在所有设备登出",
 

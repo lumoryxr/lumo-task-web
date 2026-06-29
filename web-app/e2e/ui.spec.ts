@@ -283,6 +283,27 @@ async function mockAPIWithData(page: Page) {
     }
 
     // Auth
+    // Change password verifies the current password server-side: a sentinel
+    // "wrong-password" → 400 WRONG_PASSWORD, anything else → 200. This lets the
+    // e2e prove the page actually gates on the backend's answer (regression
+    // guard for the old mock that "succeeded" on any input).
+    if (method === "POST" && url.includes("/v1/auth/change-password")) {
+      const body = JSON.parse(route.request().postData() || "{}");
+      if (body.current_password === "wrong-password") {
+        return route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: { code: "WRONG_PASSWORD", message: "Current password is incorrect" },
+          }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+    }
     if (method === "POST" && url.includes("/v1/auth/signin")) {
       return route.fulfill({
         status: 200,
@@ -1177,6 +1198,32 @@ test("TC70 – Change password: mismatched new passwords shows error", async ({ 
   await page.locator('input[type="password"]').nth(2).fill("Differ!456");
   await page.getByRole("button", { name: /update password|save/i }).click();
   await expect(page.getByText(/match|mismatch|do not match/i)).toBeVisible({ timeout: 10_000 });
+});
+
+test("TC70b – Change password: a WRONG current password is rejected (no success)", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/account/change-password");
+  await page.locator('input[type="password"]').first().fill("wrong-password");
+  await page.locator('input[type="password"]').nth(1).fill("NewPass!123");
+  await page.locator('input[type="password"]').nth(2).fill("NewPass!123");
+  await page.getByRole("button", { name: /update password|save/i }).click();
+  // The backend says the current password is wrong → inline error, and crucially
+  // NO success confirmation (the regression: the old mock accepted any input).
+  await expect(page.getByText(/current password is incorrect/i)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/updated successfully/i)).toHaveCount(0);
+  await expect(page).toHaveURL(/change-password/);
+});
+
+test("TC70c – Change password: a correct current password succeeds", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/account/change-password");
+  await page.locator('input[type="password"]').first().fill("OldPass!123");
+  await page.locator('input[type="password"]').nth(1).fill("NewPass!123");
+  await page.locator('input[type="password"]').nth(2).fill("NewPass!123");
+  await page.getByRole("button", { name: /update password|save/i }).click();
+  await expect(page.getByText(/updated successfully/i)).toBeVisible({ timeout: 10_000 });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
