@@ -578,6 +578,74 @@ describe("DFX · Scalability — bounded list responses & pagination integrity",
   });
 });
 
+// ───────────────────────────────────────────────────────────────────────────────
+// Scalability gap (#202): the cases above only exercise /v1/tasks. The full-history
+// completed log — GET /v1/completed with no ?date (#164) — is the list most prone
+// to unbounded growth (every completion an account ever made), and its pagination
+// contract DIFFERS from tasks: DEFAULT_LIMIT 200 / MAX_LIMIT 500, and an over-max
+// `limit` is **clamped** (Math.min) rather than rejected with 400. A regression that
+// "harmonized" it with tasks (rejecting over-max → 400) or dropped the clamp (→
+// unbounded read) would slip past the tasks-only cases. These lock the completed
+// contract in over real HTTP + real SQLite.
+// ───────────────────────────────────────────────────────────────────────────────
+
+describe("DFX · Scalability — completed full-history pagination is bounded & walk-complete (#202)", () => {
+  let histUser: { token: string; id: string };
+  const TOTAL = 12; // > the page sizes used below so paging is genuinely exercised
+
+  before(async () => {
+    histUser = await registerUser("completed-scaler");
+    // Each completion appends exactly one row to the full-history completed log.
+    for (let i = 0; i < TOTAL; i++) {
+      const { body: task } = await api("POST", "/v1/tasks", {
+        token: histUser.token,
+        body: { title: { en: `done ${String(i).padStart(3, "0")}` }, quadrant: "Q1" },
+      });
+      const { status } = await api("POST", `/v1/tasks/${task.id}/complete`, { token: histUser.token });
+      assert.ok(status >= 200 && status < 300, `seed completion ${i} should succeed`);
+    }
+  });
+
+  test("an explicit limit bounds the page and yields a nextCursor when more history remains", async () => {
+    const { status, body } = await api("GET", "/v1/completed?limit=5", { token: histUser.token });
+    assert.equal(status, 200);
+    assert.ok(Array.isArray(body.items), "full-history response must be an { items, nextCursor } envelope");
+    assert.equal(body.items.length, 5, "page must be bounded to the requested limit");
+    assert.ok(body.nextCursor, "more than one page of history → nextCursor must be present");
+  });
+
+  test("an over-max limit is CLAMPED (≤ 500), not rejected with 400 — completed differs from tasks", async () => {
+    const { status, body } = await api("GET", "/v1/completed?limit=99999", { token: histUser.token });
+    assert.equal(status, 200, "completed clamps an over-max limit; it must not 400 like /v1/tasks");
+    assert.ok(Array.isArray(body.items), "response must still be the { items, nextCursor } envelope");
+    assert.ok(body.items.length <= 500, `page must stay bounded by MAX_LIMIT (500), got ${body.items.length}`);
+    // With only TOTAL (< 500) rows the clamped single page holds them all.
+    assert.equal(body.items.length, TOTAL, "all history fits in one clamped page here");
+    assert.equal(body.nextCursor, null, "no further page when everything fits in one clamped page");
+  });
+
+  test("cursor paging walks every completed entry exactly once — no dupes, no omissions", async () => {
+    const seen = new Set<string>();
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const url: string = cursor
+        ? `/v1/completed?limit=4&cursor=${encodeURIComponent(cursor)}`
+        : "/v1/completed?limit=4";
+      const { status, body } = await api("GET", url, { token: histUser.token });
+      assert.equal(status, 200);
+      for (const item of body.items) {
+        assert.ok(!seen.has(item.id), `entry ${item.id} returned on more than one page`);
+        seen.add(item.id);
+      }
+      cursor = body.nextCursor;
+      pages++;
+      assert.ok(pages <= 10, "pagination did not terminate — possible cursor loop");
+    } while (cursor);
+    assert.equal(seen.size, TOTAL, `expected ${TOTAL} unique completed entries across pages, got ${seen.size}`);
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Design for INTEROPERABILITY — stable wire contract
 // ═══════════════════════════════════════════════════════════════════════════════
