@@ -23,8 +23,8 @@ push/PR.
 
 | DFX dimension | What it guarantees | Covered cases (in `dfx.integration.test.ts`) |
 |---|---|---|
-| **Design for Security** | No unauthorized access, no cross-tenant leakage, no injection, no weak credentials | missing token → 401; garbage/malformed bearer → 401; cross-tenant read/patch/delete → 404 (no leak); weak password rejected at registration; SQL-injection-shaped input stored as literal data (table survives). **Tenant isolation now exercised across all user-scoped CRUD resources** — `tasks` **+ `people` / `countdowns` / `habits`**: attacker PATCH/DELETE of another tenant's row → 404 (owner's row survives & unmutated); attacker's list never contains the owner's row (#158). **Plus the id-addressed state-changing sub-resource endpoints** (#165): cross-tenant `POST /completed/:id/reopen` → 404 (owner's entry not tombstoned); `POST /habits/:id/log` → 404 (no check-in written); `DELETE /habits/:id/log/:date` → 204 idempotent **but owner's check-in survives** (silent-IDOR guard) |
-| **Design for Robustness** | Malformed / wrong-typed / missing input degrades to 4xx, never a 5xx crash | malformed JSON body → 400 `INVALID_JSON` (proven a **global** handler — exercised on `tasks` + `people` / `countdowns` / `habits`, #158); missing required field → 400; wrong field type → 400; out-of-enum value → 400; unknown route → 404 |
+| **Design for Security** | No unauthorized access, no cross-tenant leakage, no injection, no weak credentials | missing token → 401; garbage/malformed bearer → 401; cross-tenant read/patch/delete → 404 (no leak); weak password rejected at registration; SQL-injection-shaped input stored as literal data (table survives). **Tenant isolation now exercised across all user-scoped CRUD resources** — `tasks` **+ `people` / `countdowns` / `habits` / `templates`**: attacker PATCH/DELETE of another tenant's row → 404 (owner's row survives & unmutated); attacker's list never contains the owner's row (#158, templates added #184). **Plus the id-addressed state-changing sub-resource endpoints** (#165): cross-tenant `POST /completed/:id/reopen` → 404 (owner's entry not tombstoned); `POST /habits/:id/log` → 404 (no check-in written); `DELETE /habits/:id/log/:date` → 204 idempotent **but owner's check-in survives** (silent-IDOR guard) |
+| **Design for Robustness** | Malformed / wrong-typed / missing input degrades to 4xx, never a 5xx crash | malformed JSON body → 400 `INVALID_JSON` (proven a **global** handler — exercised on `tasks` + `people` / `countdowns` / `habits` / `templates`, #158/#184); missing required field → 400; wrong field type → 400; out-of-enum value → 400; **nested-payload violation (templates `payload.duration` out of range) → 400** (validation reaches into the JSON payload column, #184); unknown route → 404 |
 | **Design for Recoverability** | A bad request never poisons the server; the next request still works | invalid pagination cursor → 400 `INVALID_CURSOR`; burst of bad requests followed by a healthy request → 200; operation on non-existent id → 404 |
 | **Design for Observability** | Health/readiness are meaningful; every error has a consistent, machine-readable shape | `/health` → 200 `{ok:true}` (liveness); `/ready` reflects a real DB probe (readiness); business errors all carry `{ error: { code, message } }` |
 | **Design for Scalability** | List responses are always bounded; pagination is correct under volume | default page bounded (≤ 50) with `nextCursor`; over-max `limit` (>200) rejected → 400 (no unbounded read); cursor paging walks every row exactly once — no dupes, no omissions |
@@ -66,3 +66,14 @@ here rather than leaving a silent hole.
   dropped `WHERE user_id` would leak **silently** with no status-code change — only an
   "owner's row survives" assertion catches it. Closed with 3 new cases. All three
   handlers verified to already scope by `user_id` — **gap in the tests, not the code**.
+- **2026-06-29 (#184)** — The `templates` entity (shipped #173/#177, *after* the #158
+  audit) had **fast per-PR API unit tests but zero coverage in the daily integration
+  regression** — `template` appeared 0× in both `integration.test.ts` and
+  `dfx.integration.test.ts`. A passing PR CI was not proof of integration/DFX coverage.
+  Closed by: a full templates CRUD lifecycle in `integration.test.ts` (create/list/
+  rename/payload-replace/delete/404); adding `templates` to the parametrized
+  `TENANT_RESOURCES` table (cross-tenant PATCH/DELETE → 404, tenant-scoped reads,
+  malformed-JSON → 400); and a robustness case proving nested-`payload` validation
+  rejects an out-of-range field → 400 (not 5xx). The handler was verified to already
+  scope by `user_id` and re-encode the payload through the schema — **gap in the
+  tests, not the code** (no production change).

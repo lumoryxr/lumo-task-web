@@ -225,6 +225,12 @@ const TENANT_RESOURCES: Array<{
     create: () => ({ title: "Owner Habit", color: "green", frequency: "daily" }),
     patch: { title: "Hijacked" },
   },
+  {
+    name: "templates",
+    path: "/v1/templates",
+    create: () => ({ name: "Owner Template", payload: { title: { en: "Owner blueprint" } } }),
+    patch: { name: "Hijacked" },
+  },
 ];
 
 describe("DFX · Security — tenant isolation across user-scoped resources (#158)", () => {
@@ -299,8 +305,12 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
     const comp = await api("POST", `/v1/tasks/${task.id}/complete`, { token: owner.token });
     assert.ok(comp.status >= 200 && comp.status < 300, "owner can complete own task");
 
-    const { body: entries } = await api("GET", "/v1/completed", { token: owner.token });
-    const entry = (entries as any[]).find((e) => e.task_id === task.id);
+    // The unfiltered history endpoint is keyset-paginated → { items, nextCursor }
+    // (a date-filtered query returns a bare array; this call uses neither). This
+    // test predates that pagination (#165 branched before the completed-history
+    // pagination landed) — read the paginated envelope so the next daily run is green.
+    const { body: completed } = await api("GET", "/v1/completed", { token: owner.token });
+    const entry = (completed.items as any[]).find((e) => e.task_id === task.id);
     assert.ok(entry, "owner has a completed entry to target");
 
     // Attacker tries to reopen the owner's entry by its id.
@@ -310,7 +320,7 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
     // Owner's entry must still exist (not tombstoned by the attacker).
     const { body: after } = await api("GET", "/v1/completed", { token: owner.token });
     assert.ok(
-      (after as any[]).some((e) => e.id === entry.id),
+      (after.items as any[]).some((e) => e.id === entry.id),
       "owner's completed entry must survive a cross-tenant reopen",
     );
   });
@@ -398,6 +408,17 @@ describe("DFX · Robustness — hostile & malformed input", () => {
   test("unknown route → 404", async () => {
     const { status } = await api("GET", "/v1/does-not-exist", { token: alice.token });
     assert.equal(status, 404);
+  });
+
+  test("templates: nested-payload validation rejects an out-of-range field → 400, not 5xx", async () => {
+    // `payload.duration` is bounded (0..1440). A nested-schema violation must be
+    // a client error, proving validation reaches into the JSON payload column and
+    // does not slip a bad blueprint past the contract into storage.
+    const { status } = await api("POST", "/v1/templates", {
+      token: alice.token,
+      body: { name: "Bad blueprint", payload: { title: { en: "x" }, duration: 99999 } },
+    });
+    assert.equal(status, 400);
   });
 });
 
