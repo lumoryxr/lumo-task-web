@@ -1496,23 +1496,15 @@ test("TC87 – templates: save a task as a template and instantiate it from the 
   // A seeded task is visible.
   await expect(page.getByText("Write integration tests").first()).toBeVisible({ timeout: 10_000 });
 
-  // The row's action buttons (incl. ⋯) live in a container that is opacity:0 AND
+  // The row's ⋯ button lives in a container that is opacity:0 AND
   // pointer-events:none until the row's `hovered` state is true. Under Playwright
   // that boolean races (scroll/move re-renders flip it back to false), so a normal
-  // click is intercepted by the parent row div ("intercepts pointer events").
-  // Hover to settle the row, then dispatch the click straight to the button — its
-  // onClick only reads the button's own bounding rect, so this is functionally
-  // identical to a user click but immune to the pointer-events toggle.
-  const taskRow = page
-    .locator("div")
-    .filter({ hasText: "Write integration tests" })
-    .filter({ has: page.getByRole("button", { name: "More actions" }) })
-    .last();
-  await taskRow.hover();
-  const moreBtn = taskRow.getByRole("button", { name: "More actions" });
-  await expect(moreBtn).toBeVisible({ timeout: 5_000 });
-  // Open its ⋯ menu and save it as a template.
-  await moreBtn.dispatchEvent("click");
+  // click gets intercepted by the parent row div ("intercepts pointer events").
+  // Dispatch the click straight to the button instead — its onClick only reads the
+  // button's own bounding rect, so this is functionally identical to a user click
+  // but immune to the opacity / pointer-events gate. "Write integration tests" is
+  // the first seeded task, so its ⋯ is the first More-actions button.
+  await page.getByRole("button", { name: "More actions" }).first().dispatchEvent("click");
   await page.getByRole("button", { name: "Save as template" }).click();
   // Confirmation toast.
   await expect(page.getByText("Saved as template")).toBeVisible({ timeout: 8_000 });
