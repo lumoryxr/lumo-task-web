@@ -409,6 +409,17 @@ describe("DFX · Robustness — hostile & malformed input", () => {
     const { status } = await api("GET", "/v1/does-not-exist", { token: alice.token });
     assert.equal(status, 404);
   });
+
+  test("templates: nested-payload validation rejects an out-of-range field → 400, not 5xx", async () => {
+    // `payload.duration` is bounded (0..1440). A nested-schema violation must be
+    // a client error, proving validation reaches into the JSON payload column and
+    // does not slip a bad blueprint past the contract into storage.
+    const { status } = await api("POST", "/v1/templates", {
+      token: alice.token,
+      body: { name: "Bad blueprint", payload: { title: { en: "x" }, duration: 99999 } },
+    });
+    assert.equal(status, 400);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

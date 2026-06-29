@@ -820,3 +820,93 @@ describe("AI tools · list_tasks over the paginated envelope", () => {
     assert.ok(parsed.some((t: any) => t.title === "AI sees me"), "seeded task missing from AI tool output");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 11. TASK TEMPLATES (#173) — full CRUD lifecycle over real HTTP + real SQLite.
+//     The fast api/templates.test.ts runs in-process; this proves the same
+//     endpoints work end-to-end in the daily integration regression.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Task templates lifecycle", () => {
+  let templateId = "";
+
+  const samplePayload = {
+    title: { en: "Weekly review", zh: "每周回顾" },
+    quadrant: "Q2" as const,
+    duration: 30,
+    pomos_total: 2,
+    recurrence: "weekly" as const,
+    subtasks: [{ title: "Inbox zero" }, { title: "Plan next week" }],
+  };
+
+  test("POST → 201, round-trips the payload and applies defaults", async () => {
+    const { status, body } = await api("POST", "/v1/templates", {
+      token: aliceToken,
+      body: { name: "Weekly review", payload: samplePayload },
+    });
+    assert.equal(status, 201);
+    assert.ok(body.id, "template id missing");
+    assert.equal(body.name, "Weekly review");
+    assert.equal(body.kind, "task");
+    assert.equal(body.payload.title.en, "Weekly review");
+    assert.equal(body.payload.title.zh, "每周回顾");
+    assert.equal(body.payload.quadrant, "Q2");
+    assert.equal(body.payload.subtasks.length, 2);
+    // Defaults are applied for omitted fields (today/week_focus/assignee_ids).
+    assert.equal(body.payload.today, false);
+    assert.deepEqual(body.payload.assignee_ids, []);
+    templateId = body.id;
+  });
+
+  test("GET → lists the created template", async () => {
+    const { status, body } = await api("GET", "/v1/templates", { token: aliceToken });
+    assert.equal(status, 200);
+    assert.ok(Array.isArray(body), "templates list should be a bare array");
+    assert.ok(body.some((t: any) => t.id === templateId), "created template missing from list");
+  });
+
+  test("PATCH → renames without touching the payload", async () => {
+    const { status, body } = await api("PATCH", `/v1/templates/${templateId}`, {
+      token: aliceToken,
+      body: { name: "Weekly review v2" },
+    });
+    assert.equal(status, 200);
+    assert.equal(body.name, "Weekly review v2");
+    // Payload preserved when only the name changes.
+    assert.equal(body.payload.quadrant, "Q2");
+    assert.equal(body.payload.subtasks.length, 2);
+  });
+
+  test("PATCH → replaces the payload", async () => {
+    const { status, body } = await api("PATCH", `/v1/templates/${templateId}`, {
+      token: aliceToken,
+      body: { payload: { title: { en: "Just a title" }, quadrant: "Q1" } },
+    });
+    assert.equal(status, 200);
+    assert.equal(body.payload.title.en, "Just a title");
+    assert.equal(body.payload.quadrant, "Q1");
+    // Old subtasks gone after a full payload replace; defaults re-applied.
+    assert.deepEqual(body.payload.subtasks, []);
+    assert.equal(body.payload.duration, 0);
+  });
+
+  test("DELETE → 204, then the template is gone (404 on re-delete, absent from list)", async () => {
+    const del = await api("DELETE", `/v1/templates/${templateId}`, { token: aliceToken });
+    assert.equal(del.status, 204);
+
+    // Soft-delete is idempotent: a second delete finds nothing → 404.
+    const reDel = await api("DELETE", `/v1/templates/${templateId}`, { token: aliceToken });
+    assert.equal(reDel.status, 404);
+
+    const { body: list } = await api("GET", "/v1/templates", { token: aliceToken });
+    assert.ok(!list.some((t: any) => t.id === templateId), "deleted template must not appear in the list");
+  });
+
+  test("PATCH on a non-existent template → 404", async () => {
+    const { status } = await api("PATCH", "/v1/templates/tpl_does_not_exist", {
+      token: aliceToken,
+      body: { name: "ghost" },
+    });
+    assert.equal(status, 404);
+  });
+});
