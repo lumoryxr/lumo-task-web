@@ -50,7 +50,11 @@ export function SettingsPage() {
     { id: "members",      label: t("settings.members") },
     { id: "ai",           label: t("ai.config.title") },
     { id: "integrations", label: t("settings.integrations") },
-    { id: "datasync",     label: t("settings.dataSync") },
+    // Data & Sync is a desktop-only concern: the web build has no configurable
+    // storage location and no cloud sync (sync is a per-deployment desktop
+    // feature), so the whole tab is hidden on web rather than showing an empty
+    // panel.
+    ...(isElectron ? [{ id: "datasync" as TabId, label: t("settings.dataSync") }] : []),
   ];
 
   return (
@@ -171,10 +175,10 @@ export function SettingsPage() {
             <IntegrationsPanel t={t} />
           )}
 
-          {activeTab === "datasync" && (
+          {isElectron && activeTab === "datasync" && (
             <div className="flex flex-col gap-8">
               <StoragePanel t={t} />
-              {isElectron && <SyncPanel t={t} />}
+              <SyncPanel t={t} />
             </div>
           )}
 
