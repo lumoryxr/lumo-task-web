@@ -730,6 +730,92 @@ describe("DFX · Robustness/Scalability — bounded nested payload on /v1/projec
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS — `remind_at` reminder field is format-bounded (#176)
+//
+// Coverage-gap audit (per-task reminders, #176): `tasks.remind_at` is the field
+// the reminder scheduler reads to decide WHEN to fire a notification. Its contract
+// bound is a strict local-wall-clock datetime regex
+// (`YYYY-MM-DDTHH:MM(:SS)?`) — the ONLY thing standing between a client and a
+// junk value landing in the column the scheduler later parses. Before this block
+// the entire reminder surface had zero integration/DFX coverage: a regression that
+// loosened the regex to `z.string()` (or dropped it) would let `"tomorrow"` /
+// a date-only string / a TZ-suffixed ISO into storage and slip past every existing
+// case — surfacing only as a mis-fired or scheduler-crashing reminder in prod.
+//
+// The cases give the bound teeth on BOTH write paths (create + update) and prove
+// the round-trip: a malformed value is a clean 400 (never a 5xx / silent write),
+// a valid value persists and reflects back, and a bad PATCH leaves the stored
+// value unmutated (no partial poison of the scheduler's input).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — `remind_at` reminder field is format-bounded (#176)", () => {
+  test("malformed `remind_at` on create → 400 VALIDATION_ERROR naming the field, never a 5xx / write", async () => {
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Bad reminder" }, quadrant: "Q1", remind_at: "tomorrow afternoon" },
+    });
+    assert.equal(status, 400, "a junk reminder value must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "remind_at"),
+      "the rejection must name `remind_at` (the format bound fired, not an incidental 400)",
+    );
+  });
+
+  test("date-only `remind_at` (no time component) → 400 — the full datetime bound has teeth", async () => {
+    // `"2026-06-30"` is a valid `due` date but NOT a valid `remind_at`: the
+    // scheduler needs a wall-clock time, so the regex demands `T HH:MM`. This
+    // proves the bound rejects a plausible-but-incomplete value, not just garbage.
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Date only" }, quadrant: "Q1", remind_at: "2026-06-30" },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "remind_at"),
+      "a date with no time must still name `remind_at`",
+    );
+  });
+
+  test("valid `remind_at` round-trips — create persists it and a read reflects it back", async () => {
+    const remindAt = "2026-12-01T09:30";
+    const { status, body: created } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Standup" }, quadrant: "Q1", remind_at: remindAt },
+    });
+    assert.equal(status, 201, "a well-formed reminder must be accepted");
+    assert.equal(created.remind_at, remindAt, "the create response must echo the stored reminder");
+
+    // The value must survive storage so the scheduler can read it back later.
+    const read = await api("GET", `/v1/tasks/${created.id}`, { token: alice.token });
+    assert.equal(read.status, 200);
+    assert.equal(read.body.remind_at, remindAt, "a subsequent read must reflect the persisted reminder");
+  });
+
+  test("malformed `remind_at` on PATCH → 400 and the stored value is left unmutated", async () => {
+    // Seed a task with a good reminder, then try to corrupt it via update.
+    const good = "2026-12-02T08:00";
+    const { body: created } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Patch target" }, quadrant: "Q1", remind_at: good },
+    });
+
+    const { status, body } = await api("PATCH", `/v1/tasks/${created.id}`, {
+      token: alice.token,
+      body: { remind_at: "not-a-datetime" },
+    });
+    assert.equal(status, 400, "the update path must validate `remind_at` too");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+
+    // No partial poison: the rejected PATCH must not have overwritten the column.
+    const read = await api("GET", `/v1/tasks/${created.id}`, { token: alice.token });
+    assert.equal(read.status, 200);
+    assert.equal(read.body.remind_at, good, "a rejected update must leave the stored reminder unchanged");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for RECOVERABILITY — bad input must not poison the server
 // ═══════════════════════════════════════════════════════════════════════════════
 
