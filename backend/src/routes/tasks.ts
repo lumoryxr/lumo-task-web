@@ -67,11 +67,25 @@ export function rowToTask(row: TaskRow): TaskWire {
     recurrence: row.recurrence ?? "none",
     subtasks: safeParse<unknown[]>(row.subtasks_json, []),
     tags: safeParse<string[]>(row.tags_json, []),
+    project_id: row.project_id ?? null,
     scheduled_start: row.scheduled_start ?? null,
     remind_at: row.remind_at ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   });
+}
+
+// A task may only reference a project the caller owns. Returns true when the
+// project_id is null/undefined (unfiled — always allowed) or when it resolves to
+// a live project owned by `userId`. Prevents cross-tenant project references
+// (an IDOR vector) at the write boundary.
+async function projectIsOwned(userId: string, projectId: string | null | undefined): Promise<boolean> {
+  if (projectId == null) return true;
+  const owned = await queryOne<{ id: string }>(
+    "SELECT id FROM projects WHERE id = :pid AND user_id = :uid AND deleted_at IS NULL",
+    { pid: projectId, uid: userId }
+  );
+  return Boolean(owned);
 }
 
 // GET /tasks?q=<keyword>
@@ -140,17 +154,21 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
   // string (3 fractional digits would sort before synced 6-digit values).
   const syncTs = hlcNow();
 
+  if (!(await projectIsOwned(userId, body.project_id))) {
+    return httpError(c, 400, "INVALID_PROJECT", "Project not found");
+  }
+
   await execute(`
     INSERT INTO tasks (
       id, user_id, assignee_ids, title_en, title_zh, desc_en, desc_zh,
       quadrant, today, week_focus, due, duration, pomos_done, pomos_total, conviction,
       next_step_en, next_step_zh, reason_en, reason_zh, ai_suggest, not_now_json,
-      recurrence, subtasks_json, tags_json, scheduled_start, remind_at, created_at, updated_at
+      recurrence, subtasks_json, tags_json, project_id, scheduled_start, remind_at, created_at, updated_at
     ) VALUES (
       :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
       :quadrant, :today, :week_focus, :due, :duration, 0, :pomos_total, :conviction,
       :next_step_en, :next_step_zh, :reason_en, :reason_zh, :ai_suggest, :not_now_json,
-      :recurrence, :subtasks_json, :tags_json, :scheduled_start, :remind_at, :now, :sync_ts
+      :recurrence, :subtasks_json, :tags_json, :project_id, :scheduled_start, :remind_at, :now, :sync_ts
     )
   `, {
     id, user_id: userId,
@@ -171,6 +189,7 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
     not_now_json: JSON.stringify(body.not_now ?? []),
     subtasks_json: JSON.stringify(body.subtasks ?? []),
     tags_json: JSON.stringify(body.tags ?? []),
+    project_id: body.project_id ?? null,
     scheduled_start: body.scheduled_start ?? null,
     remind_at: body.remind_at ?? null,
     now, sync_ts: syncTs,
@@ -205,6 +224,10 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
   );
   if (!existing) return httpError(c, 404, "NOT_FOUND", "Not found");
 
+  if ("project_id" in body && !(await projectIsOwned(userId, body.project_id))) {
+    return httpError(c, 400, "INVALID_PROJECT", "Project not found");
+  }
+
   const merged = {
     assignee_ids: "assignee_ids" in body ? JSON.stringify(body.assignee_ids ?? []) : existing.assignee_ids,
     title_en: body.title?.en ?? existing.title_en,
@@ -227,6 +250,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
     recurrence: body.recurrence ?? existing.recurrence ?? "none",
     subtasks_json: "subtasks" in body ? JSON.stringify(body.subtasks) : (existing.subtasks_json ?? "[]"),
     tags_json: "tags" in body ? JSON.stringify(body.tags) : (existing.tags_json ?? "[]"),
+    project_id: "project_id" in body ? (body.project_id ?? null) : existing.project_id,
     scheduled_start: "scheduled_start" in body ? (body.scheduled_start ?? null) : existing.scheduled_start,
     remind_at: "remind_at" in body ? (body.remind_at ?? null) : existing.remind_at,
   };
@@ -239,7 +263,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
       conviction = :conviction, next_step_en = :next_step_en, next_step_zh = :next_step_zh,
       reason_en = :reason_en, reason_zh = :reason_zh, ai_suggest = :ai_suggest,
       not_now_json = :not_now_json, recurrence = :recurrence,
-      subtasks_json = :subtasks_json, tags_json = :tags_json, scheduled_start = :scheduled_start, remind_at = :remind_at, updated_at = :now
+      subtasks_json = :subtasks_json, tags_json = :tags_json, project_id = :project_id, scheduled_start = :scheduled_start, remind_at = :remind_at, updated_at = :now
     WHERE id = :id AND user_id = :uid
   `, { ...merged, id: taskId, uid: userId, now });
 
@@ -308,12 +332,12 @@ app.post("/:id/complete", validate("param", IdParam), async (c) => {
               id, user_id, assignee_ids, title_en, title_zh, desc_en, desc_zh,
               quadrant, today, due, duration, pomos_done, pomos_total, conviction,
               next_step_en, next_step_zh, reason_en, reason_zh, ai_suggest, not_now_json,
-              recurrence, tags_json, created_at, updated_at
+              recurrence, tags_json, project_id, created_at, updated_at
             ) VALUES (
               :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
               :quadrant, 0, :due, :duration, 0, :pomos_total, NULL,
               NULL, NULL, NULL, NULL, NULL, '[]',
-              :recurrence, :tags_json, :now, :sync_ts
+              :recurrence, :tags_json, :project_id, :now, :sync_ts
             )`,
       args: {
         id: nextId, user_id: userId,
@@ -324,9 +348,10 @@ app.post("/:id/complete", validate("param", IdParam), async (c) => {
         due: nextDue,
         duration: task.duration, pomos_total: task.pomos_total,
         recurrence,
-        // Tags are an organizing label, not per-instance progress — carry them
-        // to the next occurrence (subtasks intentionally reset).
+        // Tags and project are organizing labels, not per-instance progress —
+        // carry them to the next occurrence (subtasks intentionally reset).
         tags_json: task.tags_json ?? "[]",
+        project_id: task.project_id ?? null,
         now, sync_ts: syncTs,
       },
     });

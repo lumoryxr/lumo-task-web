@@ -200,6 +200,14 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE tasks ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'");
   }
 
+  // Migrate: optional owning project (#211). Nullable FK-by-convention to
+  // projects(id); unfiled tasks stay NULL. No DB-level FK so a project delete
+  // never blocks/cascades tasks (handled at the app layer).
+  const taskColsV5 = await query<{ name: string }>("PRAGMA table_info(tasks)");
+  if (!taskColsV5.some((c) => c.name === "project_id")) {
+    await execRaw("ALTER TABLE tasks ADD COLUMN project_id TEXT");
+  }
+
   // Migrate: normalize due field to strict ISO YYYY-MM-DD (or null)
   {
     const now = new Date();

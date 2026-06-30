@@ -39,6 +39,7 @@ export interface TaskRow {
   recurrence: string;
   subtasks_json: string | null;
   tags_json: string | null;
+  project_id: string | null;
   scheduled_start: string | null;
   remind_at: string | null;
   created_at: string;
