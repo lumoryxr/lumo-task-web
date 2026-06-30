@@ -656,6 +656,80 @@ describe("DFX · Robustness — hostile & malformed input", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS / SCALABILITY — bounded nested payload on /v1/projects
+//
+// Coverage-gap audit (#213/#219 projects): the parametrized #158 cases reach
+// /v1/projects only for tenant-isolation + malformed-JSON. The richest, most
+// growth-prone payload in the app — a project's nested `goals[]` array and its
+// rich-text `content` document — has NO integration coverage for its declared
+// BOUNDS. Those bounds are the only thing standing between a client and an
+// unbounded row, because there is no body-size middleware: `content` is capped
+// at 1 MB and `goals` at 50 elements (each `text` ≤ 200) purely by the Zod
+// contract. A regression that loosened/dropped any of those caps (or a 5xx on an
+// oversized body instead of a clean 400) would slip past every existing case.
+// This is sharpened by the in-flight TipTap inline-image work (#222), which
+// inflates `content` with base64 image data toward that very cap.
+//
+// Each case asserts the canonical 400 `VALIDATION_ERROR` envelope AND that the
+// offending dotted field path is named — so the test has teeth: it proves the
+// RIGHT bound rejected the input (validation reached into the nested array
+// element / the array length / the content column), not an incidental 400.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness/Scalability — bounded nested payload on /v1/projects (#213/#219)", () => {
+  test("oversized `content` (> 1 MB cap) → 400 VALIDATION_ERROR, never a 5xx / unbounded write", async () => {
+    // One byte past the deliberate 1 MB row-size cap. With no body-size
+    // middleware, this whole body is buffered + JSON-parsed before the contract
+    // rejects it — the cap must still degrade to a clean client error.
+    const { status, body } = await api("POST", "/v1/projects", {
+      token: alice.token,
+      body: { name: "Huge doc", content: "a".repeat(1_000_001) },
+    });
+    assert.equal(status, 400, "an over-cap content body must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "content"),
+      "the rejection must name `content` (the size cap fired, not an incidental 400)",
+    );
+
+    // Recoverability: the oversized body must not poison the server — a normal
+    // create still succeeds afterwards, proving no crash / no unbounded write.
+    const ok = await api("POST", "/v1/projects", {
+      token: alice.token,
+      body: { name: "Right-sized", content: "ok" },
+    });
+    assert.equal(ok.status, 201, "server stays healthy after rejecting an oversized body");
+  });
+
+  test("nested goal field (`goals[].text` > 200) → 400, validation reaches into the array element", async () => {
+    const { status, body } = await api("POST", "/v1/projects", {
+      token: alice.token,
+      body: { name: "Bad goal text", goals: [{ text: "x".repeat(201) }] },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("goals.0")),
+      "the rejection must name the offending nested goal element (e.g. `goals.0.text`)",
+    );
+  });
+
+  test("over-cap `goals` array (> 50 elements) → 400, the array length bound holds", async () => {
+    const goals = Array.from({ length: 51 }, (_, i) => ({ text: `goal ${i}` }));
+    const { status, body } = await api("POST", "/v1/projects", {
+      token: alice.token,
+      body: { name: "Too many goals", goals },
+    });
+    assert.equal(status, 400, "an over-cap goals array must be rejected (no unbounded array write)");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "goals"),
+      "the rejection must name `goals` (the array-length cap fired)",
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for RECOVERABILITY — bad input must not poison the server
 // ═══════════════════════════════════════════════════════════════════════════════
 
