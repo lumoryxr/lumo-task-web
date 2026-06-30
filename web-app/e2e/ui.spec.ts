@@ -1578,6 +1578,46 @@ test("TC87 – templates: save a task as a template and instantiate it from the 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TC88  Batch task operations: select mode → multi-select → action bar.
+//
+// Wiring-only and deterministic: the task mock isn't stateful (GET always
+// returns the full seed), so asserting post-mutation state would be flaky.
+// Mutation outcomes are covered by unit (useTasksStore.batch) + component
+// (BatchActionBar) tests; here we prove the select-mode UI is wired end to end.
+// Select mode makes rows plain checkboxes (no hover gating) so this is robust.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("TC88 – batch: select mode toggles a checkbox row and the action bar tracks the count", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/today");
+
+  await expect(page.getByText("Today's plan")).toBeVisible({ timeout: 12_000 });
+
+  // Enter select mode from the plan header → the floating action toolbar appears.
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const bar = page.getByRole("toolbar");
+  await expect(bar).toBeVisible({ timeout: 8_000 });
+  await expect(bar.getByText("0 selected")).toBeVisible();
+  // Batch actions are present.
+  await expect(bar.getByRole("button", { name: "Complete" })).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Delete" })).toBeVisible();
+
+  // Selectable rows expose a checkbox (only in select mode). Clicking one — no
+  // hover needed — selects it and the count advances.
+  const checkbox = page.getByRole("checkbox").first();
+  await expect(checkbox).toBeVisible({ timeout: 8_000 });
+  await checkbox.click();
+  await expect(checkbox).toHaveAttribute("aria-checked", "true");
+  await expect(bar.getByText("1 selected")).toBeVisible();
+
+  // Done exits select mode → bar disappears, Select toggle returns.
+  await bar.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("toolbar")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Select", exact: true })).toBeVisible();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TC85  Mobile: no horizontal overflow on a Pixel-5-class viewport
 //
 // The most common mobile bug is content wider than the screen (a fixed-width row,

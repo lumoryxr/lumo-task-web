@@ -36,6 +36,7 @@ const ALLOWLIST = new Set<string>([
   "components/DogEvolutionBadge.tsx", // pet evolution palette
   "components/EveningReviewModal.tsx", // danger red one-offs
   "components/TaskMoreMenu.tsx", // danger red one-off
+  "components/BatchActionBar.tsx", // bulk-delete danger red one-off (same as TaskMoreMenu)
   "components/WinControls.tsx", // Windows close-button red
 ]);
 

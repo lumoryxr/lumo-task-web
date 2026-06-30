@@ -5,6 +5,7 @@ import { EveningReviewModal } from "@/components/EveningReviewModal";
 import { MorningPlanningModal } from "@/components/MorningPlanningModal";
 import { WeeklyPlanningModal, isWeeklyPlanned } from "@/components/WeeklyPlanningModal";
 import { TaskRow } from "@/components/TaskRow";
+import { BatchActionBar } from "@/components/BatchActionBar";
 import { TaskListSkeleton } from "@/components/skeletons";
 import { IconArrowRight } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
@@ -698,6 +699,11 @@ export function TodayPage() {
   const [weeklyOpen, setWeeklyOpen] = useState(false);
   const [weeklyPlanned, setWeeklyPlanned] = useState(isWeeklyPlanned);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const selectMode = useTasksStore((s) => s.selectMode);
+  const setSelectMode = useTasksStore((s) => s.setSelectMode);
+
+  // Leaving the page exits select mode so a stray selection never lingers.
+  useEffect(() => () => setSelectMode(false), [setSelectMode]);
 
   // Auto-open modals when navigated here from a notification click
   useEffect(() => {
@@ -838,8 +844,19 @@ export function TodayPage() {
 
       {todayRest.length > 0 && (
         <section className="mt-10">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint mb-2">
-            {t("today.plan")}
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">
+              {t("today.plan")}
+            </div>
+            {!selectMode && (
+              <button
+                onClick={() => setSelectMode(true)}
+                className="text-[11px] font-medium px-2 py-0.5 rounded-md text-text-secondary hover:text-text-primary transition-colors"
+                style={{ border: "1px solid var(--border-default)" }}
+              >
+                {t("batch.select")}
+              </button>
+            )}
           </div>
           {planTags.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mb-3" role="group" aria-label={t("tag.filter.label")}>
@@ -860,11 +877,13 @@ export function TodayPage() {
           )}
           <div>
             {visibleRest.map((task) => (
-              <TaskRow key={task.id} task={task} />
+              <TaskRow key={task.id} task={task} selectable />
             ))}
           </div>
         </section>
       )}
+
+      <BatchActionBar candidateIds={visibleRest.map((x) => x.id)} />
 
       {completed.length > 0 && (
         <CompletedTimeline entries={completed} locale={locale} />
