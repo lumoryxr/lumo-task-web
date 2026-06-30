@@ -67,6 +67,9 @@ export const TaskCreateBodySchema = z.object({
   // Free-form labels, a second organizing axis orthogonal to the quadrant.
   // Trimmed, 1..30 chars each, at most 20 per task to keep rows/sync bounded.
   tags: z.array(TagSchema).max(20).default([]),
+  // Optional owning project (#211). Null/absent = unfiled. The backend verifies
+  // the referenced project belongs to the same user before persisting.
+  project_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).nullable().optional(),
   scheduled_start: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)
@@ -119,6 +122,7 @@ export const TaskWireSchema = z.object({
   recurrence: RecurrenceSchema,
   subtasks: z.array(SubtaskSchema),
   tags: z.array(z.string()).catch([]),
+  project_id: z.string().nullable().catch(null),
   scheduled_start: z.string().nullable(),
   remind_at: z.string().nullable(),
   created_at: z.string(),
@@ -200,6 +204,8 @@ export interface Task {
   subtasks?: Subtask[];
   /** Free-form labels — a second organizing axis orthogonal to the quadrant. */
   tags?: string[];
+  /** Owning project id (#211), or null/undefined when the task is unfiled. */
+  project_id?: string | null;
   /** ISO datetime (YYYY-MM-DDTHH:MM:SS) for a specific time block on the calendar. */
   scheduled_start?: string | null;
   /** ISO datetime (YYYY-MM-DDTHH:MM) at which to surface a reminder notification. */

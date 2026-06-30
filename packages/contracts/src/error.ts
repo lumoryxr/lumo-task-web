@@ -25,6 +25,7 @@ export const ERROR_CODES = {
   INVALID_ROW: { status: 400, about: "A pushed sync row failed schema validation" },
   MISSING_PARAMS: { status: 400, about: "A required query parameter was absent" },
   WRONG_PASSWORD: { status: 400, about: "Supplied current password was incorrect" },
+  INVALID_PROJECT: { status: 400, about: "Referenced project does not exist or is not owned by the caller" },
   NO_CLOUD_BASE: { status: 400, about: "Cloud API base URL is not configured" },
   // 401 — auth
   UNAUTHORIZED: { status: 401, about: "Missing, invalid, or revoked access token" },

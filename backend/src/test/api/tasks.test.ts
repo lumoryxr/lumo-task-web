@@ -9,7 +9,7 @@
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
 import { TaskWireSchema, TaskCompleteResponseSchema } from "@lumo/contracts";
-import { req, setupDb, signInDemo } from "../helpers/index.js";
+import { req, setupDb, signInDemo, newUserWithToken } from "../helpers/index.js";
 
 let demoToken = "";
 let taskId = ""; // reused across the CRUD flow within this file
@@ -421,5 +421,108 @@ describe("task remind_at (per-task reminder)", () => {
       body: { title: { en: "Bad reminder" }, remind_at: "not-a-datetime" },
     });
     assert.equal(status, 400);
+  });
+});
+
+describe("task ↔ project linkage (#213)", () => {
+  let projectId = "";
+
+  before(async () => {
+    const { body } = await req("POST", "/v1/projects", {
+      token: demoToken,
+      body: { name: "Owner Project", color: "cyan" },
+    });
+    projectId = body.id;
+  });
+
+  test("201 → create with a valid owned project_id persists and round-trips", async () => {
+    const { status, body } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Filed" }, project_id: projectId },
+    });
+    assert.equal(status, 201);
+    assert.equal(body.project_id, projectId);
+    const got = await req("GET", `/v1/tasks/${body.id}`, { token: demoToken });
+    assert.equal(got.body.project_id, projectId);
+  });
+
+  test("201 → project_id defaults to null when omitted", async () => {
+    const { status, body } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Unfiled" } },
+    });
+    assert.equal(status, 201);
+    assert.equal(body.project_id ?? null, null);
+  });
+
+  test("400 → create with a non-existent project_id is rejected", async () => {
+    const { status, body } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Bad project" }, project_id: "prj_does_not_exist" },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "INVALID_PROJECT");
+  });
+
+  test("400 → create cannot reference another tenant's project (IDOR guard)", async () => {
+    const { token: otherToken } = await newUserWithToken("prj-link-iso");
+    const { body: theirs } = await req("POST", "/v1/projects", {
+      token: otherToken,
+      body: { name: "Their Project", color: "green" },
+    });
+    const { status } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Steal" }, project_id: theirs.id },
+    });
+    assert.equal(status, 400, "must not allow filing a task into another user's project");
+  });
+
+  test("200 → PATCH sets then clears project_id (null)", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Move me" } },
+    });
+    const set = await req("PATCH", `/v1/tasks/${created.body.id}`, {
+      token: demoToken,
+      body: { project_id: projectId },
+    });
+    assert.equal(set.status, 200);
+    assert.equal(set.body.project_id, projectId);
+
+    const cleared = await req("PATCH", `/v1/tasks/${created.body.id}`, {
+      token: demoToken,
+      body: { project_id: null },
+    });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.project_id ?? null, null);
+  });
+
+  test("400 → PATCH cannot move a task into another tenant's project", async () => {
+    const { token: otherToken } = await newUserWithToken("prj-link-iso2");
+    const { body: theirs } = await req("POST", "/v1/projects", {
+      token: otherToken,
+      body: { name: "Their Project 2", color: "amber" },
+    });
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Move attempt" } },
+    });
+    const { status } = await req("PATCH", `/v1/tasks/${created.body.id}`, {
+      token: demoToken,
+      body: { project_id: theirs.id },
+    });
+    assert.equal(status, 400);
+  });
+
+  test("200 → an unrelated PATCH preserves project_id", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Keep project" }, project_id: projectId },
+    });
+    const { body } = await req("PATCH", `/v1/tasks/${created.body.id}`, {
+      token: demoToken,
+      body: { title: { en: "Renamed" } },
+    });
+    assert.equal(body.project_id, projectId, "an unrelated PATCH must not drop project_id");
   });
 });
