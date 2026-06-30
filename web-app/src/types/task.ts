@@ -147,6 +147,31 @@ export interface CountdownEvent {
   createdAt: string;
 }
 
+// ── Projects (#211) ─────────────────────────────────────────────────────────
+export type ProjectColor = "green" | "cyan" | "amber" | "red";
+export type ProjectStatus = "active" | "archived";
+
+/** A single key objective inside a project. */
+export interface ProjectGoal {
+  text: string;
+  done: boolean;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  category?: string;
+  color: ProjectColor;
+  emoji?: string;
+  /** Key objectives shown pinned at the top of the project. */
+  goals: ProjectGoal[];
+  /** Rich-text body (TipTap JSON / markdown string). Plain text until #215. */
+  content?: string;
+  status: ProjectStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type HabitFrequency =
   | "daily"          // every day
   | "weekdays"       // Mon–Fri
