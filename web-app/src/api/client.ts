@@ -351,6 +351,7 @@ function adaptEntry(raw: any): CompletedEntry {
     quadrant: raw.quadrant ?? undefined,
     startedAt: raw.startedAt ?? undefined,
     completedAt: raw.completedAt ?? undefined,
+    projectId: raw.project_id ?? null,
   };
 }
 

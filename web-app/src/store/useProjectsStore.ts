@@ -6,7 +6,7 @@
  * legacy client-only data to import.
  */
 import { create } from "zustand";
-import { projectApi, type ProjectCreateInput, type ProjectUpdateInput } from "@/api/client";
+import { api, projectApi, type ProjectCreateInput, type ProjectUpdateInput } from "@/api/client";
 import type { Project } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
@@ -15,8 +15,12 @@ import { clientId } from "@/lib/id";
 interface ProjectsState {
   projects: Project[];
   loaded: boolean;
+  /** Completed-task count per project_id (#223), for the real done/total ring. */
+  doneCounts: Record<string, number>;
   byId: (id: string | null | undefined) => Project | undefined;
   load: () => Promise<void>;
+  /** Fetch all completed entries once and aggregate done-counts per project. */
+  loadProgress: () => Promise<void>;
   clear: () => void;
   create: (input: ProjectCreateInput) => Promise<Project>;
   update: (id: string, patch: ProjectUpdateInput) => Promise<void>;
@@ -26,6 +30,7 @@ interface ProjectsState {
 export const useProjectsStore = create<ProjectsState>((set, get) => ({
   projects: [],
   loaded: false,
+  doneCounts: {},
 
   byId: (id) => (id ? get().projects.find((p) => p.id === id) : undefined),
 
@@ -38,8 +43,21 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
     }
   },
 
+  async loadProgress() {
+    try {
+      const entries = await api.listAllCompleted();
+      const counts: Record<string, number> = {};
+      for (const e of entries) {
+        if (e.projectId) counts[e.projectId] = (counts[e.projectId] ?? 0) + 1;
+      }
+      set({ doneCounts: counts });
+    } catch {
+      // Progress ring is best-effort; on failure cards fall back to 0 done.
+    }
+  },
+
   clear() {
-    set({ projects: [], loaded: false });
+    set({ projects: [], loaded: false, doneCounts: {} });
   },
 
   async create(input) {

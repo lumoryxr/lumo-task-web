@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useT } from "@/i18n/useT";
 import { useProjectsStore } from "@/store/useProjectsStore";
@@ -26,9 +26,16 @@ export function ProjectDetailPage() {
   const remove = useProjectsStore((s) => s.remove);
   const tasks = useTasksStore((s) => s.tasks);
   const createTask = useTasksStore((s) => s.create);
+  const doneCount = useProjectsStore((s) => (id ? s.doneCounts[id] ?? 0 : 0));
+  const loadProgress = useProjectsStore((s) => s.loadProgress);
 
   const [newGoal, setNewGoal] = useState("");
   const [newTask, setNewTask] = useState("");
+
+  // Real done/total for the Tasks section (#223).
+  useEffect(() => {
+    void loadProgress();
+  }, [loadProgress]);
 
   if (!project) {
     return (
@@ -194,7 +201,16 @@ export function ProjectDetailPage() {
       </Section>
 
       {/* Tasks */}
-      <Section title={t("project.tasks.title")}>
+      <Section
+        title={t("project.tasks.title")}
+        extra={
+          doneCount + projectTasks.length > 0 ? (
+            <span className="text-[11px] font-medium tabular-nums text-text-muted normal-case tracking-normal">
+              {doneCount}/{doneCount + projectTasks.length}
+            </span>
+          ) : undefined
+        }
+      >
         {projectTasks.length === 0 && <p className="text-xs text-text-faint mb-2">{t("project.tasks.empty")}</p>}
         <div>
           {projectTasks.map((task) => (
@@ -236,10 +252,13 @@ function BackLink({ onClick, label }: { onClick: () => void; label: string }) {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, extra }: { title: string; children: React.ReactNode; extra?: React.ReactNode }) {
   return (
     <section className="mt-7">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint mb-2.5">{title}</div>
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">{title}</div>
+        {extra}
+      </div>
       {children}
     </section>
   );

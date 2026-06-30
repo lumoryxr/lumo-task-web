@@ -63,6 +63,8 @@ export interface CompletedEntry {
   quadrant?: Quadrant;
   /** Original task ID — used to restore the task when reopening. */
   taskId?: string;
+  /** Owning project at completion time (#223), for real per-project done counts. */
+  projectId?: string | null;
 }
 
 export interface User {

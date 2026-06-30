@@ -208,6 +208,14 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE tasks ADD COLUMN project_id TEXT");
   }
 
+  // Migrate: snapshot the owning project onto completed entries (#223) so a
+  // project's real done/total can be counted. Nullable; historical entries
+  // stay NULL (counted as 0 done until re-completed).
+  const completedColsV2 = await query<{ name: string }>("PRAGMA table_info(completed_entries)");
+  if (!completedColsV2.some((c) => c.name === "project_id")) {
+    await execRaw("ALTER TABLE completed_entries ADD COLUMN project_id TEXT");
+  }
+
   // Migrate: normalize due field to strict ISO YYYY-MM-DD (or null)
   {
     const now = new Date();

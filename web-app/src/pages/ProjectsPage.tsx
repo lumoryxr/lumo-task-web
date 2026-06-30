@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useT } from "@/i18n/useT";
 import { useProjectsStore } from "@/store/useProjectsStore";
@@ -19,9 +19,16 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const projects = useProjectsStore((s) => s.projects);
   const createProject = useProjectsStore((s) => s.create);
+  const doneCounts = useProjectsStore((s) => s.doneCounts);
+  const loadProgress = useProjectsStore((s) => s.loadProgress);
   const tasks = useTasksStore((s) => s.tasks);
   const [category, setCategory] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Real done/total ring (#223): completed counts come from the server.
+  useEffect(() => {
+    void loadProgress();
+  }, [loadProgress]);
 
   // Active (incomplete) task count per project, from the live task cache.
   const taskCounts = useMemo(() => {
@@ -81,7 +88,7 @@ export function ProjectsPage() {
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
         {visible.map((p) => (
-          <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} t={t} />
+          <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} t={t} />
         ))}
       </div>
     </div>
@@ -121,9 +128,13 @@ function CatChip({ label, active, onClick }: { label: string; active: boolean; o
   );
 }
 
-function ProjectCard({ project, taskCount, onOpen, t }: { project: Project; taskCount: number; onOpen: () => void; t: (k: string) => string }) {
+function ProjectCard({ project, taskCount, doneCount, onOpen, t }: { project: Project; taskCount: number; doneCount: number; onOpen: () => void; t: (k: string) => string }) {
   const primary = COLOR_PRIMARY[project.color];
   const goalsDone = project.goals.filter((g) => g.done).length;
+  // Real task progress (#223): done = completed entries snapshotted to this
+  // project; total = those plus still-active tasks in the live cache.
+  const total = doneCount + taskCount;
+  const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
   return (
     <button
       onClick={onOpen}
@@ -141,9 +152,10 @@ function ProjectCard({ project, taskCount, onOpen, t }: { project: Project; task
           <div className="text-sm font-semibold text-text-primary truncate">{project.name}</div>
           {project.category && <div className="text-xs text-text-muted truncate">{project.category}</div>}
         </div>
+        {total > 0 && <ProgressRing pct={pct} color={primary} />}
       </div>
       <div className="flex items-center gap-3 text-xs text-text-muted tabular-nums">
-        <span>{taskCount} · {t("project.tasks.title")}</span>
+        <span title={t("project.progress.label")}>{doneCount}/{total} · {t("project.tasks.title")}</span>
         {project.goals.length > 0 && (
           <span style={{ color: goalsDone === project.goals.length ? "var(--accent-primary)" : undefined }}>
             🎯 {goalsDone}/{project.goals.length}
@@ -152,5 +164,20 @@ function ProjectCard({ project, taskCount, onOpen, t }: { project: Project; task
         {project.status === "archived" && <span style={{ color: "var(--text-faint)" }}>{t("project.status.archived")}</span>}
       </div>
     </button>
+  );
+}
+
+/** Compact SVG donut showing a project's completion percentage. */
+function ProgressRing({ pct, color }: { pct: number; color: string }) {
+  const r = 9;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg width={26} height={26} viewBox="0 0 26 26" className="shrink-0" aria-hidden="true">
+      <circle cx={13} cy={13} r={r} fill="none" stroke="var(--border-default)" strokeWidth={3} />
+      <circle
+        cx={13} cy={13} r={r} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round"
+        strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} transform="rotate(-90 13 13)"
+      />
+    </svg>
   );
 }
