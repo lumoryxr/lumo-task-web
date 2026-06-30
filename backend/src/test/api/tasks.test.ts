@@ -525,4 +525,29 @@ describe("task ↔ project linkage (#213)", () => {
     });
     assert.equal(body.project_id, projectId, "an unrelated PATCH must not drop project_id");
   });
+
+  test("completing a filed task snapshots project_id onto the completed entry (#223)", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Finish me" }, project_id: projectId },
+    });
+    const done = await req("POST", `/v1/tasks/${created.body.id}/complete`, { token: demoToken });
+    assert.equal(done.status, 200);
+    const { body } = await req("GET", "/v1/completed", { token: demoToken });
+    const entry = body.items.find((e: { task_id: string | null }) => e.task_id === created.body.id);
+    assert.ok(entry, "completed entry for the task must exist");
+    assert.equal(entry.project_id, projectId, "completed entry must carry the task's project_id");
+  });
+
+  test("completing an unfiled task yields a null project_id entry (#223)", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Unfiled finish" } },
+    });
+    await req("POST", `/v1/tasks/${created.body.id}/complete`, { token: demoToken });
+    const { body } = await req("GET", "/v1/completed", { token: demoToken });
+    const entry = body.items.find((e: { task_id: string | null }) => e.task_id === created.body.id);
+    assert.ok(entry);
+    assert.equal(entry.project_id ?? null, null);
+  });
 });

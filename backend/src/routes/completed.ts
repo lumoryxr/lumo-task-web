@@ -23,6 +23,7 @@ export function rowToEntry(row: CompletedEntryRow) {
     quadrant: row.quadrant ?? null,
     startedAt: row.started_at ?? null,
     completedAt: row.completed_at,
+    project_id: row.project_id ?? null,
   };
 }
 

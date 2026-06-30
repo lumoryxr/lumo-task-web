@@ -118,6 +118,7 @@ export const SYNC_MANIFEST: SyncEntity[] = [
     columns: [
       "id", "user_id", "task_id", "title_en", "title_zh", "duration",
       "quadrant", "started_at", "completed_at", "updated_at", "deleted_at",
+      "project_id",
     ],
   },
   {

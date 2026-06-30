@@ -56,6 +56,7 @@ export interface CompletedEntryRow {
   quadrant: string | null;
   started_at: string | null;
   completed_at: string;
+  project_id: string | null;
 }
 
 export interface PersonRow {
