@@ -27,7 +27,7 @@ push/PR.
 | **Design for Robustness** | Malformed / wrong-typed / missing input degrades to 4xx, never a 5xx crash | malformed JSON body → 400 `INVALID_JSON` (proven a **global** handler — exercised on `tasks` + `people` / `countdowns` / `habits` / `templates`, #158); missing required field → 400; wrong field type → 400; out-of-enum value → 400; **nested-payload violation (templates `payload.duration` out of range) → 400** (validation reaches into the JSON payload column, #184); unknown route → 404 |
 | **Design for Recoverability** | A bad request never poisons the server; the next request still works | invalid pagination cursor → 400 `INVALID_CURSOR`; burst of bad requests followed by a healthy request → 200; operation on non-existent id → 404 |
 | **Design for Observability** | Health/readiness are meaningful; every error has a consistent, machine-readable shape | `/health` → 200 `{ok:true}` (liveness); `/ready` reflects a real DB probe (readiness); business errors all carry `{ error: { code, message } }` |
-| **Design for Scalability** | List responses are always bounded; pagination is correct under volume | default page bounded (≤ 50) with `nextCursor`; over-max `limit` (>200) rejected → 400 (no unbounded read); cursor paging walks every row exactly once — no dupes, no omissions |
+| **Design for Scalability** | List responses are always bounded; pagination is correct under volume | **`/v1/tasks`:** default page bounded (≤ 50) with `nextCursor`; over-max `limit` (>200) rejected → 400 (no unbounded read); cursor paging walks every row exactly once — no dupes, no omissions. **`/v1/completed` full history (#164, #202):** the highest-growth list (every completion ever) — its keyset pagination is exercised separately because its contract *differs* (DEFAULT 200 / MAX 500, over-max `limit` **clamped** not 400-rejected): explicit `limit` bounds the page + yields `nextCursor`; over-max `limit` → 200 clamped ≤ 500 (**not** 400, unlike tasks); cursor paging walks every entry exactly once |
 | **Design for Interoperability** | Stable wire contract clients can rely on | JSON `Content-Type`; `DELETE` → 204; successful create → 201 with a server-assigned id |
 
 ## Bugs this suite has already caught
@@ -81,6 +81,19 @@ here rather than leaving a silent hole.
   0..1440) → 400 (not 5xx). Handler verified to already scope by `user_id` and
   re-encode the payload through the schema — **gap in the tests, not the code** (no
   production change).
+- **2026-06-29 (#202 completed pagination scalability)** — The DFX **Scalability**
+  dimension advertised "list responses are always bounded; pagination correct under
+  volume" as system-wide but only exercised `/v1/tasks`. The full-history completed
+  log (`GET /v1/completed`, no `?date`, keyset-paginated since #164) — the list most
+  prone to unbounded growth — had **no** integration scalability coverage, and its
+  contract *differs* from tasks (DEFAULT 200 / MAX 500, over-max `limit` **clamped**
+  via `Math.min` rather than 400-rejected). A regression that harmonized it with
+  tasks (reject over-max → 400) or dropped the clamp (→ unbounded read) would slip
+  past the tasks-only cases. Closed with 3 cases over real HTTP + real SQLite:
+  explicit `limit` bounds the page + yields `nextCursor`; over-max `limit` → 200
+  clamped (≤ 500), **not** 400; cursor paging walks every entry exactly once (no
+  dupes/omissions). Handler already clamps + keyset-paginates correctly — **gap in
+  the tests, not the code** (no production change).
 - **2026-06-29 (#190 focus/sessions)** — Follow-up to the #165 sub-resource IDOR
   sweep: that sweep enumerated `completed/reopen` + `habits/:id/log` (×2) but
   **missed `POST /v1/focus/sessions`**, which is the same class — it writes a
