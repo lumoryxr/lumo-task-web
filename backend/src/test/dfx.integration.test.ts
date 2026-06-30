@@ -516,6 +516,94 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — cross-tenant foreign-key reference on the task write boundary (#220)
+//
+// The #158/#165/#194 sweeps cover CRUD-by-id and state-changing sub-resources. They
+// do NOT cover the cross-RESOURCE foreign-key reference introduced by `task.project_id`
+// (#213): a task may only reference a project the caller owns. The handler guards this
+// with projectIsOwned() and rejects a cross-tenant reference with 400 INVALID_PROJECT
+// (note: 400, not the 404 the other IDOR cases use — it's a body-field validation, not a
+// path-id lookup). A dropped/weakened `WHERE user_id` in that guard would let a tenant
+// file tasks into another tenant's project (cross-tenant linkage + project-id leakage).
+// Unit-tested in api/tasks.test.ts (in-memory) but never exercised over real HTTP +
+// real file SQLite in the daily regression — closing that gap here.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security — cross-tenant project reference on task write boundary (#220)", () => {
+  let owner: { token: string; id: string };
+  let attacker: { token: string; id: string };
+  before(async () => {
+    owner = await registerUser("prj-ref-owner");
+    attacker = await registerUser("prj-ref-attacker");
+  });
+
+  test("POST /tasks referencing another tenant's project → 400 INVALID_PROJECT; task not created", async () => {
+    // Owner creates a project only they own.
+    const { status: prjStatus, body: prj } = await api("POST", "/v1/projects", {
+      token: owner.token,
+      body: { name: "Owner Project", color: "cyan" },
+    });
+    assert.equal(prjStatus, 201, "owner can create own project");
+
+    // Attacker tries to file a new task into the owner's project.
+    const res = await api("POST", "/v1/tasks", {
+      token: attacker.token,
+      body: { title: { en: "Steal into their project" }, project_id: prj.id },
+    });
+    assert.equal(res.status, 400, "cross-tenant project reference must be rejected at the write boundary");
+    assert.equal(res.body.error?.code, "INVALID_PROJECT", "should use the INVALID_PROJECT envelope");
+
+    // The task must NOT have been created under the attacker.
+    const { body: attackerTasks } = await api("GET", "/v1/tasks", { token: attacker.token });
+    const items = Array.isArray(attackerTasks) ? attackerTasks : (attackerTasks as any).items;
+    assert.ok(
+      !(items as any[]).some((t) => t.project_id === prj.id),
+      "no task linked to the foreign project may exist after the rejected create",
+    );
+  });
+
+  test("PATCH /tasks/:id moving an own task into another tenant's project → 400; project_id unchanged", async () => {
+    // Owner's project (the cross-tenant target).
+    const { body: prj } = await api("POST", "/v1/projects", {
+      token: owner.token,
+      body: { name: "Owner Project 2", color: "amber" },
+    });
+
+    // Attacker creates an unfiled task of their own.
+    const { status: createStatus, body: task } = await api("POST", "/v1/tasks", {
+      token: attacker.token,
+      body: { title: { en: "My own task" } },
+    });
+    assert.equal(createStatus, 201);
+    assert.equal(task.project_id ?? null, null, "task starts unfiled");
+
+    const res = await api("PATCH", `/v1/tasks/${task.id}`, {
+      token: attacker.token,
+      body: { project_id: prj.id },
+    });
+    assert.equal(res.status, 400, "cross-tenant PATCH move must be rejected");
+    assert.equal(res.body.error?.code, "INVALID_PROJECT");
+
+    // The task's project_id must be unchanged (still null).
+    const { body: after } = await api("GET", `/v1/tasks/${task.id}`, { token: attacker.token });
+    assert.equal(after.project_id ?? null, null, "a rejected cross-tenant move must not mutate project_id");
+  });
+
+  test("teeth/sanity: a task referencing the caller's OWN project still succeeds (201, round-trips)", async () => {
+    const { body: prj } = await api("POST", "/v1/projects", {
+      token: owner.token,
+      body: { name: "Owner Project 3", color: "green" },
+    });
+    const res = await api("POST", "/v1/tasks", {
+      token: owner.token,
+      body: { title: { en: "Filed correctly" }, project_id: prj.id },
+    });
+    assert.equal(res.status, 201, "filing a task into the caller's own project must succeed");
+    assert.equal(res.body.project_id, prj.id, "own-project link must round-trip");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — malformed / wrong-typed / missing input
 // ═══════════════════════════════════════════════════════════════════════════════
 
