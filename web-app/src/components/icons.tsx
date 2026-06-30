@@ -159,6 +159,44 @@ export const IconSparkle = (p: IconProps) => (
   </svg>
 );
 
+export const IconBold = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z" />
+  </svg>
+);
+
+export const IconItalic = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M19 5h-6M11 19H5M15 5l-4 14" />
+  </svg>
+);
+
+export const IconHeading = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M6 4v16M18 4v16M6 12h12" />
+  </svg>
+);
+
+export const IconList = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+  </svg>
+);
+
+export const IconQuote = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M7 7H4a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3v3a3 3 0 0 1-3 3M20 7h-3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3v3a3 3 0 0 1-3 3" />
+  </svg>
+);
+
+export const IconImage = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
+    <path d="M21 15l-5-5L5 21" />
+  </svg>
+);
+
 export const IconCalendar = (p: IconProps) => (
   <svg {...base(p)}>
     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />

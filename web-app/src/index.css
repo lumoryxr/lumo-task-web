@@ -561,3 +561,25 @@ input[type="number"] { -moz-appearance: textfield; }
     background-image: none;
   }
 }
+
+/* ── Project rich-text editor (#215) ──────────────────────────────────────── */
+.tiptap-content .ProseMirror {
+  min-height: 8rem;
+  outline: none;
+  color: var(--text-primary);
+}
+.tiptap-content .ProseMirror p { margin: 0 0 0.5rem; }
+.tiptap-content .ProseMirror h2 { font-size: 1.05rem; font-weight: 600; margin: 0.6rem 0 0.4rem; }
+.tiptap-content .ProseMirror ul { list-style: disc; padding-left: 1.25rem; margin: 0 0 0.5rem; }
+.tiptap-content .ProseMirror blockquote {
+  border-left: 2px solid var(--border-strong);
+  padding-left: 0.75rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.5rem;
+}
+.tiptap-content .ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md, 8px);
+  margin: 0.25rem 0;
+}
