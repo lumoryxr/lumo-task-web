@@ -234,6 +234,12 @@ const TENANT_RESOURCES: Array<{
     create: () => ({ name: "Owner Template", payload: { title: { en: "Owner Template" } } }),
     patch: { name: "Hijacked" },
   },
+  {
+    name: "projects",
+    path: "/v1/projects",
+    create: () => ({ name: "Owner Project", category: "Work", color: "cyan" }),
+    patch: { name: "Hijacked" },
+  },
 ];
 
 describe("DFX · Security — tenant isolation across user-scoped resources (#158)", () => {
