@@ -41,6 +41,12 @@ const CountdownPage = lazy(() =>
 const HabitsPage = lazy(() =>
   import("@/pages/HabitsPage").then((m) => ({ default: m.HabitsPage }))
 );
+const ProjectsPage = lazy(() =>
+  import("@/pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage }))
+);
+const ProjectDetailPage = lazy(() =>
+  import("@/pages/ProjectDetailPage").then((m) => ({ default: m.ProjectDetailPage }))
+);
 const StatsPage = lazy(() =>
   import("@/pages/StatsPage").then((m) => ({ default: m.StatsPage }))
 );
@@ -157,6 +163,8 @@ export default function App() {
         <Route path="/matrix" element={<MatrixPage />} />
         <Route path="/focus" element={<FocusPage />} />
         <Route path="/habits" element={<HabitsPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/projects/:id" element={<ProjectDetailPage />} />
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/countdown" element={<CountdownPage />} />
         <Route path="/settings" element={<SettingsPage />} />
