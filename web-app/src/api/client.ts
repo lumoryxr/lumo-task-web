@@ -8,7 +8,7 @@
  * JWT token is stored in localStorage and attached to every request.
  */
 
-import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, TemplatePayload, User } from "@/types/task";
+import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, TemplatePayload, User } from "@/types/task";
 import type { SyncStatusResponse, SyncCycleResponse } from "@lumo/contracts";
 import { ApiError } from "@/api/ApiError";
 
@@ -820,5 +820,63 @@ export const templateApi = {
 
   async delete(id: string): Promise<void> {
     await req<void>("DELETE", `/templates/${id}`);
+  },
+};
+
+// ── Project REST API (#211) ───────────────────────────────────────────────────
+
+function adaptProject(raw: any): Project {
+  return {
+    id: raw.id,
+    name: raw.name,
+    category: raw.category ?? undefined,
+    color: raw.color,
+    emoji: raw.emoji ?? undefined,
+    goals: Array.isArray(raw.goals) ? raw.goals : [],
+    content: raw.content ?? undefined,
+    status: raw.status ?? "active",
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+export type ProjectCreateInput = Omit<Project, "id" | "createdAt" | "updatedAt">;
+export type ProjectUpdateInput = Partial<Omit<Project, "id" | "createdAt" | "updatedAt">>;
+
+export const projectApi = {
+  async list(): Promise<Project[]> {
+    const rows = await req<any[]>("GET", "/projects");
+    return Array.isArray(rows) ? rows.map(adaptProject) : [];
+  },
+
+  async create(input: ProjectCreateInput, id?: string): Promise<Project> {
+    const raw = await req<any>("POST", "/projects", {
+      ...(id ? { id } : {}),
+      name: input.name,
+      category: input.category ?? null,
+      color: input.color,
+      emoji: input.emoji ?? null,
+      goals: input.goals ?? [],
+      content: input.content ?? null,
+      status: input.status ?? "active",
+    });
+    return adaptProject(raw);
+  },
+
+  async update(id: string, patch: ProjectUpdateInput): Promise<Project> {
+    const raw = await req<any>("PATCH", `/projects/${id}`, {
+      ...(patch.name !== undefined && { name: patch.name }),
+      ...("category" in patch && { category: patch.category ?? null }),
+      ...(patch.color !== undefined && { color: patch.color }),
+      ...("emoji" in patch && { emoji: patch.emoji ?? null }),
+      ...(patch.goals !== undefined && { goals: patch.goals }),
+      ...("content" in patch && { content: patch.content ?? null }),
+      ...(patch.status !== undefined && { status: patch.status }),
+    });
+    return adaptProject(raw);
+  },
+
+  async delete(id: string): Promise<void> {
+    await req<void>("DELETE", `/projects/${id}`);
   },
 };

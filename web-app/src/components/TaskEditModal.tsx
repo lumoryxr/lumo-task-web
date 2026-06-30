@@ -7,6 +7,7 @@ import { useModalA11y } from "@/hooks/useModalA11y";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
+import { useProjectsStore } from "@/store/useProjectsStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { toISODate } from "@/lib/format";
 import type { Quadrant, Task, TaskRecurrence } from "@/types/task";
@@ -41,6 +42,7 @@ export function TaskEditModal({ task, onClose }: Props) {
   const update = useTasksStore((s) => s.update);
   const remove = useTasksStore((s) => s.remove);
   const people = usePeopleStore((s) => s.people);
+  const projects = useProjectsStore((s) => s.projects);
 
   const todayISO = toISODate(new Date());
   const tomorrowISO = toISODate(new Date(Date.now() + 86400000));
@@ -71,6 +73,7 @@ export function TaskEditModal({ task, onClose }: Props) {
   const [recurrence, setRecurrence] = useState<TaskRecurrence>(task.recurrence ?? "none");
   const [assigneeIds, setAssigneeIds] = useState<string[]>(task.assignee_ids ?? []);
   const [tags, setTags] = useState<string[]>(task.tags ?? []);
+  const [projectId, setProjectId] = useState<string | null>(task.project_id ?? null);
   function toggleAssignee(id: string) {
     setAssigneeIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   }
@@ -108,6 +111,7 @@ export function TaskEditModal({ task, onClose }: Props) {
         recurrence,
         assignee_ids: assigneeIds,
         tags,
+        project_id: projectId,
       });
       onClose();
     } finally {
@@ -411,6 +415,27 @@ export function TaskEditModal({ task, onClose }: Props) {
               inputAriaLabel={t("edit.tags")}
             />
           </div>
+
+          {/* Project — single owning project (#211) */}
+          {projects.length > 0 && (
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
+                {t("project.select.label")}
+              </div>
+              <select
+                aria-label={t("project.select.label")}
+                value={projectId ?? ""}
+                onChange={(e) => setProjectId(e.target.value || null)}
+                className="w-full text-sm rounded-md px-2.5 py-2 bg-transparent outline-none"
+                style={{ border: "1px solid var(--border-default)", color: "var(--text-primary)" }}
+              >
+                <option value="">{t("project.select.none")}</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.emoji ? `${p.emoji} ` : ""}{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Assignees — multi-select */}
           {people.length > 0 && (

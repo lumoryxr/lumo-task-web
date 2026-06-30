@@ -41,6 +41,12 @@ const CountdownPage = lazy(() =>
 const HabitsPage = lazy(() =>
   import("@/pages/HabitsPage").then((m) => ({ default: m.HabitsPage }))
 );
+const ProjectsPage = lazy(() =>
+  import("@/pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage }))
+);
+const ProjectDetailPage = lazy(() =>
+  import("@/pages/ProjectDetailPage").then((m) => ({ default: m.ProjectDetailPage }))
+);
 const StatsPage = lazy(() =>
   import("@/pages/StatsPage").then((m) => ({ default: m.StatsPage }))
 );
@@ -48,6 +54,7 @@ import { applyAccentTheme, useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useCountdownStore } from "@/store/useCountdownStore";
+import { useProjectsStore } from "@/store/useProjectsStore";
 import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { useHabitsStore } from "@/store/useHabitsStore";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
@@ -83,6 +90,8 @@ export default function App() {
   const loadAppearance = useAppStore((s) => s.loadAppearance);
   const loadTemplates = useTemplatesStore((s) => s.load);
   const clearTemplates = useTemplatesStore((s) => s.clear);
+  const loadProjects = useProjectsStore((s) => s.load);
+  const clearProjects = useProjectsStore((s) => s.clear);
   const isSignedIn = useAuthStore(selectIsSignedIn);
   const userId = useAuthStore((s) => s.user.id);
   const forceSignOut = useAuthStore((s) => s.forceSignOut);
@@ -109,6 +118,7 @@ export default function App() {
       loadHabits(userId);
       loadNotifications();
       loadTemplates();
+      loadProjects();
       loadAppearance();
     } else {
       clearTasks();
@@ -116,8 +126,9 @@ export default function App() {
       clearCountdowns();
       clearHabits();
       clearTemplates();
+      clearProjects();
     }
-  }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadNotifications, loadTemplates, clearTemplates, loadAppearance]);
+  }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadNotifications, loadTemplates, clearTemplates, loadProjects, clearProjects, loadAppearance]);
 
   useNotificationScheduler();
   useSyncEngine();
@@ -152,6 +163,8 @@ export default function App() {
         <Route path="/matrix" element={<MatrixPage />} />
         <Route path="/focus" element={<FocusPage />} />
         <Route path="/habits" element={<HabitsPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/projects/:id" element={<ProjectDetailPage />} />
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/countdown" element={<CountdownPage />} />
         <Route path="/settings" element={<SettingsPage />} />
