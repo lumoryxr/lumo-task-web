@@ -5,6 +5,7 @@ import { useProjectsStore } from "@/store/useProjectsStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import type { ProjectColor, ProjectGoal } from "@/types/task";
 import { TaskRow } from "@/components/TaskRow";
+import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { EmptyState } from "@/components/EmptyState";
 import { IconArrowLeft, IconCheck, IconClose, IconPlus, IconProject, IconTrash } from "@/components/icons";
 
@@ -215,16 +216,11 @@ export function ProjectDetailPage() {
         </div>
       </Section>
 
-      {/* Content (plain textarea until #215 brings TipTap) */}
+      {/* Content — rich text with inline images (#215) */}
       <Section title={t("project.content.title")}>
-        <textarea
-          aria-label={t("project.content.title")}
-          value={project.content ?? ""}
-          onChange={(e) => update(project.id, { content: e.target.value || undefined })}
-          placeholder={t("project.content.placeholder")}
-          rows={6}
-          className="w-full text-sm rounded-lg p-3 bg-transparent outline-none resize-y"
-          style={{ border: "1px solid var(--border-default)", color: "var(--text-primary)" }}
+        <ProjectContentEditor
+          value={project.content}
+          onChange={(json) => update(pid, { content: json || undefined })}
         />
       </Section>
     </div>

@@ -24,6 +24,10 @@
   "dependencies": {
     "@azure/msal-browser": "^5.13.0",
     "@lumo/contracts": "file:../packages/contracts",
+    "@tiptap/extension-image": "^2.27.2",
+    "@tiptap/pm": "^2.27.2",
+    "@tiptap/react": "^2.27.2",
+    "@tiptap/starter-kit": "^2.27.2",
     "html2canvas": "^1.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -53,9 +57,9 @@
     "postcss": "^8.4.45",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.5.4",
-    "zod": "^3.24.4",
     "vite": "^5.4.6",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.7",
+    "zod": "^3.24.4"
   },
   "build": {
     "appId": "com.lumo.task",
@@ -76,22 +80,30 @@
       {
         "from": "../backend/node_modules/@libsql",
         "to": "backend/node_modules/@libsql",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "../backend/node_modules/libsql",
         "to": "backend/node_modules/libsql",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "../backend/node_modules/@neon-rs",
         "to": "backend/node_modules/@neon-rs",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "../backend/node_modules/detect-libc",
         "to": "backend/node_modules/detect-libc",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "asarUnpack": [
