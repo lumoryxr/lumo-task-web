@@ -8,7 +8,7 @@ function mk(id: string, over: Partial<Project> = {}): Project {
   };
 }
 
-const { list, create, update, del } = vi.hoisted(() => ({
+const { list, create, update, del, listAllCompleted } = vi.hoisted(() => ({
   list: vi.fn(async (): Promise<Project[]> => []),
   create: vi.fn(async (input: any, id?: string): Promise<Project> => ({
     id: id ?? "prj_new", name: input.name, color: input.color, emoji: input.emoji,
@@ -17,9 +17,10 @@ const { list, create, update, del } = vi.hoisted(() => ({
   })),
   update: vi.fn(async (id: string, patch: any): Promise<Project> => ({ ...mk(id), ...patch })),
   del: vi.fn(async () => {}),
+  listAllCompleted: vi.fn(async (): Promise<any[]> => []),
 }));
 
-vi.mock("@/api/client", () => ({ projectApi: { list, create, update, delete: del } }));
+vi.mock("@/api/client", () => ({ projectApi: { list, create, update, delete: del }, api: { listAllCompleted } }));
 vi.mock("@/store/useToastStore", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/i18n/useT", () => ({ t: (k: string) => k }));
 
@@ -28,7 +29,7 @@ import { toast } from "@/store/useToastStore";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useProjectsStore.setState({ projects: [], loaded: false });
+  useProjectsStore.setState({ projects: [], loaded: false, doneCounts: {} });
 });
 
 describe("useProjectsStore", () => {
@@ -72,6 +73,28 @@ describe("useProjectsStore", () => {
     expect(s.byId("a")?.id).toBe("a");
     expect(s.byId(null)).toBeUndefined();
     expect(s.byId("nope")).toBeUndefined();
+  });
+
+  it("loadProgress aggregates completed counts per project (#223)", async () => {
+    listAllCompleted.mockResolvedValueOnce([
+      { id: "c1", projectId: "a" }, { id: "c2", projectId: "a" },
+      { id: "c3", projectId: "b" }, { id: "c4", projectId: null }, { id: "c5" },
+    ]);
+    await useProjectsStore.getState().loadProgress();
+    expect(useProjectsStore.getState().doneCounts).toEqual({ a: 2, b: 1 });
+  });
+
+  it("loadProgress swallows errors and leaves doneCounts untouched (best-effort)", async () => {
+    useProjectsStore.setState({ doneCounts: { a: 5 } });
+    listAllCompleted.mockRejectedValueOnce(new Error("net"));
+    await useProjectsStore.getState().loadProgress();
+    expect(useProjectsStore.getState().doneCounts).toEqual({ a: 5 });
+  });
+
+  it("clear resets doneCounts", () => {
+    useProjectsStore.setState({ projects: [mk("a")], doneCounts: { a: 3 } });
+    useProjectsStore.getState().clear();
+    expect(useProjectsStore.getState().doneCounts).toEqual({});
   });
 
   it("update keeps state and toasts on API failure (no throw)", async () => {
