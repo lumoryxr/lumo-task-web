@@ -331,6 +331,8 @@ export const STRINGS: Record<Locale, Dict> = {
     "edit.tags.placeholder": "Add a tag and press Enter…",
     "tag.filter.all": "All",
     "tag.filter.label": "Filter by tag",
+    "project.filter.all": "All projects",
+    "project.filter.label": "Filter by project",
     "tag.filter.clear": "Clear filter",
 
     "popover.edit": "Edit",
@@ -1152,6 +1154,8 @@ export const STRINGS: Record<Locale, Dict> = {
     "edit.tags.placeholder": "输入标签后按回车…",
     "tag.filter.all": "全部",
     "tag.filter.label": "按标签筛选",
+    "project.filter.all": "全部项目",
+    "project.filter.label": "按项目筛选",
     "tag.filter.clear": "清除筛选",
 
     "popover.edit": "编辑",

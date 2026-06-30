@@ -11,7 +11,9 @@ import { IconArrowRight } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
+import { useProjectsStore } from "@/store/useProjectsStore";
 import { usePetStore } from "@/store/usePetStore";
+import { derivePlanProjects, resolveActiveFilter, filterPlanTasks } from "@/utils/planFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fmtDuration, toISODate } from "@/lib/format";
 import type { Locale, Task } from "@/types/task";
@@ -699,6 +701,8 @@ export function TodayPage() {
   const [weeklyOpen, setWeeklyOpen] = useState(false);
   const [weeklyPlanned, setWeeklyPlanned] = useState(isWeeklyPlanned);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const projects = useProjectsStore((s) => s.projects);
   const selectMode = useTasksStore((s) => s.selectMode);
   const setSelectMode = useTasksStore((s) => s.setSelectMode);
 
@@ -778,10 +782,14 @@ export function TodayPage() {
   // longer matches any task (e.g. its last task got completed) is dropped so we
   // never show an empty filtered list with no way back.
   const planTags = [...new Set(todayRest.flatMap((x) => x.tags ?? []))].sort();
-  const activeTag = tagFilter && planTags.includes(tagFilter) ? tagFilter : null;
-  const visibleRest = activeTag
-    ? todayRest.filter((x) => (x.tags ?? []).includes(activeTag))
-    : todayRest;
+  const activeTag = resolveActiveFilter(tagFilter, planTags);
+
+  // Distinct projects across today's plan (#223 V2 ⭐2), resolved to names.
+  // Same auto-drop-stale-filter rule as tags so the list never gets stuck empty.
+  const planProjects = derivePlanProjects(todayRest, projects);
+  const activeProject = resolveActiveFilter(projectFilter, planProjects.map((p) => p.id));
+
+  const visibleRest = filterPlanTasks(todayRest, activeTag, activeProject);
 
   const todayAllDone =
     tasks.filter((x) => x.today && !x.completed).length === 0 && completed.length > 0;
@@ -858,6 +866,23 @@ export function TodayPage() {
               </button>
             )}
           </div>
+          {planProjects.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-3" role="group" aria-label={t("project.filter.label")}>
+              <TagFilterChip
+                label={t("project.filter.all")}
+                active={!activeProject}
+                onClick={() => setProjectFilter(null)}
+              />
+              {planProjects.map((p) => (
+                <TagFilterChip
+                  key={p.id}
+                  label={p.name}
+                  active={activeProject === p.id}
+                  onClick={() => setProjectFilter(activeProject === p.id ? null : p.id)}
+                />
+              ))}
+            </div>
+          )}
           {planTags.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mb-3" role="group" aria-label={t("tag.filter.label")}>
               <TagFilterChip
