@@ -248,6 +248,8 @@ async function mockAPI(page: Page) {
 async function mockAPIWithData(page: Page) {
   // Stateful in-memory templates store so the save → list → instantiate flow works.
   const templates: any[] = [];
+  // Stateful projects store (#211) for the create → detail → edit flow.
+  const projects: any[] = [];
   await page.route("**/v1/**", (route) => {
     const url = route.request().url();
     const method = route.request().method();
@@ -280,6 +282,41 @@ async function mockAPIWithData(page: Page) {
         return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(tpl ?? {}) });
       }
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(templates) });
+    }
+
+    // Projects (#211) — stateful: POST appends, PATCH/DELETE mutate, GET lists.
+    if (url.includes("/v1/projects")) {
+      if (method === "POST") {
+        const body = JSON.parse(route.request().postData() || "{}");
+        const prj = {
+          id: body.id || `prj_${projects.length + 1}`,
+          name: body.name,
+          category: body.category ?? null,
+          color: body.color ?? "green",
+          emoji: body.emoji ?? null,
+          goals: body.goals ?? [],
+          content: body.content ?? null,
+          status: body.status ?? "active",
+          createdAt: "2026-06-30T00:00:00.000Z",
+          updatedAt: "2026-06-30T00:00:00.000Z",
+        };
+        projects.push(prj);
+        return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(prj) });
+      }
+      if (method === "PATCH") {
+        const id = url.split("/v1/projects/")[1];
+        const body = JSON.parse(route.request().postData() || "{}");
+        const prj = projects.find((x) => x.id === id);
+        if (prj) Object.assign(prj, body);
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(prj ?? {}) });
+      }
+      if (method === "DELETE") {
+        const id = url.split("/v1/projects/")[1];
+        const idx = projects.findIndex((x) => x.id === id);
+        if (idx >= 0) projects.splice(idx, 1);
+        return route.fulfill({ status: 204, body: "" });
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(projects) });
     }
 
     // Auth
@@ -1615,6 +1652,33 @@ test("TC88 – batch: select mode toggles a checkbox row and the action bar trac
   await bar.getByRole("button", { name: "Done" }).click();
   await expect(page.getByRole("toolbar")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Select", exact: true })).toBeVisible();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC89  Projects (#211): create a project from the gallery, land on its detail
+// page, add a key goal. Exercises the gallery → create → detail → goal-edit
+// slice against the stateful projects mock.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("TC89 – projects: create a project and add a key goal", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/projects");
+
+  // Empty state → create the first project.
+  await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible({ timeout: 12_000 });
+  await page.getByRole("button", { name: "New project" }).first().click();
+
+  // Lands on the detail page (key-goals section visible) and can add a goal.
+  await expect(page.getByText("Key goals")).toBeVisible({ timeout: 8_000 });
+  const goalInput = page.getByPlaceholder("What does success look like?");
+  await goalInput.fill("Ship the V1");
+  await goalInput.press("Enter");
+  await expect(page.getByRole("checkbox", { name: "Ship the V1" })).toBeVisible({ timeout: 8_000 });
+
+  // The new project shows up back in the gallery.
+  await page.getByRole("button", { name: "Projects" }).first().click();
+  await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible({ timeout: 8_000 });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
