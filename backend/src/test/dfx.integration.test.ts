@@ -409,6 +409,50 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
       "attacker must not hold a completed entry referencing the owner's task",
     );
   });
+
+  // `POST /v1/ai/breakdown` is another caller-supplied-`taskId` IDOR surface that
+  // the #165/#190 sub-resource sweep never reached (it lives under /v1/ai, not the
+  // CRUD/sub-resource routes). It loads the referenced task to feed its title/desc
+  // into the LLM prompt, so a dropped `WHERE user_id` would (a) disclose another
+  // tenant's task content into the attacker's AI response and (b) silently burn the
+  // attacker's cloud-AI quota against the owner's data. The handler scopes the load
+  // with `AND user_id` and returns 404 *before* any provider/LLM call, so the 404
+  // path is fully integration-testable with no AI provider configured.
+  test("ai/breakdown: attacker cannot break down another tenant's task → 404; no task content disclosed (IDOR guard)", async () => {
+    const { body: task } = await api("POST", "/v1/tasks", {
+      token: owner.token,
+      body: { title: { en: "Owner confidential project" }, quadrant: "Q1" },
+    });
+
+    // Attacker references the owner's task by id. The scoped load misses → 404
+    // NOT_FOUND, returned before getProviderConfig()/the LLM is ever consulted.
+    const res = await api("POST", "/v1/ai/breakdown", {
+      token: attacker.token,
+      body: { taskId: task.id },
+    });
+    assert.equal(res.status, 404, "cross-tenant breakdown must 404 (no IDOR, no content disclosure)");
+    // The error envelope must not leak the owner's task title/description.
+    assert.ok(
+      !JSON.stringify(res.body).includes("confidential"),
+      "404 body must not echo the owner's task content",
+    );
+
+    // Owner's task is untouched and still breaks-down-eligible for the owner.
+    const { status: ownerStatus } = await api("GET", `/v1/tasks/${task.id}`, { token: owner.token });
+    assert.equal(ownerStatus, 200, "owner's task survives a cross-tenant breakdown attempt");
+  });
+
+  // Recoverability companion: a syntactically valid but non-existent taskId must
+  // also 404 (not 5xx) without a provider — proving the not-found path is reached
+  // before any LLM dependency.
+  test("ai/breakdown: a non-existent taskId → 404 NOT_FOUND, never a 5xx", async () => {
+    const res = await api("POST", "/v1/ai/breakdown", {
+      token: owner.token,
+      body: { taskId: "task_does_not_exist_xyz" },
+    });
+    assert.equal(res.status, 404, "missing task → 404, not a server crash");
+    assert.equal((res.body as any)?.error?.code, "NOT_FOUND", "consistent machine-readable error code");
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
