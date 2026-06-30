@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { getISOWeekKey, shouldShowWrapped, markWrappedShown, computePrevWeekStats } from "../wrapped";
+import {
+  getISOWeekKey,
+  shouldShowWrapped,
+  markWrappedShown,
+  computePrevWeekStats,
+  computeMonthStats,
+  shouldShowMonthlyWrapped,
+  markMonthlyWrappedShown,
+  listRecaps,
+} from "../wrapped";
 import type { CompletedEntry } from "@/types/task";
 
 beforeEach(() => {
@@ -153,5 +162,112 @@ describe("computePrevWeekStats — quadrantBreakdown", () => {
     const sum = quadrantBreakdown.reduce((s, b) => s + b.percent, 0);
     expect(sum).toBeLessThanOrEqual(101);
     expect(sum).toBeGreaterThanOrEqual(99);
+  });
+});
+
+describe("computeMonthStats", () => {
+  // 2024-02-05 → previous calendar month is January 2024.
+  const EARLY_FEB = new Date("2024-02-05T10:00:00");
+
+  it("aggregates only the previous calendar month and labels it", () => {
+    vi.setSystemTime(EARLY_FEB);
+    const entries = [
+      makeEntry({ quadrant: "Q1", duration: 30, completedAt: "2024-01-03T10:00:00" }), // Jan ✓
+      makeEntry({ quadrant: "Q2", duration: 15, completedAt: "2024-01-31T23:00:00" }), // Jan ✓ (boundary)
+      makeEntry({ quadrant: "Q3", duration: 10, completedAt: "2023-12-31T10:00:00" }), // Dec ✗
+      makeEntry({ quadrant: "Q4", duration: 10, completedAt: "2024-02-01T10:00:00" }), // Feb ✗
+    ];
+    const r = computeMonthStats(entries);
+    expect(r.tasksCompleted).toBe(2);
+    expect(r.focusMinutes).toBe(45);
+    expect(r.weekLabel).toBe("January 2024");
+    const find = (q: string) => r.quadrantBreakdown.find((b) => b.quadrant === q)!;
+    expect(find("Q1").count).toBe(1);
+    expect(find("Q2").count).toBe(1);
+    expect(find("Q3").count).toBe(0);
+  });
+
+  it("rolls the year boundary back (January → previous December)", () => {
+    vi.setSystemTime(new Date("2024-01-02T10:00:00"));
+    const entries = [
+      makeEntry({ completedAt: "2023-12-15T10:00:00" }), // Dec 2023 ✓
+      makeEntry({ completedAt: "2024-01-01T10:00:00" }), // Jan 2024 ✗
+    ];
+    const r = computeMonthStats(entries);
+    expect(r.tasksCompleted).toBe(1);
+    expect(r.weekLabel).toBe("December 2023");
+  });
+
+  it("byDay is a weekday histogram (getDay-indexed)", () => {
+    vi.setSystemTime(EARLY_FEB);
+    // 2024-01-01 is a Monday (getDay 1); 2024-01-08 also Monday.
+    const r = computeMonthStats([
+      makeEntry({ completedAt: "2024-01-01T10:00:00" }),
+      makeEntry({ completedAt: "2024-01-08T10:00:00" }),
+    ]);
+    expect(r.byDay[1]).toBe(2);
+    expect(r.peakDayIndex).toBe(1);
+  });
+});
+
+describe("shouldShowMonthlyWrapped / markMonthlyWrappedShown", () => {
+  it("shows within the first 3 days of the month, not later", () => {
+    vi.setSystemTime(new Date("2024-02-01T09:00:00"));
+    expect(shouldShowMonthlyWrapped("u1")).toBe(true);
+    vi.setSystemTime(new Date("2024-02-03T09:00:00"));
+    expect(shouldShowMonthlyWrapped("u1")).toBe(true);
+    vi.setSystemTime(new Date("2024-02-04T09:00:00"));
+    expect(shouldShowMonthlyWrapped("u1")).toBe(false);
+  });
+
+  it("shows once per month, then is gated; independent per user and per month", () => {
+    vi.setSystemTime(new Date("2024-02-02T09:00:00"));
+    expect(shouldShowMonthlyWrapped("u1")).toBe(true);
+    markMonthlyWrappedShown("u1");
+    expect(shouldShowMonthlyWrapped("u1")).toBe(false);
+    expect(shouldShowMonthlyWrapped("u2")).toBe(true); // per-user
+    // Next month is a fresh key.
+    vi.setSystemTime(new Date("2024-03-01T09:00:00"));
+    expect(shouldShowMonthlyWrapped("u1")).toBe(true);
+  });
+});
+
+describe("listRecaps", () => {
+  // Mid-month so several prior weeks and the prior month are all in the past.
+  const MID_MARCH = new Date("2024-03-20T10:00:00");
+
+  it("returns only past periods that had activity, weeks before months", () => {
+    vi.setSystemTime(MID_MARCH);
+    const recaps = listRecaps([
+      makeEntry({ completedAt: "2024-03-12T10:00:00" }), // last week
+      makeEntry({ completedAt: "2024-02-10T10:00:00" }), // a past week + February month
+    ]);
+    // Every returned recap is non-empty.
+    expect(recaps.length).toBeGreaterThan(0);
+    expect(recaps.every((r) => r.stats.tasksCompleted > 0)).toBe(true);
+    // Weeks come before months, and February shows up as a month recap.
+    const kinds = recaps.map((r) => r.kind);
+    expect(kinds.indexOf("week")).toBeLessThan(kinds.lastIndexOf("month"));
+    expect(recaps.some((r) => r.kind === "month" && r.stats.weekLabel === "February 2024")).toBe(true);
+    // Ids are stable + unique.
+    expect(new Set(recaps.map((r) => r.id)).size).toBe(recaps.length);
+  });
+
+  it("excludes the current (in-progress) week/month and empty periods", () => {
+    vi.setSystemTime(MID_MARCH);
+    const recaps = listRecaps([
+      makeEntry({ completedAt: "2024-03-20T10:00:00" }), // current week → excluded
+    ]);
+    expect(recaps).toEqual([]);
+  });
+
+  it("respects the weeks/months window", () => {
+    vi.setSystemTime(MID_MARCH);
+    const recaps = listRecaps(
+      [makeEntry({ completedAt: "2024-01-10T10:00:00" })], // ~10 weeks ago, 2 months ago
+      { weeks: 2, months: 1 },
+    );
+    // Outside a 2-week / 1-month window → nothing.
+    expect(recaps).toEqual([]);
   });
 });

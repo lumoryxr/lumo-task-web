@@ -38,6 +38,9 @@ const NotNowItemSchema = z.object({
   reason: LocalizedStringSchema,
 });
 
+// A single task label: trimmed, non-empty, capped at 30 chars.
+const TagSchema = z.string().trim().min(1).max(30);
+
 // ── Request bodies ────────────────────────────────────────────────────────────
 
 export const TaskCreateBodySchema = z.object({
@@ -61,6 +64,9 @@ export const TaskCreateBodySchema = z.object({
   ai_suggest: QuadrantSchema.nullable().optional(),
   not_now: z.array(NotNowItemSchema).default([]),
   subtasks: z.array(SubtaskSchema).default([]),
+  // Free-form labels, a second organizing axis orthogonal to the quadrant.
+  // Trimmed, 1..30 chars each, at most 20 per task to keep rows/sync bounded.
+  tags: z.array(TagSchema).max(20).default([]),
   scheduled_start: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)
@@ -112,6 +118,7 @@ export const TaskWireSchema = z.object({
   not_now: z.array(NotNowItemSchema),
   recurrence: RecurrenceSchema,
   subtasks: z.array(SubtaskSchema),
+  tags: z.array(z.string()).catch([]),
   scheduled_start: z.string().nullable(),
   remind_at: z.string().nullable(),
   created_at: z.string(),
@@ -191,6 +198,8 @@ export interface Task {
   recurrence?: TaskRecurrence;
   /** Inline sub-tasks for breaking a task into smaller steps. */
   subtasks?: Subtask[];
+  /** Free-form labels — a second organizing axis orthogonal to the quadrant. */
+  tags?: string[];
   /** ISO datetime (YYYY-MM-DDTHH:MM:SS) for a specific time block on the calendar. */
   scheduled_start?: string | null;
   /** ISO datetime (YYYY-MM-DDTHH:MM) at which to surface a reminder notification. */

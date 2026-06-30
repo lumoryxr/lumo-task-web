@@ -283,6 +283,27 @@ async function mockAPIWithData(page: Page) {
     }
 
     // Auth
+    // Change password verifies the current password server-side: a sentinel
+    // "wrong-password" → 400 WRONG_PASSWORD, anything else → 200. This lets the
+    // e2e prove the page actually gates on the backend's answer (regression
+    // guard for the old mock that "succeeded" on any input).
+    if (method === "POST" && url.includes("/v1/auth/change-password")) {
+      const body = JSON.parse(route.request().postData() || "{}");
+      if (body.current_password === "wrong-password") {
+        return route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: { code: "WRONG_PASSWORD", message: "Current password is incorrect" },
+          }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+    }
     if (method === "POST" && url.includes("/v1/auth/signin")) {
       return route.fulfill({
         status: 200,
@@ -1179,6 +1200,32 @@ test("TC70 – Change password: mismatched new passwords shows error", async ({ 
   await expect(page.getByText(/match|mismatch|do not match/i)).toBeVisible({ timeout: 10_000 });
 });
 
+test("TC70b – Change password: a WRONG current password is rejected (no success)", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/account/change-password");
+  await page.locator('input[type="password"]').first().fill("wrong-password");
+  await page.locator('input[type="password"]').nth(1).fill("NewPass!123");
+  await page.locator('input[type="password"]').nth(2).fill("NewPass!123");
+  await page.getByRole("button", { name: /update password|save/i }).click();
+  // The backend says the current password is wrong → inline error, and crucially
+  // NO success confirmation (the regression: the old mock accepted any input).
+  await expect(page.getByText(/current password is incorrect/i)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/updated successfully/i)).toHaveCount(0);
+  await expect(page).toHaveURL(/change-password/);
+});
+
+test("TC70c – Change password: a correct current password succeeds", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/account/change-password");
+  await page.locator('input[type="password"]').first().fill("OldPass!123");
+  await page.locator('input[type="password"]').nth(1).fill("NewPass!123");
+  await page.locator('input[type="password"]').nth(2).fill("NewPass!123");
+  await page.getByRole("button", { name: /update password|save/i }).click();
+  await expect(page.getByText(/updated successfully/i)).toBeVisible({ timeout: 10_000 });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TC71–TC74  Navigation & routing
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1528,6 +1575,46 @@ test("TC87 – templates: save a task as a template and instantiate it from the 
   );
   await dialog.getByRole("button", { name: "Use" }).first().click();
   await createReq;
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC88  Batch task operations: select mode → multi-select → action bar.
+//
+// Wiring-only and deterministic: the task mock isn't stateful (GET always
+// returns the full seed), so asserting post-mutation state would be flaky.
+// Mutation outcomes are covered by unit (useTasksStore.batch) + component
+// (BatchActionBar) tests; here we prove the select-mode UI is wired end to end.
+// Select mode makes rows plain checkboxes (no hover gating) so this is robust.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("TC88 – batch: select mode toggles a checkbox row and the action bar tracks the count", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  await page.goto("/#/today");
+
+  await expect(page.getByText("Today's plan")).toBeVisible({ timeout: 12_000 });
+
+  // Enter select mode from the plan header → the floating action toolbar appears.
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const bar = page.getByRole("toolbar");
+  await expect(bar).toBeVisible({ timeout: 8_000 });
+  await expect(bar.getByText("0 selected")).toBeVisible();
+  // Batch actions are present.
+  await expect(bar.getByRole("button", { name: "Complete" })).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Delete" })).toBeVisible();
+
+  // Selectable rows expose a checkbox (only in select mode). Clicking one — no
+  // hover needed — selects it and the count advances.
+  const checkbox = page.getByRole("checkbox").first();
+  await expect(checkbox).toBeVisible({ timeout: 8_000 });
+  await checkbox.click();
+  await expect(checkbox).toHaveAttribute("aria-checked", "true");
+  await expect(bar.getByText("1 selected")).toBeVisible();
+
+  // Done exits select mode → bar disappears, Select toggle returns.
+  await bar.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("toolbar")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Select", exact: true })).toBeVisible();
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

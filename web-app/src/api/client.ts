@@ -251,6 +251,7 @@ export function buildTaskUpdateBody(patch: TaskUpdateInput) {
     ...(patch.not_now !== undefined && { not_now: patch.not_now }),
     ...(patch.recurrence !== undefined && { recurrence: patch.recurrence }),
     ...(patch.subtasks !== undefined && { subtasks: patch.subtasks }),
+    ...(patch.tags !== undefined && { tags: patch.tags }),
     ...(patch.scheduled_start !== undefined && { scheduled_start: patch.scheduled_start }),
     ...(patch.remind_at !== undefined && { remind_at: patch.remind_at }),
   };
@@ -303,6 +304,7 @@ export function buildTaskCreateBody(input: TaskCreateInput, id?: string) {
     not_now: input.not_now ?? [],
     recurrence: input.recurrence ?? "none",
     subtasks: input.subtasks ?? [],
+    tags: input.tags ?? [],
     scheduled_start: input.scheduled_start ?? null,
     remind_at: input.remind_at ?? null,
   };
@@ -329,6 +331,7 @@ function adaptTask(raw: any): Task {
     not_now: raw.not_now ?? [],
     recurrence: raw.recurrence ?? "none",
     subtasks: raw.subtasks ?? [],
+    tags: raw.tags ?? [],
     scheduled_start: raw.scheduled_start ?? null,
     remind_at: raw.remind_at ?? null,
     created_at: raw.created_at ?? undefined,
@@ -403,6 +406,15 @@ export const api = {
     setToken(res.token);
     if (res.refreshToken) setRefreshToken(res.refreshToken);
     return res.user;
+  },
+
+  // Change the signed-in user's password. The server verifies `current_password`
+  // (400 WRONG_PASSWORD on mismatch) and, on success, bumps the account's
+  // session_version — which invalidates THIS session's access + refresh tokens.
+  // Callers must re-authenticate afterwards to mint fresh tokens (see the auth
+  // store action), otherwise the next request will 401 the user out.
+  async changePassword(input: { current_password: string; new_password: string }): Promise<void> {
+    await req<{ ok: true }>("POST", "/auth/change-password", input);
   },
 
   async signOut(): Promise<User> {

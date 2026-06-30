@@ -7,7 +7,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Locale } from "@/types/task";
+import type { Locale, AppSettings } from "@/types/task";
+import { api } from "@/api/client";
 
 export type Accent = "green" | "cyan" | "amber" | "graphite";
 export type Density = "comfortable" | "compact";
@@ -46,6 +47,25 @@ export function applyAccentTheme(accent: Accent) {
 
 export type MatrixView = "matrix" | "calendar";
 
+// Appearance/language prefs live in the backend `settings` table too, so they
+// follow a signed-in account across devices. We persist on change and hydrate
+// on sign-in (see loadAppearance). The push is gated on a token: during
+// onboarding the user picks a theme/language while NOT yet signed in (no token)
+// — those choices stay in localStorage and are adopted into the new account by
+// useAuthStore.register. This keeps every call site (Settings, Onboarding, …)
+// correct without each having to know the auth state.
+function persistAppearance(patch: {
+  locale?: Locale;
+  accent?: Accent;
+  density?: Density;
+  reduced_motion?: boolean;
+}) {
+  if (!localStorage.getItem("lumo.token")) return; // local mode → localStorage only
+  // Best-effort: the change already applied + persisted locally, so a transient
+  // network failure must never revert the user's visible theme.
+  api.patchSettings(patch).catch(() => {});
+}
+
 interface AppState {
   locale: Locale;
   accent: Accent;
@@ -60,26 +80,57 @@ interface AppState {
   setReducedMotion: (b: boolean) => void;
   setOnboarded: (b: boolean) => void;
   setMatrixView: (v: MatrixView) => void;
+  /** Apply appearance prefs fetched from the account WITHOUT re-pushing them. */
+  applyServerAppearance: (s: Pick<AppSettings, "locale" | "accent" | "density" | "reduced_motion">) => void;
+  /** Pull appearance prefs from the account (source of truth) on sign-in. */
+  loadAppearance: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       locale: "en",
       accent: "green",
       density: "comfortable",
       reducedMotion: false,
       onboarded: false,
       matrixView: "matrix",
-      setLocale: (locale) => set({ locale }),
+      setLocale: (locale) => {
+        set({ locale });
+        persistAppearance({ locale });
+      },
       setAccent: (accent) => {
         applyAccentTheme(accent);
         set({ accent });
+        persistAppearance({ accent });
       },
-      setDensity: (density) => set({ density }),
-      setReducedMotion: (reducedMotion) => set({ reducedMotion }),
+      setDensity: (density) => {
+        set({ density });
+        persistAppearance({ density });
+      },
+      setReducedMotion: (reducedMotion) => {
+        set({ reducedMotion });
+        persistAppearance({ reduced_motion: reducedMotion });
+      },
       setOnboarded: (onboarded) => set({ onboarded }),
       setMatrixView: (matrixView) => set({ matrixView }),
+      applyServerAppearance: (s) => {
+        applyAccentTheme(s.accent);
+        set({
+          locale: s.locale,
+          accent: s.accent,
+          density: s.density,
+          reducedMotion: s.reduced_motion,
+        });
+      },
+      async loadAppearance() {
+        try {
+          const s = await api.getSettings();
+          get().applyServerAppearance(s);
+        } catch {
+          // Keep the local prefs if the account fetch fails — never blank the UI.
+        }
+      },
     }),
     { name: "lumo.app.v1" }
   )

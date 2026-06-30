@@ -10,7 +10,14 @@ const mockRemove = vi.fn();
 
 vi.mock("@/store/useTasksStore", () => ({
   useTasksStore: (sel: any) =>
-    sel({ complete: mockComplete, remove: mockRemove }),
+    sel({
+      complete: mockComplete,
+      remove: mockRemove,
+      duplicate: vi.fn(),
+      selectMode: false,
+      selectedIds: [],
+      toggleSelected: vi.fn(),
+    }),
 }));
 
 vi.mock("@/store/usePeopleStore", () => ({

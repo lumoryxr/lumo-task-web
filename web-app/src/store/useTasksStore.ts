@@ -1,10 +1,10 @@
 /**
- * Task store — backed by the mock API client.
+ * Task store — backed by the real API client (@/api/client).
  *
  * Holds an in-memory cache plus loading flags so components can render
  * skeletons / show errors. Mutations call the API then update local
  * state from the response, which keeps the cache in sync with whatever
- * the (real or mock) backend says is canonical.
+ * the backend says is canonical.
  */
 
 import { create } from "zustand";
@@ -16,15 +16,29 @@ import { t } from "@/i18n/useT";
 import { usePetStore } from "@/store/usePetStore";
 import { useDogStore, XP_PER_TASK } from "@/store/useDogStore";
 
+/** Outcome of a bulk action — how many of the requested ids succeeded vs failed. */
+export interface BatchResult {
+  ok: number;
+  failed: number;
+}
+
 interface TasksState {
   tasks: Task[];
   completed: CompletedEntry[];
   loading: boolean;
   error: string | null;
+  // transient multi-select state (not persisted / not synced)
+  selectMode: boolean;
+  selectedIds: string[];
   // selectors
   byQuadrant: (q: Task["quadrant"]) => Task[];
   todayTasks: () => Task[];
   weekFocusTasks: () => Task[];
+  // selection actions
+  setSelectMode: (on: boolean) => void;
+  toggleSelected: (id: string) => void;
+  setSelection: (ids: string[]) => void;
+  clearSelection: () => void;
   // actions
   load: () => Promise<void>;
   clear: () => void;
@@ -34,6 +48,9 @@ interface TasksState {
   complete: (id: string) => Promise<TaskCompleteResponse>;
   reopen: (logId: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  completeBatch: (ids: string[]) => Promise<BatchResult>;
+  removeBatch: (ids: string[]) => Promise<BatchResult>;
+  moveBatch: (ids: string[], quadrant: Task["quadrant"]) => Promise<BatchResult>;
   classifyTasks: () => Promise<Array<{ task_id: string; quadrant: string; confidence: number; reason?: string }>>;
   parseTaskText: (text: string, locale?: string) => Promise<{ title: string; quadrant: string; due: string | null; duration: number | null; confidence: number }>;
   fetchAllCompleted: () => Promise<import("@/types/task").CompletedEntry[]>;
@@ -48,10 +65,29 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   completed: [],
   loading: false,
   error: null,
+  selectMode: false,
+  selectedIds: [],
 
   byQuadrant: (q) => get().tasks.filter((t) => t.quadrant === q && !t.completed),
   todayTasks: () => get().tasks.filter((t) => t.today && !t.completed),
   weekFocusTasks: () => get().tasks.filter((t) => t.week_focus && !t.completed),
+
+  setSelectMode(on) {
+    // Leaving select mode always drops any pending selection so the next
+    // entry starts clean.
+    set(on ? { selectMode: true } : { selectMode: false, selectedIds: [] });
+  },
+  toggleSelected(id) {
+    const cur = get().selectedIds;
+    set({ selectedIds: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
+  },
+  setSelection(ids) {
+    // De-dupe defensively so a count derived from selectedIds.length is honest.
+    set({ selectedIds: Array.from(new Set(ids)) });
+  },
+  clearSelection() {
+    set({ selectedIds: [] });
+  },
 
   async load() {
     set({ loading: true, error: null });
@@ -168,6 +204,61 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       toast.error(t("error.task.delete"), msg);
       throw e;
     }
+  },
+
+  async completeBatch(ids) {
+    if (ids.length === 0) return { ok: 0, failed: 0 };
+    // Snapshot quadrants before the round-trip so pet feedback reflects what was
+    // actually completed (the reload drops them from the task list).
+    const before = new Map(get().tasks.map((tk) => [tk.id, tk.quadrant]));
+    const results = await Promise.allSettled(ids.map((id) => api.completeTask(id)));
+    // Reload once (not per-task) so the cache reflects the server after the burst.
+    const [tasks, completed] = await Promise.all([api.listTasks(), api.listCompletedToday()]);
+    set({ tasks, completed });
+    let ok = 0;
+    let anyQ1 = false;
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") {
+        ok += 1;
+        if (before.get(ids[i]) === "Q1") anyQ1 = true;
+      }
+    });
+    if (ok > 0) {
+      // One aggregate celebration, not N — a Q1 in the batch upgrades the cheer.
+      if (anyQ1) usePetStore.getState().celebrate("pet.celebrate.q1");
+      else usePetStore.getState().react();
+      useDogStore.getState().addXP(XP_PER_TASK * ok);
+    }
+    const failed = ids.length - ok;
+    if (failed > 0) toast.error(t("error.batch.complete"), `${failed}/${ids.length}`);
+    return { ok, failed };
+  },
+
+  async removeBatch(ids) {
+    if (ids.length === 0) return { ok: 0, failed: 0 };
+    const results = await Promise.allSettled(ids.map((id) => api.deleteTask(id)));
+    // Only drop the rows that actually deleted; leave failures in place.
+    const deleted = new Set(ids.filter((_, i) => results[i].status === "fulfilled"));
+    set({ tasks: get().tasks.filter((tk) => !deleted.has(tk.id)) });
+    const ok = deleted.size;
+    const failed = ids.length - ok;
+    if (failed > 0) toast.error(t("error.batch.delete"), `${failed}/${ids.length}`);
+    return { ok, failed };
+  },
+
+  async moveBatch(ids, quadrant) {
+    if (ids.length === 0) return { ok: 0, failed: 0 };
+    const results = await Promise.allSettled(ids.map((id) => api.updateTask(id, { quadrant })));
+    // Apply each server-confirmed row back into the cache by id.
+    const updated = new Map<string, Task>();
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") updated.set(ids[i], r.value);
+    });
+    set({ tasks: get().tasks.map((tk) => updated.get(tk.id) ?? tk) });
+    const ok = updated.size;
+    const failed = ids.length - ok;
+    if (failed > 0) toast.error(t("error.batch.move"), `${failed}/${ids.length}`);
+    return { ok, failed };
   },
 
   async classifyTasks() {

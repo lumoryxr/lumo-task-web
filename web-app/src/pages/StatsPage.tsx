@@ -8,11 +8,12 @@ import { useTasksStore } from "@/store/useTasksStore";
 import type { CompletedEntry } from "@/types/task";
 import { computeWeekStats, computeAllTimeStats, fmtHour } from "@/utils/stats";
 import { currentStreak as habitStreak, toDateStr } from "@/utils/habits";
-import { shouldShowWrapped, markWrappedShown, computePrevWeekStats } from "@/utils/wrapped";
+import { shouldShowWrapped, markWrappedShown, computePrevWeekStats, computeMonthStats, shouldShowMonthlyWrapped, markMonthlyWrappedShown } from "@/utils/wrapped";
 import { pendingStreakMilestone, markStreakMilestoneCelebrated } from "@/utils/streakMilestone";
 import { useNavigate } from "react-router-dom";
 import { ShareCard } from "@/components/ShareCard";
 import { StreakMilestoneCard } from "@/components/StreakMilestoneCard";
+import { RecapsModal } from "@/components/RecapsModal";
 import { WrappedCard } from "@/components/WrappedCard";
 import { HabitWeekSection } from "@/components/HabitWeekSection";
 import { QuadrantBreakdown } from "@/components/QuadrantBreakdown";
@@ -54,7 +55,9 @@ export function StatsPage() {
   const [entries, setEntries] = useState<CompletedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showWrapped, setShowWrapped] = useState(false);
+  const [showMonthlyWrapped, setShowMonthlyWrapped] = useState(false);
   const [streakMilestone, setStreakMilestone] = useState<number | null>(null);
+  const [showRecaps, setShowRecaps] = useState(false);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -64,6 +67,10 @@ export function StatsPage() {
       if (shouldShowWrapped(userId)) {
         setShowWrapped(true);
         markWrappedShown(userId);
+      }
+      if (shouldShowMonthlyWrapped(userId)) {
+        setShowMonthlyWrapped(true);
+        markMonthlyWrappedShown(userId);
       }
       // Celebrate a freshly-reached completion-streak milestone, once per user.
       const reached = pendingStreakMilestone(userId, computeAllTimeStats(data).currentStreak);
@@ -98,6 +105,7 @@ export function StatsPage() {
   const week = computeWeekStats(entries);
   const allTime = computeAllTimeStats(entries);
   const prevWeekStats = computePrevWeekStats(entries);
+  const monthStats = computeMonthStats(entries);
 
   const bestHabitStreak = habits.length > 0
     ? Math.max(...habits.map((h) => habitStreak(h, habitLogs)))
@@ -125,12 +133,27 @@ export function StatsPage() {
           onDismiss={() => setStreakMilestone(null)}
         />
       )}
+      {showRecaps && (
+        <RecapsModal
+          entries={entries}
+          currentStreak={allTime.currentStreak}
+          userName={userName}
+          onClose={() => setShowRecaps(false)}
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between px-7 pt-7 pb-4 flex-shrink-0">
         <div>
           <h1 className="text-[20px] font-semibold text-text-primary">{t("stats.title")}</h1>
           <p className="text-[13px] text-text-muted mt-0.5">{t("stats.sub")}</p>
         </div>
+        <button
+          onClick={() => setShowRecaps(true)}
+          className="btn btn-secondary"
+          style={{ height: 32, fontSize: 12 }}
+        >
+          {t("recaps.title")}
+        </button>
       </div>
 
       <div className="px-7 pb-7 space-y-6">
@@ -154,6 +177,20 @@ export function StatsPage() {
                   currentStreak={allTime.currentStreak}
                   userName={userName}
                   onDismiss={() => setShowWrapped(false)}
+                />
+              </section>
+            )}
+
+            {/* Monthly Wrapped — shown once at the start of a new month */}
+            {showMonthlyWrapped && monthStats.tasksCompleted > 0 && (
+              <section>
+                <h2 className="text-[13px] font-semibold text-text-secondary mb-3">{t("wrapped.month.section.title")}</h2>
+                <WrappedCard
+                  stats={monthStats}
+                  currentStreak={allTime.currentStreak}
+                  userName={userName}
+                  period="month"
+                  onDismiss={() => setShowMonthlyWrapped(false)}
                 />
               </section>
             )}

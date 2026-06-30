@@ -12,6 +12,7 @@ import { api } from "@/api/client";
 import type { User } from "@/types/task";
 import { presentError, detailOf } from "@/lib/presentError";
 import { useAIStore } from "@/store/useAIStore";
+import { useAppStore } from "@/store/useAppStore";
 
 const LOCAL_USER: User = {
   id: "local",
@@ -30,6 +31,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signInWithProvider: (provider: "google" | "apple" | "github") => Promise<void>;
   register: (input: { email: string; password: string; confirm: string; nickname?: string }) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** Force-logout without an API call — used when the server returns 401 (session expired). */
   forceSignOut: () => void;
@@ -38,7 +40,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: LOCAL_USER,
       loading: false,
       error: null,
@@ -73,10 +75,43 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true, error: null });
         try {
           const user = await api.register(input);
+          // The user picked appearance/language during onboarding, before this
+          // account existed. Adopt those local choices into the new account so
+          // the sign-in hydration (loadAppearance) doesn't reset them to server
+          // defaults. Best-effort — never block account creation on it.
+          const { locale, accent, density, reducedMotion } = useAppStore.getState();
+          await api
+            .patchSettings({ locale, accent, density, reduced_motion: reducedMotion })
+            .catch(() => {});
           set({ user, loading: false });
         } catch (e) {
           // The form owns presentation — see signIn.
           set({ loading: false, error: detailOf(e) });
+          throw e;
+        }
+      },
+
+      async changePassword(currentPassword, newPassword) {
+        // The page owns presentation (inline error for a wrong current password,
+        // toast otherwise), so we only do the work + re-auth and rethrow.
+        const email = get().user.email;
+        await api.changePassword({
+          current_password: currentPassword,
+          new_password: newPassword,
+        });
+        // A successful change bumps the account's session_version on the server,
+        // invalidating every previously-issued token — INCLUDING this session's
+        // access + refresh tokens. Re-authenticate with the new password to mint
+        // fresh tokens so the user stays signed in, rather than being silently
+        // 401'd out on their very next request.
+        try {
+          const user = await api.signIn({ email, password: newPassword });
+          set({ user });
+        } catch (e) {
+          // The password DID change, but re-auth failed (network/rate-limit). The
+          // old session is already dead — drop to a clean signed-out state so the
+          // next step is an explicit re-login with the new password.
+          get().forceSignOut();
           throw e;
         }
       },

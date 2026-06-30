@@ -5,6 +5,7 @@ import { EveningReviewModal } from "@/components/EveningReviewModal";
 import { MorningPlanningModal } from "@/components/MorningPlanningModal";
 import { WeeklyPlanningModal, isWeeklyPlanned } from "@/components/WeeklyPlanningModal";
 import { TaskRow } from "@/components/TaskRow";
+import { BatchActionBar } from "@/components/BatchActionBar";
 import { TaskListSkeleton } from "@/components/skeletons";
 import { IconArrowRight } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
@@ -665,6 +666,24 @@ function EveningReviewBanner({ onOpen, done }: { onOpen: () => void; done: boole
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 
+function TagFilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className="rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-colors"
+      style={{
+        color: active ? "var(--accent-primary)" : "var(--text-secondary)",
+        background: active ? "var(--accent-fog)" : "var(--bg-deep)",
+        border: `1px solid ${active ? "var(--accent-edge)" : "var(--border-default)"}`,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function TodayPage() {
   const t = useT();
   const locale = useAppStore((s) => s.locale);
@@ -679,6 +698,12 @@ export function TodayPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [weeklyOpen, setWeeklyOpen] = useState(false);
   const [weeklyPlanned, setWeeklyPlanned] = useState(isWeeklyPlanned);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const selectMode = useTasksStore((s) => s.selectMode);
+  const setSelectMode = useTasksStore((s) => s.setSelectMode);
+
+  // Leaving the page exits select mode so a stray selection never lingers.
+  useEffect(() => () => setSelectMode(false), [setSelectMode]);
 
   // Auto-open modals when navigated here from a notification click
   useEffect(() => {
@@ -749,6 +774,15 @@ export function TodayPage() {
     .filter((x) => x.today && !x.completed && x.id !== top?.id)
     .sort((a, b) => Q_PRIORITY[a.quadrant] - Q_PRIORITY[b.quadrant]);
 
+  // Distinct tags across today's plan, for the filter bar. A filter that no
+  // longer matches any task (e.g. its last task got completed) is dropped so we
+  // never show an empty filtered list with no way back.
+  const planTags = [...new Set(todayRest.flatMap((x) => x.tags ?? []))].sort();
+  const activeTag = tagFilter && planTags.includes(tagFilter) ? tagFilter : null;
+  const visibleRest = activeTag
+    ? todayRest.filter((x) => (x.tags ?? []).includes(activeTag))
+    : todayRest;
+
   const todayAllDone =
     tasks.filter((x) => x.today && !x.completed).length === 0 && completed.length > 0;
 
@@ -810,16 +844,46 @@ export function TodayPage() {
 
       {todayRest.length > 0 && (
         <section className="mt-10">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint mb-2">
-            {t("today.plan")}
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">
+              {t("today.plan")}
+            </div>
+            {!selectMode && (
+              <button
+                onClick={() => setSelectMode(true)}
+                className="text-[11px] font-medium px-2 py-0.5 rounded-md text-text-secondary hover:text-text-primary transition-colors"
+                style={{ border: "1px solid var(--border-default)" }}
+              >
+                {t("batch.select")}
+              </button>
+            )}
           </div>
+          {planTags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-3" role="group" aria-label={t("tag.filter.label")}>
+              <TagFilterChip
+                label={t("tag.filter.all")}
+                active={!activeTag}
+                onClick={() => setTagFilter(null)}
+              />
+              {planTags.map((tag) => (
+                <TagFilterChip
+                  key={tag}
+                  label={tag}
+                  active={activeTag === tag}
+                  onClick={() => setTagFilter(activeTag === tag ? null : tag)}
+                />
+              ))}
+            </div>
+          )}
           <div>
-            {todayRest.map((task) => (
-              <TaskRow key={task.id} task={task} />
+            {visibleRest.map((task) => (
+              <TaskRow key={task.id} task={task} selectable />
             ))}
           </div>
         </section>
       )}
+
+      <BatchActionBar candidateIds={visibleRest.map((x) => x.id)} />
 
       {completed.length > 0 && (
         <CompletedTimeline entries={completed} locale={locale} />

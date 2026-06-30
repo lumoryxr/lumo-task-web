@@ -3,16 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { IconArrowLeft, IconCheck } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { toast } from "@/store/useToastStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { ApiError } from "@/api/ApiError";
+import { presentError } from "@/lib/presentError";
 
 /**
  * /account/change-password — form to update the user's password.
  *
- * Validates client-side (empty, mismatch, length), then calls a mock
- * API. On success shows an inline confirmation before redirecting back.
+ * Validates client-side (empty, mismatch, strength), then calls the real
+ * backend, which verifies the current password and rotates the session. On
+ * success shows an inline confirmation before redirecting back.
  */
 export function ChangePasswordPage() {
   const t = useT();
   const navigate = useNavigate();
+  const changePassword = useAuthStore((s) => s.changePassword);
 
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -35,14 +40,32 @@ export function ChangePasswordPage() {
       toast.error(t("account.changePass.err.short"));
       return;
     }
+    // Mirror the server's strong-password rule (≥8 + letter + number) so the
+    // user gets an instant, specific message instead of a round-trip 400.
+    if (!(/[A-Za-z]/.test(next) && /\d/.test(next))) {
+      toast.error(t("account.changePass.err.weak"));
+      return;
+    }
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 600)); // mock network
-    setLoading(false);
-
-    // Mock: treat any non-empty "current" as correct
-    setSuccess(true);
-    setTimeout(() => navigate("/account"), 1600);
+    try {
+      // Hits the real backend: verifies the current password (400 WRONG_PASSWORD
+      // if not), sets the new one, and transparently re-authenticates us.
+      await changePassword(current, next);
+      setSuccess(true);
+      setTimeout(() => navigate("/account"), 1600);
+    } catch (err) {
+      // Wrong current password is the expected, actionable failure → inline,
+      // localized, scoped to the current field. Anything else (network, rate
+      // limit, re-auth) goes through the unified error toast.
+      if (err instanceof ApiError && err.code === "WRONG_PASSWORD") {
+        toast.error(t("account.changePass.err.wrong"));
+      } else {
+        presentError(err, "account.changePass");
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

@@ -374,6 +374,47 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
     );
   });
 
+  // `POST /v1/focus/sessions` is the same sub-resource IDOR class the #165 sweep
+  // covered — it writes (a completed_entries row + the task's pomos_done) keyed by
+  // a caller-supplied task_id — but was MISSED there (#190). It is the most
+  // insidious of the set: a cross-tenant task_id is silently skipped and the
+  // endpoint still returns 200 {ok:true}, so a dropped scope leaks with NO
+  // status-code change. Only a state-survival assertion (owner's pomos_done
+  // unchanged + no leaked completed entry) catches it.
+  test("focus/sessions: attacker recording a session against another tenant's task is a no-op → owner's pomos_done unchanged, no entry leaked (silent-IDOR guard, #190)", async () => {
+    const { body: task } = await api("POST", "/v1/tasks", {
+      token: owner.token,
+      body: { title: { en: "Owner deep work" }, quadrant: "Q1", pomos_total: 3 },
+    });
+    assert.equal(task.pomos_done, 0, "owner's task starts at 0 pomos");
+
+    // Attacker posts a focus session referencing the owner's task by id. The
+    // endpoint does NOT 404 on a cross-tenant id — it silently no-ops and still
+    // returns 200. That silence is exactly why the survival assertions matter.
+    const res = await api("POST", "/v1/focus/sessions", {
+      token: attacker.token,
+      body: { task_id: task.id, duration: 25 },
+    });
+    assert.equal(res.status, 200, "cross-tenant focus session degrades gracefully (no 5xx)");
+
+    // AC1: the owner's pomos_done must NOT have been incremented.
+    const { body: afterTask } = await api("GET", `/v1/tasks/${task.id}`, { token: owner.token });
+    assert.equal(afterTask.pomos_done, 0, "owner's pomos_done must not move on a cross-tenant focus session (no IDOR)");
+
+    // AC2: no completed entry referencing the owner's task may exist under either
+    // tenant (GET /completed with no ?date is the { items, nextCursor } shape, #164).
+    const ownerCompleted = await api("GET", "/v1/completed", { token: owner.token });
+    assert.ok(
+      !((ownerCompleted.body as any).items as any[]).some((e) => e.task_id === task.id),
+      "no completed entry for the owner's task should exist",
+    );
+    const attackerCompleted = await api("GET", "/v1/completed", { token: attacker.token });
+    assert.ok(
+      !((attackerCompleted.body as any).items as any[]).some((e) => e.task_id === task.id),
+      "attacker must not hold a completed entry referencing the owner's task",
+    );
+  });
+
   test("tasks/complete: attacker cannot complete another tenant's task → 404; owner's task stays open, no completed entry written (#194)", async () => {
     const { body: task } = await api("POST", "/v1/tasks", {
       token: owner.token,
@@ -398,6 +439,50 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
       !((attackerCompleted as any).items as any[]).some((e) => e.task_id === task.id),
       "attacker must not hold a completed entry referencing the owner's task",
     );
+  });
+
+  // `POST /v1/ai/breakdown` is another caller-supplied-`taskId` IDOR surface that
+  // the #165/#190 sub-resource sweep never reached (it lives under /v1/ai, not the
+  // CRUD/sub-resource routes). It loads the referenced task to feed its title/desc
+  // into the LLM prompt, so a dropped `WHERE user_id` would (a) disclose another
+  // tenant's task content into the attacker's AI response and (b) silently burn the
+  // attacker's cloud-AI quota against the owner's data. The handler scopes the load
+  // with `AND user_id` and returns 404 *before* any provider/LLM call, so the 404
+  // path is fully integration-testable with no AI provider configured.
+  test("ai/breakdown: attacker cannot break down another tenant's task → 404; no task content disclosed (IDOR guard)", async () => {
+    const { body: task } = await api("POST", "/v1/tasks", {
+      token: owner.token,
+      body: { title: { en: "Owner confidential project" }, quadrant: "Q1" },
+    });
+
+    // Attacker references the owner's task by id. The scoped load misses → 404
+    // NOT_FOUND, returned before getProviderConfig()/the LLM is ever consulted.
+    const res = await api("POST", "/v1/ai/breakdown", {
+      token: attacker.token,
+      body: { taskId: task.id },
+    });
+    assert.equal(res.status, 404, "cross-tenant breakdown must 404 (no IDOR, no content disclosure)");
+    // The error envelope must not leak the owner's task title/description.
+    assert.ok(
+      !JSON.stringify(res.body).includes("confidential"),
+      "404 body must not echo the owner's task content",
+    );
+
+    // Owner's task is untouched and still breaks-down-eligible for the owner.
+    const { status: ownerStatus } = await api("GET", `/v1/tasks/${task.id}`, { token: owner.token });
+    assert.equal(ownerStatus, 200, "owner's task survives a cross-tenant breakdown attempt");
+  });
+
+  // Recoverability companion: a syntactically valid but non-existent taskId must
+  // also 404 (not 5xx) without a provider — proving the not-found path is reached
+  // before any LLM dependency.
+  test("ai/breakdown: a non-existent taskId → 404 NOT_FOUND, never a 5xx", async () => {
+    const res = await api("POST", "/v1/ai/breakdown", {
+      token: owner.token,
+      body: { taskId: "task_does_not_exist_xyz" },
+    });
+    assert.equal(res.status, 404, "missing task → 404, not a server crash");
+    assert.equal((res.body as any)?.error?.code, "NOT_FOUND", "consistent machine-readable error code");
   });
 
   test("tasks/uncomplete: attacker cannot un-complete another tenant's task → 404; owner's task stays completed and its entry survives (#194)", async () => {
@@ -588,6 +673,74 @@ describe("DFX · Scalability — bounded list responses & pagination integrity",
       assert.ok(pages <= 10, "pagination did not terminate — possible cursor loop");
     } while (cursor);
     assert.equal(seen.size, TOTAL, `expected ${TOTAL} unique tasks across pages, got ${seen.size}`);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Scalability gap (#202): the cases above only exercise /v1/tasks. The full-history
+// completed log — GET /v1/completed with no ?date (#164) — is the list most prone
+// to unbounded growth (every completion an account ever made), and its pagination
+// contract DIFFERS from tasks: DEFAULT_LIMIT 200 / MAX_LIMIT 500, and an over-max
+// `limit` is **clamped** (Math.min) rather than rejected with 400. A regression that
+// "harmonized" it with tasks (rejecting over-max → 400) or dropped the clamp (→
+// unbounded read) would slip past the tasks-only cases. These lock the completed
+// contract in over real HTTP + real SQLite.
+// ───────────────────────────────────────────────────────────────────────────────
+
+describe("DFX · Scalability — completed full-history pagination is bounded & walk-complete (#202)", () => {
+  let histUser: { token: string; id: string };
+  const TOTAL = 12; // > the page sizes used below so paging is genuinely exercised
+
+  before(async () => {
+    histUser = await registerUser("completed-scaler");
+    // Each completion appends exactly one row to the full-history completed log.
+    for (let i = 0; i < TOTAL; i++) {
+      const { body: task } = await api("POST", "/v1/tasks", {
+        token: histUser.token,
+        body: { title: { en: `done ${String(i).padStart(3, "0")}` }, quadrant: "Q1" },
+      });
+      const { status } = await api("POST", `/v1/tasks/${task.id}/complete`, { token: histUser.token });
+      assert.ok(status >= 200 && status < 300, `seed completion ${i} should succeed`);
+    }
+  });
+
+  test("an explicit limit bounds the page and yields a nextCursor when more history remains", async () => {
+    const { status, body } = await api("GET", "/v1/completed?limit=5", { token: histUser.token });
+    assert.equal(status, 200);
+    assert.ok(Array.isArray(body.items), "full-history response must be an { items, nextCursor } envelope");
+    assert.equal(body.items.length, 5, "page must be bounded to the requested limit");
+    assert.ok(body.nextCursor, "more than one page of history → nextCursor must be present");
+  });
+
+  test("an over-max limit is CLAMPED (≤ 500), not rejected with 400 — completed differs from tasks", async () => {
+    const { status, body } = await api("GET", "/v1/completed?limit=99999", { token: histUser.token });
+    assert.equal(status, 200, "completed clamps an over-max limit; it must not 400 like /v1/tasks");
+    assert.ok(Array.isArray(body.items), "response must still be the { items, nextCursor } envelope");
+    assert.ok(body.items.length <= 500, `page must stay bounded by MAX_LIMIT (500), got ${body.items.length}`);
+    // With only TOTAL (< 500) rows the clamped single page holds them all.
+    assert.equal(body.items.length, TOTAL, "all history fits in one clamped page here");
+    assert.equal(body.nextCursor, null, "no further page when everything fits in one clamped page");
+  });
+
+  test("cursor paging walks every completed entry exactly once — no dupes, no omissions", async () => {
+    const seen = new Set<string>();
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const url: string = cursor
+        ? `/v1/completed?limit=4&cursor=${encodeURIComponent(cursor)}`
+        : "/v1/completed?limit=4";
+      const { status, body } = await api("GET", url, { token: histUser.token });
+      assert.equal(status, 200);
+      for (const item of body.items) {
+        assert.ok(!seen.has(item.id), `entry ${item.id} returned on more than one page`);
+        seen.add(item.id);
+      }
+      cursor = body.nextCursor;
+      pages++;
+      assert.ok(pages <= 10, "pagination did not terminate — possible cursor loop");
+    } while (cursor);
+    assert.equal(seen.size, TOTAL, `expected ${TOTAL} unique completed entries across pages, got ${seen.size}`);
   });
 });
 
