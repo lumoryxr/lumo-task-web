@@ -16,6 +16,7 @@ import docsRoutes from "./routes/docs.js";
 import habitsRoutes from "./routes/habits.js";
 import countdownsRoutes from "./routes/countdowns.js";
 import templatesRoutes from "./routes/templates.js";
+import projectsRoutes from "./routes/projects.js";
 import { queryOne } from "./db/client.js";
 import { log, resolveRequestId } from "./lib/logger.js";
 
@@ -92,6 +93,7 @@ v1.route("/sync", syncRoutes);
 v1.route("/habits", habitsRoutes);
 v1.route("/countdowns", countdownsRoutes);
 v1.route("/templates", templatesRoutes);
+v1.route("/projects", projectsRoutes);
 
 app.route("/v1", v1);
 app.route("/docs", docsRoutes);

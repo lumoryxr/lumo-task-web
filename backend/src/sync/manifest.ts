@@ -85,6 +85,11 @@ const templateRowSchema = requiringNotNull({
   // (validated against the contracts payload schema only at the route boundary).
   payload: z.string(),
 });
+const projectRowSchema = requiringNotNull({
+  // Only NOT-NULL-without-default columns are required here; `color`/`goals_json`/
+  // `status` all carry SQLite DEFAULTs, and `content` is nullable.
+  name: z.string(),
+});
 
 export const SYNC_MANIFEST: SyncEntity[] = [
   {
@@ -138,6 +143,14 @@ export const SYNC_MANIFEST: SyncEntity[] = [
     columns: [
       "id", "user_id", "name", "kind", "payload", "created_at", "updated_at",
       "deleted_at",
+    ],
+  },
+  {
+    table: "projects",
+    schema: projectRowSchema,
+    columns: [
+      "id", "user_id", "name", "category", "color", "emoji", "goals_json",
+      "content", "status", "created_at", "updated_at", "deleted_at",
     ],
   },
 ];

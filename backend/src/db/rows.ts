@@ -140,6 +140,21 @@ export interface CountdownEventRow {
   updated_at: string;
 }
 
+export interface ProjectRow {
+  id: string;
+  user_id: string;
+  name: string;
+  category: string | null;
+  color: string;
+  emoji: string | null;
+  goals_json: string;
+  content: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  // deleted_at added via the shared soft-delete ALTER loop in migrate.ts
+}
+
 export interface TemplateRow {
   id: string;
   user_id: string;
