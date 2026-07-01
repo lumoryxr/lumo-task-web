@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { useDragSettleStore } from "@/store/useDragSettleStore";
+import { useTaskDrop, makeDragProps } from "@/lib/taskDnd";
 import { useT, useLocaleString } from "@/i18n/useT";
 import type { Quadrant, Task } from "@/types/task";
 import { useAppStore } from "@/store/useAppStore";
@@ -256,50 +257,6 @@ function UnclassifiedBar({ unclassified, label }: { unclassified: Task[]; label:
   );
 }
 
-/* ── DnD helpers ──────────────────────────────────────────────────── */
-
-const DND_MIME = "application/x-lumo-task";
-
-function useTaskDrop(target: Quadrant | "unclassified") {
-  const update = useTasksStore((s) => s.update);
-  const [over, setOver] = useState(false);
-  return {
-    over,
-    handlers: {
-      onDragOver: (e: React.DragEvent) => {
-        if (e.dataTransfer.types.includes(DND_MIME)) {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          if (!over) setOver(true);
-        }
-      },
-      onDragLeave: () => setOver(false),
-      onDrop: (e: React.DragEvent) => {
-        e.preventDefault();
-        setOver(false);
-        const id = e.dataTransfer.getData(DND_MIME);
-        if (!id) return;
-        update(id, { quadrant: target as Task["quadrant"] });
-        // Flag the moved card so it plays a short settle in its new quadrant.
-        useDragSettleStore.getState().settle(id);
-      },
-    },
-  };
-}
-
-function makeDragProps(taskId: string) {
-  return {
-    draggable: true,
-    onDragStart: (e: React.DragEvent) => {
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData(DND_MIME, taskId);
-      (e.currentTarget as HTMLElement).style.opacity = "0.4";
-    },
-    onDragEnd: (e: React.DragEvent) => {
-      (e.currentTarget as HTMLElement).style.opacity = "1";
-    },
-  };
-}
 
 /* ── Quadrant panel ───────────────────────────────────────────────── */
 

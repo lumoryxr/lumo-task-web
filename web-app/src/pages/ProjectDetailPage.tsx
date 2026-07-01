@@ -7,6 +7,7 @@ import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { Project, ProjectColor, ProjectGoal } from "@/types/task";
 import { TaskRow } from "@/components/TaskRow";
+import { ProjectBoard } from "@/components/ProjectBoard";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { EmptyState } from "@/components/EmptyState";
@@ -37,6 +38,7 @@ export function ProjectDetailPage() {
   const userName = useAuthStore((s) => s.user.name);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [recapOpen, setRecapOpen] = useState(false);
+  const [taskView, setTaskView] = useState<"list" | "board">("list");
 
   const [newGoal, setNewGoal] = useState("");
   const [newTask, setNewTask] = useState("");
@@ -240,19 +242,41 @@ export function ProjectDetailPage() {
       <Section
         title={t("project.tasks.title")}
         extra={
-          doneCount + projectTasks.length > 0 ? (
-            <span className="text-[11px] font-medium tabular-nums text-text-muted normal-case tracking-normal">
-              {doneCount}/{doneCount + projectTasks.length}
-            </span>
-          ) : undefined
+          <div className="flex items-center gap-2 normal-case tracking-normal">
+            {doneCount + projectTasks.length > 0 && (
+              <span className="text-[11px] font-medium tabular-nums text-text-muted">
+                {doneCount}/{doneCount + projectTasks.length}
+              </span>
+            )}
+            <div className="flex items-center rounded-md overflow-hidden" style={{ border: "1px solid var(--border-default)" }}>
+              {(["list", "board"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setTaskView(v)}
+                  aria-pressed={taskView === v}
+                  className="text-[11px] font-medium px-2 py-0.5 transition-colors"
+                  style={{
+                    background: taskView === v ? "var(--bg-elevated)" : "transparent",
+                    color: taskView === v ? "var(--text-primary)" : "var(--text-muted)",
+                  }}
+                >
+                  {t(`project.view.${v}`)}
+                </button>
+              ))}
+            </div>
+          </div>
         }
       >
         {projectTasks.length === 0 && <p className="text-xs text-text-faint mb-2">{t("project.tasks.empty")}</p>}
-        <div>
-          {projectTasks.map((task) => (
-            <TaskRow key={task.id} task={task} />
-          ))}
-        </div>
+        {projectTasks.length > 0 && taskView === "board" ? (
+          <ProjectBoard tasks={projectTasks} />
+        ) : (
+          <div>
+            {projectTasks.map((task) => (
+              <TaskRow key={task.id} task={task} />
+            ))}
+          </div>
+        )}
         <div className="flex items-center gap-2 mt-2">
           <input
             value={newTask}
