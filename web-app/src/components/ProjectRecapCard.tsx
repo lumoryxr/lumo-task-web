@@ -78,7 +78,7 @@ export function ProjectRecapCard({ project, recap, userName, onClose }: Props) {
           <div
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
-              width: 44, height: 44, borderRadius: 12, fontSize: 22,
+              width: 44, height: 44, borderRadius: "var(--radius-lg)", fontSize: 22,
               background: primary, color: "var(--text-inverse)",
             }}
             aria-hidden="true"
