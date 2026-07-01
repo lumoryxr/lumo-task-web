@@ -27,7 +27,11 @@ export function TemplateLibraryModal({ onClose }: Props) {
   const t = useT();
   const ls = useLocaleString();
   const dialogRef = useModalA11y<HTMLDivElement>(onClose);
-  const templates = useTemplatesStore((s) => s.templates);
+  // Task templates only — project templates are instantiated from the Projects
+  // page (#211 V2 ⭐3), not this task library.
+  const templates = useTemplatesStore((s) => s.templates).filter(
+    (tpl): tpl is TaskTemplate => tpl.kind === "task"
+  );
   const instantiate = useTemplatesStore((s) => s.instantiate);
   const rename = useTemplatesStore((s) => s.rename);
   const remove = useTemplatesStore((s) => s.remove);
