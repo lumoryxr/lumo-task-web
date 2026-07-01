@@ -730,6 +730,83 @@ describe("DFX · Robustness/Scalability — bounded nested payload on /v1/projec
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS/SCALABILITY — bounded project-kind template payload (#211 V2)
+//
+// Coverage-gap audit (#236, project templates PR1 #233): #233 turned
+// TemplateCreateBodySchema into a `z.union` of a task variant and a NEW project
+// variant (ProjectTemplatePayloadSchema). That project payload is a distinct
+// JSON-column shape — the project's authored fields plus a bundle of task
+// blueprints — with its own bounds: `content` ≤ 1 MB, `goals` ≤ 50 (each
+// `goals[].text` ≤ 200), and **`tasks` ≤ 100** task blueprints (a bound UNIQUE
+// to project templates — no direct-/projects analogue). With no body-size
+// middleware, these Zod caps are the ONLY bound on template row growth. Before
+// this block the DFX suite reached /v1/templates only via the #158
+// tenant-isolation/malformed-JSON cases and the #184 TASK-kind `payload.duration`
+// nested bound — the PROJECT-kind payload had zero robustness coverage. A
+// regression loosening/dropping any cap, or a 5xx on an oversized project-template
+// body instead of a clean 400, would slip past every existing case (sharpened by
+// #222 inflating `content` + #235 instantiating project templates).
+//
+// Teeth: each case asserts the canonical 400 `VALIDATION_ERROR` envelope AND that
+// the offending dotted `payload.*` path is named — proving the RIGHT bound fired
+// inside the union's project variant (not an incidental 400 / the union rejecting
+// wholesale), and AC1 pairs the rejection with a valid project-template create →
+// 201 (recoverability + proof it was the cap, not the union structure).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness/Scalability — bounded project-kind template payload (#211 V2)", () => {
+  test("over-cap `payload.content` (> 1 MB) → 400 VALIDATION_ERROR naming payload.content, never a 5xx; server recovers", async () => {
+    const { status, body } = await api("POST", "/v1/templates", {
+      token: alice.token,
+      body: { name: "Huge project blueprint", kind: "project", payload: { name: "Huge", content: "a".repeat(1_000_001) } },
+    });
+    assert.equal(status, 400, "an over-cap project-template content must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "payload.content"),
+      "the rejection must name `payload.content` (the size cap fired inside the project variant, not an incidental 400)",
+    );
+
+    // Recoverability + teeth: a valid project template of the same shape still
+    // creates → 201, proving it was the CAP that rejected above, not the union
+    // structure, and that the oversized body did not poison the server.
+    const ok = await api("POST", "/v1/templates", {
+      token: alice.token,
+      body: { name: "Right-sized project", kind: "project", payload: { name: "OK", content: "ok", goals: [{ text: "g" }], tasks: [{ title: { en: "t" } }] } },
+    });
+    assert.equal(ok.status, 201, "a valid project template must still create after the oversized body was rejected");
+    assert.equal(ok.body.kind, "project", "the created template round-trips as kind=project");
+  });
+
+  test("over-length nested `payload.goals.0.text` (> 200) → 400, validation reaches into the array element", async () => {
+    const { status, body } = await api("POST", "/v1/templates", {
+      token: alice.token,
+      body: { name: "Bad goal blueprint", kind: "project", payload: { name: "P", goals: [{ text: "x".repeat(201) }] } },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("payload.goals.0")),
+      "the rejection must name the offending nested goal element (e.g. `payload.goals.0.text`)",
+    );
+  });
+
+  test("over-cap `payload.tasks` blueprint array (> 100) → 400 naming payload.tasks (project-template-unique bound)", async () => {
+    const tasks = Array.from({ length: 101 }, () => ({ title: { en: "scaffold" } }));
+    const { status, body } = await api("POST", "/v1/templates", {
+      token: alice.token,
+      body: { name: "Too many scaffolds", kind: "project", payload: { name: "P", tasks } },
+    });
+    assert.equal(status, 400, "an over-cap task-blueprint array must be rejected (no unbounded array write)");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "payload.tasks"),
+      "the rejection must name `payload.tasks` (the project-template-unique array-length cap fired)",
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — `remind_at` reminder field is format-bounded (#176)
 //
 // Coverage-gap audit (per-task reminders, #176): `tasks.remind_at` is the field
