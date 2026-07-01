@@ -815,6 +815,90 @@ describe("DFX · Robustness — `remind_at` reminder field is format-bounded (#1
   });
 });
 
+// Design for ROBUSTNESS — countdown `date` anchor is format-bounded (#240)
+//
+// Coverage-gap audit: a countdown event's `date` is the solar (Gregorian) ISO
+// anchor that BOTH the "days until" countdown math and the lunar-recurrence
+// engine parse. Its only contract bound is a strict date-only regex
+// (`^\d{4}-\d{2}-\d{2}$`, on `CountdownBody` + the partial `CountdownUpdateBody`)
+// — the sole guard between a client and a junk value landing in the column that
+// display + recurrence math later read. Like `remind_at` (#176), the countdown
+// surface had no robustness DFX coverage: a regression that loosened the regex
+// to `z.string()` (or dropped it) would let `"someday"` / a full-datetime string
+// into storage and slip past every existing case — surfacing only as a NaN
+// "days until" or a crashing lunar conversion in prod.
+//
+// Gives the bound teeth on BOTH write paths (create + update) and proves the
+// round-trip: a malformed value is a clean 400 (never a 5xx / silent write), a
+// valid value persists + reflects back (there is no GET /:id — read via the
+// owner's list), and a bad PATCH leaves the stored date unmutated.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — countdown `date` anchor is format-bounded (#240)", () => {
+  async function createCountdown(token: string, date: string) {
+    return api("POST", "/v1/countdowns", {
+      token,
+      body: { title: "Trip", date, emoji: "✈️", color: "green" },
+    });
+  }
+
+  test("malformed `date` on create → 400 VALIDATION_ERROR naming the field, never a 5xx / write", async () => {
+    const { status, body } = await createCountdown(alice.token, "someday");
+    assert.equal(status, 400, "a junk date must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "date"),
+      "the rejection must name `date` (the format bound fired, not an incidental 400)",
+    );
+  });
+
+  test("full datetime `date` (plausible but wrong shape) → 400 — the date-only bound has teeth", async () => {
+    // `"2026-07-01T09:30"` is a valid task `remind_at` but NOT a valid countdown
+    // anchor: the countdown wants a date-only string, so the regex forbids the
+    // time component. Proves the bound rejects a plausible-but-wrong value, not
+    // just garbage.
+    const { status, body } = await createCountdown(alice.token, "2026-07-01T09:30");
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "date"),
+      "a datetime with a time component must still name `date`",
+    );
+  });
+
+  test("valid `date` round-trips — create persists it and a list read reflects it back", async () => {
+    const date = "2026-12-25";
+    const { status, body: created } = await createCountdown(alice.token, date);
+    assert.equal(status, 201, "a well-formed date must be accepted");
+    assert.equal(created.date, date, "the create response must echo the stored date");
+
+    // No GET /:id on this resource — the value must survive storage and appear
+    // in the owner's list so display + recurrence can read it back later.
+    const list = await api("GET", "/v1/countdowns", { token: alice.token });
+    assert.equal(list.status, 200);
+    const found = (list.body as Array<{ id: string; date: string }>).find((e) => e.id === created.id);
+    assert.ok(found, "the created countdown must appear in the owner's list");
+    assert.equal(found!.date, date, "a subsequent read must reflect the persisted date");
+  });
+
+  test("malformed `date` on PATCH → 400 and the stored date is left unmutated", async () => {
+    const good = "2027-01-01";
+    const { body: created } = await createCountdown(alice.token, good);
+
+    const { status, body } = await api("PATCH", `/v1/countdowns/${created.id}`, {
+      token: alice.token,
+      body: { date: "2027/01/01" },
+    });
+    assert.equal(status, 400, "the update path must validate `date` too");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+
+    // No partial poison: the rejected PATCH must not have overwritten the column.
+    const list = await api("GET", "/v1/countdowns", { token: alice.token });
+    const found = (list.body as Array<{ id: string; date: string }>).find((e) => e.id === created.id);
+    assert.equal(found?.date, good, "a rejected update must leave the stored date unchanged");
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Design for RECOVERABILITY — bad input must not poison the server
 // ═══════════════════════════════════════════════════════════════════════════════
