@@ -26,7 +26,10 @@ import type {
   PersonCreateInput,
   PersonUpdateInput,
   TaskTemplate,
+  ProjectTemplate,
+  Template,
   TemplatePayload,
+  ProjectTemplatePayload,
   TemplateCreateInput,
 } from "@lumo/contracts";
 
@@ -44,7 +47,10 @@ export type {
   PersonCreateInput,
   PersonUpdateInput,
   TaskTemplate,
+  ProjectTemplate,
+  Template,
   TemplatePayload,
+  ProjectTemplatePayload,
   TemplateCreateInput,
 };
 

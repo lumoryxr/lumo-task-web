@@ -5,7 +5,8 @@ import { useProjectsStore } from "@/store/useProjectsStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import type { Project, ProjectColor } from "@/types/task";
 import { EmptyState } from "@/components/EmptyState";
-import { IconProject, IconPlus } from "@/components/icons";
+import { ProjectTemplatePicker } from "@/components/ProjectTemplatePicker";
+import { IconProject, IconPlus, IconBookmark } from "@/components/icons";
 
 const COLOR_PRIMARY: Record<ProjectColor, string> = {
   green: "var(--accent-primary)",
@@ -24,6 +25,7 @@ export function ProjectsPage() {
   const tasks = useTasksStore((s) => s.tasks);
   const [category, setCategory] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // Real done/total ring (#223): completed counts come from the server.
   useEffect(() => {
@@ -62,20 +64,26 @@ export function ProjectsPage() {
   if (projects.length === 0) {
     return (
       <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
-        <Header onNew={handleNew} busy={busy} t={t} />
+        <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} busy={busy} t={t} />
         <EmptyState
           icon={<IconProject size={28} />}
           title={t("project.empty.title")}
           subtitle={t("project.empty.subtitle")}
           cta={{ label: t("project.new"), onClick: handleNew }}
         />
+        {pickerOpen && (
+          <ProjectTemplatePicker
+            onClose={() => setPickerOpen(false)}
+            onCreated={(p) => navigate(`/projects/${p.id}`)}
+          />
+        )}
       </div>
     );
   }
 
   return (
     <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
-      <Header onNew={handleNew} busy={busy} t={t} />
+      <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} busy={busy} t={t} />
 
       {categories.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 mb-4" role="group" aria-label={t("project.category.label")}>
@@ -91,23 +99,40 @@ export function ProjectsPage() {
           <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} t={t} />
         ))}
       </div>
+
+      {pickerOpen && (
+        <ProjectTemplatePicker
+          onClose={() => setPickerOpen(false)}
+          onCreated={(p) => navigate(`/projects/${p.id}`)}
+        />
+      )}
     </div>
   );
 }
 
-function Header({ onNew, busy, t }: { onNew: () => void; busy: boolean; t: (k: string) => string }) {
+function Header({ onNew, onFromTemplate, busy, t }: { onNew: () => void; onFromTemplate: () => void; busy: boolean; t: (k: string) => string }) {
   return (
     <div className="flex items-center justify-between mb-5">
       <h1 className="text-xl font-semibold text-text-primary">{t("project.page.title")}</h1>
-      <button
-        onClick={onNew}
-        disabled={busy}
-        className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-        style={{ color: "var(--accent-primary)", background: "var(--accent-fog)", border: "1px solid var(--accent-edge)" }}
-      >
-        <IconPlus size={14} />
-        {t("project.new")}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onFromTemplate}
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+          style={{ border: "1px solid var(--border-default)" }}
+        >
+          <IconBookmark size={14} />
+          {t("project.fromTemplate")}
+        </button>
+        <button
+          onClick={onNew}
+          disabled={busy}
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+          style={{ color: "var(--accent-primary)", background: "var(--accent-fog)", border: "1px solid var(--accent-edge)" }}
+        >
+          <IconPlus size={14} />
+          {t("project.new")}
+        </button>
+      </div>
     </div>
   );
 }

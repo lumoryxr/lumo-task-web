@@ -8,7 +8,7 @@
  * JWT token is stored in localStorage and attached to every request.
  */
 
-import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, TemplatePayload, User } from "@/types/task";
+import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, ProjectTemplate, Template, TemplatePayload, ProjectTemplatePayload, User } from "@/types/task";
 import type { SyncStatusResponse, SyncCycleResponse } from "@lumo/contracts";
 import { ApiError } from "@/api/ApiError";
 
@@ -654,13 +654,23 @@ function adaptHabitLog(raw: any): HabitLog {
   };
 }
 
-function adaptTemplate(raw: any): TaskTemplate {
+function adaptTemplate(raw: any): Template {
+  const createdAt = raw.created_at ?? raw.createdAt;
+  if (raw.kind === "project") {
+    return {
+      id: raw.id,
+      name: raw.name,
+      kind: "project",
+      payload: raw.payload as ProjectTemplatePayload,
+      createdAt,
+    };
+  }
   return {
     id: raw.id,
     name: raw.name,
-    kind: raw.kind ?? "task",
+    kind: "task",
     payload: raw.payload as TemplatePayload,
-    createdAt: raw.created_at ?? raw.createdAt,
+    createdAt,
   };
 }
 
@@ -798,7 +808,7 @@ export const countdownApi = {
 // ── Template REST API (#173) ──────────────────────────────────────────────────
 
 export const templateApi = {
-  async list(): Promise<TaskTemplate[]> {
+  async list(): Promise<Template[]> {
     const rows = await req<any[]>("GET", "/templates");
     // Defensive: tolerate a non-array body (e.g. a stubbed endpoint) instead of
     // throwing a raw TypeError from .map.
@@ -811,10 +821,21 @@ export const templateApi = {
       name,
       payload,
     });
-    return adaptTemplate(raw);
+    return adaptTemplate(raw) as TaskTemplate;
   },
 
-  async rename(id: string, name: string): Promise<TaskTemplate> {
+  // Project templates (#211 V2 ⭐3): stored on the same entity with kind="project".
+  async createProject(name: string, payload: ProjectTemplatePayload, id?: string): Promise<ProjectTemplate> {
+    const raw = await req<any>("POST", "/templates", {
+      ...(id ? { id } : {}),
+      name,
+      kind: "project",
+      payload,
+    });
+    return adaptTemplate(raw) as ProjectTemplate;
+  },
+
+  async rename(id: string, name: string): Promise<Template> {
     const raw = await req<any>("PATCH", `/templates/${id}`, { name });
     return adaptTemplate(raw);
   },

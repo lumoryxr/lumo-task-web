@@ -3,11 +3,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useT } from "@/i18n/useT";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { useTasksStore } from "@/store/useTasksStore";
-import type { ProjectColor, ProjectGoal } from "@/types/task";
+import { useTemplatesStore } from "@/store/useTemplatesStore";
+import type { Project, ProjectColor, ProjectGoal } from "@/types/task";
 import { TaskRow } from "@/components/TaskRow";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { EmptyState } from "@/components/EmptyState";
-import { IconArrowLeft, IconCheck, IconClose, IconPlus, IconProject, IconTrash } from "@/components/icons";
+import { IconArrowLeft, IconBookmark, IconCheck, IconClose, IconPlus, IconProject, IconTrash } from "@/components/icons";
 
 const COLORS: ProjectColor[] = ["green", "cyan", "amber", "red"];
 const COLOR_PRIMARY: Record<ProjectColor, string> = {
@@ -26,8 +27,10 @@ export function ProjectDetailPage() {
   const remove = useProjectsStore((s) => s.remove);
   const tasks = useTasksStore((s) => s.tasks);
   const createTask = useTasksStore((s) => s.create);
+  const saveFromProject = useTemplatesStore((s) => s.saveFromProject);
   const doneCount = useProjectsStore((s) => (id ? s.doneCounts[id] ?? 0 : 0));
   const loadProgress = useProjectsStore((s) => s.loadProgress);
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   const [newGoal, setNewGoal] = useState("");
   const [newTask, setNewTask] = useState("");
@@ -75,6 +78,16 @@ export function ProjectDetailPage() {
 
   function onEnter(e: KeyboardEvent, fn: () => void) {
     if (e.key === "Enter") { e.preventDefault(); fn(); }
+  }
+
+  async function handleSaveTemplate(p: Project) {
+    if (savingTemplate) return;
+    setSavingTemplate(true);
+    try {
+      await saveFromProject(p, projectTasks);
+    } finally {
+      setSavingTemplate(false);
+    }
   }
 
   const primary = COLOR_PRIMARY[project.color];
@@ -129,6 +142,15 @@ export function ProjectDetailPage() {
           />
         ))}
         <div className="flex-1" />
+        <button
+          onClick={() => void handleSaveTemplate(project)}
+          disabled={savingTemplate}
+          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
+          style={{ border: "1px solid var(--border-default)" }}
+        >
+          <IconBookmark size={12} />
+          {t("project.saveAsTemplate")}
+        </button>
         <button
           onClick={() => update(project.id, { status: project.status === "archived" ? "active" : "archived" })}
           className="text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
