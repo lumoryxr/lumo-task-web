@@ -53,19 +53,61 @@ export const TemplatePayloadSchema = z.object({
   subtasks: z.array(z.object({ title: z.string().min(1).max(500) })).default([]),
 });
 
+// ── Project template payload (#211 V2 ⭐3) ─────────────────────────────────────
+//
+// A project blueprint: the project's authored fields plus a set of task
+// scaffolds. Instantiating rebuilds a fresh project (goals reset to not-done)
+// and one new task per scaffold, filed under it — reusing the same task
+// blueprint shape as single-task templates so the two stay aligned. Mirrors the
+// backend ProjectBody validation (name/category/color/emoji/goals/content).
+export const ProjectTemplateGoalSchema = z.object({
+  text: z.string().min(1).max(200),
+});
+
+export const ProjectTemplatePayloadSchema = z.object({
+  name: z.string().min(1).max(200),
+  category: z.string().max(60).nullable().optional(),
+  color: z.enum(["green", "cyan", "amber", "red"]).default("green"),
+  emoji: z.string().max(10).nullable().optional(),
+  // Goals carry text only — completion is reset on instantiate, just like task
+  // progress is dropped from a task template.
+  goals: z.array(ProjectTemplateGoalSchema).max(50).default([]),
+  content: z.string().max(1_000_000).nullable().optional(),
+  tasks: z.array(TemplatePayloadSchema).max(100).default([]),
+});
+
 // ── Request bodies ────────────────────────────────────────────────────────────
 
-export const TemplateCreateBodySchema = z.object({
+// A union (not a single object with an optional kind) so each kind's payload is
+// validated against the right schema. The task variant defaults kind to "task",
+// preserving backward compatibility with clients that omit it entirely.
+const TaskTemplateCreateSchema = z.object({
   // Optional client-generated id (offline-first), server-generated when absent.
   id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
   name: z.string().min(1).max(200),
-  // V1 only supports single-task templates; the field is here so V2 (project
-  // templates) is an additive change, not a breaking one.
   kind: z.literal("task").default("task"),
   payload: TemplatePayloadSchema,
 });
 
-export const TemplateUpdateBodySchema = TemplateCreateBodySchema.partial();
+const ProjectTemplateCreateSchema = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
+  name: z.string().min(1).max(200),
+  kind: z.literal("project"),
+  payload: ProjectTemplatePayloadSchema,
+});
+
+export const TemplateCreateBodySchema = z.union([
+  TaskTemplateCreateSchema,
+  ProjectTemplateCreateSchema,
+]);
+
+// Update is a rename or payload replace; payload (when present) is validated per
+// kind by the route. The common path — renaming a library entry — sends name only.
+export const TemplateUpdateBodySchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  kind: z.enum(["task", "project"]).optional(),
+  payload: z.union([TemplatePayloadSchema, ProjectTemplatePayloadSchema]).optional(),
+});
 
 // ── Wire response ─────────────────────────────────────────────────────────────
 
@@ -73,13 +115,15 @@ export const TemplateWireSchema = z.object({
   id: z.string(),
   name: z.string(),
   kind: z.string(),
-  payload: TemplatePayloadSchema,
+  payload: z.union([TemplatePayloadSchema, ProjectTemplatePayloadSchema]),
   created_at: z.string(),
 });
 
 // ── Inferred request/wire types ───────────────────────────────────────────────
 
 export type TemplatePayload = z.infer<typeof TemplatePayloadSchema>;
+export type ProjectTemplatePayload = z.infer<typeof ProjectTemplatePayloadSchema>;
+export type TemplateKind = "task" | "project";
 export type TemplateCreateInput = z.input<typeof TemplateCreateBodySchema>;
 export type TemplateUpdateInput = z.input<typeof TemplateUpdateBodySchema>;
 export type TemplateWire = z.infer<typeof TemplateWireSchema>;
@@ -94,3 +138,13 @@ export interface TaskTemplate {
   payload: TemplatePayload;
   createdAt: string;
 }
+
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  kind: "project";
+  payload: ProjectTemplatePayload;
+  createdAt: string;
+}
+
+export type Template = TaskTemplate | ProjectTemplate;
