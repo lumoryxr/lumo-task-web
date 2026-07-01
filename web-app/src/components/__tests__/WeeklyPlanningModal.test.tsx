@@ -228,14 +228,14 @@ describe("WeeklyPlanningModal", () => {
   // ── Done step ────────────────────────────────────────────────────────────
 
   it("shows selected tasks on done step with star icon", async () => {
-    TASKS = [makeTask({ id: "t1", title: { en: "Important Task" }, quadrant: "Q1" })];
+    TASKS = [makeTask({ id: "t1", title: { en: "Alpha Task" }, quadrant: "Q1" })];
     const user = userEvent.setup();
     renderModal();
     fireEvent.click(screen.getByText("planning.btn.next")); // → select
-    await user.click(screen.getByText("Important Task"));
+    await user.click(screen.getByText("Alpha Task"));
     fireEvent.click(screen.getByText("planning.btn.next")); // → done
     expect(screen.getByText("weekly.step.done.title")).toBeInTheDocument();
-    expect(screen.getByText("Important Task")).toBeInTheDocument();
+    expect(screen.getByText("Alpha Task")).toBeInTheDocument();
     expect(screen.getByText("★")).toBeInTheDocument();
   });
 
