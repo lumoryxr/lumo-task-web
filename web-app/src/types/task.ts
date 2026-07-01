@@ -176,6 +176,8 @@ export interface Project {
   /** Rich-text body (TipTap JSON / markdown string). Plain text until #215. */
   content?: string;
   status: ProjectStatus;
+  /** Pinned projects sort to the top of the gallery (#211 V2 ⭐6b). */
+  pinned: boolean;
   createdAt: string;
   updatedAt: string;
 }

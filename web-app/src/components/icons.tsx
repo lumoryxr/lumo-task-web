@@ -147,6 +147,13 @@ export const IconBookmark = (p: IconProps) => (
   </svg>
 );
 
+export const IconPin = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M9 3h6l-1 6 3 3H7l3-3-1-6z" />
+    <path d="M12 15v6" />
+  </svg>
+);
+
 export const IconProject = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />

@@ -33,6 +33,7 @@ const ProjectBody = z.object({
   goals: z.array(GoalSchema).max(50).default([]),
   content: z.string().max(1_000_000).optional().nullable(),
   status: z.enum(["active", "archived"]).default("active"),
+  pinned: z.boolean().default(false),
 });
 
 const ProjectUpdateBody = ProjectBody.partial();
@@ -47,6 +48,7 @@ const MigrateBody = z.object({
     goals: z.array(GoalSchema).max(50).default([]),
     content: z.string().max(1_000_000).optional().nullable(),
     status: z.enum(["active", "archived"]).default("active"),
+    pinned: z.boolean().default(false),
     createdAt: z.string(),
   })),
 });
@@ -71,6 +73,7 @@ export function rowToProject(row: ProjectRow) {
     goals: parseGoals(row.goals_json),
     content: row.content ?? undefined,
     status: row.status,
+    pinned: row.pinned === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -94,9 +97,9 @@ app.post("/migrate", validate("json", MigrateBody), async (c) => {
   for (const p of projects) {
     await execute(
       `INSERT OR IGNORE INTO projects
-         (id, user_id, name, category, color, emoji, goals_json, content, status, created_at, updated_at)
+         (id, user_id, name, category, color, emoji, goals_json, content, status, pinned, created_at, updated_at)
        VALUES
-         (:id, :user_id, :name, :category, :color, :emoji, :goals_json, :content, :status, :created_at, :updated_at)`,
+         (:id, :user_id, :name, :category, :color, :emoji, :goals_json, :content, :status, :pinned, :created_at, :updated_at)`,
       {
         id: p.id,
         user_id: userId,
@@ -107,6 +110,7 @@ app.post("/migrate", validate("json", MigrateBody), async (c) => {
         goals_json: JSON.stringify(p.goals ?? []),
         content: p.content ?? null,
         status: p.status,
+        pinned: p.pinned ? 1 : 0,
         created_at: p.createdAt,
         // `updated_at` is the LWW/cursor key → canonical HLC, not the client's
         // raw ISO `createdAt` (which would lose sync races). Stamp import time.
@@ -129,9 +133,9 @@ app.post("/", validate("json", ProjectBody), async (c) => {
 
   await execute(
     `INSERT INTO projects
-       (id, user_id, name, category, color, emoji, goals_json, content, status, created_at, updated_at)
+       (id, user_id, name, category, color, emoji, goals_json, content, status, pinned, created_at, updated_at)
      VALUES
-       (:id, :user_id, :name, :category, :color, :emoji, :goals_json, :content, :status, :now, :sync_ts)`,
+       (:id, :user_id, :name, :category, :color, :emoji, :goals_json, :content, :status, :pinned, :now, :sync_ts)`,
     {
       id,
       user_id: userId,
@@ -142,6 +146,7 @@ app.post("/", validate("json", ProjectBody), async (c) => {
       goals_json: JSON.stringify(body.goals ?? []),
       content: body.content ?? null,
       status: body.status,
+      pinned: body.pinned ? 1 : 0,
       now, sync_ts: syncTs,
     }
   );
@@ -170,7 +175,7 @@ app.patch("/:id", validate("param", IdParam), validate("json", ProjectUpdateBody
   await execute(
     `UPDATE projects SET
        name = :name, category = :category, color = :color, emoji = :emoji,
-       goals_json = :goals_json, content = :content, status = :status, updated_at = :now
+       goals_json = :goals_json, content = :content, status = :status, pinned = :pinned, updated_at = :now
      WHERE id = :id AND user_id = :uid`,
     {
       name: body.name ?? existing.name,
@@ -180,6 +185,7 @@ app.patch("/:id", validate("param", IdParam), validate("json", ProjectUpdateBody
       goals_json: body.goals !== undefined ? JSON.stringify(body.goals) : existing.goals_json,
       content: "content" in body ? (body.content ?? null) : existing.content,
       status: body.status ?? existing.status,
+      pinned: body.pinned !== undefined ? (body.pinned ? 1 : 0) : existing.pinned,
       now,
       id: projectId,
       uid: userId,
