@@ -857,12 +857,15 @@ function adaptProject(raw: any): Project {
     goals: Array.isArray(raw.goals) ? raw.goals : [],
     content: raw.content ?? undefined,
     status: raw.status ?? "active",
+    pinned: raw.pinned ?? false,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
 }
 
-export type ProjectCreateInput = Omit<Project, "id" | "createdAt" | "updatedAt">;
+// `pinned` is optional on create (defaults false server-side), so existing
+// create call sites need not pass it.
+export type ProjectCreateInput = Omit<Project, "id" | "createdAt" | "updatedAt" | "pinned"> & { pinned?: boolean };
 export type ProjectUpdateInput = Partial<Omit<Project, "id" | "createdAt" | "updatedAt">>;
 
 export const projectApi = {
@@ -881,6 +884,7 @@ export const projectApi = {
       goals: input.goals ?? [],
       content: input.content ?? null,
       status: input.status ?? "active",
+      pinned: input.pinned ?? false,
     });
     return adaptProject(raw);
   },
@@ -894,6 +898,7 @@ export const projectApi = {
       ...(patch.goals !== undefined && { goals: patch.goals }),
       ...("content" in patch && { content: patch.content ?? null }),
       ...(patch.status !== undefined && { status: patch.status }),
+      ...(patch.pinned !== undefined && { pinned: patch.pinned }),
     });
     return adaptProject(raw);
   },

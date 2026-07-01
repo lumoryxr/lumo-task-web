@@ -41,7 +41,36 @@ describe("Projects", () => {
     assert.equal(body.goals.length, 2);
     assert.equal(body.goals[0].text, "Ship V1");
     assert.equal(body.goals[1].done, false, "goal done defaults to false");
+    assert.equal(body.pinned, false, "pinned defaults to false");
     projectId = body.id;
+  });
+
+  test("pinned round-trips through create → GET → PATCH (#211 V2 ⭐6b)", async () => {
+    const { status, body } = await req("POST", "/v1/projects", {
+      token: demoToken,
+      body: { name: "Pinned proj", pinned: true },
+    });
+    assert.equal(status, 201);
+    assert.equal(body.pinned, true);
+
+    const { body: list } = await req("GET", "/v1/projects", { token: demoToken });
+    assert.equal((list as any[]).find((p) => p.id === body.id)?.pinned, true, "pinned survives GET");
+
+    const { body: patched } = await req("PATCH", `/v1/projects/${body.id}`, {
+      token: demoToken,
+      body: { pinned: false },
+    });
+    assert.equal(patched.pinned, false, "unpin persists");
+
+    // A patch that omits pinned must not silently reset it.
+    await req("PATCH", `/v1/projects/${body.id}`, { token: demoToken, body: { pinned: true } });
+    const { body: renamed } = await req("PATCH", `/v1/projects/${body.id}`, {
+      token: demoToken,
+      body: { name: "renamed only" },
+    });
+    assert.equal(renamed.pinned, true, "omitted pinned is preserved");
+
+    await req("DELETE", `/v1/projects/${body.id}`, { token: demoToken });
   });
 
   test("400 → POST rejects a missing name", async () => {

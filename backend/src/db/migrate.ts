@@ -363,11 +363,19 @@ export async function runMigrations() {
       goals_json TEXT NOT NULL DEFAULT '[]',
       content TEXT,
       status TEXT NOT NULL DEFAULT 'active',
+      pinned INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       deleted_at TEXT
     )
   `);
+
+  // Migrate: pinned flag (#211 V2 ⭐6b) for existing projects tables. Additive,
+  // idempotent; pinned projects sort to the top of the gallery.
+  const projectCols = await query<{ name: string }>("PRAGMA table_info(projects)");
+  if (!projectCols.some((c) => c.name === "pinned")) {
+    await execRaw("ALTER TABLE projects ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0");
+  }
 
   // Migrate: per-user session version. Tokens embed the version they were minted
   // with; bumping it (on password change) invalidates all prior tokens.

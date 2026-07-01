@@ -34,4 +34,20 @@ describe("sortProjects", () => {
     sortProjects(input, "name", pct);
     expect(input.map((p) => p.id)).toEqual(["a", "b", "c"]);
   });
+
+  it("pinned projects float to the top regardless of mode", () => {
+    const withPin = [
+      { ...P("a", "Banana", "2026-06-01T00:00:00.000Z") },
+      { ...P("b", "apple", "2026-06-03T00:00:00.000Z"), pinned: true },
+      { ...P("c", "Cherry", "2026-06-02T00:00:00.000Z") },
+    ];
+    // Name mode would order b,a,c; pinned b already leads. Pin the last instead:
+    const pinnedC = [
+      { ...P("a", "Banana", "2026-06-01T00:00:00.000Z") },
+      { ...P("b", "apple", "2026-06-03T00:00:00.000Z") },
+      { ...P("c", "Cherry", "2026-06-02T00:00:00.000Z"), pinned: true },
+    ];
+    expect(sortProjects(pinnedC, "name", pct)[0].id).toBe("c"); // pinned wins over A→Z
+    expect(sortProjects(withPin, "recent", pct)[0].id).toBe("b");
+  });
 });

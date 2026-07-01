@@ -3,7 +3,7 @@ import type { Project } from "@/types/task";
 
 function mk(id: string, over: Partial<Project> = {}): Project {
   return {
-    id, name: id, color: "green", goals: [], status: "active",
+    id, name: id, color: "green", goals: [], status: "active", pinned: false,
     createdAt: "2026-06-30T00:00:00.000Z", updatedAt: "2026-06-30T00:00:00.000Z", ...over,
   };
 }
@@ -13,7 +13,7 @@ const { list, create, update, del, listAllCompleted } = vi.hoisted(() => ({
   create: vi.fn(async (input: any, id?: string): Promise<Project> => ({
     id: id ?? "prj_new", name: input.name, color: input.color, emoji: input.emoji,
     category: input.category, goals: input.goals ?? [], content: input.content,
-    status: input.status ?? "active", createdAt: "c", updatedAt: "c",
+    status: input.status ?? "active", pinned: input.pinned ?? false, createdAt: "c", updatedAt: "c",
   })),
   update: vi.fn(async (id: string, patch: any): Promise<Project> => ({ ...mk(id), ...patch })),
   del: vi.fn(async () => {}),

@@ -151,7 +151,7 @@ export const SYNC_MANIFEST: SyncEntity[] = [
     schema: projectRowSchema,
     columns: [
       "id", "user_id", "name", "category", "color", "emoji", "goals_json",
-      "content", "status", "created_at", "updated_at", "deleted_at",
+      "content", "status", "pinned", "created_at", "updated_at", "deleted_at",
     ],
   },
 ];

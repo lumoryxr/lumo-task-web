@@ -7,7 +7,7 @@ import type { Project, ProjectColor } from "@/types/task";
 import { EmptyState } from "@/components/EmptyState";
 import { ProjectTemplatePicker } from "@/components/ProjectTemplatePicker";
 import { sortProjects, type ProjectSort } from "@/utils/projectSort";
-import { IconProject, IconPlus, IconBookmark } from "@/components/icons";
+import { IconProject, IconPlus, IconBookmark, IconPin } from "@/components/icons";
 
 const COLOR_PRIMARY: Record<ProjectColor, string> = {
   green: "var(--accent-primary)",
@@ -21,6 +21,7 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const projects = useProjectsStore((s) => s.projects);
   const createProject = useProjectsStore((s) => s.create);
+  const updateProject = useProjectsStore((s) => s.update);
   const doneCounts = useProjectsStore((s) => s.doneCounts);
   const loadProgress = useProjectsStore((s) => s.loadProgress);
   const tasks = useTasksStore((s) => s.tasks);
@@ -128,7 +129,7 @@ export function ProjectsPage() {
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
         {active.map((p) => (
-          <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} t={t} />
+          <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} onTogglePin={() => updateProject(p.id, { pinned: !p.pinned })} t={t} />
         ))}
       </div>
 
@@ -148,7 +149,7 @@ export function ProjectsPage() {
           {showArchived && (
             <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
               {archived.map((p) => (
-                <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} t={t} />
+                <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} onTogglePin={() => updateProject(p.id, { pinned: !p.pinned })} t={t} />
               ))}
             </div>
           )}
@@ -208,7 +209,7 @@ function CatChip({ label, active, onClick }: { label: string; active: boolean; o
   );
 }
 
-function ProjectCard({ project, taskCount, doneCount, onOpen, t }: { project: Project; taskCount: number; doneCount: number; onOpen: () => void; t: (k: string) => string }) {
+function ProjectCard({ project, taskCount, doneCount, onOpen, onTogglePin, t }: { project: Project; taskCount: number; doneCount: number; onOpen: () => void; onTogglePin: () => void; t: (k: string) => string }) {
   const primary = COLOR_PRIMARY[project.color];
   const goalsDone = project.goals.filter((g) => g.done).length;
   // Real task progress (#223): done = completed entries snapshotted to this
@@ -216,11 +217,26 @@ function ProjectCard({ project, taskCount, doneCount, onOpen, t }: { project: Pr
   const total = doneCount + taskCount;
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
   return (
-    <button
-      onClick={onOpen}
-      className="text-left rounded-xl p-4 transition-all hover:-translate-y-0.5"
-      style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
-    >
+    <div className="relative">
+      {/* Pin toggle — sibling overlay (not nested) so the whole-card button stays valid HTML */}
+      <button
+        onClick={onTogglePin}
+        aria-label={project.pinned ? t("project.unpin") : t("project.pin")}
+        aria-pressed={project.pinned}
+        title={project.pinned ? t("project.unpin") : t("project.pin")}
+        className="absolute top-2 right-2 z-10 flex items-center justify-center w-6 h-6 rounded-md transition-colors"
+        style={{
+          color: project.pinned ? "var(--accent-primary)" : "var(--text-faint)",
+          background: project.pinned ? "var(--accent-fog)" : "transparent",
+        }}
+      >
+        <IconPin size={13} />
+      </button>
+      <button
+        onClick={onOpen}
+        className="w-full text-left rounded-xl p-4 transition-all hover:-translate-y-0.5"
+        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
+      >
       <div className="flex items-center gap-2.5 mb-3">
         <div
           className="flex items-center justify-center rounded-lg text-lg"
@@ -243,7 +259,8 @@ function ProjectCard({ project, taskCount, doneCount, onOpen, t }: { project: Pr
         )}
         {project.status === "archived" && <span style={{ color: "var(--text-faint)" }}>{t("project.status.archived")}</span>}
       </div>
-    </button>
+      </button>
+    </div>
   );
 }
 

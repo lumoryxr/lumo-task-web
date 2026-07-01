@@ -152,6 +152,7 @@ export interface ProjectRow {
   goals_json: string;
   content: string | null;
   status: string;
+  pinned: number;
   created_at: string;
   updated_at: string;
   // deleted_at added via the shared soft-delete ALTER loop in migrate.ts
