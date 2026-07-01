@@ -17,9 +17,11 @@ interface ProjectsState {
   loaded: boolean;
   /** Completed-task count per project_id (#223), for the real done/total ring. */
   doneCounts: Record<string, number>;
+  /** Completed focus minutes per project_id (#211 V2 ⭐5), for project recaps. */
+  focusMinutes: Record<string, number>;
   byId: (id: string | null | undefined) => Project | undefined;
   load: () => Promise<void>;
-  /** Fetch all completed entries once and aggregate done-counts per project. */
+  /** Fetch all completed entries once and aggregate per-project done + focus. */
   loadProgress: () => Promise<void>;
   clear: () => void;
   create: (input: ProjectCreateInput) => Promise<Project>;
@@ -31,6 +33,7 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
   projects: [],
   loaded: false,
   doneCounts: {},
+  focusMinutes: {},
 
   byId: (id) => (id ? get().projects.find((p) => p.id === id) : undefined),
 
@@ -47,17 +50,21 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
     try {
       const entries = await api.listAllCompleted();
       const counts: Record<string, number> = {};
+      const minutes: Record<string, number> = {};
       for (const e of entries) {
-        if (e.projectId) counts[e.projectId] = (counts[e.projectId] ?? 0) + 1;
+        if (e.projectId) {
+          counts[e.projectId] = (counts[e.projectId] ?? 0) + 1;
+          minutes[e.projectId] = (minutes[e.projectId] ?? 0) + (e.duration ?? 0);
+        }
       }
-      set({ doneCounts: counts });
+      set({ doneCounts: counts, focusMinutes: minutes });
     } catch {
       // Progress ring is best-effort; on failure cards fall back to 0 done.
     }
   },
 
   clear() {
-    set({ projects: [], loaded: false, doneCounts: {} });
+    set({ projects: [], loaded: false, doneCounts: {}, focusMinutes: {} });
   },
 
   async create(input) {

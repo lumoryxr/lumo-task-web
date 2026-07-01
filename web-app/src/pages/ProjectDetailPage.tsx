@@ -4,11 +4,14 @@ import { useT } from "@/i18n/useT";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useTemplatesStore } from "@/store/useTemplatesStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import type { Project, ProjectColor, ProjectGoal } from "@/types/task";
 import { TaskRow } from "@/components/TaskRow";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
+import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { EmptyState } from "@/components/EmptyState";
-import { IconArrowLeft, IconBookmark, IconCheck, IconClose, IconPlus, IconProject, IconTrash } from "@/components/icons";
+import { computeProjectRecap } from "@/utils/projectRecap";
+import { IconArrowLeft, IconBookmark, IconCheck, IconClose, IconPlus, IconProject, IconShare, IconTrash } from "@/components/icons";
 
 const COLORS: ProjectColor[] = ["green", "cyan", "amber", "red"];
 const COLOR_PRIMARY: Record<ProjectColor, string> = {
@@ -29,8 +32,11 @@ export function ProjectDetailPage() {
   const createTask = useTasksStore((s) => s.create);
   const saveFromProject = useTemplatesStore((s) => s.saveFromProject);
   const doneCount = useProjectsStore((s) => (id ? s.doneCounts[id] ?? 0 : 0));
+  const focusMinutes = useProjectsStore((s) => (id ? s.focusMinutes[id] ?? 0 : 0));
   const loadProgress = useProjectsStore((s) => s.loadProgress);
+  const userName = useAuthStore((s) => s.user.name);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [recapOpen, setRecapOpen] = useState(false);
 
   const [newGoal, setNewGoal] = useState("");
   const [newTask, setNewTask] = useState("");
@@ -142,6 +148,14 @@ export function ProjectDetailPage() {
           />
         ))}
         <div className="flex-1" />
+        <button
+          onClick={() => setRecapOpen(true)}
+          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
+          style={{ border: "1px solid var(--border-default)" }}
+        >
+          <IconShare size={12} />
+          {t("project.recap.button")}
+        </button>
         <button
           onClick={() => void handleSaveTemplate(project)}
           disabled={savingTemplate}
@@ -261,6 +275,15 @@ export function ProjectDetailPage() {
           onChange={(json) => update(pid, { content: json || undefined })}
         />
       </Section>
+
+      {recapOpen && (
+        <ProjectRecapCard
+          project={project}
+          recap={computeProjectRecap(project, doneCount, projectTasks.length, focusMinutes)}
+          userName={userName}
+          onClose={() => setRecapOpen(false)}
+        />
+      )}
     </div>
   );
 }
