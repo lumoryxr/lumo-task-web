@@ -29,7 +29,7 @@ import { toast } from "@/store/useToastStore";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useProjectsStore.setState({ projects: [], loaded: false, doneCounts: {} });
+  useProjectsStore.setState({ projects: [], loaded: false, doneCounts: {}, focusMinutes: {} });
 });
 
 describe("useProjectsStore", () => {
@@ -75,13 +75,14 @@ describe("useProjectsStore", () => {
     expect(s.byId("nope")).toBeUndefined();
   });
 
-  it("loadProgress aggregates completed counts per project (#223)", async () => {
+  it("loadProgress aggregates completed counts + focus minutes per project (#223, ⭐5)", async () => {
     listAllCompleted.mockResolvedValueOnce([
-      { id: "c1", projectId: "a" }, { id: "c2", projectId: "a" },
-      { id: "c3", projectId: "b" }, { id: "c4", projectId: null }, { id: "c5" },
+      { id: "c1", projectId: "a", duration: 25 }, { id: "c2", projectId: "a", duration: 50 },
+      { id: "c3", projectId: "b", duration: 10 }, { id: "c4", projectId: null, duration: 99 }, { id: "c5" },
     ]);
     await useProjectsStore.getState().loadProgress();
     expect(useProjectsStore.getState().doneCounts).toEqual({ a: 2, b: 1 });
+    expect(useProjectsStore.getState().focusMinutes).toEqual({ a: 75, b: 10 });
   });
 
   it("loadProgress swallows errors and leaves doneCounts untouched (best-effort)", async () => {
