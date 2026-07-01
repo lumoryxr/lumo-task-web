@@ -8,7 +8,7 @@ import { useT, useLocaleString } from "@/i18n/useT";
 import { TaskTitle } from "@/components/TaskTitle";
 import type { Quadrant, Task } from "@/types/task";
 import { useAppStore } from "@/store/useAppStore";
-import { fmtDuration, getDueLabel } from "@/lib/format";
+import { fmtDuration, getDueLabel, getDueColor } from "@/lib/format";
 import { IconArrowRight, IconBookmark, IconCheck, IconMore, IconSparkle } from "@/components/icons";
 import { AIClassifyModal } from "@/components/AIClassifyModal";
 import { TemplateLibraryModal } from "@/components/TemplateLibraryModal";
@@ -335,6 +335,7 @@ function MatrixTaskCard({ task }: { task: Task }) {
 
   const assignees = (task.assignee_ids ?? []).map(byId).filter(Boolean) as import("@/types/task").Person[];
   const due = getDueLabel(task.due, locale);
+  const dueColor = getDueColor(task.due);
 
   return (
     <>
@@ -389,7 +390,7 @@ function MatrixTaskCard({ task }: { task: Task }) {
             )}
           </div>
           <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted tabular-nums">
-            {due && <span>{due}</span>}
+            {due && <span style={{ color: dueColor }}>{due}</span>}
             {task.duration > 0 && <span>{fmtDuration(task.duration, locale)}</span>}
             <span className="pip">
               {Array.from({ length: task.pomos_total }).map((_, i) => (
