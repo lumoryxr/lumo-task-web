@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useDragSettleStore } from "@/store/useDragSettleStore";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { TaskTitle } from "@/components/TaskTitle";
 import { useTaskDrop, makeDragProps } from "@/lib/taskDnd";
 import { IconCheck } from "@/components/icons";
 import type { Quadrant, Task } from "@/types/task";
@@ -99,7 +100,7 @@ function BoardCard({ task }: { task: Task }) {
       >
         {circleHover && <IconCheck size={9} strokeWidth={2.5} />}
       </button>
-      <span className="text-[12px] text-text-primary truncate leading-snug">{ls(task.title)}</span>
+      <span className="text-[12px] text-text-primary truncate leading-snug"><TaskTitle text={ls(task.title)} /></span>
     </div>
   );
 }

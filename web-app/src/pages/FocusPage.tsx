@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { IconArrowLeft, IconCheck, IconPause, IconPlay } from "@/components/icons";
+import { TaskTitle } from "@/components/TaskTitle";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
@@ -359,7 +360,7 @@ export function FocusPage() {
         <span className="chip chip-q1">{task.quadrant !== "unclassified" ? task.quadrant : "—"}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <div className="text-sm font-medium text-text-primary leading-snug">{ls(task.title)}</div>
+            <div className="text-sm font-medium text-text-primary leading-snug"><TaskTitle text={ls(task.title)} /></div>
             {isFallbackTask && (
               <span
                 className="text-[10px] rounded-full flex-shrink-0"

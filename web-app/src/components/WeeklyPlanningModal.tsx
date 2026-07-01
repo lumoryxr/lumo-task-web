@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { TaskTitle } from "@/components/TaskTitle";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useAppStore } from "@/store/useAppStore";
@@ -139,7 +140,7 @@ function ReviewStep({ prevWeekFocusTasks, tasksCompleted, focusMinutes }: Review
                     textDecoration: task.completed ? "line-through" : "none",
                   }}
                 >
-                  {ls(task.title)}
+                  <TaskTitle text={ls(task.title)} />
                 </span>
               </div>
             ))}
@@ -243,7 +244,7 @@ function SelectStep({ pool, selected, onToggle }: SelectStepProps) {
                     className="text-[13px] font-medium flex-1 leading-snug"
                     style={{ color: "var(--text-primary)" }}
                   >
-                    {ls(task.title)}
+                    <TaskTitle text={ls(task.title)} />
                   </span>
                   {getStagnationDays(task.updated_at) >= 7 && (
                     <span
@@ -305,7 +306,7 @@ function DoneStep({ focusTasks }: DoneStepProps) {
             >
               <span style={{ color: "var(--accent-primary)", fontSize: 13 }}>★</span>
               <span className="text-[13px]" style={{ color: "var(--text-primary)" }}>
-                {ls(task.title)}
+                <TaskTitle text={ls(task.title)} />
               </span>
             </div>
           ))}

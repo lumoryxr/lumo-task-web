@@ -3,6 +3,7 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { useAppStore } from "@/store/useAppStore";
 import { useCalendarStore } from "@/store/useCalendarStore";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { TaskTitle } from "@/components/TaskTitle";
 import type { Task, Locale } from "@/types/task";
 import { fmtDuration, parseDueISO, toISODate } from "@/lib/format";
 import { TaskDetailModal } from "./TaskDetailModal";
@@ -518,7 +519,7 @@ function UnscheduledChip({ task }: { task: Task }) {
       >
         <div className="flex items-center gap-1.5">
           <span className={`qdot qdot-${task.quadrant.toLowerCase()} flex-shrink-0`} />
-          <span className="truncate flex-1">{ls(task.title)}</span>
+          <span className="truncate flex-1"><TaskTitle text={ls(task.title)} /></span>
         </div>
         <div className="flex items-center gap-1 ml-0.5">
           {hasScheduled ? (
@@ -570,7 +571,7 @@ function AllDayChip({ task }: { task: Task }) {
         }}
       >
         <span className={`qdot qdot-${task.quadrant.toLowerCase()} flex-shrink-0`} />
-        <span className="truncate flex-1">{ls(task.title)}</span>
+        <span className="truncate flex-1"><TaskTitle text={ls(task.title)} /></span>
         <button
           onClick={(e) => { e.stopPropagation(); complete(task.id); }}
           className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -638,7 +639,7 @@ function TimeBlock({ task, onClearTime }: { task: Task; onClearTime: () => void 
             className="text-[11px] font-medium leading-tight"
             style={{ color: "var(--text-primary)", wordBreak: "break-word" }}
           >
-            {ls(task.title)}
+            <TaskTitle text={ls(task.title)} />
           </span>
           {height >= 40 && (
             <span className="text-[10px] tabular-nums mt-0.5" style={{ color: "var(--text-faint)" }}>

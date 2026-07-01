@@ -13,6 +13,7 @@ import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { IconArrowRight, IconCheck, IconMore, IconRepeat } from "@/components/icons";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
+import { TaskTitle } from "@/components/TaskTitle";
 
 interface TaskRowProps {
   task: Task;
@@ -128,7 +129,7 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
           onClick={() => (selecting ? toggleSelected(task.id) : setDetailOpen(true))}
         >
           <div className="text-sm font-medium text-text-primary truncate leading-snug">
-            {ls(task.title)}
+            <TaskTitle text={ls(task.title)} />
           </div>
           <div className="flex items-center gap-3 mt-0.5 text-xs text-text-muted tabular-nums">
             {due && <span style={{ color: dueColor }}>{due}</span>}
