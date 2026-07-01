@@ -6,6 +6,7 @@ import { useTasksStore } from "@/store/useTasksStore";
 import type { Project, ProjectColor } from "@/types/task";
 import { EmptyState } from "@/components/EmptyState";
 import { ProjectTemplatePicker } from "@/components/ProjectTemplatePicker";
+import { sortProjects, type ProjectSort } from "@/utils/projectSort";
 import { IconProject, IconPlus, IconBookmark } from "@/components/icons";
 
 const COLOR_PRIMARY: Record<ProjectColor, string> = {
@@ -26,6 +27,8 @@ export function ProjectsPage() {
   const [category, setCategory] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [sort, setSort] = useState<ProjectSort>("recent");
+  const [showArchived, setShowArchived] = useState(false);
 
   // Real done/total ring (#223): completed counts come from the server.
   useEffect(() => {
@@ -46,9 +49,21 @@ export function ProjectsPage() {
     [projects]
   );
 
-  const visible = category
+  // Completion percentage per project, for progress-sort (mirrors the card ring).
+  const pctOf = (pid: string) => {
+    const done = doneCounts[pid] ?? 0;
+    const total = done + (taskCounts.get(pid) ?? 0);
+    return total > 0 ? (done / total) * 100 : 0;
+  };
+
+  const filtered = category
     ? projects.filter((p) => (p.category ?? null) === (category === "__none__" ? null : category))
     : projects;
+
+  // Active projects fill the grid; archived ones live in a separate section so
+  // they never clutter the main view (#211 V2 ⭐6).
+  const active = sortProjects(filtered.filter((p) => p.status !== "archived"), sort, pctOf);
+  const archived = sortProjects(filtered.filter((p) => p.status === "archived"), sort, pctOf);
 
   async function handleNew() {
     if (busy) return;
@@ -85,20 +100,60 @@ export function ProjectsPage() {
     <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
       <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} busy={busy} t={t} />
 
-      {categories.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 mb-4" role="group" aria-label={t("project.category.label")}>
-          <CatChip label={t("project.category.all")} active={!category} onClick={() => setCategory(null)} />
-          {categories.map((cat) => (
-            <CatChip key={cat} label={cat} active={category === cat} onClick={() => setCategory(category === cat ? null : cat)} />
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {categories.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("project.category.label")}>
+            <CatChip label={t("project.category.all")} active={!category} onClick={() => setCategory(null)} />
+            {categories.map((cat) => (
+              <CatChip key={cat} label={cat} active={category === cat} onClick={() => setCategory(category === cat ? null : cat)} />
+            ))}
+          </div>
+        )}
+        <div className="flex-1" />
+        <label className="flex items-center gap-1.5 text-xs text-text-muted">
+          {t("project.sort.label")}
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as ProjectSort)}
+            aria-label={t("project.sort.label")}
+            className="text-xs bg-transparent text-text-secondary rounded-md px-1.5 py-1 outline-none"
+            style={{ border: "1px solid var(--border-default)" }}
+          >
+            <option value="recent">{t("project.sort.recent")}</option>
+            <option value="name">{t("project.sort.name")}</option>
+            <option value="progress">{t("project.sort.progress")}</option>
+          </select>
+        </label>
+      </div>
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-        {visible.map((p) => (
+        {active.map((p) => (
           <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} t={t} />
         ))}
       </div>
+
+      {active.length === 0 && (
+        <p className="text-sm text-text-faint py-6">{t("project.active.empty")}</p>
+      )}
+
+      {archived.length > 0 && (
+        <section className="mt-8">
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            aria-expanded={showArchived}
+            className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint hover:text-text-secondary transition-colors mb-3"
+          >
+            {showArchived ? "▾" : "▸"} {t("project.archived.section")} · {archived.length}
+          </button>
+          {showArchived && (
+            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+              {archived.map((p) => (
+                <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} t={t} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {pickerOpen && (
         <ProjectTemplatePicker
