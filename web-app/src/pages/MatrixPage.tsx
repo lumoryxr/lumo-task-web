@@ -14,10 +14,13 @@ import { TaskDetailModal } from "@/components/TaskDetailModal";
 import { TaskEditModal } from "@/components/TaskEditModal";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 import { usePeopleStore } from "@/store/usePeopleStore";
+import { useProjectsStore } from "@/store/useProjectsStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { FilterChip } from "@/components/FilterChip";
 import { CalendarView } from "@/components/CalendarView";
 import { MatrixSkeleton } from "@/components/skeletons";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { derivePlanProjects, resolveActiveFilter } from "@/utils/planFilters";
 
 /**
  * Eisenhower 2×2. Each quadrant is a column with a header and a stack
@@ -38,8 +41,16 @@ export function MatrixPage() {
   const allActive = tasks.filter((x) => !x.completed);
   const [classifyOpen, setClassifyOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const projects = useProjectsStore((s) => s.projects);
   const view = useAppStore((s) => s.matrixView) as ViewMode;
   const setMatrixView = useAppStore((s) => s.setMatrixView);
+
+  // Distinct projects across all active tasks (#211 V2 ⭐2, mirrors Today).
+  // A filter that no longer matches any active task is auto-dropped so the
+  // quadrants never get stuck showing an empty board with no way back.
+  const boardProjects = derivePlanProjects(allActive, projects);
+  const activeProject = resolveActiveFilter(projectFilter, boardProjects.map((p) => p.id));
 
   function switchView(v: ViewMode) {
     setMatrixView(v);
@@ -133,11 +144,34 @@ export function MatrixPage() {
         </div>
       </div>
 
+      {/* Project filter bar — only in matrix view, only when tasks span projects */}
+      {view === "matrix" && boardProjects.length > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-1.5 flex-shrink-0 px-4 sm:px-7 pb-3"
+          role="group"
+          aria-label={t("project.filter.label")}
+        >
+          <FilterChip
+            label={t("project.filter.all")}
+            active={!activeProject}
+            onClick={() => setProjectFilter(null)}
+          />
+          {boardProjects.map((p) => (
+            <FilterChip
+              key={p.id}
+              label={p.name}
+              active={activeProject === p.id}
+              onClick={() => setProjectFilter(activeProject === p.id ? null : p.id)}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Content area */}
       {view === "matrix" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-2 gap-3 sm:gap-4 flex-1 min-h-0 overflow-y-auto px-4 sm:px-7 pb-4 sm:pb-7">
           {quadrants.map((q) => (
-            <QuadrantPanel key={q.id} id={q.id} title={q.label} subtitle={q.sub} />
+            <QuadrantPanel key={q.id} id={q.id} title={q.label} subtitle={q.sub} projectFilter={activeProject} />
           ))}
         </div>
       ) : (
@@ -269,8 +303,19 @@ function makeDragProps(taskId: string) {
 
 /* ── Quadrant panel ───────────────────────────────────────────────── */
 
-function QuadrantPanel({ id, title, subtitle }: { id: Quadrant; title: string; subtitle: string }) {
-  const tasks = useTasksStore((s) => s.byQuadrant(id));
+function QuadrantPanel({
+  id,
+  title,
+  subtitle,
+  projectFilter,
+}: {
+  id: Quadrant;
+  title: string;
+  subtitle: string;
+  projectFilter: string | null;
+}) {
+  const all = useTasksStore((s) => s.byQuadrant(id));
+  const tasks = projectFilter ? all.filter((tk) => tk.project_id === projectFilter) : all;
   const t = useT();
   const { over, handlers } = useTaskDrop(id);
 
