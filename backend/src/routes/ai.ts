@@ -118,8 +118,14 @@ app.post("/classify", classifyRateLimit, validate("json", z.object({}).strict())
 
   // One UPDATE statement per classified task, flushed as a single atomic batch
   // instead of N sequential round-trips (avoids the N+1 write pattern).
-  const SUGGEST_SQL = "UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id";
-  const suggestStmt = (q: string, id: string) => ({ sql: SUGGEST_SQL, args: { q, now: hlcNow(), id } });
+  // The `id` fed to this UPDATE on the LLM happy-path comes straight from the
+  // model's parsed output (see below), and a task title — which is attacker-
+  // controllable — is injected into the classify prompt. A prompt-injection could
+  // coax the model into returning another tenant's task id, so the write MUST be
+  // self-defending: `AND user_id` guarantees classify can never touch a row the
+  // caller doesn't own, regardless of what the model returns.
+  const SUGGEST_SQL = "UPDATE tasks SET ai_suggest = :q, updated_at = :now WHERE id = :id AND user_id = :uid";
+  const suggestStmt = (q: string, id: string) => ({ sql: SUGGEST_SQL, args: { q, now: hlcNow(), id, uid: userId } });
   const flush = async (stmts: ReturnType<typeof suggestStmt>[]) => {
     if (stmts.length) await batch(stmts);
   };
@@ -251,8 +257,8 @@ Choose the single most critical task to work on RIGHT NOW. Return ONLY valid JSO
         const reason = typeof parsed.reason === "string" ? parsed.reason.slice(0, 300) : null;
         const nextStep = typeof parsed.next_step === "string" ? parsed.next_step.slice(0, 300) : null;
 
-        await execute("UPDATE tasks SET conviction = :c, reason_en = :r, next_step_en = :ns, updated_at = :now WHERE id = :id",
-          { c: conviction, r: reason, ns: nextStep, now: hlcNow(), id: picked.id });
+        await execute("UPDATE tasks SET conviction = :c, reason_en = :r, next_step_en = :ns, updated_at = :now WHERE id = :id AND user_id = :uid",
+          { c: conviction, r: reason, ns: nextStep, now: hlcNow(), id: picked.id, uid: userId });
 
         if (usingCloud) await incrementCloudUsage(userId);
         return c.json({
@@ -273,8 +279,8 @@ Choose the single most critical task to work on RIGHT NOW. Return ONLY valid JSO
 
   // Heuristic fallback
   const conviction = 0.85;
-  await execute("UPDATE tasks SET conviction = :c, updated_at = :now WHERE id = :id",
-    { c: conviction, now: hlcNow(), id: topTask.id });
+  await execute("UPDATE tasks SET conviction = :c, updated_at = :now WHERE id = :id AND user_id = :uid",
+    { c: conviction, now: hlcNow(), id: topTask.id, uid: userId });
 
   return c.json({
     task: {
