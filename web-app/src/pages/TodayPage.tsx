@@ -5,6 +5,7 @@ import { EveningReviewModal } from "@/components/EveningReviewModal";
 import { MorningPlanningModal } from "@/components/MorningPlanningModal";
 import { WeeklyPlanningModal, isWeeklyPlanned } from "@/components/WeeklyPlanningModal";
 import { TaskRow } from "@/components/TaskRow";
+import { TaskTitle } from "@/components/TaskTitle";
 import { BatchActionBar } from "@/components/BatchActionBar";
 import { FilterChip } from "@/components/FilterChip";
 import { TaskListSkeleton } from "@/components/skeletons";
@@ -167,7 +168,7 @@ function ConvictionCard({ task, tasks, locale }: ConvictionCardProps) {
           className="font-semibold leading-snug tracking-tight mb-4"
           style={{ fontSize: 22, color: "var(--text-primary)", letterSpacing: "-0.01em", maxWidth: 560 }}
         >
-          {ls(task.title)}
+          <TaskTitle text={ls(task.title)} />
         </h2>
 
         {/* Meta row */}
@@ -276,7 +277,7 @@ function ConvictionCard({ task, tasks, locale }: ConvictionCardProps) {
                       className="text-xs font-medium leading-snug mb-0.5"
                       style={{ color: "var(--text-secondary)" }}
                     >
-                      {ls(ref.title)}
+                      <TaskTitle text={ls(ref.title)} />
                     </div>
                     <div
                       className="text-[11px] leading-relaxed"
@@ -603,7 +604,7 @@ function WeekFocusSection({ weekFocusTasks }: WeekFocusSectionProps) {
                 className="flex-1 text-[13px] font-medium truncate"
                 style={{ color: "var(--text-primary)" }}
               >
-                {ls(task.title)}
+                <TaskTitle text={ls(task.title)} />
               </span>
               {!task.today && (
                 <button

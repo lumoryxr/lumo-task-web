@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { TaskTitle } from "@/components/TaskTitle";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePetStore } from "@/store/usePetStore";
@@ -128,7 +129,7 @@ function ResultsStep({ completed, allTodayDone, totalFocusMin, totalPomos, stagn
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
-                    {ls(entry.title)}
+                    <TaskTitle text={ls(entry.title)} />
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -289,7 +290,7 @@ function UnfinishedStep({
               <div className="flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
-                    {ls(task.title)}
+                    <TaskTitle text={ls(task.title)} />
                   </div>
                   {task.quadrant !== "unclassified" && (
                     <div className="text-[11px] mt-0.5" style={{ color: "var(--text-faint)" }}>

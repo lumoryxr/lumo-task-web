@@ -5,6 +5,7 @@ import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { useDragSettleStore } from "@/store/useDragSettleStore";
 import { useTaskDrop, makeDragProps } from "@/lib/taskDnd";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { TaskTitle } from "@/components/TaskTitle";
 import type { Quadrant, Task } from "@/types/task";
 import { useAppStore } from "@/store/useAppStore";
 import { fmtDuration, getDueLabel } from "@/lib/format";
@@ -375,7 +376,7 @@ function MatrixTaskCard({ task }: { task: Task }) {
         >
           <div className="flex items-center gap-1.5">
             <span className="text-[13px] font-medium text-text-primary truncate leading-snug">
-              {ls(task.title)}
+              <TaskTitle text={ls(task.title)} />
             </span>
             {task.week_focus && (
               <span
@@ -505,7 +506,7 @@ function UnclassifiedChip({ task }: { task: Task }) {
       style={{ borderColor: "var(--border-faint)" }}
     >
       <span className="qdot qdot-un" />
-      <span>{ls(task.title)}</span>
+      <span><TaskTitle text={ls(task.title)} /></span>
       {task.ai_suggest && <span className="chip chip-ai">AI → {task.ai_suggest}</span>}
     </div>
   );

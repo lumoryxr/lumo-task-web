@@ -1,5 +1,6 @@
 import { IconUndo } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { TaskTitle } from "@/components/TaskTitle";
 import { useTasksStore } from "@/store/useTasksStore";
 import { fmtDuration } from "@/lib/format";
 import type { CompletedEntry, Locale } from "@/types/task";
@@ -93,7 +94,7 @@ export function CompletedTimeline({ entries, locale }: Props) {
               <div className="timeline-card flex-1" style={{ paddingBottom: isLast ? 0 : 16 }}>
                 <div className="flex items-start gap-2">
                   <span className="timeline-task-title flex-1 text-sm font-medium leading-snug">
-                    {ls(entry.title)}
+                    <TaskTitle text={ls(entry.title)} />
                   </span>
                   <button
                     onClick={() => reopen(entry.id)}

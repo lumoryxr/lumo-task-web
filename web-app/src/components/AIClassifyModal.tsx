@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { IconClose, IconSparkle } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { TaskTitle } from "@/components/TaskTitle";
 import { useTasksStore } from "@/store/useTasksStore";
 import type { Quadrant, Task } from "@/types/task";
 
@@ -284,7 +285,7 @@ function Row({
               {task.quadrant}
             </span>
           )}
-          <div className="text-[13px] text-text-primary truncate">{titleStr}</div>
+          <div className="text-[13px] text-text-primary truncate"><TaskTitle text={titleStr} /></div>
         </div>
         <div
           className="text-[10.5px] mt-0.5 leading-snug"

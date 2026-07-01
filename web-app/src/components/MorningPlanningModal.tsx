@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT, useLocaleString } from "@/i18n/useT";
+import { TaskTitle } from "@/components/TaskTitle";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
@@ -123,7 +124,7 @@ function CarryStep({ prevToday, decisions, onToggle }: CarryStepProps) {
                   className="text-sm font-medium truncate"
                   style={{ color: "var(--text-primary)" }}
                 >
-                  {ls(task.title)}
+                  <TaskTitle text={ls(task.title)} />
                 </div>
                 {task.quadrant !== "unclassified" && (
                   <div
@@ -271,7 +272,7 @@ function SelectStep({ pool, selected, onToggle }: SelectStepProps) {
                     className="text-sm font-medium leading-snug"
                     style={{ color: isSelected ? "var(--accent-primary)" : "var(--text-primary)" }}
                   >
-                    {ls(task.title)}
+                    <TaskTitle text={ls(task.title)} />
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span

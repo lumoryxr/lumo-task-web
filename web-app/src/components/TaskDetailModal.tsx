@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { IconClose, IconCalendar, IconClock, IconArrowRight, IconCheck } from "@/components/icons";
+import { TaskTitle } from "@/components/TaskTitle";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { useAppStore } from "@/store/useAppStore";
@@ -172,7 +173,7 @@ export function TaskDetailModal({ task, onClose }: Props) {
               className="font-semibold leading-snug"
               style={{ fontSize: 17, color: "var(--text-primary)", letterSpacing: "-0.01em" }}
             >
-              {ls(liveTask.title)}
+              <TaskTitle text={ls(liveTask.title)} />
             </h2>
           </div>
           <button
