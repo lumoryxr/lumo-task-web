@@ -6,6 +6,7 @@ import { MorningPlanningModal } from "@/components/MorningPlanningModal";
 import { WeeklyPlanningModal, isWeeklyPlanned } from "@/components/WeeklyPlanningModal";
 import { TaskRow } from "@/components/TaskRow";
 import { BatchActionBar } from "@/components/BatchActionBar";
+import { FilterChip } from "@/components/FilterChip";
 import { TaskListSkeleton } from "@/components/skeletons";
 import { IconArrowRight } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
@@ -668,24 +669,6 @@ function EveningReviewBanner({ onOpen, done }: { onOpen: () => void; done: boole
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 
-function TagFilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className="rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-colors"
-      style={{
-        color: active ? "var(--accent-primary)" : "var(--text-secondary)",
-        background: active ? "var(--accent-fog)" : "var(--bg-deep)",
-        border: `1px solid ${active ? "var(--accent-edge)" : "var(--border-default)"}`,
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
 export function TodayPage() {
   const t = useT();
   const locale = useAppStore((s) => s.locale);
@@ -868,13 +851,13 @@ export function TodayPage() {
           </div>
           {planProjects.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mb-3" role="group" aria-label={t("project.filter.label")}>
-              <TagFilterChip
+              <FilterChip
                 label={t("project.filter.all")}
                 active={!activeProject}
                 onClick={() => setProjectFilter(null)}
               />
               {planProjects.map((p) => (
-                <TagFilterChip
+                <FilterChip
                   key={p.id}
                   label={p.name}
                   active={activeProject === p.id}
@@ -885,13 +868,13 @@ export function TodayPage() {
           )}
           {planTags.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mb-3" role="group" aria-label={t("tag.filter.label")}>
-              <TagFilterChip
+              <FilterChip
                 label={t("tag.filter.all")}
                 active={!activeTag}
                 onClick={() => setTagFilter(null)}
               />
               {planTags.map((tag) => (
-                <TagFilterChip
+                <FilterChip
                   key={tag}
                   label={tag}
                   active={activeTag === tag}
