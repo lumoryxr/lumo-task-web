@@ -6,6 +6,7 @@ import { useTasksStore } from "@/store/useTasksStore";
 import type { Project, ProjectColor } from "@/types/task";
 import { EmptyState } from "@/components/EmptyState";
 import { ProjectTemplatePicker } from "@/components/ProjectTemplatePicker";
+import { ProjectFormModal } from "@/components/ProjectFormModal";
 import { sortProjects, type ProjectSort } from "@/utils/projectSort";
 import { IconProject, IconPlus, IconBookmark, IconPin } from "@/components/icons";
 
@@ -20,13 +21,12 @@ export function ProjectsPage() {
   const t = useT();
   const navigate = useNavigate();
   const projects = useProjectsStore((s) => s.projects);
-  const createProject = useProjectsStore((s) => s.create);
   const updateProject = useProjectsStore((s) => s.update);
   const doneCounts = useProjectsStore((s) => s.doneCounts);
   const loadProgress = useProjectsStore((s) => s.loadProgress);
   const tasks = useTasksStore((s) => s.tasks);
   const [category, setCategory] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sort, setSort] = useState<ProjectSort>("recent");
   const [showArchived, setShowArchived] = useState(false);
@@ -66,21 +66,14 @@ export function ProjectsPage() {
   const active = sortProjects(filtered.filter((p) => p.status !== "archived"), sort, pctOf);
   const archived = sortProjects(filtered.filter((p) => p.status === "archived"), sort, pctOf);
 
-  async function handleNew() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const p = await createProject({ name: t("project.untitled"), color: "green", goals: [], status: "active" });
-      navigate(`/projects/${p.id}`);
-    } finally {
-      setBusy(false);
-    }
+  function handleNew() {
+    setCreateOpen(true);
   }
 
   if (projects.length === 0) {
     return (
       <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
-        <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} busy={busy} t={t} />
+        <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} t={t} />
         <EmptyState
           icon={<IconProject size={28} />}
           title={t("project.empty.title")}
@@ -93,13 +86,19 @@ export function ProjectsPage() {
             onCreated={(p) => navigate(`/projects/${p.id}`)}
           />
         )}
+        {createOpen && (
+          <ProjectFormModal
+            onClose={() => setCreateOpen(false)}
+            onCreated={(p) => navigate(`/projects/${p.id}`)}
+          />
+        )}
       </div>
     );
   }
 
   return (
     <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
-      <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} busy={busy} t={t} />
+      <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} t={t} />
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {categories.length > 0 && (
@@ -162,11 +161,17 @@ export function ProjectsPage() {
           onCreated={(p) => navigate(`/projects/${p.id}`)}
         />
       )}
+      {createOpen && (
+        <ProjectFormModal
+          onClose={() => setCreateOpen(false)}
+          onCreated={(p) => navigate(`/projects/${p.id}`)}
+        />
+      )}
     </div>
   );
 }
 
-function Header({ onNew, onFromTemplate, busy, t }: { onNew: () => void; onFromTemplate: () => void; busy: boolean; t: (k: string) => string }) {
+function Header({ onNew, onFromTemplate, t }: { onNew: () => void; onFromTemplate: () => void; t: (k: string) => string }) {
   return (
     <div className="flex items-center justify-between mb-5">
       <h1 className="text-xl font-semibold text-text-primary">{t("project.page.title")}</h1>
@@ -181,7 +186,6 @@ function Header({ onNew, onFromTemplate, busy, t }: { onNew: () => void; onFromT
         </button>
         <button
           onClick={onNew}
-          disabled={busy}
           className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
           style={{ color: "var(--accent-primary)", background: "var(--accent-fog)", border: "1px solid var(--accent-edge)" }}
         >

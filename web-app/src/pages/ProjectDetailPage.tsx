@@ -61,6 +61,21 @@ export function ProjectDetailPage() {
   const projectTasks = tasks.filter((tk) => tk.project_id === pid && !tk.completed);
   const goals = project.goals;
 
+  // Commit header edits only on blur/Enter, and only when actually changed —
+  // an empty name falls back to "Untitled" at commit time (not while typing).
+  function commitName(v: string) {
+    const name = v.trim() || t("project.untitled");
+    if (name !== project!.name) update(pid, { name });
+  }
+  function commitCategory(v: string) {
+    const category = v.trim() || undefined;
+    if ((category ?? "") !== (project!.category ?? "")) update(pid, { category });
+  }
+  function commitEmoji(v: string) {
+    const emoji = v.trim() || undefined;
+    if ((emoji ?? "") !== (project!.emoji ?? "")) update(pid, { emoji });
+  }
+
   function setGoals(next: ProjectGoal[]) {
     update(pid, { goals: next });
   }
@@ -104,12 +119,17 @@ export function ProjectDetailPage() {
     <div className="fade-in px-4 sm:px-7 py-6 sm:py-7 max-w-3xl">
       <BackLink onClick={() => navigate("/projects")} label={t("project.page.title")} />
 
-      {/* Header */}
+      {/* Header — uncontrolled inputs that commit on blur/Enter (keyed by
+          project.id so they reset when switching projects). This fixes the
+          rename bug where clearing the field snapped it back to "Untitled"
+          mid-type, and stops a backend PATCH firing on every keystroke. */}
       <div className="flex items-start gap-3 mt-3 mb-6">
         <input
+          key={`${pid}-emoji`}
           aria-label={t("project.field.emoji")}
-          value={project.emoji ?? ""}
-          onChange={(e) => update(project.id, { emoji: e.target.value || undefined })}
+          defaultValue={project.emoji ?? ""}
+          onBlur={(e) => commitEmoji(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
           placeholder="📁"
           className="flex-shrink-0 text-center text-xl rounded-lg"
           style={{ width: 44, height: 44, background: primary, color: "var(--text-inverse)", border: "none" }}
@@ -117,16 +137,20 @@ export function ProjectDetailPage() {
         />
         <div className="flex-1 min-w-0">
           <input
+            key={`${pid}-name`}
             aria-label={t("project.field.name")}
-            value={project.name}
-            onChange={(e) => update(project.id, { name: e.target.value || t("project.untitled") })}
+            defaultValue={project.name}
+            onBlur={(e) => commitName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
             placeholder={t("project.field.namePlaceholder")}
             className="w-full text-lg font-semibold text-text-primary bg-transparent outline-none"
           />
           <input
+            key={`${pid}-category`}
             aria-label={t("project.category.label")}
-            value={project.category ?? ""}
-            onChange={(e) => update(project.id, { category: e.target.value || undefined })}
+            defaultValue={project.category ?? ""}
+            onBlur={(e) => commitCategory(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
             placeholder={t("project.category.placeholder")}
             className="w-full text-xs text-text-muted bg-transparent outline-none mt-0.5"
           />

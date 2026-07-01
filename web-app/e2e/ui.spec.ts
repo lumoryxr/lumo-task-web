@@ -1669,6 +1669,11 @@ test("TC89 – projects: create a project and add a key goal", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible({ timeout: 12_000 });
   await page.getByRole("button", { name: "New project" }).first().click();
 
+  // A create dialog appears — name the project and confirm.
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 8_000 });
+  await page.getByPlaceholder("Project name").fill("My Project");
+  await page.getByRole("button", { name: "Create" }).click();
+
   // Lands on the detail page (key-goals section visible) and can add a goal.
   await expect(page.getByText("Key goals")).toBeVisible({ timeout: 8_000 });
   const goalInput = page.getByPlaceholder("What does success look like?");
