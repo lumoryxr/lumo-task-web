@@ -10,6 +10,7 @@ import {
   TemplateCreateBodySchema,
   TemplateUpdateBodySchema,
   TemplatePayloadSchema,
+  ProjectTemplatePayloadSchema,
   type TemplateWire,
 } from "@lumo/contracts";
 import type { Variables } from "../env.js";
@@ -21,18 +22,32 @@ app.use("/*", authMiddleware);
 
 const IdParam = z.object({ id: z.string().min(1).max(64) });
 
+// The payload schema is kind-dependent: task templates carry a task blueprint,
+// project templates a project blueprint. Anything else falls back to the task
+// schema (legacy rows predate the kind split).
+function payloadSchemaFor(kind: string) {
+  return kind === "project" ? ProjectTemplatePayloadSchema : TemplatePayloadSchema;
+}
+
 // Map a DB row → wire shape. `payload` is stored as a JSON string. Read is
 // LENIENT: a malformed/legacy payload (bad JSON, or missing a required field
-// like `title` — reachable because the sync engine treats `payload` as an
-// opaque string and never validates its contents) must NOT throw, or one bad
-// row would 500 the entire list and hide every template. We `safeParse` and, on
-// failure, fall back to a minimal valid payload seeded from the template name.
+// — reachable because the sync engine treats `payload` as an opaque string and
+// never validates its contents) must NOT throw, or one bad row would 500 the
+// entire list and hide every template. We `safeParse` and, on failure, fall
+// back to a minimal valid payload seeded from the template name.
 export function rowToTemplate(row: TemplateRow): TemplateWire {
   let parsed: unknown = {};
   try {
     parsed = JSON.parse(row.payload);
   } catch {
     parsed = {};
+  }
+  if (row.kind === "project") {
+    const result = ProjectTemplatePayloadSchema.safeParse(parsed);
+    const payload = result.success
+      ? result.data
+      : ProjectTemplatePayloadSchema.parse({ name: row.name });
+    return { id: row.id, name: row.name, kind: row.kind, payload, created_at: row.created_at };
   }
   const result = TemplatePayloadSchema.safeParse(parsed);
   const payload = result.success
@@ -65,9 +80,9 @@ app.post("/", validate("json", TemplateCreateBodySchema), async (c) => {
   const now = new Date().toISOString();
   // `updated_at` is the LWW/cursor key for sync → HLC.
   const syncTs = hlcNow();
-  // Re-encode through the schema so stored JSON has defaults applied and no
-  // unexpected keys ride along.
-  const payload = JSON.stringify(TemplatePayloadSchema.parse(body.payload));
+  // Re-encode through the kind's schema so stored JSON has defaults applied and
+  // no unexpected keys ride along.
+  const payload = JSON.stringify(payloadSchemaFor(body.kind).parse(body.payload));
 
   await execute(
     `INSERT INTO templates
@@ -105,9 +120,11 @@ app.patch("/:id", validate("param", IdParam), validate("json", TemplateUpdateBod
   );
   if (!existing) return httpError(c, 404, "NOT_FOUND", "Template not found");
 
+  // Re-encode a replaced payload against the effective kind (patch may switch it).
+  const effectiveKind = body.kind ?? existing.kind;
   const payload =
     "payload" in body && body.payload !== undefined
-      ? JSON.stringify(TemplatePayloadSchema.parse(body.payload))
+      ? JSON.stringify(payloadSchemaFor(effectiveKind).parse(body.payload))
       : existing.payload;
 
   await execute(

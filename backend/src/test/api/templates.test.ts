@@ -132,6 +132,63 @@ describe("Templates", () => {
   });
 });
 
+describe("Templates — project kind (#211 V2 ⭐3)", () => {
+  const projectPayload = {
+    name: "Product launch",
+    category: "Work",
+    color: "cyan" as const,
+    emoji: "🚀",
+    goals: [{ text: "Ship v1" }, { text: "Announce" }],
+    content: "Launch checklist",
+    tasks: [
+      { title: { en: "Draft copy" }, quadrant: "Q2" as const },
+      { title: { en: "QA pass" } },
+    ],
+  };
+
+  test("201 → POST creates a project template and round-trips its payload", async () => {
+    const { status, body } = await req("POST", "/v1/templates", {
+      token: demoToken,
+      body: { name: "Launch blueprint", kind: "project", payload: projectPayload },
+    });
+    assert.equal(status, 201);
+    assert.equal(body.kind, "project");
+    assert.equal(body.payload.name, "Product launch");
+    assert.equal(body.payload.color, "cyan");
+    assert.equal(body.payload.goals.length, 2);
+    assert.equal(body.payload.tasks.length, 2);
+    assert.equal(body.payload.tasks[0].title.en, "Draft copy");
+    // Task blueprint defaults still applied inside the project payload.
+    assert.equal(body.payload.tasks[1].quadrant, "unclassified");
+    await req("DELETE", `/v1/templates/${body.id}`, { token: demoToken });
+  });
+
+  test("400 → project kind with a task-shaped payload is rejected", async () => {
+    const { status } = await req("POST", "/v1/templates", {
+      token: demoToken,
+      body: { name: "bad", kind: "project", payload: { title: { en: "x" } } },
+    });
+    assert.equal(status, 400);
+  });
+
+  test("project and task templates coexist in the same list", async () => {
+    const { body: proj } = await req("POST", "/v1/templates", {
+      token: demoToken,
+      body: { name: "Proj", kind: "project", payload: { name: "P", goals: [], tasks: [] } },
+    });
+    const { body: taskTpl } = await req("POST", "/v1/templates", {
+      token: demoToken,
+      body: { name: "Task", payload: { title: { en: "t" } } },
+    });
+    const { body: list } = await req("GET", "/v1/templates", { token: demoToken });
+    const kinds = new Map((list as any[]).map((t) => [t.id, t.kind]));
+    assert.equal(kinds.get(proj.id), "project");
+    assert.equal(kinds.get(taskTpl.id), "task");
+    await req("DELETE", `/v1/templates/${proj.id}`, { token: demoToken });
+    await req("DELETE", `/v1/templates/${taskTpl.id}`, { token: demoToken });
+  });
+});
+
 describe("Templates — cross-user isolation", () => {
   let otherToken = "";
 
