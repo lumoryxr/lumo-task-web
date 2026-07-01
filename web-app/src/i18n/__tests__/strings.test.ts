@@ -32,6 +32,8 @@ const DYNAMIC_KEY_FAMILIES: Record<string, string[]> = {
   "dog.tier.unlocked.": ["puppy", "adult", "wise", "legendary"],
   // TaskRecurrence union (RECURRENCE_VALUES in TaskEditModal)
   "task.recurrence.": ["none", "daily", "weekdays", "weekly", "monthly"],
+  // Project detail view toggle (ProjectDetailPage) — list | board
+  "project.view.": ["list", "board"],
   // PetSpecies union (PetSvg.tsx) — PetChat reads `.en` / `.zh`
   "pet.species.": [
     "dog.en", "cat.en", "fox.en", "panda.en", "robot.en",
