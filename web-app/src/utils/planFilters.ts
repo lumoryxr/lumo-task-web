@@ -26,11 +26,19 @@ export function derivePlanTags(tasks: FilterableTask[]): string[] {
   return [...new Set(tasks.flatMap((t) => t.tags ?? []))].sort();
 }
 
-/** Distinct projects referenced by the given tasks, resolved to display names. */
+/**
+ * Distinct projects referenced by the given tasks, resolved to display names.
+ * Only projects that still exist are returned: a task whose project_id points
+ * at a deleted project is skipped rather than surfacing a raw `prj_…` id as a
+ * ghost filter chip (residue from a deleted project).
+ */
 export function derivePlanProjects(tasks: FilterableTask[], projects: ProjectLike[]): PlanProjectOption[] {
-  const ids = [...new Set(tasks.map((t) => t.project_id).filter((id): id is string => !!id))];
-  return ids
-    .map((id) => ({ id, name: projects.find((p) => p.id === id)?.name ?? id }))
+  const referenced = new Set(
+    tasks.map((t) => t.project_id).filter((id): id is string => !!id)
+  );
+  return projects
+    .filter((p) => referenced.has(p.id))
+    .map((p) => ({ id: p.id, name: p.name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

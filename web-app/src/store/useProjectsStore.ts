@@ -11,6 +11,7 @@ import type { Project } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
 import { clientId } from "@/lib/id";
+import { useTasksStore } from "@/store/useTasksStore";
 
 interface ProjectsState {
   projects: Project[];
@@ -92,6 +93,10 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
     try {
       await projectApi.delete(id);
       set((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
+      // The server cascades the delete to this project's tasks; refresh the
+      // task cache so they vanish from Matrix/Today right away instead of
+      // lingering until the next sync/reload.
+      await useTasksStore.getState().load();
       toast.success(t("project.deleted"));
     } catch (e) {
       toast.error(t("project.error.delete"), e instanceof Error ? e.message : String(e));

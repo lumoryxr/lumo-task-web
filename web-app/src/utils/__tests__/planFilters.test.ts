@@ -33,8 +33,12 @@ describe("derivePlanProjects", () => {
     ]);
   });
 
-  it("falls back to the id when a project is not loaded", () => {
-    expect(derivePlanProjects([{ project_id: "ghost" }], projects)).toEqual([{ id: "ghost", name: "ghost" }]);
+  it("drops a task whose project was deleted (no ghost id chip)", () => {
+    expect(derivePlanProjects([{ project_id: "ghost" }], projects)).toEqual([]);
+    // Known projects still resolve even alongside an orphaned reference.
+    expect(derivePlanProjects([{ project_id: "p1" }, { project_id: "ghost" }], projects)).toEqual([
+      { id: "p1", name: "Beta" },
+    ]);
   });
 
   it("is empty when no task is filed", () => {
