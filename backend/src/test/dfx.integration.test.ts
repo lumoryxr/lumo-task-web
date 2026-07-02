@@ -1292,3 +1292,165 @@ describe("DFX · Security — /ai/classify cannot write another tenant's task vi
     );
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — the generic sync chokepoint (/v1/sync/pull + /push)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// The sync engine (backend/src/sync/engine.ts) is THE single audited chokepoint
+// that enforces cross-user isolation for EVERY syncable entity at once — pull/push
+// iterate the manifest with no per-entity branching, so one dropped `WHERE user_id`
+// would leak or cross-write all tenants' rows across all entities simultaneously.
+// The per-resource IDOR blocks above never touch this surface. These cases pin its
+// three load-bearing invariants (pull-scope, push-force-identity, collision guard)
+// plus its validate-all-then-apply robustness. Each is mutation-tested in the PR to
+// confirm teeth (see issue #255 ACs).
+describe("DFX · Security — generic sync chokepoint (/v1/sync/pull + /push)", () => {
+  let sAlice: { token: string; id: string };
+  let sBob: { token: string; id: string };
+
+  // HLC cursors are compared lexicographically; these ISO-microsecond strings
+  // sort t1 < t2 < t3 so AC3 can give the attacker a strictly-NEWER timestamp,
+  // proving the isolation guard (not LWW) is what blocks the cross-user write.
+  const HLC_T1 = "2026-07-02T10:00:00.000000Z";
+  const HLC_T2 = "2026-07-02T11:00:00.000000Z";
+  const HLC_T3 = "2026-07-02T12:00:00.000000Z";
+
+  /** A minimal but schema-valid `tasks` sync row (four-tuple + NOT-NULL title_en). */
+  function taskRow(over: Record<string, unknown>): Record<string, unknown> {
+    return { user_id: "ignored-by-server", updated_at: HLC_T1, title_en: "row", ...over };
+  }
+  const pushTasks = (token: string, rows: Record<string, unknown>[]) =>
+    api("POST", "/v1/sync/push", { token, body: { entities: { tasks: rows } } });
+  const pullAll = (token: string) => api("POST", "/v1/sync/pull", { token, body: {} });
+
+  /** Find a pulled task row by id, or undefined. */
+  const findTask = (entities: Record<string, any[]>, id: string) =>
+    (entities?.tasks ?? []).find((r) => r.id === id);
+  /** True if ANY manifest entity array in a pull response carries this id. */
+  const anyEntityHasId = (entities: Record<string, any[]>, id: string) =>
+    Object.values(entities ?? {}).some((rows) => (rows ?? []).some((r: any) => r.id === id));
+
+  before(async () => {
+    sAlice = await registerUser("sync-alice");
+    sBob = await registerUser("sync-bob");
+  });
+
+  test("AC1 — pull is tenant-scoped: Bob never sees Alice's pushed rows; Alice does", async () => {
+    const id = "sync-ac1-alice-task";
+    const pushed = await pushTasks(sAlice.token, [taskRow({ id, title_en: "ALICE-SECRET" })]);
+    assert.equal(pushed.status, 200, "Alice's push should succeed");
+    assert.equal(pushed.body.applied, 1, "Alice's row should be applied");
+
+    // Positive control: an empty-body pull is a valid full resync (200) and Alice
+    // sees her own row — so the negative assertion below is not vacuously green.
+    const alicePull = await pullAll(sAlice.token);
+    assert.equal(alicePull.status, 200, "empty-body pull → 200 full resync");
+    assert.equal(
+      findTask(alicePull.body.entities, id)?.title_en,
+      "ALICE-SECRET",
+      "Alice's own pull must return her row",
+    );
+
+    // Load-bearing: Bob's pull must not contain Alice's row in ANY entity bucket.
+    const bobPull = await pullAll(sBob.token);
+    assert.equal(bobPull.status, 200);
+    assert.equal(
+      anyEntityHasId(bobPull.body.entities, id),
+      false,
+      "Bob's pull must NOT contain Alice's row (drop of WHERE user_id would leak it)",
+    );
+  });
+
+  test("AC2 — push forces user_id from the JWT: a body-supplied user_id can't cross scopes", async () => {
+    const id = "sync-ac2-forced";
+    // Bob pushes a row whose BODY claims Alice's user_id.
+    const res = await pushTasks(sBob.token, [
+      taskRow({ id, user_id: sAlice.id, updated_at: HLC_T2, title_en: "BOB-FORCED" }),
+    ]);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.applied, 1, "the row is written — under Bob, not rejected");
+
+    // It must land under Bob (he can pull it) and NEVER under Alice.
+    const bobPull = await pullAll(sBob.token);
+    assert.equal(
+      findTask(bobPull.body.entities, id)?.title_en,
+      "BOB-FORCED",
+      "the forced row belongs to Bob (its JWT subject)",
+    );
+    const alicePull = await pullAll(sAlice.token);
+    assert.equal(
+      anyEntityHasId(alicePull.body.entities, id),
+      false,
+      "body user_id must be ignored — the row must NOT appear in Alice's scope",
+    );
+  });
+
+  test("AC3 — cross-user id-collision guard: Bob cannot overwrite Alice's row by colliding on its id", async () => {
+    const id = "sync-ac3-collide";
+    // Alice owns the row at HLC_T2.
+    const own = await pushTasks(sAlice.token, [taskRow({ id, updated_at: HLC_T2, title_en: "ALICE-OWNED" })]);
+    assert.equal(own.body.applied, 1);
+
+    // Bob pushes the SAME id with a strictly-NEWER HLC — LWW alone would say "apply",
+    // so only the cross-user guard can stop it. His push must be a no-op (applied 0).
+    const hijack = await pushTasks(sBob.token, [taskRow({ id, updated_at: HLC_T3, title_en: "BOB-HIJACK" })]);
+    assert.equal(hijack.status, 200);
+    assert.equal(hijack.body.applied, 0, "Bob's colliding push must be a no-op, not a cross-user overwrite");
+
+    // Alice's row is untouched (still hers, still her title).
+    const alicePull = await pullAll(sAlice.token);
+    assert.equal(
+      findTask(alicePull.body.entities, id)?.title_en,
+      "ALICE-OWNED",
+      "Alice's row must survive unchanged (drop of `AND user_id` would let Bob hijack it)",
+    );
+    // …and Bob did not acquire it.
+    const bobPull = await pullAll(sBob.token);
+    assert.equal(
+      anyEntityHasId(bobPull.body.entities, id),
+      false,
+      "Bob must not acquire the colliding row",
+    );
+  });
+
+  test("AC4 — validate-all-then-apply: one bad row → 400 INVALID_ROW and NOTHING is applied", async () => {
+    const goodId = "sync-ac4-good";
+    // A batch: one valid row + one invalid row. The bad row is well-formed on the
+    // WIRE (has the four-tuple, so it passes the route's SyncRowSchema) but omits
+    // the NOT-NULL `title_en`, so it fails the engine's per-entity schema — i.e. it
+    // exercises the engine's validate-all-then-apply path (INVALID_ROW), not the
+    // route-boundary BAD_REQUEST.
+    const res = await pushTasks(sAlice.token, [
+      taskRow({ id: goodId, updated_at: HLC_T2, title_en: "would-be-applied" }),
+      { id: "sync-ac4-bad", user_id: "x", updated_at: HLC_T1 }, // no title_en → engine INVALID_ROW
+    ]);
+    assert.equal(res.status, 400, "an invalid row fails the whole push with 400");
+    assert.equal(res.body.error?.code, "INVALID_ROW", "clean INVALID_ROW envelope, not a 500");
+
+    // The valid sibling must NOT have been applied (all-or-nothing).
+    const alicePull = await pullAll(sAlice.token);
+    assert.equal(
+      anyEntityHasId(alicePull.body.entities, goodId),
+      false,
+      "a rejected batch must leave zero side effects (validate-all-then-apply)",
+    );
+  });
+
+  test("AC4 — malformed JSON body → 400 INVALID_JSON (not 500) on push and pull", async () => {
+    const bad = "{ this is not json ";
+    const p = await rawApi("POST", "/v1/sync/push", bad, sAlice.token);
+    assert.equal(p.status, 400, "malformed push body → 400");
+    assert.equal(p.body.error?.code, "INVALID_JSON");
+    const q = await rawApi("POST", "/v1/sync/pull", bad, sAlice.token);
+    assert.equal(q.status, 400, "malformed non-empty pull body → 400 (never a silent full resync)");
+    assert.equal(q.body.error?.code, "INVALID_JSON");
+  });
+
+  test("AC5 — authn: sync pull/push without a token → 401", async () => {
+    const p = await api("POST", "/v1/sync/pull", { body: {} });
+    assert.equal(p.status, 401, "unauthenticated pull → 401");
+    const q = await api("POST", "/v1/sync/push", { body: { entities: {} } });
+    assert.equal(q.status, 401, "unauthenticated push → 401");
+  });
+});
