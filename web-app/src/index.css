@@ -208,6 +208,23 @@ body {
 .input::placeholder { color: var(--text-muted); }
 .input:focus { outline: none; border-color: var(--border-strong); box-shadow: 0 0 0 2px var(--accent-fog); }
 
+/* Borderless inline editing (project title, add-rows). Transparent at rest so
+   it reads as text, but on focus adopts the same soft ring as .input instead
+   of falling through to the harsh 2px keyboard focus outline. */
+.inline-input {
+  background: transparent; border: 1px solid transparent;
+  border-radius: var(--radius-sm); padding: 3px 8px;
+  color: var(--text-primary); font-family: inherit;
+  transition: all 120ms var(--ease-default);
+}
+.inline-input::placeholder { color: var(--text-muted); }
+.inline-input:hover { border-color: var(--border-faint); }
+.inline-input:focus,
+.inline-input:focus-visible {
+  outline: none; background: var(--bg-surface);
+  border-color: var(--border-default); box-shadow: 0 0 0 2px var(--accent-fog);
+}
+
 /* Sidebar nav item */
 .nav-item {
   display: flex; align-items: center; gap: 12px;
