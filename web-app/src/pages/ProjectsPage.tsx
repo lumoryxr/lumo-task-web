@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useT } from "@/i18n/useT";
 import { useProjectsStore } from "@/store/useProjectsStore";
@@ -7,9 +7,10 @@ import type { Project, ProjectColor } from "@/types/task";
 import { EmptyState } from "@/components/EmptyState";
 import { ProjectTemplatePicker } from "@/components/ProjectTemplatePicker";
 import { ProjectFormModal } from "@/components/ProjectFormModal";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ProgressRing } from "@/components/ProgressRing";
 import { sortProjects, type ProjectSort } from "@/utils/projectSort";
-import { IconProject, IconPlus, IconBookmark, IconPin } from "@/components/icons";
+import { IconProject, IconPlus, IconBookmark, IconMore, IconEdit, IconTrash, IconArrowRight } from "@/components/icons";
 
 const COLOR_PRIMARY: Record<ProjectColor, string> = {
   green: "var(--accent-primary)",
@@ -22,7 +23,7 @@ export function ProjectsPage() {
   const t = useT();
   const navigate = useNavigate();
   const projects = useProjectsStore((s) => s.projects);
-  const updateProject = useProjectsStore((s) => s.update);
+  const removeProject = useProjectsStore((s) => s.remove);
   const doneCounts = useProjectsStore((s) => s.doneCounts);
   const loadProgress = useProjectsStore((s) => s.loadProgress);
   const tasks = useTasksStore((s) => s.tasks);
@@ -31,6 +32,8 @@ export function ProjectsPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sort, setSort] = useState<ProjectSort>("recent");
   const [showArchived, setShowArchived] = useState(false);
+  const [editTarget, setEditTarget] = useState<Project | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
   // Real done/total ring (#223): completed counts come from the server.
   useEffect(() => {
@@ -129,7 +132,7 @@ export function ProjectsPage() {
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
         {active.map((p) => (
-          <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} onTogglePin={() => updateProject(p.id, { pinned: !p.pinned })} t={t} />
+          <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} onEdit={() => setEditTarget(p)} onDelete={() => setDeleteTarget(p)} t={t} />
         ))}
       </div>
 
@@ -149,7 +152,7 @@ export function ProjectsPage() {
           {showArchived && (
             <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
               {archived.map((p) => (
-                <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} onTogglePin={() => updateProject(p.id, { pinned: !p.pinned })} t={t} />
+                <ProjectCard key={p.id} project={p} taskCount={taskCounts.get(p.id) ?? 0} doneCount={doneCounts[p.id] ?? 0} onOpen={() => navigate(`/projects/${p.id}`)} onEdit={() => setEditTarget(p)} onDelete={() => setDeleteTarget(p)} t={t} />
               ))}
             </div>
           )}
@@ -168,6 +171,22 @@ export function ProjectsPage() {
           onCreated={(p) => navigate(`/projects/${p.id}`)}
         />
       )}
+      {editTarget && (
+        <ProjectFormModal
+          project={editTarget}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        danger
+        title={t("project.deleteConfirm.title")}
+        message={t("project.deleteConfirm")}
+        detail={deleteTarget?.name}
+        confirmLabel={t("project.delete")}
+        onConfirm={() => { if (deleteTarget) void removeProject(deleteTarget.id); setDeleteTarget(null); }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
@@ -214,29 +233,52 @@ function CatChip({ label, active, onClick }: { label: string; active: boolean; o
   );
 }
 
-function ProjectCard({ project, taskCount, doneCount, onOpen, onTogglePin, t }: { project: Project; taskCount: number; doneCount: number; onOpen: () => void; onTogglePin: () => void; t: (k: string) => string }) {
+function ProjectCard({ project, taskCount, doneCount, onOpen, onEdit, onDelete, t }: { project: Project; taskCount: number; doneCount: number; onOpen: () => void; onEdit: () => void; onDelete: () => void; t: (k: string) => string }) {
   const primary = COLOR_PRIMARY[project.color];
   const goalsDone = project.goals.filter((g) => g.done).length;
   // Real task progress (#223): done = completed entries snapshotted to this
   // project; total = those plus still-active tasks in the live cache.
   const total = doneCount + taskCount;
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [menuOpen]);
+
   return (
-    <div className="relative">
-      {/* Pin toggle — sibling overlay (not nested) so the whole-card button stays valid HTML */}
-      <button
-        onClick={onTogglePin}
-        aria-label={project.pinned ? t("project.unpin") : t("project.pin")}
-        aria-pressed={project.pinned}
-        title={project.pinned ? t("project.unpin") : t("project.pin")}
-        className="absolute top-2 right-2 z-10 flex items-center justify-center w-6 h-6 rounded-md transition-colors"
-        style={{
-          color: project.pinned ? "var(--accent-primary)" : "var(--text-faint)",
-          background: project.pinned ? "var(--accent-fog)" : "transparent",
-        }}
-      >
-        <IconPin size={13} />
-      </button>
+    <div className="relative group">
+      {/* Actions menu — hover/focus-revealed, sibling overlay (not nested) so the
+          whole-card button stays valid HTML. */}
+      <div ref={menuRef} className="absolute top-2 right-2 z-10">
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-label={t("project.menu")}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          className={`flex items-center justify-center w-6 h-6 rounded-md transition-opacity ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"}`}
+          style={{ color: "var(--text-muted)", background: menuOpen ? "var(--bg-subtle)" : "transparent" }}
+        >
+          <IconMore size={15} />
+        </button>
+        {menuOpen && (
+          <div
+            role="menu"
+            className="absolute top-7 right-0 py-1 rounded-lg overflow-hidden"
+            style={{ minWidth: 132, background: "var(--bg-elevated)", border: "1px solid var(--border-default)", boxShadow: "var(--shadow-lifted)" }}
+          >
+            <MenuItem icon={<IconArrowRight size={13} />} label={t("project.view")} onClick={() => { setMenuOpen(false); onOpen(); }} />
+            <MenuItem icon={<IconEdit size={13} />} label={t("project.edit")} onClick={() => { setMenuOpen(false); onEdit(); }} />
+            <MenuItem icon={<IconTrash size={13} />} label={t("project.delete")} danger onClick={() => { setMenuOpen(false); onDelete(); }} />
+          </div>
+        )}
+      </div>
       <button
         onClick={onOpen}
         className="w-full text-left rounded-xl p-4 transition-all hover:-translate-y-0.5"
@@ -266,5 +308,19 @@ function ProjectCard({ project, taskCount, doneCount, onOpen, onTogglePin, t }: 
       </div>
       </button>
     </div>
+  );
+}
+
+function MenuItem({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
+  return (
+    <button
+      role="menuitem"
+      onClick={onClick}
+      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors hover:bg-bg-subtle"
+      style={{ color: danger ? "var(--status-urgent)" : "var(--text-primary)" }}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
   );
 }
