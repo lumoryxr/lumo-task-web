@@ -11,6 +11,8 @@ interface Props {
   /** Stored content: a TipTap doc JSON string, or legacy plain text. */
   value?: string;
   onChange: (json: string) => void;
+  /** When false, render read-only (no toolbar, no border) — a display state. */
+  editable?: boolean;
 }
 
 /** Parse stored content into something useEditor accepts. Tolerates legacy plain
@@ -26,12 +28,18 @@ function parseContent(value?: string): object | string {
   return value;
 }
 
-export function ProjectContentEditor({ value, onChange }: Props) {
+export function ProjectContentEditor({ value, onChange, editable = true }: Props) {
   const t = useT();
   const fileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Latest onChange in a ref so the (once-created) onUpdate handler never calls
+  // a stale callback — important because the editor instance is reused across
+  // display ↔ edit toggles rather than remounted.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
   const editor = useEditor({
+    editable,
     extensions: [
       StarterKit,
       Image.configure({ inline: false, allowBase64: true }),
@@ -40,10 +48,13 @@ export function ProjectContentEditor({ value, onChange }: Props) {
     onUpdate: ({ editor }) => {
       // Debounce: serialize the doc to JSON 600ms after the last keystroke.
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => onChange(JSON.stringify(editor.getJSON())), 600);
+      saveTimer.current = setTimeout(() => onChangeRef.current(JSON.stringify(editor.getJSON())), 600);
     },
   });
 
+  // Keep TipTap's editable flag and the rendered doc in sync with props when
+  // toggling display ↔ edit or switching projects.
+  useEffect(() => { editor?.setEditable(editable); }, [editor, editable]);
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
   async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -59,6 +70,11 @@ export function ProjectContentEditor({ value, onChange }: Props) {
   }
 
   if (!editor) return null;
+
+  // Display state: just the rendered doc, no chrome.
+  if (!editable) {
+    return <EditorContent editor={editor} className="tiptap-content text-sm" />;
+  }
 
   return (
     <div className="rounded-lg" style={{ border: "1px solid var(--border-default)" }}>
