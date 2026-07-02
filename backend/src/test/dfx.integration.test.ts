@@ -26,6 +26,8 @@ import { rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { serve } from "@hono/node-server";
 import { runMigrations } from "../db/migrate.js";
+import { queryOne } from "../db/client.js";
+import { decryptSecret, isEncrypted } from "../lib/crypto.js";
 import { app } from "../app.js";
 
 // ── Server lifecycle ──────────────────────────────────────────────────────────
@@ -1452,5 +1454,133 @@ describe("DFX · Security — generic sync chokepoint (/v1/sync/pull + /push)", 
     assert.equal(p.status, 401, "unauthenticated pull → 401");
     const q = await api("POST", "/v1/sync/push", { body: { entities: {} } });
     assert.equal(q.status, 401, "unauthenticated push → 401");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — AI-provider credential confidentiality on /v1/settings
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// `PATCH /v1/settings` is the one authenticated write that persists a *secret* the
+// user hands the server: the AI-provider API key (`ai_configs_update.key`). Two
+// invariants protect it, and NEITHER was pinned by the daily real-HTTP + real-file
+// SQLite regression — the whole `settings` resource was a silent hole in this
+// suite (it appears above only as *setup* for the /ai/classify IDOR case, never as
+// a subject):
+//
+//   (1) Confidentiality at the WIRE — the key is write-only across the API. GET (and
+//       the PATCH echo) expose only `hasKey: boolean`; the plaintext never appears in
+//       any response. The in-process `secrets.security.test.ts` covers this, but not
+//       over real HTTP in the daily regression.
+//
+//   (2) Confidentiality at REST — the key is stored AES-256-GCM encrypted
+//       (`encryptSecret` → `enc:v1:…`), so a DB/file leak doesn't hand over every
+//       tenant's provider credentials. This invariant is provable ONLY against a real
+//       SQLite *file* (inspect the stored `settings.ai_configs` column) — no
+//       in-process/api-layer test checks it, and a regression that stored the key in
+//       plaintext would pass every existing wire-level test while quietly removing
+//       at-rest protection.
+//
+// Plus the write-boundary SSRF scheme allowlist on the provider `baseUrl` (the
+// server later fetches it): a non-http(s) scheme (`file:`) is rejected regardless of
+// dbMode, because the scheme check in `assertSafeOutboundUrl` runs *before* the
+// desktop-mode `allowPrivate` early-return — so it has teeth even in this local-mode
+// integration env (where private/loopback hosts are intentionally permitted).
+describe("DFX · Security — AI-provider credential confidentiality & baseUrl scheme guard (/v1/settings)", () => {
+  const PLANTED_KEY = "sk-dfx-SUPER-SECRET-do-not-leak-0xC0FFEE-plaintext";
+  let owner: { token: string; id: string };
+
+  before(async () => {
+    owner = await registerUser("settings-secret");
+  });
+
+  test("the AI-provider key is write-only at the wire: PATCH echo + GET expose hasKey, never the plaintext", async () => {
+    const patch = await api("PATCH", "/v1/settings", {
+      token: owner.token,
+      body: { ai_configs_update: { provider: "openai", key: PLANTED_KEY } },
+    });
+    assert.equal(patch.status, 200, "PATCH with a provider key should be accepted");
+    assert.equal(
+      patch.body.ai_provider_configs.openai.hasKey,
+      true,
+      "the PATCH echo should report the key is set",
+    );
+    assert.equal(
+      "key" in patch.body.ai_provider_configs.openai,
+      false,
+      "the PATCH echo must not carry a raw `key` field",
+    );
+
+    const get = await api("GET", "/v1/settings", { token: owner.token });
+    assert.equal(get.status, 200);
+    assert.equal(get.body.ai_provider_configs.openai.hasKey, true, "GET reflects the stored key via hasKey");
+    assert.equal("key" in get.body.ai_provider_configs.openai, false, "GET must not carry a raw `key` field");
+
+    // Load-bearing: the plaintext must appear NOWHERE in either response body.
+    assert.equal(
+      JSON.stringify(patch.body).includes(PLANTED_KEY),
+      false,
+      "PATCH response must not leak the plaintext key",
+    );
+    assert.equal(
+      JSON.stringify(get.body).includes(PLANTED_KEY),
+      false,
+      "GET response must not leak the plaintext key",
+    );
+  });
+
+  test("the AI-provider key is encrypted at rest: the stored settings.ai_configs is ciphertext, not plaintext", async () => {
+    // Inspect the REAL SQLite row the server wrote — the only place at-rest
+    // encryption is observable (no wire-level test can prove it). This complements,
+    // not duplicates, the in-process wire test above.
+    const row = await queryOne<{ ai_configs: string | null }>(
+      "SELECT ai_configs FROM settings WHERE user_id = :uid",
+      { uid: owner.id },
+    );
+    assert.ok(row?.ai_configs, "the owner's settings row should carry a serialized ai_configs blob");
+    const stored = row!.ai_configs!;
+
+    // (a) the plaintext key must NOT be present anywhere in the stored column …
+    assert.equal(
+      stored.includes(PLANTED_KEY),
+      false,
+      "the raw key must never be stored in plaintext (a dropped encryptSecret would fail here)",
+    );
+    // (b) … and the openai slot must be genuinely AES-256-GCM encrypted (enc:v1:…) …
+    const openaiKeyBlob = JSON.parse(stored).openai?.key as string;
+    assert.ok(openaiKeyBlob, "the openai config slot should hold a key blob");
+    assert.equal(
+      isEncrypted(openaiKeyBlob),
+      true,
+      "the stored key must be in enc:v1: AES-256-GCM form at rest",
+    );
+    // (c) … and it must round-trip back to the exact plaintext (teeth: proves it is
+    // the real key encrypted, not some unrelated value that merely omits the string).
+    assert.equal(
+      decryptSecret(openaiKeyBlob),
+      PLANTED_KEY,
+      "the encrypted blob must decrypt back to the original key",
+    );
+  });
+
+  test("SSRF scheme allowlist: a non-http(s) provider baseUrl (file:) → 400 INVALID_BASE_URL", async () => {
+    const res = await api("PATCH", "/v1/settings", {
+      token: owner.token,
+      body: { ai_configs_update: { provider: "custom", baseUrl: "file:///etc/passwd" } },
+    });
+    assert.equal(res.status, 400, "a file: scheme baseUrl must be rejected (server would later fetch it)");
+    assert.equal(
+      res.body.error?.code,
+      "INVALID_BASE_URL",
+      "the SSRF scheme guard fires (before the desktop-mode allowPrivate early-return), not generic validation",
+    );
+
+    // Positive control: a normal https baseUrl is accepted — the guard rejects the
+    // scheme, not every baseUrl (so the case above isn't vacuously green).
+    const ok = await api("PATCH", "/v1/settings", {
+      token: owner.token,
+      body: { ai_configs_update: { provider: "custom", baseUrl: "https://api.example.com/v1" } },
+    });
+    assert.equal(ok.status, 200, "a well-formed https baseUrl should be accepted");
   });
 });
