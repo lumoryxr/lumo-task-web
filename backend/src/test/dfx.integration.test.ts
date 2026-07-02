@@ -286,6 +286,102 @@ describe("DFX · Security — tenant isolation across user-scoped resources (#15
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for RELIABILITY — referential consistency: person-delete cascades from
+// tasks' assignee lists (#263)
+//
+// DELETE /v1/people/:id is the app's ONLY cross-resource cascade: after tombstoning
+// the person it rewrites `tasks.assignee_ids`, dropping the deleted id from every
+// task that referenced it (routes/people.ts). Nothing pinned this behavior — the
+// #158 sweep only proves the person row itself is tenant-isolated, not that the
+// cascade fires, is *precise*, or preserves co-assignees. A regression that dropped
+// the cascade UPDATE, cleared the whole array, or widened it to rewrite every task
+// (dropping the `EXISTS(... value = :pid)` predicate) would leave dangling assignee
+// ids or amplify writes across the tenant — invisible to every existing case.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Reliability — person-delete cascades from tasks' assignee lists (#263)", () => {
+  let carol: { token: string; id: string };
+
+  before(async () => {
+    carol = await registerUser("carol");
+  });
+
+  test("deleting a person drops it from referencing tasks, keeps co-assignees, leaves non-referencing tasks untouched", async () => {
+    // Two people; P is the one we delete, Q is a co-assignee that must survive.
+    const { status: pStatus, body: p } = await api("POST", "/v1/people", {
+      token: carol.token,
+      body: { name: "Person P", initials: "PP", color: "#5bc8d4" },
+    });
+    assert.equal(pStatus, 201);
+    const { body: q } = await api("POST", "/v1/people", {
+      token: carol.token,
+      body: { name: "Person Q", initials: "PQ", color: "#ff00aa" },
+    });
+
+    // T1 references both P and Q; T2 references only Q (must be left alone).
+    const { body: t1 } = await api("POST", "/v1/tasks", {
+      token: carol.token,
+      body: { title: { en: "Assigned to P and Q" }, quadrant: "Q1", assignee_ids: [p.id, q.id] },
+    });
+    const { body: t2 } = await api("POST", "/v1/tasks", {
+      token: carol.token,
+      body: { title: { en: "Assigned to Q only" }, quadrant: "Q2", assignee_ids: [q.id] },
+    });
+
+    const del = await api("DELETE", `/v1/people/${p.id}`, { token: carol.token });
+    assert.equal(del.status, 204, "owner deletes own person → 204");
+
+    // T1: P removed, Q retained (partial removal — NOT a cleared array).
+    const { body: t1After } = await api("GET", `/v1/tasks/${t1.id}`, { token: carol.token });
+    assert.ok(!t1After.assignee_ids.includes(p.id), "deleted person must be dropped from the referencing task");
+    assert.ok(t1After.assignee_ids.includes(q.id), "co-assignee must survive the cascade (not a blanket clear)");
+
+    // T2: never referenced P → assignee list unchanged.
+    const { body: t2After } = await api("GET", `/v1/tasks/${t2.id}`, { token: carol.token });
+    assert.deepEqual(t2After.assignee_ids, [q.id], "a task that never referenced the person must be untouched");
+  });
+
+  test("cascade is precise: only tasks that referenced the person are rewritten (no write amplification)", async () => {
+    const { body: p } = await api("POST", "/v1/people", {
+      token: carol.token,
+      body: { name: "Person R", initials: "PR", color: "#5bc8d4" },
+    });
+    // Referencing vs non-referencing task.
+    const { body: ref } = await api("POST", "/v1/tasks", {
+      token: carol.token,
+      body: { title: { en: "references R" }, quadrant: "Q1", assignee_ids: [p.id] },
+    });
+    const { body: other } = await api("POST", "/v1/tasks", {
+      token: carol.token,
+      body: { title: { en: "unrelated" }, quadrant: "Q3" },
+    });
+
+    const before = await api("GET", `/v1/tasks/${other.id}`, { token: carol.token });
+    const refBefore = await api("GET", `/v1/tasks/${ref.id}`, { token: carol.token });
+
+    const del = await api("DELETE", `/v1/people/${p.id}`, { token: carol.token });
+    assert.equal(del.status, 204);
+
+    const refAfter = await api("GET", `/v1/tasks/${ref.id}`, { token: carol.token });
+    const otherAfter = await api("GET", `/v1/tasks/${other.id}`, { token: carol.token });
+
+    // The referencing task WAS rewritten (updated_at advances — the cascade fired).
+    assert.notEqual(
+      refAfter.body.updated_at,
+      refBefore.body.updated_at,
+      "referencing task must be rewritten (updated_at advances)",
+    );
+    // The unrelated task was NOT touched — the `EXISTS(... = :pid)` predicate scopes
+    // the write; dropping it would rewrite (and bump) every task in the tenant.
+    assert.equal(
+      otherAfter.body.updated_at,
+      before.body.updated_at,
+      "unrelated task must not be rewritten by the cascade",
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for SECURITY — tenant isolation on state-changing SUB-RESOURCE endpoints (#165)
 //
 // The #158 cases cover CRUD-by-id (PATCH/DELETE /:id). They do NOT cover the

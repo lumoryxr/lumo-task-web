@@ -28,6 +28,7 @@ push/PR.
 | **Design for Recoverability** | A bad request never poisons the server; the next request still works | invalid pagination cursor → 400 `INVALID_CURSOR`; burst of bad requests followed by a healthy request → 200; operation on non-existent id → 404 |
 | **Design for Observability** | Health/readiness are meaningful; every error has a consistent, machine-readable shape | `/health` → 200 `{ok:true}` (liveness); `/ready` reflects a real DB probe (readiness); business errors all carry `{ error: { code, message } }` |
 | **Design for Scalability** | List responses are always bounded; pagination is correct under volume | **`/v1/tasks`:** default page bounded (≤ 50) with `nextCursor`; over-max `limit` (>200) rejected → 400 (no unbounded read); cursor paging walks every row exactly once — no dupes, no omissions. **`/v1/completed` full history (#164, #202):** the highest-growth list (every completion ever) — its keyset pagination is exercised separately because its contract *differs* (DEFAULT 200 / MAX 500, over-max `limit` **clamped** not 400-rejected): explicit `limit` bounds the page + yields `nextCursor`; over-max `limit` → 200 clamped ≤ 500 (**not** 400, unlike tasks); cursor paging walks every entry exactly once |
+| **Design for Reliability** | State-changing operations keep cross-resource data consistent — no dangling references, no write amplification | **person-delete → `tasks.assignee_ids` cascade (#263):** `DELETE /v1/people/:id` is the app's only cross-resource cascade — after tombstoning the person it rewrites every referencing task's assignee list. Deleting a person drops its id from referencing tasks while **retaining co-assignees** (partial removal, not a blanket array clear) and leaving tasks that never referenced it untouched; the cascade is **precise** — only referencing tasks are rewritten (`updated_at` advances on a referencing task, unchanged on an unrelated one), proving the `EXISTS(json_each … = :pid)` predicate scopes the write and there is no tenant-wide amplification. Both invariants mutation-tested (neutering the cascade reddens exactly the removal case; dropping the `EXISTS` predicate reddens exactly the precision case — perfect specificity) |
 | **Design for Interoperability** | Stable wire contract clients can rely on | JSON `Content-Type`; `DELETE` → 204; successful create → 201 with a server-assigned id |
 
 ## Bugs this suite has already caught
@@ -53,6 +54,22 @@ here rather than leaving a silent hole.
 
 ## Coverage-gap audit log
 
+- **2026-07-02 (#263 person-delete assignee cascade)** — Every prior DFX case
+  targeted a single resource in isolation. `DELETE /v1/people/:id` is the app's
+  **only cross-resource cascade** (`backend/src/routes/people.ts`): after tombstoning
+  the person it rewrites `tasks.assignee_ids`, dropping the deleted id from every task
+  that referenced it. The #158 sweep proved only that the *person row* is
+  tenant-isolated — nothing pinned that the cascade **fires**, is **precise**, or
+  **preserves co-assignees**. A regression that dropped the cascade UPDATE, cleared the
+  whole array, or widened it (dropping the `EXISTS(… value = :pid)` predicate → rewrite
+  every task in the tenant) would leave dangling assignee ids or amplify writes — past
+  every existing case. Closed with 2 **Reliability** cases over real HTTP + real SQLite:
+  deleting a person drops it from referencing tasks while retaining co-assignees and
+  leaving non-referencing tasks untouched; the cascade is precise (referencing task's
+  `updated_at` advances, unrelated task's does not). Mutation-tested: neutering the
+  cascade reddens **exactly** the removal case; dropping the `EXISTS` predicate reddens
+  **exactly** the precision case — perfect specificity. Handler verified already
+  correct — **gap in the tests, not the code** (no production change). dfx 81 ✓.
 - **2026-06-28 (#158)** — Audit found tenant-isolation / malformed-body DFX cases
   existed **only for `/v1/tasks`**, while the matrix advertised them as system-wide.
   Closed by parametrizing the isolation + `INVALID_JSON` cases over `people`,
