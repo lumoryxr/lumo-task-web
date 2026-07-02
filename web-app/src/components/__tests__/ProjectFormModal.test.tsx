@@ -6,14 +6,18 @@ import { ProjectFormModal } from "../ProjectFormModal";
 vi.mock("@/i18n/useT", () => ({ useT: () => (key: string) => key }));
 
 const createMock = vi.fn();
+const updateMock = vi.fn();
 vi.mock("@/store/useProjectsStore", () => ({
-  useProjectsStore: (sel: (s: { create: typeof createMock }) => unknown) => sel({ create: createMock }),
+  useProjectsStore: (sel: (s: { create: typeof createMock; update: typeof updateMock }) => unknown) =>
+    sel({ create: createMock, update: updateMock }),
 }));
 
 describe("ProjectFormModal", () => {
   beforeEach(() => {
     createMock.mockReset();
     createMock.mockResolvedValue({ id: "prj_1" });
+    updateMock.mockReset();
+    updateMock.mockResolvedValue(undefined);
   });
 
   it("creates a project with the entered name/category/color and calls onCreated", async () => {
@@ -45,6 +49,34 @@ describe("ProjectFormModal", () => {
           goals: [{ text: "Ship v1", done: false }],
         }),
       );
+    });
+  });
+
+  it("edit mode prefills fields, saves via update (not create), and hides the goal field", async () => {
+    const onClose = vi.fn();
+    render(
+      <ProjectFormModal
+        onClose={onClose}
+        project={{
+          id: "prj_9", name: "Old name", emoji: "📁", category: "Work", color: "green",
+          goals: [], status: "active", pinned: false, createdAt: "", updatedAt: "",
+        }}
+      />,
+    );
+    // Prefilled + edit-only chrome.
+    expect((screen.getByLabelText("project.field.name") as HTMLInputElement).value).toBe("Old name");
+    expect(screen.getByText("project.save")).toBeTruthy();
+    expect(screen.queryByPlaceholderText("project.goals.placeholder")).toBeNull();
+
+    await userEvent.clear(screen.getByLabelText("project.field.name"));
+    await userEvent.type(screen.getByLabelText("project.field.name"), "New name");
+    fireEvent.click(screen.getByLabelText("cyan"));
+    fireEvent.click(screen.getByText("project.save"));
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith("prj_9", expect.objectContaining({ name: "New name", color: "cyan" }));
+      expect(createMock).not.toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
     });
   });
 

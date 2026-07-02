@@ -15,23 +15,29 @@ const COLOR_PRIMARY: Record<ProjectColor, string> = {
 
 interface ProjectFormModalProps {
   onClose: () => void;
-  onCreated: (p: Project) => void;
+  onCreated?: (p: Project) => void;
+  /** When set, the modal edits this project (name/emoji/category/color) instead
+   *  of creating a new one. Goals/notes stay on the detail page. */
+  project?: Project;
 }
 
 /**
- * Create-a-project dialog. Replaces the old "instantly spawn an Untitled
- * project and jump in" flow so the name/category/color/first-goal are set up
- * front, and an accidental click doesn't litter the gallery with blanks.
+ * Create- or edit-a-project dialog. Create replaces the old "instantly spawn an
+ * Untitled project and jump in" flow so the name/category/color/first-goal are
+ * set up front. Edit (when `project` is passed) is a quick rename/recolor from
+ * the gallery without leaving the page.
  */
-export function ProjectFormModal({ onClose, onCreated }: ProjectFormModalProps) {
+export function ProjectFormModal({ onClose, onCreated, project }: ProjectFormModalProps) {
   const t = useT();
   const dialogRef = useModalA11y<HTMLDivElement>(onClose);
   const create = useProjectsStore((s) => s.create);
+  const update = useProjectsStore((s) => s.update);
+  const isEdit = !!project;
 
-  const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState("");
-  const [category, setCategory] = useState("");
-  const [color, setColor] = useState<ProjectColor>("green");
+  const [name, setName] = useState(project?.name ?? "");
+  const [emoji, setEmoji] = useState(project?.emoji ?? "");
+  const [category, setCategory] = useState(project?.category ?? "");
+  const [color, setColor] = useState<ProjectColor>(project?.color ?? "green");
   const [goal, setGoal] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -40,6 +46,16 @@ export function ProjectFormModal({ onClose, onCreated }: ProjectFormModalProps) 
     if (busy) return;
     setBusy(true);
     try {
+      if (project) {
+        await update(project.id, {
+          name: name.trim() || t("project.untitled"),
+          emoji: emoji.trim() || undefined,
+          category: category.trim() || undefined,
+          color,
+        });
+        onClose();
+        return;
+      }
       const trimmedGoal = goal.trim();
       const p = await create({
         name: name.trim() || t("project.untitled"),
@@ -49,7 +65,7 @@ export function ProjectFormModal({ onClose, onCreated }: ProjectFormModalProps) 
         goals: trimmedGoal ? [{ text: trimmedGoal, done: false }] : [],
         status: "active",
       });
-      onCreated(p);
+      onCreated?.(p);
     } finally {
       setBusy(false);
     }
@@ -67,7 +83,7 @@ export function ProjectFormModal({ onClose, onCreated }: ProjectFormModalProps) 
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={t("project.new")}
+        aria-label={isEdit ? t("project.edit") : t("project.new")}
         ref={dialogRef}
         tabIndex={-1}
         style={{
@@ -84,7 +100,7 @@ export function ProjectFormModal({ onClose, onCreated }: ProjectFormModalProps) 
           padding: "16px 20px", borderBottom: "1px solid var(--border-faint)",
         }}>
           <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
-            {t("project.new")}
+            {isEdit ? t("project.edit") : t("project.new")}
           </h2>
           <button
             type="button"
@@ -163,17 +179,19 @@ export function ProjectFormModal({ onClose, onCreated }: ProjectFormModalProps) 
             </div>
           </div>
 
-          {/* First goal (optional) */}
-          <div style={{ marginBottom: 20 }}>
-            <Label text={t("project.create.goal")} />
-            <input
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              placeholder={t("project.goals.placeholder")}
-              aria-label={t("project.create.goal")}
-              style={inputStyle()}
-            />
-          </div>
+          {/* First goal (optional) — create only; goals are managed on the detail page. */}
+          {!isEdit && (
+            <div style={{ marginBottom: 20 }}>
+              <Label text={t("project.create.goal")} />
+              <input
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                placeholder={t("project.goals.placeholder")}
+                aria-label={t("project.create.goal")}
+                style={inputStyle()}
+              />
+            </div>
+          )}
 
           {/* Actions */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -201,7 +219,7 @@ export function ProjectFormModal({ onClose, onCreated }: ProjectFormModalProps) 
                 cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1,
               }}
             >
-              {t("project.create")}
+              {isEdit ? t("project.save") : t("project.create")}
             </button>
           </div>
         </form>
