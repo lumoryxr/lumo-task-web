@@ -148,7 +148,7 @@ export function ProjectDetailPage() {
             onBlur={(e) => commitName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
             placeholder={t("project.field.namePlaceholder")}
-            className="w-full text-lg font-semibold text-text-primary bg-transparent outline-none"
+            className="inline-input w-full text-lg font-semibold"
           />
           <input
             key={`${pid}-category`}
@@ -157,7 +157,7 @@ export function ProjectDetailPage() {
             onBlur={(e) => commitCategory(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
             placeholder={t("project.category.placeholder")}
-            className="w-full text-xs text-text-muted bg-transparent outline-none mt-0.5"
+            className="inline-input w-full text-xs text-text-muted mt-0.5"
           />
         </div>
       </div>
@@ -256,7 +256,7 @@ export function ProjectDetailPage() {
                 onClick={() => toggleGoal(i)}
                 className="flex-shrink-0 flex items-center justify-center w-[18px] h-[18px] rounded transition-all"
                 style={{
-                  border: `1.5px solid ${g.done ? "var(--accent-primary)" : "var(--border-strong)"}`,
+                  border: `1px solid ${g.done ? "var(--accent-primary)" : "var(--border-strong)"}`,
                   background: g.done ? "var(--accent-primary)" : "transparent",
                   color: "var(--text-inverse)",
                 }}
@@ -282,8 +282,7 @@ export function ProjectDetailPage() {
             onChange={(e) => setNewGoal(e.target.value)}
             onKeyDown={(e) => onEnter(e, addGoal)}
             placeholder={t("project.goals.placeholder")}
-            className="flex-1 text-sm bg-transparent outline-none border-b py-1"
-            style={{ borderColor: "var(--border-faint)" }}
+            className="inline-input flex-1 text-sm"
           />
           <button onClick={addGoal} aria-label={t("project.goals.add")} className="text-text-secondary hover:text-text-primary transition-colors">
             <IconPlus size={16} />
@@ -341,8 +340,7 @@ export function ProjectDetailPage() {
             onChange={(e) => setNewTask(e.target.value)}
             onKeyDown={(e) => onEnter(e, addTask)}
             placeholder={t("project.tasks.add")}
-            className="flex-1 text-sm bg-transparent outline-none border-b py-1"
-            style={{ borderColor: "var(--border-faint)" }}
+            className="inline-input flex-1 text-sm"
           />
           <button onClick={addTask} aria-label={t("project.tasks.add")} className="text-text-secondary hover:text-text-primary transition-colors">
             <IconPlus size={16} />
