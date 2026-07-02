@@ -1053,6 +1053,109 @@ describe("DFX · Robustness — settings reminder-time fields are format-bounded
   });
 });
 
+describe("DFX · Robustness — habit check-in `date` is format-bounded (#267)", () => {
+  // Last member of the scheduler/streak-driving format-bound family
+  // (#176 remind_at → #240 countdowns.date → #264 settings reminder-times).
+  // The check-in `date` is the key of every `habit_logs` row and the sole input
+  // to the client's streak computation; it is gated ONLY by `^\d{4}-\d{2}-\d{2}$`
+  // on two surfaces — the `POST /:id/log` JSON body AND the `DELETE /:id/log/:date`
+  // path param. The DELETE is the insidious one: it is idempotent (204 on no
+  // match), so a dropped param bound would slip a bad date into an unguarded
+  // `DELETE … WHERE date = :date` with no status-code change.
+  let habitId = "";
+
+  before(async () => {
+    // `alice` is created by the first Security describe's before-hook; reuse it.
+    const created = await api("POST", "/v1/habits", {
+      token: alice.token,
+      body: { title: "Read", color: "green", frequency: "daily" },
+    });
+    assert.equal(created.status, 201, "habit setup must succeed");
+    habitId = created.body.id;
+  });
+
+  test("malformed `date` on POST /:id/log → 400 VALIDATION_ERROR naming `date`, no check-in written", async () => {
+    const { status, body } = await api("POST", `/v1/habits/${habitId}/log`, {
+      token: alice.token,
+      body: { date: "someday" },
+    });
+    assert.equal(status, 400, "a junk check-in date must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "date"),
+      "the rejection must name `date` (the format bound fired, not an incidental 400)",
+    );
+
+    // Nothing was written for the rejected date.
+    const logs = await api("GET", "/v1/habits/logs", { token: alice.token });
+    assert.ok(
+      !(logs.body as Array<{ date: string }>).some((l) => l.date === "someday"),
+      "a rejected check-in must not have persisted a log row",
+    );
+  });
+
+  test("full-datetime `date` on POST /:id/log (plausible but wrong shape) → 400 — the date-only bound has teeth", async () => {
+    // `"2026-07-02T09:30"` is a valid task `remind_at` but NOT a valid check-in
+    // date: the streak math wants a date-only key, so the regex forbids the time
+    // component. Proves the bound rejects a plausible-but-wrong value, not just
+    // garbage.
+    const { status, body } = await api("POST", `/v1/habits/${habitId}/log`, {
+      token: alice.token,
+      body: { date: "2026-07-02T09:30" },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "date"),
+      "a datetime with a time component must still name `date`",
+    );
+  });
+
+  test("valid `date` round-trips — POST /:id/log persists it and GET /habits/logs reflects it", async () => {
+    const date = "2026-12-25";
+    const { status, body: log } = await api("POST", `/v1/habits/${habitId}/log`, {
+      token: alice.token,
+      body: { date },
+    });
+    assert.equal(status, 201, "a well-formed date must be accepted");
+    assert.equal(log.date, date, "the create response must echo the stored date");
+
+    // The streak input must survive storage and be readable back.
+    const logs = await api("GET", "/v1/habits/logs", { token: alice.token });
+    assert.equal(logs.status, 200);
+    const found = (logs.body as Array<{ habitId: string; date: string }>).find(
+      (l) => l.habitId === habitId && l.date === date,
+    );
+    assert.ok(found, "a subsequent read must reflect the persisted check-in");
+  });
+
+  test("malformed `date` on DELETE /:id/log/:date (path param) → 400, and an existing check-in survives", async () => {
+    // A real check-in the idempotent DELETE must NOT be able to clear via a bad
+    // path param.
+    const keep = "2028-03-03";
+    const seed = await api("POST", `/v1/habits/${habitId}/log`, {
+      token: alice.token,
+      body: { date: keep },
+    });
+    assert.equal(seed.status, 201);
+
+    const { status, body } = await api("DELETE", `/v1/habits/${habitId}/log/someday`, {
+      token: alice.token,
+    });
+    assert.equal(status, 400, "the DELETE path param must validate `date` too (before the idempotent 204)");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+
+    // No poison: the rejected malformed DELETE must not have touched real rows.
+    const logs = await api("GET", "/v1/habits/logs", { token: alice.token });
+    assert.ok(
+      (logs.body as Array<{ habitId: string; date: string }>).some(
+        (l) => l.habitId === habitId && l.date === keep,
+      ),
+      "a rejected malformed DELETE must leave existing check-ins intact",
+    );
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Design for RECOVERABILITY — bad input must not poison the server
 // ═══════════════════════════════════════════════════════════════════════════════
