@@ -15,7 +15,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { usePetStore } from "@/store/usePetStore";
-import { derivePlanProjects, resolveActiveFilter, filterPlanTasks } from "@/utils/planFilters";
+import { derivePlanProjects, derivePlanTags, resolveActiveFilter, filterPlanTasks } from "@/utils/planFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fmtDuration, toISODate } from "@/lib/format";
 import type { Locale, Task } from "@/types/task";
@@ -765,7 +765,7 @@ export function TodayPage() {
   // Distinct tags across today's plan, for the filter bar. A filter that no
   // longer matches any task (e.g. its last task got completed) is dropped so we
   // never show an empty filtered list with no way back.
-  const planTags = [...new Set(todayRest.flatMap((x) => x.tags ?? []))].sort();
+  const planTags = derivePlanTags(todayRest);
   const activeTag = resolveActiveFilter(tagFilter, planTags);
 
   // Distinct projects across today's plan (#223 V2 ⭐2), resolved to names.

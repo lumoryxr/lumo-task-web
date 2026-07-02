@@ -22,7 +22,7 @@ import { FilterChip } from "@/components/FilterChip";
 import { CalendarView } from "@/components/CalendarView";
 import { MatrixSkeleton } from "@/components/skeletons";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { derivePlanProjects, resolveActiveFilter } from "@/utils/planFilters";
+import { derivePlanProjects, derivePlanTags, resolveActiveFilter, filterPlanTasks } from "@/utils/planFilters";
 
 /**
  * Eisenhower 2×2. Each quadrant is a column with a header and a stack
@@ -44,6 +44,7 @@ export function MatrixPage() {
   const [classifyOpen, setClassifyOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const projects = useProjectsStore((s) => s.projects);
   const view = useAppStore((s) => s.matrixView) as ViewMode;
   const setMatrixView = useAppStore((s) => s.setMatrixView);
@@ -53,6 +54,8 @@ export function MatrixPage() {
   // quadrants never get stuck showing an empty board with no way back.
   const boardProjects = derivePlanProjects(allActive, projects);
   const activeProject = resolveActiveFilter(projectFilter, boardProjects.map((p) => p.id));
+  const boardTags = derivePlanTags(allActive);
+  const activeTag = resolveActiveFilter(tagFilter, boardTags);
 
   function switchView(v: ViewMode) {
     setMatrixView(v);
@@ -169,11 +172,34 @@ export function MatrixPage() {
         </div>
       )}
 
+      {/* Tag filter bar — only in matrix view, only when tasks carry tags */}
+      {view === "matrix" && boardTags.length > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-1.5 flex-shrink-0 px-4 sm:px-7 pb-3"
+          role="group"
+          aria-label={t("tag.filter.label")}
+        >
+          <FilterChip
+            label={t("tag.filter.all")}
+            active={!activeTag}
+            onClick={() => setTagFilter(null)}
+          />
+          {boardTags.map((tag) => (
+            <FilterChip
+              key={tag}
+              label={tag}
+              active={activeTag === tag}
+              onClick={() => setTagFilter(activeTag === tag ? null : tag)}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Content area */}
       {view === "matrix" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-2 gap-3 sm:gap-4 flex-1 min-h-0 overflow-y-auto px-4 sm:px-7 pb-4 sm:pb-7">
           {quadrants.map((q) => (
-            <QuadrantPanel key={q.id} id={q.id} title={q.label} subtitle={q.sub} projectFilter={activeProject} />
+            <QuadrantPanel key={q.id} id={q.id} title={q.label} subtitle={q.sub} projectFilter={activeProject} tagFilter={activeTag} />
           ))}
         </div>
       ) : (
@@ -266,14 +292,16 @@ function QuadrantPanel({
   title,
   subtitle,
   projectFilter,
+  tagFilter,
 }: {
   id: Quadrant;
   title: string;
   subtitle: string;
   projectFilter: string | null;
+  tagFilter: string | null;
 }) {
   const all = useTasksStore((s) => s.byQuadrant(id));
-  const tasks = projectFilter ? all.filter((tk) => tk.project_id === projectFilter) : all;
+  const tasks = filterPlanTasks(all, tagFilter, projectFilter);
   const t = useT();
   const { over, handlers } = useTaskDrop(id);
 

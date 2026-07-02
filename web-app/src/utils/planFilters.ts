@@ -21,6 +21,11 @@ export interface PlanProjectOption {
   name: string;
 }
 
+/** Distinct tags across the given tasks, sorted for a stable filter bar. */
+export function derivePlanTags(tasks: FilterableTask[]): string[] {
+  return [...new Set(tasks.flatMap((t) => t.tags ?? []))].sort();
+}
+
 /** Distinct projects referenced by the given tasks, resolved to display names. */
 export function derivePlanProjects(tasks: FilterableTask[], projects: ProjectLike[]): PlanProjectOption[] {
   const ids = [...new Set(tasks.map((t) => t.project_id).filter((id): id is string => !!id))];
