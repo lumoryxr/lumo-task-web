@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { validate } from "../lib/validate.js";
 import { z } from "zod";
 import { nanoid } from "nanoid";
-import { query, queryOne, execute } from "../db/client.js";
+import { query, queryOne, execute, batch } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { hlcNow } from "../lib/hlc.js";
@@ -207,21 +207,32 @@ app.patch("/:id", validate("param", IdParam), validate("json", ProjectUpdateBody
 app.delete("/:id", validate("param", IdParam), async (c) => {
   const userId = c.get("userId");
   const projectId = c.req.param("id");
-  // Tombstone: both `deleted_at` and `updated_at` ride the LWW order → HLC.
-  const now = hlcNow();
-  const result = await execute(
-    "UPDATE projects SET deleted_at = :now, updated_at = :now WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
-    { id: projectId, uid: userId, now }
+
+  // Existence check drives the 404 (same pattern as PATCH); the writes then run
+  // in one atomic batch so we never leave a deleted project with live orphaned
+  // tasks on a partial failure.
+  const existing = await queryOne<ProjectRow>(
+    "SELECT id FROM projects WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
+    { id: projectId, uid: userId }
   );
-  if (result.changes === 0) return httpError(c, 404, "NOT_FOUND", "Project not found");
+  if (!existing) return httpError(c, 404, "NOT_FOUND", "Project not found");
+
+  // Tombstone: both `deleted_at` and `updated_at` ride the LWW order → HLC.
   // Cascade: deleting a project also tombstones its tasks (same HLC tick) so
   // they don't linger as orphaned rows whose project_id points at a gone
   // project — which otherwise leaks as stale project-filter chips. Tenant-
   // scoped; propagates to other devices on sync like any other tombstone.
-  await execute(
-    "UPDATE tasks SET deleted_at = :now, updated_at = :now WHERE project_id = :id AND user_id = :uid AND deleted_at IS NULL",
-    { id: projectId, uid: userId, now }
-  );
+  const now = hlcNow();
+  await batch([
+    {
+      sql: "UPDATE projects SET deleted_at = :now, updated_at = :now WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
+      args: { id: projectId, uid: userId, now },
+    },
+    {
+      sql: "UPDATE tasks SET deleted_at = :now, updated_at = :now WHERE project_id = :id AND user_id = :uid AND deleted_at IS NULL",
+      args: { id: projectId, uid: userId, now },
+    },
+  ]);
   return new Response(null, { status: 204 });
 });
 

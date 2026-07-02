@@ -93,10 +93,13 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
     try {
       await projectApi.delete(id);
       set((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
-      // The server cascades the delete to this project's tasks; refresh the
-      // task cache so they vanish from Matrix/Today right away instead of
-      // lingering until the next sync/reload.
-      await useTasksStore.getState().load();
+      // The server cascades the delete to this project's tasks. Drop them from
+      // the local task cache right away (optimistic — mirrors the server) so
+      // they vanish from Matrix/Today immediately, without a full refetch or a
+      // second (task-load) toast racing the success toast.
+      useTasksStore.setState((s) => ({
+        tasks: s.tasks.filter((tk) => tk.project_id !== id),
+      }));
       toast.success(t("project.deleted"));
     } catch (e) {
       toast.error(t("project.error.delete"), e instanceof Error ? e.message : String(e));
