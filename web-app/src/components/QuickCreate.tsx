@@ -5,6 +5,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { TagInput } from "@/components/TagInput";
 import { toISODate } from "@/lib/format";
 import type { Quadrant, TaskRecurrence } from "@/types/task";
 
@@ -55,6 +56,7 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   const [dueDate, setDueDate] = useState<string>(initialDue ?? todayISO);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [recurrence, setRecurrence] = useState<TaskRecurrence>("none");
+  const [tags, setTags] = useState<string[]>([]);
   const [aiMode, setAiMode] = useState(false);
   const [aiText, setAiText] = useState("");
   const [aiParsing, setAiParsing] = useState(false);
@@ -115,6 +117,7 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
         pomos_total: Math.max(1, Math.ceil(duration / 25)),
         assignee_ids: assigneeIds,
         recurrence,
+        tags,
       });
       onCreated?.();
     } finally {
@@ -386,6 +389,19 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Tags */}
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
+              {t("edit.tags")}
+            </div>
+            <TagInput
+              tags={tags}
+              onChange={setTags}
+              placeholder={t("edit.tags.placeholder")}
+              inputAriaLabel={t("edit.tags")}
+            />
           </div>
 
           {/* Assignees — multi-select */}

@@ -41,7 +41,8 @@ function getCreateBtn() {
 }
 
 function getTitleInput() {
-  return screen.getByRole("textbox") as HTMLInputElement;
+  // Target the title field by placeholder — the tag input is also a textbox.
+  return screen.getByPlaceholderText("qc.placeholder") as HTMLInputElement;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -98,5 +99,19 @@ describe("QuickCreate", () => {
     fireEvent.change(getTitleInput(), { target: { value: "My task" } });
     fireEvent.keyDown(window, { key: "Enter", ctrlKey: true });
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+  });
+
+  it("includes tags entered before submit in the create payload", async () => {
+    setup();
+    fireEvent.change(getTitleInput(), { target: { value: "My task" } });
+
+    const tagInput = screen.getByPlaceholderText("edit.tags.placeholder") as HTMLInputElement;
+    fireEvent.change(tagInput, { target: { value: "work" } });
+    fireEvent.keyDown(tagInput, { key: "Enter" });
+
+    fireEvent.click(getCreateBtn());
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ tags: ["work"] });
   });
 });
