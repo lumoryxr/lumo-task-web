@@ -977,6 +977,82 @@ describe("DFX · Robustness — countdown `date` anchor is format-bounded (#240)
   });
 });
 
+describe("DFX · Robustness — settings reminder-time fields are format-bounded (#264)", () => {
+  // `morning_reminder_time` / `evening_reminder_time` are the `HH:MM` anchors
+  // that PATCH /v1/settings stores verbatim and GET /v1/settings returns to drive
+  // the client's morning/evening reminder scheduling. Their ONLY guard is a shape
+  // regex `^\d{2}:\d{2}$` (nullable/optional). Sibling of the #176 `remind_at` /
+  // #240 `countdowns.date` format bounds: settings is otherwise absent from this
+  // daily suite, so a regression loosening the regex to `z.string()` would let a
+  // malformed time into the column — surfacing only as a mis-parsed / never-firing
+  // reminder in prod — past every existing case. (The registration flow seeds a
+  // settings row, so a PATCH on the shared actor targets an existing singleton.)
+
+  test("malformed `morning_reminder_time` (`9am`) → 400 VALIDATION_ERROR naming the field, never a 5xx / write", async () => {
+    const { status, body } = await api("PATCH", "/v1/settings", {
+      token: alice.token,
+      body: { morning_reminder_time: "9am" },
+    });
+    assert.equal(status, 400, "a junk time must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "morning_reminder_time"),
+      "the rejection must name `morning_reminder_time` (the format bound fired, not an incidental 400)",
+    );
+  });
+
+  test("single-digit `evening_reminder_time` (`9:5`) → 400 — the `\\d{2}:\\d{2}` bound has teeth", async () => {
+    // `"9:5"` is a plausible-but-wrong time: it *looks* like a clock value but
+    // violates the two-digit-each shape, so the regex must reject it. Proves the
+    // bound rejects a near-miss, not just obvious garbage.
+    const { status, body } = await api("PATCH", "/v1/settings", {
+      token: alice.token,
+      body: { evening_reminder_time: "9:5" },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "evening_reminder_time"),
+      "a single-digit time must still name `evening_reminder_time`",
+    );
+  });
+
+  test("valid `HH:MM` values round-trip — PATCH persists them and GET reflects them back", async () => {
+    const morning = "07:15";
+    const evening = "21:45";
+    const { status, body } = await api("PATCH", "/v1/settings", {
+      token: alice.token,
+      body: { morning_reminder_time: morning, evening_reminder_time: evening },
+    });
+    assert.equal(status, 200, "well-formed times must be accepted");
+    assert.equal(body.morning_reminder_time, morning, "the PATCH response must echo the stored morning time");
+    assert.equal(body.evening_reminder_time, evening, "the PATCH response must echo the stored evening time");
+
+    // The values must survive storage so the client's scheduler can read them back.
+    const get = await api("GET", "/v1/settings", { token: alice.token });
+    assert.equal(get.status, 200);
+    assert.equal(get.body.morning_reminder_time, morning, "a subsequent read must reflect the persisted morning time");
+    assert.equal(get.body.evening_reminder_time, evening, "a subsequent read must reflect the persisted evening time");
+  });
+
+  test("malformed `morning_reminder_time` on PATCH → 400 and the stored value is left unmutated", async () => {
+    // Anchor a known-good value first, then attempt a poisoning update.
+    const good = "06:30";
+    await api("PATCH", "/v1/settings", { token: alice.token, body: { morning_reminder_time: good } });
+
+    const { status, body } = await api("PATCH", "/v1/settings", {
+      token: alice.token,
+      body: { morning_reminder_time: "25:99:99" },
+    });
+    assert.equal(status, 400, "a malformed update must be rejected");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+
+    // No partial poison: the rejected PATCH must not have overwritten the column.
+    const get = await api("GET", "/v1/settings", { token: alice.token });
+    assert.equal(get.body.morning_reminder_time, good, "a rejected update must leave the stored time unchanged");
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Design for RECOVERABILITY — bad input must not poison the server
 // ═══════════════════════════════════════════════════════════════════════════════
