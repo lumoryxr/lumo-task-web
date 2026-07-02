@@ -3,6 +3,7 @@ import { useT } from "@/i18n/useT";
 import { useTasksStore } from "@/store/useTasksStore";
 import type { Task } from "@/types/task";
 import { IconCheck } from "@/components/icons";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const QUADRANTS: Task["quadrant"][] = ["Q1", "Q2", "Q3", "Q4", "unclassified"];
 
@@ -24,6 +25,7 @@ export function BatchActionBar({ candidateIds }: { candidateIds: string[] }) {
 
   const [busy, setBusy] = useState(false);
   const [showMove, setShowMove] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!selectMode) return null;
 
@@ -112,17 +114,23 @@ export function BatchActionBar({ candidateIds }: { candidateIds: string[] }) {
       </div>
 
       <button
-        onClick={() => {
-          if (busy || count === 0) return;
-          if (!window.confirm(t("batch.deleteConfirm").replace("{n}", String(count)))) return;
-          run(() => removeBatch(selectedIds));
-        }}
+        onClick={() => { if (!busy && count > 0) setConfirmDelete(true); }}
         disabled={busy || count === 0}
         className="text-xs font-medium px-2.5 py-1 rounded-md transition-colors"
-        style={{ color: "#e05252", background: "transparent", border: "1px solid var(--border-default)", opacity: count === 0 ? 0.5 : 1 }}
+        style={{ color: "var(--status-urgent)", background: "transparent", border: "1px solid var(--border-default)", opacity: count === 0 ? 0.5 : 1 }}
       >
         {t("batch.delete")}
       </button>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        danger
+        title={t("batch.deleteConfirm.title")}
+        message={t("batch.deleteConfirm").replace("{n}", String(count))}
+        confirmLabel={t("batch.delete")}
+        onConfirm={() => { setConfirmDelete(false); void run(() => removeBatch(selectedIds)); }}
+        onCancel={() => setConfirmDelete(false)}
+      />
 
       <div className="w-px h-5" style={{ background: "var(--border-default)" }} />
 

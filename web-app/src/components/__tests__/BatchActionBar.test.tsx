@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { BatchActionBar } from "../BatchActionBar";
 
 const completeBatch = vi.fn(async () => ({ ok: 1, failed: 0 }));
@@ -74,15 +74,18 @@ describe("BatchActionBar", () => {
     expect(moveBatch).toHaveBeenCalledWith(["a", "b"], "Q3");
   });
 
-  it("Delete confirms before removing", () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("Delete confirms via dialog before removing", () => {
     renderBar();
+    // Open the confirm dialog; cancelling must not delete.
     fireEvent.click(screen.getByText("batch.delete"));
-    expect(removeBatch).not.toHaveBeenCalled(); // declined
-    confirmSpy.mockReturnValue(true);
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(within(dialog).getByText("common.cancel"));
+    expect(removeBatch).not.toHaveBeenCalled();
+    // Reopen and confirm → deletes.
     fireEvent.click(screen.getByText("batch.delete"));
+    const dialog2 = screen.getByRole("alertdialog");
+    fireEvent.click(within(dialog2).getByText("batch.delete")); // confirm button inside the dialog
     expect(removeBatch).toHaveBeenCalledWith(["a", "b"]);
-    confirmSpy.mockRestore();
   });
 
   it("Done exits select mode", () => {

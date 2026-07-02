@@ -4,6 +4,7 @@ import { CountdownCard } from "@/components/CountdownCard";
 import { CountdownFormModal } from "@/components/CountdownFormModal";
 import { IconCountdown, IconPlus } from "@/components/icons";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
@@ -208,60 +209,17 @@ export function CountdownPage() {
       )}
 
       {/* Delete confirm */}
-      {deleteId && (
-        <div
-          style={{
-            position: "fixed", inset: 0, zIndex: 300,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
-          }}
-          onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteId(null); }}
-        >
-          <div style={{
-            background: "var(--bg-elevated)",
-            border: "1px solid var(--border-default)",
-            borderRadius: "var(--radius-lg)",
-            boxShadow: "var(--shadow-lifted)",
-            padding: "24px 28px",
-            width: 320,
-          }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>
-              {t("countdown.delete.confirm")}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 20 }}>
-              {events.find((e) => e.id === deleteId)?.title}
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button
-                onClick={() => setDeleteId(null)}
-                style={{
-                  padding: "7px 16px",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-default)",
-                  background: "transparent",
-                  color: "var(--text-secondary)",
-                  fontSize: 13, cursor: "pointer",
-                }}
-              >
-                {t("countdown.btn.cancel")}
-              </button>
-              <button
-                onClick={confirmDelete}
-                style={{
-                  padding: "7px 16px",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid rgba(255,107,107,0.4)",
-                  background: "rgba(255,107,107,0.1)",
-                  color: "var(--status-urgent)",
-                  fontSize: 13, fontWeight: 600, cursor: "pointer",
-                }}
-              >
-                {t("countdown.menu.delete")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={deleteId !== null}
+        danger
+        title={t("countdown.delete.confirm.title")}
+        message={t("countdown.delete.confirm")}
+        detail={events.find((e) => e.id === deleteId)?.title}
+        confirmLabel={t("countdown.menu.delete")}
+        cancelLabel={t("countdown.btn.cancel")}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }

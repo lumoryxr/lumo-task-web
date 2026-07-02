@@ -13,6 +13,7 @@ import type { Locale, Person } from "@/types/task";
 import { PERSON_COLORS } from "@/lib/personColors";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { EmptyState } from "@/components/EmptyState";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { IconUsers } from "@/components/icons";
 import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
 import { useNotificationStore } from "@/store/useNotificationStore";
@@ -898,6 +899,7 @@ function StoragePanel({ t }: { t: (k: string) => string }) {
   const [info, setInfo] = useState<{ dbPath: string; dbSize: number } | null>(null);
   const [moving, setMoving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [pendingDir, setPendingDir] = useState<string | null>(null);
 
   useEffect(() => {
     api.storageInfo()
@@ -918,8 +920,13 @@ function StoragePanel({ t }: { t: (k: string) => string }) {
     if (!window.electronAPI) return;
     const newDir = await window.electronAPI.chooseDbFolder();
     if (!newDir) return;
-    const ok = window.confirm(t("settings.storage.confirm") + "\n\n" + newDir);
-    if (!ok) return;
+    setPendingDir(newDir); // confirm via ConfirmDialog before moving
+  }
+
+  async function confirmMove() {
+    const newDir = pendingDir;
+    setPendingDir(null);
+    if (!newDir || !window.electronAPI) return;
     setMoving(true);
     try {
       const result = await window.electronAPI.moveDbTo(newDir);
@@ -1013,6 +1020,15 @@ function StoragePanel({ t }: { t: (k: string) => string }) {
           </span>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingDir !== null}
+        title={t("settings.storage.confirm.title")}
+        message={t("settings.storage.confirm")}
+        detail={pendingDir ?? undefined}
+        onConfirm={() => void confirmMove()}
+        onCancel={() => setPendingDir(null)}
+      />
     </div>
   );
 }
