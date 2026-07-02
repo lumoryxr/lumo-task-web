@@ -7,6 +7,7 @@ import type { Project, ProjectColor } from "@/types/task";
 import { EmptyState } from "@/components/EmptyState";
 import { ProjectTemplatePicker } from "@/components/ProjectTemplatePicker";
 import { ProjectFormModal } from "@/components/ProjectFormModal";
+import { ProgressRing } from "@/components/ProgressRing";
 import { sortProjects, type ProjectSort } from "@/utils/projectSort";
 import { IconProject, IconPlus, IconBookmark, IconPin } from "@/components/icons";
 
@@ -265,20 +266,5 @@ function ProjectCard({ project, taskCount, doneCount, onOpen, onTogglePin, t }: 
       </div>
       </button>
     </div>
-  );
-}
-
-/** Compact SVG donut showing a project's completion percentage. */
-function ProgressRing({ pct, color }: { pct: number; color: string }) {
-  const r = 9;
-  const c = 2 * Math.PI * r;
-  return (
-    <svg width={26} height={26} viewBox="0 0 26 26" className="shrink-0" aria-hidden="true">
-      <circle cx={13} cy={13} r={r} fill="none" stroke="var(--border-default)" strokeWidth={3} />
-      <circle
-        cx={13} cy={13} r={r} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round"
-        strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} transform="rotate(-90 13 13)"
-      />
-    </svg>
   );
 }

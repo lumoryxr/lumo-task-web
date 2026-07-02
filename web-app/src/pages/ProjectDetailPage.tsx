@@ -10,6 +10,7 @@ import { TaskRow } from "@/components/TaskRow";
 import { ProjectBoard } from "@/components/ProjectBoard";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
+import { ProgressRing } from "@/components/ProgressRing";
 import { EmptyState } from "@/components/EmptyState";
 import { computeProjectRecap } from "@/utils/projectRecap";
 import { IconArrowLeft, IconBookmark, IconCheck, IconClose, IconPlus, IconProject, IconShare, IconTrash } from "@/components/icons";
@@ -114,9 +115,13 @@ export function ProjectDetailPage() {
   }
 
   const primary = COLOR_PRIMARY[project.color];
+  const totalTasks = doneCount + projectTasks.length;
+  const pct = totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0;
+  const goalsDone = goals.filter((g) => g.done).length;
+  const focusHours = focusMinutes > 0 ? (focusMinutes / 60).toFixed(1) : "0";
 
   return (
-    <div className="fade-in px-4 sm:px-7 py-6 sm:py-7 max-w-3xl">
+    <div className="fade-in px-4 sm:px-7 py-6 sm:py-7 max-w-5xl">
       <BackLink onClick={() => navigate("/projects")} label={t("project.page.title")} />
 
       {/* Header — uncontrolled inputs that commit on blur/Enter (keyed by
@@ -214,6 +219,30 @@ export function ProjectDetailPage() {
         </button>
       </div>
 
+      {/* Overview band — the whole picture at a glance (#246 PR2):
+          progress ring + tasks done/total + goals + focus hours + status. */}
+      <div
+        className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl px-4 py-3 mb-6"
+        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
+      >
+        <div className="flex items-center gap-2.5">
+          <ProgressRing pct={pct} color={primary} size={44} stroke={4} />
+          <div className="leading-tight">
+            <div className="text-lg font-semibold tabular-nums text-text-primary">{pct}%</div>
+            <div className="text-[11px] text-text-muted">{t("project.progress.label")}</div>
+          </div>
+        </div>
+        <OverviewStat label={t("project.tasks.title")} value={`${doneCount}/${totalTasks}`} />
+        <OverviewStat label={t("project.recap.goals")} value={`${goalsDone}/${goals.length}`} icon="🎯" />
+        <OverviewStat label={t("project.overview.focus")} value={`${focusHours}h`} />
+        <OverviewStat
+          label={t("project.overview.status")}
+          value={project.status === "archived" ? t("project.status.archived") : t("project.status.active")}
+        />
+      </div>
+
+      <div className="lg:grid lg:grid-cols-2 lg:gap-x-8 lg:items-start">
+        <div>
       {/* Key goals */}
       <Section title={t("project.goals.title")}>
         {goals.length === 0 && <p className="text-xs text-text-faint mb-2">{t("project.goals.empty")}</p>}
@@ -262,16 +291,21 @@ export function ProjectDetailPage() {
         </div>
       </Section>
 
+      {/* Content — rich text with inline images (#215) */}
+      <Section title={t("project.content.title")}>
+        <ProjectContentEditor
+          value={project.content}
+          onChange={(json) => update(pid, { content: json || undefined })}
+        />
+      </Section>
+        </div>
+
+        <div>
       {/* Tasks */}
       <Section
         title={t("project.tasks.title")}
         extra={
           <div className="flex items-center gap-2 normal-case tracking-normal">
-            {doneCount + projectTasks.length > 0 && (
-              <span className="text-[11px] font-medium tabular-nums text-text-muted">
-                {doneCount}/{doneCount + projectTasks.length}
-              </span>
-            )}
             <div className="flex items-center rounded-md overflow-hidden" style={{ border: "1px solid var(--border-default)" }}>
               {(["list", "board"] as const).map((v) => (
                 <button
@@ -315,14 +349,8 @@ export function ProjectDetailPage() {
           </button>
         </div>
       </Section>
-
-      {/* Content — rich text with inline images (#215) */}
-      <Section title={t("project.content.title")}>
-        <ProjectContentEditor
-          value={project.content}
-          onChange={(json) => update(pid, { content: json || undefined })}
-        />
-      </Section>
+        </div>
+      </div>
 
       {recapOpen && (
         <ProjectRecapCard
@@ -342,6 +370,18 @@ function BackLink({ onClick, label }: { onClick: () => void; label: string }) {
       <IconArrowLeft size={14} />
       {label}
     </button>
+  );
+}
+
+function OverviewStat({ label, value, icon }: { label: string; value: string; icon?: string }) {
+  return (
+    <div className="leading-tight">
+      <div className="text-lg font-semibold tabular-nums text-text-primary">
+        {icon && <span className="mr-1">{icon}</span>}
+        {value}
+      </div>
+      <div className="text-[11px] text-text-muted">{label}</div>
+    </div>
   );
 }
 
