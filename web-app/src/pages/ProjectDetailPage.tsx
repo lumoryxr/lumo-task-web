@@ -40,9 +40,20 @@ export function ProjectDetailPage() {
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [recapOpen, setRecapOpen] = useState(false);
   const [taskView, setTaskView] = useState<"list" | "board">("list");
+  const [notesEditing, setNotesEditing] = useState(false);
 
   const [newGoal, setNewGoal] = useState("");
   const [newTask, setNewTask] = useState("");
+
+  // Header fields are controlled drafts with an explicit ✓ confirm button, so
+  // an edit is only persisted on confirm/Enter (not per keystroke). Re-seed
+  // when switching projects or when the saved value changes (e.g. after commit).
+  const [nameDraft, setNameDraft] = useState("");
+  const [catDraft, setCatDraft] = useState("");
+  useEffect(() => {
+    setNameDraft(project?.name ?? "");
+    setCatDraft(project?.category ?? "");
+  }, [project?.id, project?.name, project?.category]);
 
   // Real done/total for the Tasks section (#223).
   useEffect(() => {
@@ -62,15 +73,19 @@ export function ProjectDetailPage() {
   const projectTasks = tasks.filter((tk) => tk.project_id === pid && !tk.completed);
   const goals = project.goals;
 
-  // Commit header edits only on blur/Enter, and only when actually changed —
+  // Commit header edits only on confirm/Enter, and only when actually changed —
   // an empty name falls back to "Untitled" at commit time (not while typing).
-  function commitName(v: string) {
-    const name = v.trim() || t("project.untitled");
+  const nameDirty = nameDraft !== project.name;
+  const catDirty = catDraft !== (project.category ?? "");
+  function commitName() {
+    const name = nameDraft.trim() || t("project.untitled");
     if (name !== project!.name) update(pid, { name });
+    setNameDraft(name);
   }
-  function commitCategory(v: string) {
-    const category = v.trim() || undefined;
+  function commitCategory() {
+    const category = catDraft.trim() || undefined;
     if ((category ?? "") !== (project!.category ?? "")) update(pid, { category });
+    setCatDraft(category ?? "");
   }
   function commitEmoji(v: string) {
     const emoji = v.trim() || undefined;
@@ -121,13 +136,13 @@ export function ProjectDetailPage() {
   const focusHours = focusMinutes > 0 ? (focusMinutes / 60).toFixed(1) : "0";
 
   return (
-    <div className="fade-in px-4 sm:px-7 py-6 sm:py-7 max-w-5xl">
+    <div className="fade-in w-full px-4 sm:px-7 py-6 sm:py-7">
       <BackLink onClick={() => navigate("/projects")} label={t("project.page.title")} />
 
-      {/* Header — uncontrolled inputs that commit on blur/Enter (keyed by
-          project.id so they reset when switching projects). This fixes the
-          rename bug where clearing the field snapped it back to "Untitled"
-          mid-type, and stops a backend PATCH firing on every keystroke. */}
+      {/* Header — controlled drafts with an explicit ✓ confirm button per field.
+          The confirm only appears when the value actually changed; Enter also
+          commits, Escape reverts. An empty name falls back to "Untitled" only at
+          commit time, never mid-type (keeps the #247 rename-bug fix). */}
       <div className="flex items-start gap-3 mt-3 mb-6">
         <input
           key={`${pid}-emoji`}
@@ -141,24 +156,34 @@ export function ProjectDetailPage() {
           maxLength={4}
         />
         <div className="flex-1 min-w-0">
-          <input
-            key={`${pid}-name`}
-            aria-label={t("project.field.name")}
-            defaultValue={project.name}
-            onBlur={(e) => commitName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-            placeholder={t("project.field.namePlaceholder")}
-            className="inline-input w-full text-lg font-semibold"
-          />
-          <input
-            key={`${pid}-category`}
-            aria-label={t("project.category.label")}
-            defaultValue={project.category ?? ""}
-            onBlur={(e) => commitCategory(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-            placeholder={t("project.category.placeholder")}
-            className="inline-input w-full text-xs text-text-muted mt-0.5"
-          />
+          <div className="flex items-center gap-1.5">
+            <input
+              aria-label={t("project.field.name")}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitName();
+                else if (e.key === "Escape") setNameDraft(project.name);
+              }}
+              placeholder={t("project.field.namePlaceholder")}
+              className="inline-input flex-1 min-w-0 text-lg font-semibold"
+            />
+            {nameDirty && <ConfirmEditBtn label={t("project.save")} onClick={commitName} />}
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <input
+              aria-label={t("project.category.label")}
+              value={catDraft}
+              onChange={(e) => setCatDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitCategory();
+                else if (e.key === "Escape") setCatDraft(project.category ?? "");
+              }}
+              placeholder={t("project.category.placeholder")}
+              className="inline-input flex-1 min-w-0 text-xs text-text-muted"
+            />
+            {catDirty && <ConfirmEditBtn label={t("project.save")} onClick={commitCategory} />}
+          </div>
         </div>
       </div>
 
@@ -197,7 +222,15 @@ export function ProjectDetailPage() {
           {t("project.saveAsTemplate")}
         </button>
         <button
-          onClick={() => update(project.id, { status: project.status === "archived" ? "active" : "archived" })}
+          onClick={() => {
+            // Archiving is disruptive (hides the project) → confirm. Unarchiving
+            // is harmless, so it needs none.
+            if (project.status === "archived") {
+              update(project.id, { status: "active" });
+            } else if (window.confirm(t("project.archiveConfirm"))) {
+              update(project.id, { status: "archived" });
+            }
+          }}
           className="text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
           style={{ border: "1px solid var(--border-default)" }}
         >
@@ -240,6 +273,33 @@ export function ProjectDetailPage() {
           value={project.status === "archived" ? t("project.status.archived") : t("project.status.active")}
         />
       </div>
+
+      {/* Notes — editable rich text with a display/edit state, hoisted to the
+          top so the project's write-up is the first thing you see (#215). */}
+      <Section
+        title={t("project.content.title")}
+        extra={
+          <button
+            onClick={() => setNotesEditing((v) => !v)}
+            aria-pressed={notesEditing}
+            className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md normal-case tracking-normal transition-colors"
+            style={{ border: "1px solid var(--border-default)", color: notesEditing ? "var(--accent-primary)" : "var(--text-muted)" }}
+          >
+            {notesEditing ? (<><IconCheck size={12} />{t("project.content.done")}</>) : t("project.content.edit")}
+          </button>
+        }
+      >
+        {notesEditing ? (
+          <ProjectContentEditor
+            value={project.content}
+            onChange={(json) => update(pid, { content: json || undefined })}
+          />
+        ) : project.content ? (
+          <ProjectContentEditor value={project.content} editable={false} onChange={() => {}} />
+        ) : (
+          <p className="text-xs text-text-faint">{t("project.content.empty")}</p>
+        )}
+      </Section>
 
       <div className="lg:grid lg:grid-cols-2 lg:gap-x-8 lg:items-start">
         <div>
@@ -288,14 +348,6 @@ export function ProjectDetailPage() {
             <IconPlus size={16} />
           </button>
         </div>
-      </Section>
-
-      {/* Content — rich text with inline images (#215) */}
-      <Section title={t("project.content.title")}>
-        <ProjectContentEditor
-          value={project.content}
-          onChange={(json) => update(pid, { content: json || undefined })}
-        />
       </Section>
         </div>
 
@@ -367,6 +419,22 @@ function BackLink({ onClick, label }: { onClick: () => void; label: string }) {
     <button onClick={onClick} className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
       <IconArrowLeft size={14} />
       {label}
+    </button>
+  );
+}
+
+/** Small ✓ button shown next to a header field once its draft has changed. */
+function ConfirmEditBtn({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-md transition-colors"
+      style={{ background: "var(--accent-primary)", color: "var(--text-inverse)" }}
+    >
+      <IconCheck size={13} strokeWidth={2.5} />
     </button>
   );
 }
