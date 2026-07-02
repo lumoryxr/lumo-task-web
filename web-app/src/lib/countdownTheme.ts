@@ -70,25 +70,36 @@ const THEME_HINTS: Record<
   },
 };
 
+// Drop the U+FE0F "emoji presentation" variation selector so ✈ and ✈️ (and
+// every other VS16-optional glyph) compare equal regardless of how the source
+// keyboard/platform encoded them.
+const stripVariation = (s: string) => s.replace(/\uFE0F/g, "");
+
 /** Detect the background theme for a countdown event. Emoji is the strongest
  *  signal; falls back to keyword matching on the title. */
 export function detectCountdownTheme(
   event: Pick<CountdownEvent, "emoji" | "title">,
 ): CountdownTheme {
-  const emoji = (event.emoji || "").trim();
+  const emoji = stripVariation((event.emoji || "").trim());
   const title = (event.title || "").toLowerCase();
+  // ASCII words of the title, tokenized so a keyword matches whole words only
+  // ("overdue" must not hit "due", "contest" must not hit "test"). CJK has no
+  // word boundaries, so those hints (and multi-word ASCII phrases) stay substring.
+  const asciiWords = new Set(title.match(/[a-z]+/g) ?? []);
+  const wordMatches = (w: string) =>
+    /^[a-z]+$/.test(w) ? asciiWords.has(w) : title.includes(w);
 
-  // 1) Exact emoji match wins.
+  // 1) Emoji match wins (variation-selector-insensitive).
   if (emoji) {
     for (const theme of THEME_ORDER) {
-      if (THEME_HINTS[theme].emoji.includes(emoji)) return theme;
+      if (THEME_HINTS[theme].emoji.some((e) => stripVariation(e) === emoji)) return theme;
     }
   }
 
   // 2) Keyword match on the title.
   if (title) {
     for (const theme of THEME_ORDER) {
-      if (THEME_HINTS[theme].words.some((w) => title.includes(w))) return theme;
+      if (THEME_HINTS[theme].words.some(wordMatches)) return theme;
     }
   }
 

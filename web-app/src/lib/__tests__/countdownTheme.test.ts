@@ -28,6 +28,20 @@ describe("detectCountdownTheme", () => {
     expect(detectCountdownTheme({ title: "BIRTHDAY PARTY" })).toBe("birthday");
   });
 
+  it("matches whole ASCII words only (no substring false positives)", () => {
+    expect(detectCountdownTheme({ title: "overdue library book" })).toBe("default"); // not "due" → milestone
+    expect(detectCountdownTheme({ title: "contest results" })).toBe("default");       // not "test" → graduation
+    expect(detectCountdownTheme({ title: "glove order" })).toBe("default");           // not "love"
+    expect(detectCountdownTheme({ title: "roundtrip flight" })).toBe("travel");       // "flight" word, not "trip"
+    // Multi-word ASCII phrases still match as phrases.
+    expect(detectCountdownTheme({ title: "New Year party" })).toBe("festival");
+  });
+
+  it("ignores the U+FE0F variation selector on emoji", () => {
+    expect(detectCountdownTheme({ emoji: "✈️", title: "" })).toBe("travel"); // with VS16
+    expect(detectCountdownTheme({ emoji: "✈", title: "" })).toBe("travel");        // bare codepoint
+  });
+
   it("returns 'default' when nothing matches", () => {
     expect(detectCountdownTheme({ title: "随便记一下" })).toBe("default");
     expect(detectCountdownTheme({ emoji: "", title: "" })).toBe("default");
