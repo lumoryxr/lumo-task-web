@@ -190,6 +190,30 @@ describe("Projects", () => {
     assert.equal(status, 404);
   });
 
+  test("DELETE cascades — tasks filed under the project are removed, others survive", async () => {
+    // Fresh project with a task filed under it, plus a control task with no project.
+    const { body: proj } = await req("POST", "/v1/projects", {
+      token: demoToken,
+      body: { name: "Cascade project", goals: [] },
+    });
+    const { body: filed } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Filed task" }, project_id: proj.id },
+    });
+    const { body: control } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Unfiled task" } },
+    });
+
+    const { status } = await req("DELETE", `/v1/projects/${proj.id}`, { token: demoToken });
+    assert.equal(status, 204);
+
+    const { body: tasks } = await req("GET", "/v1/tasks", { token: demoToken });
+    const ids = (tasks.items as any[]).map((t) => t.id);
+    assert.equal(ids.includes(filed.id), false, "filed task cascade-deleted");
+    assert.equal(ids.includes(control.id), true, "unfiled task survives");
+  });
+
   test("POST /migrate is idempotent — re-running keeps a single row per id", async () => {
     const payload = {
       projects: [

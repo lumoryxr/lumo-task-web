@@ -206,13 +206,22 @@ app.patch("/:id", validate("param", IdParam), validate("json", ProjectUpdateBody
 // DELETE /projects/:id
 app.delete("/:id", validate("param", IdParam), async (c) => {
   const userId = c.get("userId");
+  const projectId = c.req.param("id");
   // Tombstone: both `deleted_at` and `updated_at` ride the LWW order → HLC.
   const now = hlcNow();
   const result = await execute(
     "UPDATE projects SET deleted_at = :now, updated_at = :now WHERE id = :id AND user_id = :uid AND deleted_at IS NULL",
-    { id: c.req.param("id"), uid: userId, now }
+    { id: projectId, uid: userId, now }
   );
   if (result.changes === 0) return httpError(c, 404, "NOT_FOUND", "Project not found");
+  // Cascade: deleting a project also tombstones its tasks (same HLC tick) so
+  // they don't linger as orphaned rows whose project_id points at a gone
+  // project — which otherwise leaks as stale project-filter chips. Tenant-
+  // scoped; propagates to other devices on sync like any other tombstone.
+  await execute(
+    "UPDATE tasks SET deleted_at = :now, updated_at = :now WHERE project_id = :id AND user_id = :uid AND deleted_at IS NULL",
+    { id: projectId, uid: userId, now }
+  );
   return new Response(null, { status: 204 });
 });
 
