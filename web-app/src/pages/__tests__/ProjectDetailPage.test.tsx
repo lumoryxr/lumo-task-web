@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ProjectDetailPage } from "../ProjectDetailPage";
 
 // Detail-page polish (#246 follow-up): explicit ✓ confirm on the name field,
@@ -84,18 +84,18 @@ describe("ProjectDetailPage polish", () => {
     expect(mockUpdate).toHaveBeenCalledWith("p1", { name: "Launch v2" });
   });
 
-  it("asks for confirmation before archiving", () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("asks for confirmation before archiving (via ConfirmDialog)", () => {
     renderPage();
+    // Opens the dialog; cancelling must not archive.
     fireEvent.click(screen.getByText("project.archive"));
-    expect(confirmSpy).toHaveBeenCalledWith("project.archiveConfirm");
-    // Declined → no update.
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(within(dialog).getByText("common.cancel"));
     expect(mockUpdate).not.toHaveBeenCalled();
-
-    confirmSpy.mockReturnValue(true);
+    // Reopen and confirm → archives.
     fireEvent.click(screen.getByText("project.archive"));
+    const dialog2 = screen.getByRole("alertdialog");
+    fireEvent.click(within(dialog2).getByText("project.archive")); // confirm button inside dialog
     expect(mockUpdate).toHaveBeenCalledWith("p1", { status: "archived" });
-    confirmSpy.mockRestore();
   });
 
   it("toggles notes between display and edit states", () => {

@@ -11,6 +11,7 @@ import { ProjectBoard } from "@/components/ProjectBoard";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { ProgressRing } from "@/components/ProgressRing";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { computeProjectRecap } from "@/utils/projectRecap";
 import { isKpiGoal, goalPct, parseTarget } from "@/utils/goalKpi";
@@ -39,6 +40,7 @@ export function ProjectDetailPage() {
   const loadProgress = useProjectsStore((s) => s.loadProgress);
   const userName = useAuthStore((s) => s.user.name);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [confirmKind, setConfirmKind] = useState<null | "archive" | "delete">(null);
   const [recapOpen, setRecapOpen] = useState(false);
   const [taskView, setTaskView] = useState<"list" | "board">("list");
   const [notesEditing, setNotesEditing] = useState(false);
@@ -239,8 +241,8 @@ export function ProjectDetailPage() {
             // is harmless, so it needs none.
             if (project.status === "archived") {
               update(project.id, { status: "active" });
-            } else if (window.confirm(t("project.archiveConfirm"))) {
-              update(project.id, { status: "archived" });
+            } else {
+              setConfirmKind("archive");
             }
           }}
           className="text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
@@ -249,12 +251,7 @@ export function ProjectDetailPage() {
           {project.status === "archived" ? t("project.unarchive") : t("project.archive")}
         </button>
         <button
-          onClick={() => {
-            if (window.confirm(t("project.deleteConfirm"))) {
-              remove(project.id);
-              navigate("/projects");
-            }
-          }}
+          onClick={() => setConfirmKind("delete")}
           aria-label={t("project.delete")}
           title={t("project.delete")}
           className="flex items-center justify-center w-[28px] h-[26px] rounded-md transition-colors"
@@ -423,6 +420,24 @@ export function ProjectDetailPage() {
           onClose={() => setRecapOpen(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmKind === "archive"}
+        title={t("project.archiveConfirm.title")}
+        message={t("project.archiveConfirm")}
+        confirmLabel={t("project.archive")}
+        onConfirm={() => { update(project.id, { status: "archived" }); setConfirmKind(null); }}
+        onCancel={() => setConfirmKind(null)}
+      />
+      <ConfirmDialog
+        open={confirmKind === "delete"}
+        danger
+        title={t("project.deleteConfirm.title")}
+        message={t("project.deleteConfirm")}
+        confirmLabel={t("project.delete")}
+        onConfirm={() => { setConfirmKind(null); remove(project.id); navigate("/projects"); }}
+        onCancel={() => setConfirmKind(null)}
+      />
     </div>
   );
 }

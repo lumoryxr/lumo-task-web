@@ -4,6 +4,7 @@ import { HabitCalendarModal } from "@/components/HabitCalendarModal";
 import { HabitCard } from "@/components/HabitCard";
 import { HabitCheckInModal } from "@/components/HabitCheckInModal";
 import { HabitFormModal } from "@/components/HabitFormModal";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { IconHabit, IconPlus } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
@@ -151,32 +152,16 @@ export function HabitsPage() {
       )}
 
       {/* Delete confirmation */}
-      {deleteId && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.5)" }}
-          onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteId(null); }}
-        >
-          <div className="w-full max-w-xs rounded-2xl bg-surface border border-border-faint shadow-2xl p-5 space-y-4">
-            <p className="text-[14px] font-medium text-text-primary">{t("habit.delete.confirm")}</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="flex-1 py-2 rounded-lg text-[13px] font-medium text-text-secondary bg-elevated border border-border-faint hover:bg-surface transition-colors"
-              >
-                {t("habit.btn.cancel")}
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                className="flex-1 py-2 rounded-lg text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
-                style={{ background: "var(--status-danger)" }}
-              >
-                {t("habit.menu.delete")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={deleteId !== null}
+        danger
+        title={t("habit.delete.confirm.title")}
+        message={t("habit.delete.confirm")}
+        confirmLabel={t("habit.menu.delete")}
+        cancelLabel={t("habit.btn.cancel")}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }
