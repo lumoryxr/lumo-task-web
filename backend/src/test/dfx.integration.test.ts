@@ -23,6 +23,7 @@ import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import { rmSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import { serve } from "@hono/node-server";
 import { runMigrations } from "../db/migrate.js";
 import { app } from "../app.js";
@@ -1186,5 +1187,108 @@ describe("DFX · Interoperability — stable wire contract", () => {
     assert.equal(status, 201);
     assert.equal(typeof body.id, "string");
     assert.ok(body.id.length > 0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — LLM-output-driven cross-tenant write (IDOR) on /ai/classify
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// `POST /v1/ai/classify` fetches the caller's unclassified tasks, injects their
+// (attacker-controllable) titles into an LLM prompt, then writes the model's
+// returned per-task quadrant back with
+//   `UPDATE tasks SET ai_suggest = ... WHERE id = <model-supplied id>`.
+// Because the write target comes from *model output* — and a task title fed into
+// the prompt is attacker-controlled — a prompt-injection could coax the model into
+// naming *another tenant's* task id. If that UPDATE were not scoped by `user_id`,
+// classify would mutate the victim's row: a silent cross-tenant write (classify
+// still returns 200, so only a "victim's row unchanged" assertion catches it —
+// the same insidious class as the #190 focus/sessions footgun, where the endpoint
+// never 404s). `/ai/recommend` already validates the model's id against the
+// caller's own task set; `/ai/classify` relies on the scoped write instead.
+//
+// This is the one DFX case that exercises the LLM happy-path (the rest of the
+// suite runs with no provider): the attacker's `custom` provider is pointed at a
+// local mock LLM server that returns a crafted classify response naming the
+// victim's task id. dbMode() is "local" in the test env, so the settings SSRF
+// guard permits the 127.0.0.1 base URL (desktop/self-hosted-LLM allowance).
+describe("DFX · Security — /ai/classify cannot write another tenant's task via an LLM-supplied id (IDOR)", () => {
+  let victim: { token: string; id: string };
+  let attacker: { token: string; id: string };
+  let llmServer: Server;
+  // The task id the mock LLM names in its classify response; set per test just
+  // before the classify call.
+  let poisonTaskId = "";
+
+  before(async () => {
+    victim = await registerUser("classify-victim");
+    attacker = await registerUser("classify-attacker");
+
+    // Minimal OpenAI-compatible chat/completions mock: ignores the request body
+    // and returns a classify array naming `poisonTaskId` — i.e. a model that has
+    // been prompt-injected into targeting the victim's task.
+    llmServer = createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        const content = JSON.stringify([
+          { task_id: poisonTaskId, quadrant: "Q4", confidence: 0.99, reason: "injected" },
+        ]);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content } }] }));
+      });
+    });
+    await new Promise<void>((resolve) => llmServer.listen(0, "127.0.0.1", () => resolve()));
+    const llmPort = (llmServer.address() as AddressInfo).port;
+
+    // Point the attacker's `custom` provider at the mock server. The settings PATCH
+    // encrypts the key server-side; getProviderConfig() will then use this key +
+    // baseUrl for the attacker's classify call (usingCloud=false, no quota touched).
+    const cfg = await api("PATCH", "/v1/settings", {
+      token: attacker.token,
+      body: {
+        ai_provider: "custom",
+        ai_configs_update: {
+          provider: "custom",
+          key: "sk-test-mock-key",
+          baseUrl: `http://127.0.0.1:${llmPort}`,
+        },
+      },
+    });
+    assert.equal(cfg.status, 200, "attacker provider config should be accepted");
+  });
+
+  after(() => {
+    try { llmServer?.close(); } catch { /* best-effort */ }
+  });
+
+  test("victim's ai_suggest is NOT mutated when the attacker's LLM names the victim's task during classify", async () => {
+    // Victim owns an unclassified task with no ai_suggest yet.
+    const { body: victimTask } = await api("POST", "/v1/tasks", {
+      token: victim.token,
+      body: { title: { en: "Victim private task" }, quadrant: "unclassified" },
+    });
+    assert.equal(victimTask.ai_suggest ?? null, null, "victim task starts with no ai_suggest");
+
+    // Attacker needs ≥1 unclassified task so classify reaches the LLM (it returns
+    // early with an empty result when the caller has nothing to classify).
+    await api("POST", "/v1/tasks", {
+      token: attacker.token,
+      body: { title: { en: "Attacker task" }, quadrant: "unclassified" },
+    });
+
+    // The mock LLM will name the victim's task id in its response.
+    poisonTaskId = victimTask.id;
+
+    const res = await api("POST", "/v1/ai/classify", { token: attacker.token, body: {} });
+    assert.equal(res.status, 200, "classify itself still succeeds — the cross-tenant write is silently scoped out");
+
+    // Load-bearing assertion: the victim's row is untouched. If the classify
+    // UPDATE dropped `AND user_id`, ai_suggest would now read "Q4".
+    const { body: after } = await api("GET", `/v1/tasks/${victimTask.id}`, { token: victim.token });
+    assert.equal(
+      after.ai_suggest ?? null,
+      null,
+      "attacker's classify must NOT write the victim's ai_suggest (cross-tenant IDOR)",
+    );
   });
 });
