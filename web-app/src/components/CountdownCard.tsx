@@ -289,11 +289,13 @@ export function CountdownCard({ event, locale, onEdit, onDelete }: CountdownCard
           )}
         </div>
 
-        {/* Footer meta */}
+        {/* Footer meta — kept left-aligned so the bottom-right stays clear for
+            the themed background motif (the repeat badge used to sit over it). */}
         <div style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
+          justifyContent: "flex-start",
+          gap: 8,
           paddingTop: 12,
           borderTop: "1px solid var(--border-faint)",
         }}>
