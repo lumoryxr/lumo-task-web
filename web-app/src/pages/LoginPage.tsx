@@ -83,7 +83,14 @@ export function LoginPage() {
         </div>
 
         <div className="mt-[18px] flex justify-center gap-3.5 text-xs text-text-secondary">
-          <button type="button" className="hover:text-text-primary transition-colors">
+          {/* Password reset isn't wired yet — honestly disable rather than
+              leave a dead button, mirroring the OAuth "coming soon" state. */}
+          <button
+            type="button"
+            disabled
+            title={t("auth.comingSoon")}
+            className="text-text-faint cursor-not-allowed"
+          >
             {t("auth.forgot")}
           </button>
           <span className="text-text-faint">·</span>
