@@ -163,6 +163,11 @@ export type ProjectStatus = "active" | "archived";
 export interface ProjectGoal {
   text: string;
   done: boolean;
+  /** Optional numeric KPI: when `target` is set, the goal renders as a metric
+   * (e.g. sales 42/100) with a progress bar. `unit` is a short label like 万/%. */
+  target?: number;
+  current?: number;
+  unit?: string;
 }
 
 export interface Project {

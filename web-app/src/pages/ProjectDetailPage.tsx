@@ -13,6 +13,7 @@ import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { ProgressRing } from "@/components/ProgressRing";
 import { EmptyState } from "@/components/EmptyState";
 import { computeProjectRecap } from "@/utils/projectRecap";
+import { isKpiGoal, goalPct, parseTarget } from "@/utils/goalKpi";
 import { IconArrowLeft, IconBookmark, IconCheck, IconClose, IconPlus, IconProject, IconShare, IconTrash } from "@/components/icons";
 
 const COLORS: ProjectColor[] = ["green", "cyan", "amber", "red"];
@@ -43,6 +44,8 @@ export function ProjectDetailPage() {
   const [notesEditing, setNotesEditing] = useState(false);
 
   const [newGoal, setNewGoal] = useState("");
+  const [newGoalTarget, setNewGoalTarget] = useState("");
+  const [newGoalUnit, setNewGoalUnit] = useState("");
   const [newTask, setNewTask] = useState("");
 
   // Header fields are controlled drafts with an explicit ✓ confirm button, so
@@ -98,11 +101,20 @@ export function ProjectDetailPage() {
   function addGoal() {
     const text = newGoal.trim();
     if (!text) return;
-    setGoals([...goals, { text, done: false }]);
+    const target = parseTarget(newGoalTarget);
+    const goal: ProjectGoal = target
+      ? { text, done: false, target, current: 0, unit: newGoalUnit.trim() || undefined }
+      : { text, done: false };
+    setGoals([...goals, goal]);
     setNewGoal("");
+    setNewGoalTarget("");
+    setNewGoalUnit("");
   }
   function toggleGoal(i: number) {
     setGoals(goals.map((g, idx) => (idx === i ? { ...g, done: !g.done } : g)));
+  }
+  function setGoalCurrent(i: number, current: number) {
+    setGoals(goals.map((g, idx) => (idx === i ? { ...g, current: Math.max(0, current) } : g)));
   }
   function removeGoal(i: number) {
     setGoals(goals.filter((_, idx) => idx !== i));
@@ -308,41 +320,42 @@ export function ProjectDetailPage() {
         {goals.length === 0 && <p className="text-xs text-text-faint mb-2">{t("project.goals.empty")}</p>}
         <div className="flex flex-col gap-1.5 mb-2">
           {goals.map((g, i) => (
-            <div key={i} className="flex items-center gap-2 group">
-              <button
-                role="checkbox"
-                aria-checked={g.done}
-                aria-label={g.text}
-                onClick={() => toggleGoal(i)}
-                className="flex-shrink-0 flex items-center justify-center w-[18px] h-[18px] rounded transition-all"
-                style={{
-                  border: `1px solid ${g.done ? "var(--accent-primary)" : "var(--border-strong)"}`,
-                  background: g.done ? "var(--accent-primary)" : "transparent",
-                  color: "var(--text-inverse)",
-                }}
-              >
-                {g.done && <IconCheck size={11} strokeWidth={2.5} />}
-              </button>
-              <span className="flex-1 text-sm" style={{ color: g.done ? "var(--text-faint)" : "var(--text-primary)", textDecoration: g.done ? "line-through" : "none" }}>
-                {g.text}
-              </span>
-              <button
-                onClick={() => removeGoal(i)}
-                aria-label={`${t("project.delete")}: ${g.text}`}
-                className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-text-faint hover:text-text-secondary transition-opacity"
-              >
-                <IconClose size={13} />
-              </button>
-            </div>
+            <GoalItem
+              key={i}
+              goal={g}
+              deleteLabel={t("project.delete")}
+              onToggle={() => toggleGoal(i)}
+              onRemove={() => removeGoal(i)}
+              onSetCurrent={(v) => setGoalCurrent(i, v)}
+            />
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <input
             value={newGoal}
             onChange={(e) => setNewGoal(e.target.value)}
             onKeyDown={(e) => onEnter(e, addGoal)}
             placeholder={t("project.goals.placeholder")}
-            className="inline-input flex-1 text-sm"
+            className="inline-input flex-1 min-w-[140px] text-sm"
+          />
+          <input
+            type="number"
+            min={0}
+            value={newGoalTarget}
+            onChange={(e) => setNewGoalTarget(e.target.value)}
+            onKeyDown={(e) => onEnter(e, addGoal)}
+            placeholder={t("project.goals.target")}
+            aria-label={t("project.goals.target")}
+            className="inline-input w-20 text-sm"
+          />
+          <input
+            value={newGoalUnit}
+            onChange={(e) => setNewGoalUnit(e.target.value)}
+            onKeyDown={(e) => onEnter(e, addGoal)}
+            placeholder={t("project.goals.unit")}
+            aria-label={t("project.goals.unit")}
+            maxLength={12}
+            className="inline-input w-16 text-sm"
           />
           <button onClick={addGoal} aria-label={t("project.goals.add")} className="text-text-secondary hover:text-text-primary transition-colors">
             <IconPlus size={16} />
@@ -420,6 +433,94 @@ function BackLink({ onClick, label }: { onClick: () => void; label: string }) {
       <IconArrowLeft size={14} />
       {label}
     </button>
+  );
+}
+
+/** A key-goal row: a numeric KPI (progress bar + editable current) when it has
+ * a target, otherwise a plain checkbox objective. */
+function GoalItem({
+  goal,
+  deleteLabel,
+  onToggle,
+  onRemove,
+  onSetCurrent,
+}: {
+  goal: ProjectGoal;
+  deleteLabel: string;
+  onToggle: () => void;
+  onRemove: () => void;
+  onSetCurrent: (v: number) => void;
+}) {
+  const goalCurrent = goal.current ?? 0;
+  const [curDraft, setCurDraft] = useState(String(goalCurrent));
+  useEffect(() => { setCurDraft(String(goalCurrent)); }, [goalCurrent]);
+
+  if (!isKpiGoal(goal)) {
+    return (
+      <div className="flex items-center gap-2 group">
+        <button
+          role="checkbox"
+          aria-checked={goal.done}
+          aria-label={goal.text}
+          onClick={onToggle}
+          className="flex-shrink-0 flex items-center justify-center w-[18px] h-[18px] rounded transition-all"
+          style={{
+            border: `1px solid ${goal.done ? "var(--accent-primary)" : "var(--border-strong)"}`,
+            background: goal.done ? "var(--accent-primary)" : "transparent",
+            color: "var(--text-inverse)",
+          }}
+        >
+          {goal.done && <IconCheck size={11} strokeWidth={2.5} />}
+        </button>
+        <span className="flex-1 text-sm" style={{ color: goal.done ? "var(--text-faint)" : "var(--text-primary)", textDecoration: goal.done ? "line-through" : "none" }}>
+          {goal.text}
+        </span>
+        <button
+          onClick={onRemove}
+          aria-label={`${deleteLabel}: ${goal.text}`}
+          className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-text-faint hover:text-text-secondary transition-opacity"
+        >
+          <IconClose size={13} />
+        </button>
+      </div>
+    );
+  }
+
+  const pct = goalPct(goal);
+  function commitCurrent() {
+    const n = Number(curDraft.trim());
+    onSetCurrent(Number.isFinite(n) ? n : 0);
+  }
+  return (
+    <div className="group rounded-lg p-2.5" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}>
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="flex-1 text-sm font-medium text-text-primary truncate">{goal.text}</span>
+        <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--accent-primary)" }}>{pct}%</span>
+        <button
+          onClick={onRemove}
+          aria-label={`${deleteLabel}: ${goal.text}`}
+          className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-text-faint hover:text-text-secondary transition-opacity"
+        >
+          <IconClose size={13} />
+        </button>
+      </div>
+      <div className="h-2 rounded-full overflow-hidden mb-1.5" style={{ background: "var(--border-default)" }}>
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: "var(--accent-primary)" }} />
+      </div>
+      <div className="flex items-center gap-1 text-xs text-text-muted tabular-nums">
+        <input
+          type="number"
+          min={0}
+          value={curDraft}
+          onChange={(e) => setCurDraft(e.target.value)}
+          onBlur={commitCurrent}
+          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          aria-label={goal.text}
+          className="inline-input w-16 text-xs tabular-nums"
+        />
+        <span>/ {goal.target}{goal.unit ? ` ${goal.unit}` : ""}</span>
+      </div>
+    </div>
   );
 }
 

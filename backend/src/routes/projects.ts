@@ -14,10 +14,14 @@ app.use("/*", authMiddleware);
 
 const IdParam = z.object({ id: z.string().min(1).max(64) });
 
-// A single key objective inside a project.
+// A single key objective inside a project. Optional target/current/unit turn a
+// goal into a numeric KPI (e.g. "Sales" 42/100 万) shown with a progress bar.
 const GoalSchema = z.object({
   text: z.string().min(1).max(200),
   done: z.boolean().default(false),
+  target: z.number().finite().nonnegative().optional(),
+  current: z.number().finite().nonnegative().optional(),
+  unit: z.string().max(12).optional(),
 });
 
 // `content` is the rich-text document (TipTap JSON / markdown) serialized to a
@@ -53,7 +57,7 @@ const MigrateBody = z.object({
   })),
 });
 
-function parseGoals(raw: string | null): Array<{ text: string; done: boolean }> {
+function parseGoals(raw: string | null): Array<z.infer<typeof GoalSchema>> {
   if (!raw) return [];
   try {
     const v = JSON.parse(raw);
