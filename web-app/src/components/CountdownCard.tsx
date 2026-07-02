@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { CountdownThemeArt } from "@/components/CountdownThemeArt";
 import { IconEdit, IconRepeat, IconTrash } from "@/components/icons";
 import { useT } from "@/i18n/useT";
+import { detectCountdownTheme } from "@/lib/countdownTheme";
 import type { CountdownColor, CountdownEvent } from "@/types/task";
 import { daysUntil, fmtDate } from "@/utils/countdown";
 
@@ -58,6 +60,7 @@ export function CountdownCard({ event, locale, onEdit, onDelete }: CountdownCard
   const t = useT();
   const days = daysUntil(event.date, event.repeat, event.calendar);
   const c = COLOR_MAP[event.color];
+  const theme = detectCountdownTheme(event);
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -94,10 +97,9 @@ export function CountdownCard({ event, locale, onEdit, onDelete }: CountdownCard
         background: `color-mix(in srgb, var(--bg-elevated) 100%, transparent)`,
         overflow: "hidden",
         cursor: "default",
-        transition: "transform 0.28s var(--ease-spring), box-shadow 0.28s var(--ease-spring), border-color 0.2s",
-        transform: hovered ? "translateY(-5px) scale(1.015)" : "translateY(0) scale(1)",
+        transition: "box-shadow 0.2s, border-color 0.2s",
         boxShadow: hovered
-          ? `0 12px 32px rgba(0,0,0,0.5), 0 0 0 1px ${c.edge}, 0 0 28px ${c.glow}`
+          ? `0 4px 16px rgba(0,0,0,0.35), 0 0 0 1px ${c.edge}, 0 0 18px ${c.glow}`
           : isToday
           ? `0 4px 16px rgba(0,0,0,0.35), 0 0 0 1px ${c.edge}, 0 0 18px ${c.glow}`
           : "var(--shadow-card)",
@@ -114,17 +116,8 @@ export function CountdownCard({ event, locale, onEdit, onDelete }: CountdownCard
         pointerEvents: "none",
       }} />
 
-      {/* Shimmer sweep on hover */}
-      {hovered && (
-        <div style={{
-          position: "absolute",
-          inset: 0,
-          background: `linear-gradient(105deg, transparent 40%, ${c.glow} 50%, transparent 60%)`,
-          backgroundSize: "200% 100%",
-          animation: "cdShimmer 1.4s linear infinite",
-          pointerEvents: "none",
-        }} />
-      )}
+      {/* Content-related themed motif (birthday cake, heart, plane, …) */}
+      <CountdownThemeArt theme={theme} color={c.primary} />
 
       {/* Glow bar at top */}
       <div style={{
