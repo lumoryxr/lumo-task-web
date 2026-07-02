@@ -1,10 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { derivePlanProjects, resolveActiveFilter, filterPlanTasks } from "@/utils/planFilters";
+import { derivePlanProjects, derivePlanTags, resolveActiveFilter, filterPlanTasks } from "@/utils/planFilters";
 
 const projects = [
   { id: "p1", name: "Beta" },
   { id: "p2", name: "Alpha" },
 ];
+
+describe("derivePlanTags", () => {
+  it("returns distinct tags across tasks, sorted", () => {
+    const tasks = [
+      { tags: ["work", "urgent"] },
+      { tags: ["urgent", "home"] },
+      { tags: [] },
+      {},
+    ];
+    expect(derivePlanTags(tasks)).toEqual(["home", "urgent", "work"]);
+  });
+
+  it("is empty when no task carries tags", () => {
+    expect(derivePlanTags([{}, { tags: [] }])).toEqual([]);
+  });
+});
 
 describe("derivePlanProjects", () => {
   it("returns distinct referenced projects, name-resolved and sorted", () => {
