@@ -6,12 +6,14 @@ import { RobotSvg } from "@/components/RobotSvg";
 
 export type PetSpecies = "dog" | "cat" | "fox" | "panda" | "robot";
 
-export const PET_SPECIES_LIST: { value: PetSpecies; emoji: string; labelEn: string; labelZh: string }[] = [
-  { value: "dog",   emoji: "🐕", labelEn: "Dog",   labelZh: "狗" },
-  { value: "cat",   emoji: "🐱", labelEn: "Cat",   labelZh: "猫" },
-  { value: "fox",   emoji: "🦊", labelEn: "Fox",   labelZh: "狐狸" },
-  { value: "panda", emoji: "🐼", labelEn: "Panda", labelZh: "熊猫" },
-  { value: "robot", emoji: "🤖", labelEn: "Robot", labelZh: "机器人" },
+// Species labels are routed through the i18n dict (settings.pet.species.<value>),
+// not held inline here, so translators/guards see them.
+export const PET_SPECIES_LIST: { value: PetSpecies; emoji: string }[] = [
+  { value: "dog",   emoji: "🐕" },
+  { value: "cat",   emoji: "🐱" },
+  { value: "fox",   emoji: "🦊" },
+  { value: "panda", emoji: "🐼" },
+  { value: "robot", emoji: "🤖" },
 ];
 
 export function getSpeciesEmoji(species: PetSpecies): string {

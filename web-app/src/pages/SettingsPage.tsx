@@ -154,7 +154,6 @@ export function SettingsPage() {
               onToggleVisible={toggleVisible}
               onResetPos={() => setPos({ x: window.innerWidth - 110, y: window.innerHeight - 180 })}
               t={t}
-              locale={locale}
             />
           )}
 
@@ -241,7 +240,6 @@ function PetPanel({
   onToggleVisible,
   onResetPos,
   t,
-  locale,
 }: {
   species: import("@/components/PetSvg").PetSpecies;
   petName: string;
@@ -251,7 +249,6 @@ function PetPanel({
   onToggleVisible: () => void;
   onResetPos: () => void;
   t: (k: string) => string;
-  locale: string;
 }) {
   return (
     <div>
@@ -297,7 +294,7 @@ function PetPanel({
               >
                 <PetSvg species={s.value} mood={species === s.value ? "happy" : "idle"} size={44} />
                 <span className="text-[11px] text-text-secondary">
-                  {locale === "zh" ? s.labelZh : s.labelEn}
+                  {t(`settings.pet.species.${s.value}`)}
                 </span>
               </button>
             ))}
@@ -312,7 +309,7 @@ function PetPanel({
             type="text"
             value={petName}
             onChange={(e) => onNameChange(e.target.value.slice(0, 20))}
-            placeholder={locale === "zh" ? t("settings.pet.name.placeholder.zh") : t("settings.pet.name.placeholder")}
+            placeholder={t("settings.pet.name.placeholder")}
             className="w-full text-[13px] text-text-primary bg-transparent outline-none rounded-lg px-3 py-2"
             style={{
               border: "1px solid var(--border-default)",
