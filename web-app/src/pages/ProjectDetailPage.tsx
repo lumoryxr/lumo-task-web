@@ -411,6 +411,7 @@ export function ProjectDetailPage() {
           </button>
         </div>
         <button
+          type="button"
           onClick={() => setAddExistingOpen(true)}
           className="mt-1.5 flex items-center gap-1 text-[11px] text-text-muted hover:text-text-primary transition-colors"
         >
