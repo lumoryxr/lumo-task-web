@@ -517,6 +517,96 @@ describe("DFX · Security — tenant isolation on state-changing sub-resource en
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — cross-tenant log-import guard on POST /v1/habits/migrate (#276)
+//
+// The #158/#165/#194 sweeps cover CRUD-by-id and state-changing sub-resources, but the
+// bulk-import endpoint `POST /v1/habits/migrate` has NO presence in the daily regression
+// at all — it is exercised only by the per-PR in-process api/habits.test.ts (in-memory).
+// migrate writes into the SHARED `habit_logs` keyspace using a CLIENT-SUPPLIED `habitId`
+// per log row. Without its ownership guard —
+//     if (!ownedIds.has(l.habitId)) continue;   (routes/habits.ts)
+// — a caller could smuggle log rows keyed to a habit id they do not own into their own
+// scope (under their JWT user_id), polluting the shared key space with references to
+// another tenant's habit. The guard drops any log whose habitId is not in the caller's
+// owned set. A dropped/weakened guard would silently raise migrated.logs and leak the
+// foreign habit id into the attacker's log list. This locks the guard over real HTTP +
+// real file SQLite in the daily suite (PR CI green ≠ daily DFX coverage).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security — cross-tenant log-import guard on /v1/habits/migrate (#276)", () => {
+  let victim: { token: string; id: string };
+  let attacker: { token: string; id: string };
+
+  before(async () => {
+    victim = await registerUser("migrate-victim");
+    attacker = await registerUser("migrate-attacker");
+  });
+
+  test("migrate drops a log referencing another tenant's habit; imports only owned logs", async () => {
+    // Victim owns a real habit; its id is what the attacker will try to smuggle.
+    const { status: vStatus, body: victimHabit } = await api("POST", "/v1/habits", {
+      token: victim.token,
+      body: { title: "Victim Habit", color: "green", frequency: "daily" },
+    });
+    assert.equal(vStatus, 201, "victim habit should create");
+    const foreignId: string = victimHabit.id;
+
+    // Attacker bulk-imports one OWNED habit plus two logs: one for their own habit
+    // (must import) and one keyed to the VICTIM's habit id (must be dropped).
+    const ownId = "habit_attacker_owned_273";
+    const res = await api("POST", "/v1/habits/migrate", {
+      token: attacker.token,
+      body: {
+        habits: [
+          {
+            id: ownId,
+            title: "Attacker Owned",
+            color: "cyan",
+            frequency: "daily",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+        logs: [
+          { habitId: ownId, date: "2026-01-02", completedAt: "2026-01-02T08:00:00.000Z" },
+          // Foreign: references the victim's habit id → the guard must skip it.
+          { habitId: foreignId, date: "2026-01-03", completedAt: "2026-01-03T08:00:00.000Z" },
+        ],
+      },
+    });
+
+    assert.equal(res.status, 200, "migrate should succeed");
+    // Load-bearing teeth: only the owned log counts. Dropping the guard → 2.
+    assert.equal(res.body.migrated?.logs, 1, "only the owned log may be imported (foreign log dropped)");
+
+    // The attacker's own log space must contain THEIR habit's log (positive control:
+    // the negative assertion below is not vacuously green) …
+    const { status: aStatus, body: attackerLogs } = await api("GET", "/v1/habits/logs", {
+      token: attacker.token,
+    });
+    assert.equal(aStatus, 200);
+    assert.ok(Array.isArray(attackerLogs), "logs response must be an array");
+    assert.ok(
+      attackerLogs.some((l: any) => l.habitId === ownId),
+      "attacker's own migrated log must be imported",
+    );
+    // … and must NEVER contain a row keyed to the victim's habit id.
+    assert.ok(
+      !attackerLogs.some((l: any) => l.habitId === foreignId),
+      "a log referencing another tenant's habit must not enter the attacker's log space (drop of the ownership guard would leak it)",
+    );
+
+    // The victim never checked in → their log space stays empty for that habit
+    // (the smuggled row is written under the attacker's user_id, not the victim's,
+    // so this is defense-in-depth, not the load-bearing assertion).
+    const { body: victimLogs } = await api("GET", "/v1/habits/logs", { token: victim.token });
+    assert.ok(
+      !victimLogs.some((l: any) => l.habitId === foreignId),
+      "victim's own log space must remain empty for the un-checked-in habit",
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for SECURITY — cross-tenant foreign-key reference on the task write boundary (#220)
 //
 // The #158/#165/#194 sweeps cover CRUD-by-id and state-changing sub-resources. They
