@@ -10,7 +10,7 @@ vi.mock("@/i18n/useT", () => ({
   useT: () => (k: string) => (k === "app.loading" ? "Loading…" : k),
 }));
 
-import { TaskListSkeleton, StatsSkeleton, MatrixSkeleton } from "../skeletons";
+import { TaskListSkeleton, StatsSkeleton, MatrixSkeleton, HabitsSkeleton } from "../skeletons";
 
 describe("TaskListSkeleton", () => {
   it("exposes a single polite, busy status region for screen readers", () => {
@@ -60,5 +60,26 @@ describe("MatrixSkeleton", () => {
     const { container } = render(<MatrixSkeleton />);
     // 4 quadrants × (1 header bar + 2 rows × 3 bars) = 4 × 7 = 28 shimmer bars
     expect(container.querySelectorAll(".skeleton")).toHaveLength(4 * (1 + 2 * 3));
+  });
+});
+
+describe("HabitsSkeleton", () => {
+  it("exposes a single polite, busy status region for screen readers", () => {
+    render(<HabitsSkeleton />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-busy", "true");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status.querySelectorAll("[aria-hidden='true']").length).toBeGreaterThan(0);
+  });
+
+  it("renders one habit-card placeholder per requested row (4 bars each)", () => {
+    const { container } = render(<HabitsSkeleton rows={3} />);
+    // 3 rows × (emoji + title + meta + trailing check-in circle) = 3 × 4 bars
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(3 * 4);
+  });
+
+  it("defaults to four rows", () => {
+    const { container } = render(<HabitsSkeleton />);
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(4 * 4);
   });
 });

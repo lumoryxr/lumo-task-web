@@ -53,6 +53,31 @@ export function StatsSkeleton() {
   );
 }
 
+/** One placeholder row mimicking a habit card (emoji + title + streak meta + check-in circle). */
+function HabitRowSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-4 rounded-xl bg-surface border border-border-faint">
+      <Skeleton className="shrink-0" style={{ width: 36, height: 36, borderRadius: "var(--radius-md)" }} />
+      <div className="flex flex-col gap-2 min-w-0 flex-1">
+        <Skeleton style={{ height: 13, width: "45%" }} />
+        <Skeleton style={{ height: 10, width: "30%" }} />
+      </div>
+      <Skeleton className="shrink-0" style={{ width: 32, height: 32, borderRadius: "50%" }} />
+    </div>
+  );
+}
+
+/** Loading state for the Habits page: a stack of habit-card placeholders. */
+export function HabitsSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <SkeletonScreen className="space-y-2">
+      {Array.from({ length: rows }, (_, i) => (
+        <HabitRowSkeleton key={i} />
+      ))}
+    </SkeletonScreen>
+  );
+}
+
 /** Loading state for the Eisenhower Matrix: a 2×2 grid of quadrant placeholders. */
 export function MatrixSkeleton() {
   return (

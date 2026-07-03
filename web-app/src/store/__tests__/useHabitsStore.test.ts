@@ -34,7 +34,7 @@ function makeHabit(overrides: Partial<TestHabit> = {}): TestHabit {
 
 beforeEach(() => {
   localStorage.clear();
-  useHabitsStore.setState({ habits: [], logs: [] });
+  useHabitsStore.setState({ habits: [], logs: [], loading: false });
   vi.unstubAllGlobals();
 });
 
@@ -44,6 +44,38 @@ afterEach(() => {
 });
 
 describe("useHabitsStore", () => {
+  it("defaults loading to false", () => {
+    expect(useHabitsStore.getState().loading).toBe(false);
+  });
+
+  it("toggles loading true while the fetch is in flight and false once it settles", async () => {
+    localStorage.setItem("lumo.habits.migrated.v1." + UID, "1");
+    let resolveHabits!: (v: Response) => void;
+    const pending = new Promise<Response>((r) => { resolveHabits = r; });
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(pending));
+
+    const loadPromise = useHabitsStore.getState().load(UID);
+    // Synchronously after kicking off load, the flag is up.
+    expect(useHabitsStore.getState().loading).toBe(true);
+
+    resolveHabits({ ok: true, status: 200, json: async () => [] } as Response);
+    await loadPromise;
+    expect(useHabitsStore.getState().loading).toBe(false);
+  });
+
+  it("clears loading even when the local (unauthenticated) path returns early", async () => {
+    useHabitsStore.setState({ loading: true });
+    await useHabitsStore.getState().load("local");
+    expect(useHabitsStore.getState().loading).toBe(false);
+  });
+
+  it("clears loading when the fetch throws", async () => {
+    localStorage.setItem("lumo.habits.migrated.v1." + UID, "1");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("boom")));
+    await useHabitsStore.getState().load(UID);
+    expect(useHabitsStore.getState().loading).toBe(false);
+  });
+
   it("load resets state for local (unauthenticated) user without any fetch", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
