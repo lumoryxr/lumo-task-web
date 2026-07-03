@@ -12,6 +12,7 @@ import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { ProgressRing } from "@/components/ProgressRing";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { AddExistingTaskModal } from "@/components/AddExistingTaskModal";
 import { EmptyState } from "@/components/EmptyState";
 import { computeProjectRecap } from "@/utils/projectRecap";
 import { isKpiGoal, goalPct, parseTarget } from "@/utils/goalKpi";
@@ -44,6 +45,7 @@ export function ProjectDetailPage() {
   const [recapOpen, setRecapOpen] = useState(false);
   const [taskView, setTaskView] = useState<"list" | "board">("list");
   const [notesEditing, setNotesEditing] = useState(false);
+  const [addExistingOpen, setAddExistingOpen] = useState(false);
 
   const [newGoal, setNewGoal] = useState("");
   const [newGoalTarget, setNewGoalTarget] = useState("");
@@ -408,6 +410,14 @@ export function ProjectDetailPage() {
             <IconPlus size={16} />
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => setAddExistingOpen(true)}
+          className="mt-1.5 flex items-center gap-1 text-[11px] text-text-muted hover:text-text-primary transition-colors"
+        >
+          <IconPlus size={12} />
+          {t("project.tasks.addExisting")}
+        </button>
       </Section>
         </div>
       </div>
@@ -419,6 +429,10 @@ export function ProjectDetailPage() {
           userName={userName}
           onClose={() => setRecapOpen(false)}
         />
+      )}
+
+      {addExistingOpen && (
+        <AddExistingTaskModal projectId={pid} onClose={() => setAddExistingOpen(false)} />
       )}
 
       <ConfirmDialog
