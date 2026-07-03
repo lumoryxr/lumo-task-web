@@ -1829,3 +1829,95 @@ describe("DFX · Security — generic sync chokepoint (/v1/sync/pull + /push)", 
     assert.equal(q.status, 401, "unauthenticated push → 401");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS — task `tags` array is length/count-bounded (#282)
+//
+// Coverage-gap audit (tags feature — tags-v2 stats #278 + tag-autocomplete #281):
+// `tags` is a user-supplied, sync-carried, growth-prone array stored on every task
+// as the `tags_json` column (and copied into `completed_entries.tags_json` on
+// completion). Its only bound is the @lumo/contracts Zod contract:
+//   • TagSchema        = z.string().trim().min(1).max(30)  — each tag ≤ 30 chars
+//   • tags: z.array(TagSchema).max(20)                     — ≤ 20 tags per task
+// Because TaskUpdateBodySchema = TaskCreateBodySchema.partial(), both bounds apply
+// on create AND update. There is NO body-size middleware, so these Zod caps are the
+// ONLY thing keeping tag rows / sync payloads bounded. Before this block the daily
+// DFX suite reached /v1/tasks only for tenant-isolation, malformed-JSON, and
+// scalability — the `tags` bounds had zero coverage. A regression loosening
+// TagSchema.max(30) or the array .max(20) (or a 5xx on an oversized body instead of
+// a clean 400) would let unbounded tag strings/arrays into the column and slip past
+// every existing case — surfacing only as row/sync bloat in prod.
+//
+// Teeth: each rejection asserts the canonical 400 `VALIDATION_ERROR` envelope AND
+// that the offending dotted path is named (`tags.0` for the per-element cap, `tags`
+// for the array-length cap) — proving the RIGHT bound fired, not an incidental 400.
+// Mutation-tested: loosening TagSchema.max(30) reddens exactly the per-element case;
+// dropping the array .max(20) reddens exactly the array case; the round-trip stays
+// green. Handler/contract already correct → gap in the tests, not the code.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — task `tags` array is length/count-bounded (#282)", () => {
+  test("over-length tag element (> 30 chars) on create → 400 VALIDATION_ERROR naming `tags.0`; server recovers", async () => {
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Over-long tag" }, quadrant: "Q1", tags: ["x".repeat(31)] },
+    });
+    assert.equal(status, 400, "an over-length tag must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("tags.0")),
+      "the rejection must name the offending tag element (`tags.0`) — the per-tag length cap fired, not an incidental 400",
+    );
+
+    // Recoverability: the oversized body must not poison the server — a normal
+    // create still succeeds afterwards, proving no crash / no unbounded write.
+    const ok = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Right-sized tag" }, quadrant: "Q1", tags: ["work"] },
+    });
+    assert.equal(ok.status, 201, "server stays healthy after rejecting an over-length tag");
+  });
+
+  test("over-cap `tags` array (> 20 elements) on create → 400 naming `tags` (the array-length cap holds)", async () => {
+    const tags = Array.from({ length: 21 }, (_, i) => `tag${i}`);
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Too many tags" }, quadrant: "Q2", tags },
+    });
+    assert.equal(status, 400, "an over-cap tags array must be rejected (no unbounded array write)");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "tags"),
+      "the rejection must name `tags` (the array-length cap fired)",
+    );
+  });
+
+  test("a fully valid `tags` array round-trips verbatim through create → GET /:id", async () => {
+    const tags = ["work", "urgent", "q3-goal"];
+    const { status, body: created } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Tagged task" }, quadrant: "Q1", tags },
+    });
+    assert.equal(status, 201);
+    const { body: fetched } = await api("GET", `/v1/tasks/${created.id}`, { token: alice.token });
+    assert.deepEqual(fetched.tags, tags, "valid tags must persist and reflect back verbatim");
+  });
+
+  test("the bound holds on the UPDATE path: over-length tag on PATCH → 400, stored tags left unmutated", async () => {
+    // Seed a task with a known-good tag set.
+    const { body: task } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Patch-guard task" }, quadrant: "Q1", tags: ["keep"] },
+    });
+    const patch = await api("PATCH", `/v1/tasks/${task.id}`, {
+      token: alice.token,
+      body: { tags: ["y".repeat(31)] },
+    });
+    assert.equal(patch.status, 400, "an over-length tag on PATCH must be rejected (bound applies on update too)");
+    assert.equal(patch.body.error?.code, "VALIDATION_ERROR");
+
+    // No partial poison: the rejected PATCH must leave the stored tags untouched.
+    const { body: after } = await api("GET", `/v1/tasks/${task.id}`, { token: alice.token });
+    assert.deepEqual(after.tags, ["keep"], "a rejected PATCH must not mutate the stored tags");
+  });
+});
