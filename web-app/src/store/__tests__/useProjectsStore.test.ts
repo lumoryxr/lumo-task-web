@@ -105,4 +105,17 @@ describe("useProjectsStore", () => {
     expect(useProjectsStore.getState().projects[0].name).toBe("keep");
     expect(toast.error).toHaveBeenCalled();
   });
+
+  it("update applies optimistically before the API resolves (no click lag)", async () => {
+    useProjectsStore.setState({ projects: [mk("a", { color: "green" })] });
+    let resolveApi!: (p: Project) => void;
+    update.mockReturnValueOnce(new Promise<Project>((res) => { resolveApi = res; }));
+    // Kick off the write but don't await — local state must already reflect it.
+    const pending = useProjectsStore.getState().update("a", { color: "red" });
+    expect(useProjectsStore.getState().projects[0].color).toBe("red");
+    // Server response reconciles; the optimistic value stays.
+    resolveApi(mk("a", { color: "red" }));
+    await pending;
+    expect(useProjectsStore.getState().projects[0].color).toBe("red");
+  });
 });

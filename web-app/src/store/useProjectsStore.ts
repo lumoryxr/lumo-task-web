@@ -81,10 +81,19 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
   },
 
   async update(id, patch) {
+    // Optimistic: reflect the edit locally right away so color swatches, rename,
+    // archive, pin etc. feel instant — the write awaits a network round-trip and
+    // the free-tier backend can be cold (multi-second), which otherwise makes the
+    // header controls feel laggy / "unclickable". patch keys are a subset of
+    // Project fields, so the spread is exact; the server response reconciles it.
+    const prev = get().projects.find((p) => p.id === id);
+    set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
     try {
       const updated = await projectApi.update(id, patch);
       set((s) => ({ projects: s.projects.map((p) => (p.id === id ? updated : p)) }));
     } catch (e) {
+      // Roll back to the pre-edit snapshot so a failed write doesn't leave a lie.
+      if (prev) set((s) => ({ projects: s.projects.map((p) => (p.id === id ? prev : p)) }));
       toast.error(t("project.error.update"), e instanceof Error ? e.message : String(e));
     }
   },
