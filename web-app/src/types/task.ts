@@ -161,6 +161,9 @@ export interface CountdownEvent {
 export type ProjectColor = "green" | "cyan" | "amber" | "red";
 export type ProjectStatus = "active" | "archived";
 
+/** OKR-style check-in health for a key result. */
+export type GoalConfidence = "on_track" | "at_risk" | "off_track";
+
 /** A single key objective inside a project. */
 export interface ProjectGoal {
   text: string;
@@ -170,6 +173,8 @@ export interface ProjectGoal {
   target?: number;
   current?: number;
   unit?: string;
+  /** OKR check-in status (on track / at risk / off track). Optional. */
+  confidence?: GoalConfidence;
 }
 
 export interface Project {

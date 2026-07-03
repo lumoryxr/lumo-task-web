@@ -5,7 +5,7 @@ import { useProjectsStore } from "@/store/useProjectsStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import type { Project, ProjectColor, ProjectGoal } from "@/types/task";
+import type { Project, ProjectColor, ProjectGoal, GoalConfidence } from "@/types/task";
 import { TaskRow } from "@/components/TaskRow";
 import { ProjectBoard } from "@/components/ProjectBoard";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
@@ -15,10 +15,16 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AddExistingTaskModal } from "@/components/AddExistingTaskModal";
 import { EmptyState } from "@/components/EmptyState";
 import { computeProjectRecap } from "@/utils/projectRecap";
-import { isKpiGoal, goalPct, parseTarget } from "@/utils/goalKpi";
+import { isKpiGoal, goalPct, parseTarget, nextConfidence } from "@/utils/goalKpi";
 import { IconArrowLeft, IconBookmark, IconCheck, IconClose, IconPlus, IconProject, IconShare, IconTrash } from "@/components/icons";
 
 const COLORS: ProjectColor[] = ["green", "cyan", "amber", "red"];
+// OKR check-in status → token color (green on track, amber at risk, red off track).
+const CONFIDENCE_COLOR: Record<GoalConfidence, string> = {
+  on_track: "var(--accent-primary)",
+  at_risk: "var(--status-warning)",
+  off_track: "var(--status-urgent)",
+};
 const COLOR_PRIMARY: Record<ProjectColor, string> = {
   green: "var(--accent-primary)",
   cyan: "var(--status-info)",
@@ -119,6 +125,9 @@ export function ProjectDetailPage() {
   }
   function setGoalCurrent(i: number, current: number) {
     setGoals(goals.map((g, idx) => (idx === i ? { ...g, current: Math.max(0, current) } : g)));
+  }
+  function cycleGoalConfidence(i: number) {
+    setGoals(goals.map((g, idx) => (idx === i ? { ...g, confidence: nextConfidence(g.confidence) } : g)));
   }
   function removeGoal(i: number) {
     setGoals(goals.filter((_, idx) => idx !== i));
@@ -326,6 +335,7 @@ export function ProjectDetailPage() {
               onToggle={() => toggleGoal(i)}
               onRemove={() => removeGoal(i)}
               onSetCurrent={(v) => setGoalCurrent(i, v)}
+              onCycleConfidence={() => cycleGoalConfidence(i)}
             />
           ))}
         </div>
@@ -473,13 +483,16 @@ function GoalItem({
   onToggle,
   onRemove,
   onSetCurrent,
+  onCycleConfidence,
 }: {
   goal: ProjectGoal;
   deleteLabel: string;
   onToggle: () => void;
   onRemove: () => void;
   onSetCurrent: (v: number) => void;
+  onCycleConfidence: () => void;
 }) {
+  const t = useT();
   const goalCurrent = goal.current ?? 0;
   const [curDraft, setCurDraft] = useState(String(goalCurrent));
   useEffect(() => { setCurDraft(String(goalCurrent)); }, [goalCurrent]);
@@ -524,6 +537,20 @@ function GoalItem({
     <div className="group rounded-lg p-2.5" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}>
       <div className="flex items-center gap-2 mb-1.5">
         <span className="flex-1 text-sm font-medium text-text-primary truncate">{goal.text}</span>
+        <button
+          type="button"
+          onClick={onCycleConfidence}
+          aria-label={`${t("project.goal.confidence.set")}: ${goal.text}`}
+          className="flex-shrink-0 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors"
+          style={goal.confidence
+            ? { border: `1px solid ${CONFIDENCE_COLOR[goal.confidence]}`, color: CONFIDENCE_COLOR[goal.confidence] }
+            : { border: "1px dashed var(--border-strong)", color: "var(--text-faint)" }}
+        >
+          {goal.confidence && (
+            <span className="rounded-full" style={{ width: 6, height: 6, background: CONFIDENCE_COLOR[goal.confidence] }} />
+          )}
+          {goal.confidence ? t(`project.goal.confidence.${goal.confidence}`) : t("project.goal.confidence.set")}
+        </button>
         <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--accent-primary)" }}>{pct}%</span>
         <button
           onClick={onRemove}

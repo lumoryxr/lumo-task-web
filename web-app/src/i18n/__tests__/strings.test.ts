@@ -34,6 +34,8 @@ const DYNAMIC_KEY_FAMILIES: Record<string, string[]> = {
   "task.recurrence.": ["none", "daily", "weekdays", "weekly", "monthly"],
   // Project detail view toggle (ProjectDetailPage) — list | board
   "project.view.": ["list", "board"],
+  // GoalConfidence union (types/task.ts) — OKR check-in pill in ProjectDetailPage
+  "project.goal.confidence.": ["on_track", "at_risk", "off_track"],
   // PetSpecies union (PetSvg.tsx) — species selector labels in SettingsPage
   "settings.pet.species.": ["dog", "cat", "fox", "panda", "robot"],
   // PetSpecies union (PetSvg.tsx) — PetChat reads `.en` / `.zh`

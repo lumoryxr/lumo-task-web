@@ -1,8 +1,17 @@
-import type { ProjectGoal } from "@/types/task";
+import type { ProjectGoal, GoalConfidence } from "@/types/task";
 
 /** A goal is a numeric KPI once it has a positive target (e.g. sales 42/100). */
 export function isKpiGoal(g: ProjectGoal): boolean {
   return typeof g.target === "number" && g.target > 0;
+}
+
+/** OKR check-in states in the order the pill cycles through them. */
+export const CONFIDENCE_ORDER: GoalConfidence[] = ["on_track", "at_risk", "off_track"];
+
+/** Next confidence when the pill is clicked: unset → on_track, then cycle. */
+export function nextConfidence(cur: GoalConfidence | undefined): GoalConfidence {
+  if (cur === undefined) return "on_track";
+  return CONFIDENCE_ORDER[(CONFIDENCE_ORDER.indexOf(cur) + 1) % CONFIDENCE_ORDER.length];
 }
 
 /**

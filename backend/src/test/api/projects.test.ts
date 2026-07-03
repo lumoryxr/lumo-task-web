@@ -93,6 +93,29 @@ describe("Projects", () => {
     await req("DELETE", `/v1/projects/${body.id}`, { token: demoToken });
   });
 
+  test("goal confidence (OKR check-in) round-trips + rejects a bad enum", async () => {
+    const { status, body } = await req("POST", "/v1/projects", {
+      token: demoToken,
+      body: {
+        name: "OKR project",
+        goals: [{ text: "Q3 sales", done: false, target: 100, current: 42, confidence: "at_risk" }],
+      },
+    });
+    assert.equal(status, 201);
+    assert.equal(body.goals[0].confidence, "at_risk");
+
+    const { body: list } = await req("GET", "/v1/projects", { token: demoToken });
+    const fetched = (list as any[]).find((p) => p.id === body.id);
+    assert.equal(fetched?.goals[0].confidence, "at_risk", "confidence survives GET");
+    await req("DELETE", `/v1/projects/${body.id}`, { token: demoToken });
+
+    const { status: bad } = await req("POST", "/v1/projects", {
+      token: demoToken,
+      body: { name: "Bad confidence", goals: [{ text: "g", confidence: "maybe" }] },
+    });
+    assert.equal(bad, 400, "invalid confidence enum is rejected");
+  });
+
   test("400 → POST rejects a missing name", async () => {
     const { status } = await req("POST", "/v1/projects", {
       token: demoToken,

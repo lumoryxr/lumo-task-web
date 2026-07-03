@@ -16,12 +16,16 @@ const IdParam = z.object({ id: z.string().min(1).max(64) });
 
 // A single key objective inside a project. Optional target/current/unit turn a
 // goal into a numeric KPI (e.g. "Sales" 42/100 万) shown with a progress bar.
+// `confidence` is the OKR-style check-in health signal (on track / at risk /
+// off track); all KPI/OKR fields are optional so plain checkbox goals and
+// pre-existing goals keep validating unchanged (no migration).
 const GoalSchema = z.object({
   text: z.string().min(1).max(200),
   done: z.boolean().default(false),
   target: z.number().finite().nonnegative().optional(),
   current: z.number().finite().nonnegative().optional(),
   unit: z.string().max(12).optional(),
+  confidence: z.enum(["on_track", "at_risk", "off_track"]).optional(),
 });
 
 // `content` is the rich-text document (TipTap JSON / markdown) serialized to a
