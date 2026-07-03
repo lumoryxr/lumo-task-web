@@ -91,13 +91,18 @@ export function ProjectFormModal({ onClose, onCreated, project }: ProjectFormMod
           border: "1px solid var(--border-default)",
           borderRadius: "var(--radius-lg)",
           boxShadow: "var(--shadow-lifted)",
-          width: 420, maxWidth: "calc(100vw - 32px)", maxHeight: "90vh", overflowY: "auto",
+          width: 420, maxWidth: "calc(100vw - 32px)", maxHeight: "90vh",
+          // Bound the dialog and lay it out as header (pinned) + scrollable body,
+          // so autoFocus on a field can't scroll the whole dialog and hide the
+          // header on short viewports.
+          display: "flex", flexDirection: "column",
         }}
       >
         {/* Header */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "16px 20px", borderBottom: "1px solid var(--border-faint)",
+          flexShrink: 0,
         }}>
           <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
             {isEdit ? t("project.edit") : t("project.new")}
@@ -117,7 +122,7 @@ export function ProjectFormModal({ onClose, onCreated, project }: ProjectFormMod
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} style={{ padding: 20 }}>
+        <form onSubmit={handleSubmit} style={{ padding: 20, overflowY: "auto", flex: 1, minHeight: 0 }}>
           {/* Emoji + name */}
           <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
             <div style={{ flexShrink: 0 }}>
