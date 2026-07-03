@@ -509,7 +509,9 @@ function GoalItem({
   onCycleConfidence: () => void;
 }) {
   const t = useT();
-  const goalCurrent = goal.current ?? 0;
+  // Default an unset current to the baseline (matching goalPct), so the editor
+  // and the progress bar agree for a KPI goal that hasn't been checked in yet.
+  const goalCurrent = goal.current ?? goal.start ?? 0;
   const [curDraft, setCurDraft] = useState(String(goalCurrent));
   useEffect(() => { setCurDraft(String(goalCurrent)); }, [goalCurrent]);
 
