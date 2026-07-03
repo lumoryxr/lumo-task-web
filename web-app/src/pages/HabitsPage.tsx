@@ -6,6 +6,7 @@ import { HabitCheckInModal } from "@/components/HabitCheckInModal";
 import { HabitFormModal } from "@/components/HabitFormModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { IconHabit, IconPlus } from "@/components/icons";
+import { HabitListSkeleton } from "@/components/skeletons";
 import { useT } from "@/i18n/useT";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { useHabitsStore } from "@/store/useHabitsStore";
@@ -17,7 +18,7 @@ export function HabitsPage() {
   const navigate = useNavigate();
   const isSignedIn = useAuthStore(selectIsSignedIn);
   const userId = useAuthStore((s) => s.user.id);
-  const { habits, logs, create, update, remove, log } = useHabitsStore();
+  const { habits, logs, hydrated, create, update, remove, log } = useHabitsStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Habit | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -93,7 +94,9 @@ export function HabitsPage() {
 
       {/* Habit list */}
       <div className="flex-1 overflow-y-auto px-7 pb-6">
-        {habits.length === 0 ? (
+        {!hydrated && habits.length === 0 ? (
+          <HabitListSkeleton />
+        ) : habits.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-16">
             <div
               className="flex items-center justify-center w-12 h-12 rounded-xl"

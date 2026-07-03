@@ -30,6 +30,9 @@ function readLocalLogs(userId: string): HabitLog[] {
 interface HabitsState {
   habits: Habit[];
   logs: HabitLog[];
+  /** False until the first load() attempt settles, so the page can show a
+   *  skeleton instead of flashing the empty state before data arrives (#207). */
+  hydrated: boolean;
   load: (userId: string) => Promise<void>;
   clear: () => void;
   create: (userId: string, input: {
@@ -48,8 +51,10 @@ interface HabitsState {
 export const useHabitsStore = create<HabitsState>((set) => ({
   habits: [],
   logs: [],
+  hydrated: false,
 
   async load(userId) {
+    try {
     if (userId === "local") { set({ habits: [], logs: [] }); return; }
 
     // One-time migration from localStorage → server
@@ -94,10 +99,15 @@ export const useHabitsStore = create<HabitsState>((set) => ({
     } catch (e) {
       toast.error(t("habit.error.load"), e instanceof Error ? e.message : String(e));
     }
+    } finally {
+      // Mark hydrated on every exit path (local shortcut, migration-fallback
+      // return, success, or error) so the skeleton yields to real content once.
+      set({ hydrated: true });
+    }
   },
 
   clear() {
-    set({ habits: [], logs: [] });
+    set({ habits: [], logs: [], hydrated: false });
   },
 
   async create(userId, input) {

@@ -34,7 +34,7 @@ function makeHabit(overrides: Partial<TestHabit> = {}): TestHabit {
 
 beforeEach(() => {
   localStorage.clear();
-  useHabitsStore.setState({ habits: [], logs: [] });
+  useHabitsStore.setState({ habits: [], logs: [], hydrated: false });
   vi.unstubAllGlobals();
 });
 
@@ -53,6 +53,31 @@ describe("useHabitsStore", () => {
     expect(useHabitsStore.getState().habits).toEqual([]);
     expect(useHabitsStore.getState().logs).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("is not hydrated until the first load() settles (#207)", async () => {
+    expect(useHabitsStore.getState().hydrated).toBe(false);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await useHabitsStore.getState().load("local");
+
+    expect(useHabitsStore.getState().hydrated).toBe(true);
+  });
+
+  it("becomes hydrated even when the habits fetch fails (#207)", async () => {
+    localStorage.setItem("lumo.habits.migrated.v1." + UID, "1");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+
+    await useHabitsStore.getState().load(UID);
+
+    expect(useHabitsStore.getState().hydrated).toBe(true);
+  });
+
+  it("clear() resets hydration so a fresh sign-in shows the skeleton again (#207)", async () => {
+    useHabitsStore.setState({ hydrated: true });
+    useHabitsStore.getState().clear();
+    expect(useHabitsStore.getState().hydrated).toBe(false);
   });
 
   it("load fetches habits and logs when migration is already done", async () => {

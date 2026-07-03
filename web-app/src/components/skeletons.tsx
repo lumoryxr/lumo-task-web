@@ -35,6 +35,26 @@ export function TaskListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
+/** Loading state for the Habits page: a few habit-card placeholders (emoji
+ *  block + title/meta + streak pill), so it doesn't flash the empty state
+ *  before habits load (#207). Rendered inside the page's own list container. */
+export function HabitListSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <SkeletonScreen className="space-y-2 pt-1">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-3 p-4 rounded-2xl bg-surface border border-border-faint">
+          <Skeleton className="shrink-0" style={{ width: 40, height: 40, borderRadius: "var(--radius-lg)" }} />
+          <div className="flex flex-col gap-2 min-w-0 flex-1">
+            <Skeleton style={{ height: 13, width: "45%" }} />
+            <Skeleton style={{ height: 10, width: "28%" }} />
+          </div>
+          <Skeleton className="shrink-0" style={{ width: 72, height: 24, borderRadius: "var(--radius-md)" }} />
+        </div>
+      ))}
+    </SkeletonScreen>
+  );
+}
+
 /** Loading state for the Stats page: a grid of stat cards + a chart block. */
 export function StatsSkeleton() {
   return (
