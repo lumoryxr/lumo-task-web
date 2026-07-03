@@ -15,7 +15,7 @@ const project = {
   emoji: "🚀",
   color: "green",
   status: "active",
-  goals: [],
+  goals: [] as Array<Record<string, unknown>>,
   content: undefined as string | undefined,
 };
 
@@ -68,6 +68,7 @@ describe("ProjectDetailPage polish", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     project.content = undefined;
+    project.goals = [];
   });
 
   it("shows a confirm button only after the name changes, and commits on click", () => {
@@ -109,6 +110,16 @@ describe("ProjectDetailPage polish", () => {
 
     fireEvent.click(screen.getByText("project.content.done"));
     expect(screen.getByTestId("content-editor").textContent).toBe("display");
+  });
+
+  it("cycles a KPI goal's OKR confidence pill (unset → on_track) and persists it", () => {
+    project.goals = [{ text: "Q3 sales", done: false, target: 100, current: 42 }];
+    renderPage();
+    const pill = screen.getByLabelText("project.goal.confidence.set: Q3 sales");
+    fireEvent.click(pill);
+    expect(mockUpdate).toHaveBeenCalledWith("p1", {
+      goals: [{ text: "Q3 sales", done: false, target: 100, current: 42, confidence: "on_track" }],
+    });
   });
 
   it("shows an empty-notes hint with no content, and enters edit from it", () => {

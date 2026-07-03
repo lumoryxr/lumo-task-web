@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isKpiGoal, goalPct, parseTarget } from "@/utils/goalKpi";
+import { isKpiGoal, goalPct, parseTarget, nextConfidence } from "@/utils/goalKpi";
 
 describe("isKpiGoal", () => {
   it("is true only with a positive target", () => {
@@ -20,6 +20,15 @@ describe("goalPct", () => {
   it("falls back to the binary done state for plain goals", () => {
     expect(goalPct({ text: "a", done: true })).toBe(100);
     expect(goalPct({ text: "a", done: false })).toBe(0);
+  });
+});
+
+describe("nextConfidence", () => {
+  it("starts unset goals at on_track, then cycles on_track → at_risk → off_track → on_track", () => {
+    expect(nextConfidence(undefined)).toBe("on_track");
+    expect(nextConfidence("on_track")).toBe("at_risk");
+    expect(nextConfidence("at_risk")).toBe("off_track");
+    expect(nextConfidence("off_track")).toBe("on_track");
   });
 });
 
