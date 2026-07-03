@@ -86,6 +86,20 @@ export function ProjectsPage() {
         <div className="mt-4">
           <ProjectListSkeleton />
         </div>
+        {/* Mount the create modals here too so a New / From-template click during
+            the brief loading window isn't silently dropped (Header wires them). */}
+        {pickerOpen && (
+          <ProjectTemplatePicker
+            onClose={() => setPickerOpen(false)}
+            onCreated={(p) => navigate(`/projects/${p.id}`)}
+          />
+        )}
+        {createOpen && (
+          <ProjectFormModal
+            onClose={() => setCreateOpen(false)}
+            onCreated={(p) => navigate(`/projects/${p.id}`)}
+          />
+        )}
       </div>
     );
   }
