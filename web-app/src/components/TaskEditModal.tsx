@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconClose } from "@/components/icons";
 import { TagInput } from "@/components/TagInput";
+import { derivePlanTags } from "@/utils/planFilters";
 import { useT } from "@/i18n/useT";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { useAppStore } from "@/store/useAppStore";
@@ -41,6 +42,8 @@ export function TaskEditModal({ task, onClose }: Props) {
   const locale = useAppStore((s) => s.locale);
   const update = useTasksStore((s) => s.update);
   const remove = useTasksStore((s) => s.remove);
+  const allTasks = useTasksStore((s) => s.tasks);
+  const tagSuggestions = useMemo(() => derivePlanTags(allTasks), [allTasks]);
   const people = usePeopleStore((s) => s.people);
   const projects = useProjectsStore((s) => s.projects);
 
@@ -413,6 +416,7 @@ export function TaskEditModal({ task, onClose }: Props) {
               onChange={setTags}
               placeholder={t("edit.tags.placeholder")}
               inputAriaLabel={t("edit.tags")}
+              suggestions={tagSuggestions}
             />
           </div>
 

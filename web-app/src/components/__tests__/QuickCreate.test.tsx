@@ -8,7 +8,7 @@ import { QuickCreate } from "../QuickCreate";
 const mockCreate = vi.fn();
 
 vi.mock("@/store/useTasksStore", () => ({
-  useTasksStore: (sel: any) => sel({ create: mockCreate }),
+  useTasksStore: (sel: any) => sel({ create: mockCreate, tasks: [] }),
 }));
 
 vi.mock("@/store/usePeopleStore", () => ({
