@@ -43,6 +43,23 @@ describe("POST /v1/focus/sessions", () => {
     await req("DELETE", `/v1/tasks/${task.id}`, { token: demoToken });
   });
 
+  test("200 → focus-session completed entry snapshots the task's tags (Tags V2)", async () => {
+    const { body: task } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Tagged pomodoro" }, tags: ["deep", "work"] },
+    });
+    await req("POST", "/v1/focus/sessions", {
+      token: demoToken,
+      body: { task_id: task.id, duration: 25 },
+    });
+    const { body } = await req("GET", "/v1/completed", { token: demoToken });
+    const entry = body.items.find((e: { task_id: string | null }) => e.task_id === task.id);
+    assert.ok(entry, "focus session should produce a completed entry");
+    assert.deepEqual([...entry.tags].sort(), ["deep", "work"], "focus entry must carry the task's tags");
+
+    await req("DELETE", `/v1/tasks/${task.id}`, { token: demoToken });
+  });
+
   test("200 → session with nonexistent task_id is graceful (no crash)", async () => {
     const { status, body } = await req("POST", "/v1/focus/sessions", {
       token: demoToken,

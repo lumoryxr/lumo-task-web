@@ -6,7 +6,7 @@ import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { useHabitsStore } from "@/store/useHabitsStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import type { CompletedEntry } from "@/types/task";
-import { computeWeekStats, computeAllTimeStats, fmtHour } from "@/utils/stats";
+import { computeWeekStats, computeAllTimeStats, computeTagDistribution, fmtHour } from "@/utils/stats";
 import { currentStreak as habitStreak, toDateStr } from "@/utils/habits";
 import { shouldShowWrapped, markWrappedShown, computePrevWeekStats, computeMonthStats, shouldShowMonthlyWrapped, markMonthlyWrappedShown } from "@/utils/wrapped";
 import { pendingStreakMilestone, markStreakMilestoneCelebrated } from "@/utils/streakMilestone";
@@ -123,6 +123,8 @@ export function StatsPage() {
   const weekLabel = `${week.weekStart.toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" })} – ${week.weekEnd.toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" })}`;
 
   const maxDay = Math.max(...week.byDay, 1);
+
+  const tagDist = computeTagDistribution(entries).slice(0, 8);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -266,6 +268,31 @@ export function StatsPage() {
                 )}
               </div>
             </section>
+
+            {/* Tag distribution (Tags V2) */}
+            {tagDist.length > 0 && (
+              <section>
+                <h2 className="text-[13px] font-semibold text-text-secondary mb-3">{t("stats.tags.title")}</h2>
+                <div className="flex flex-col gap-2.5 p-4 rounded-xl bg-surface border border-border-faint">
+                  {tagDist.map((tc) => (
+                    <div key={tc.tag} className="flex items-center gap-3 min-w-0">
+                      <span className="text-[12px] text-text-secondary truncate w-24 flex-shrink-0" title={tc.tag}>
+                        #{tc.tag}
+                      </span>
+                      <div className="flex-1 h-2 rounded-full bg-border-faint overflow-hidden min-w-0">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${Math.max(tc.percent, 6)}%`, backgroundColor: "var(--accent-primary)" }}
+                        />
+                      </div>
+                      <span className="text-[12px] font-semibold text-text-primary tabular-nums w-8 text-right flex-shrink-0">
+                        {tc.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Habit week section */}
             <HabitWeekSection

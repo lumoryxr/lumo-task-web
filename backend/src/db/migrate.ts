@@ -216,6 +216,15 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE completed_entries ADD COLUMN project_id TEXT");
   }
 
+  // Migrate: snapshot the task's tags onto completed entries (Tags V2) so the
+  // Stats tag distribution can count finished work, not just active tasks (which
+  // leave the cache once completed). Defaults to '[]'; historical entries carry
+  // no tags (counted as untagged until re-completed).
+  const completedColsV3 = await query<{ name: string }>("PRAGMA table_info(completed_entries)");
+  if (!completedColsV3.some((c) => c.name === "tags_json")) {
+    await execRaw("ALTER TABLE completed_entries ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'");
+  }
+
   // Migrate: normalize due field to strict ISO YYYY-MM-DD (or null)
   {
     const now = new Date();

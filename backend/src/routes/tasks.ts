@@ -308,14 +308,15 @@ app.post("/:id/complete", validate("param", IdParam), async (c) => {
 
   const stmts: Parameters<typeof batch>[0] = [
     {
-      sql: `INSERT INTO completed_entries (id, user_id, task_id, title_en, title_zh, duration, quadrant, started_at, completed_at, updated_at, project_id)
-            VALUES (:id, :user_id, :task_id, :title_en, :title_zh, :duration, :quadrant, :started_at, :completed_at, :sync_ts, :project_id)`,
+      sql: `INSERT INTO completed_entries (id, user_id, task_id, title_en, title_zh, duration, quadrant, started_at, completed_at, updated_at, project_id, tags_json)
+            VALUES (:id, :user_id, :task_id, :title_en, :title_zh, :duration, :quadrant, :started_at, :completed_at, :sync_ts, :project_id, :tags_json)`,
       args: {
         id: entryId, user_id: userId, task_id: taskId,
         title_en: task.title_en, title_zh: task.title_zh ?? null,
         duration: task.duration, quadrant: task.quadrant,
         started_at: null, completed_at: now, sync_ts: syncTs,
         project_id: task.project_id ?? null,
+        tags_json: task.tags_json ?? "[]",
       },
     },
     {
