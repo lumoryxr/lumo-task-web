@@ -172,6 +172,8 @@ export interface ProjectGoal {
    * (e.g. sales 42/100) with a progress bar. `unit` is a short label like 万/%. */
   target?: number;
   current?: number;
+  /** KR baseline: progress is measured start→target (defaults to 0). */
+  start?: number;
   unit?: string;
   /** OKR check-in status (on track / at risk / off track). Optional. */
   confidence?: GoalConfidence;

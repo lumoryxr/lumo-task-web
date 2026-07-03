@@ -78,18 +78,20 @@ describe("Projects", () => {
       token: demoToken,
       body: {
         name: "Sales project",
-        goals: [{ text: "Q3 sales", done: false, target: 100, current: 42, unit: "万" }],
+        goals: [{ text: "Q3 sales", done: false, target: 100, start: 20, current: 42, unit: "万" }],
       },
     });
     assert.equal(status, 201);
     assert.equal(body.goals[0].target, 100);
     assert.equal(body.goals[0].current, 42);
+    assert.equal(body.goals[0].start, 20);
     assert.equal(body.goals[0].unit, "万");
 
     const { body: list } = await req("GET", "/v1/projects", { token: demoToken });
     const fetched = (list as any[]).find((p) => p.id === body.id);
     assert.equal(fetched?.goals[0].target, 100, "KPI target survives GET");
     assert.equal(fetched?.goals[0].current, 42, "KPI current survives GET");
+    assert.equal(fetched?.goals[0].start, 20, "KPI start baseline survives GET");
     await req("DELETE", `/v1/projects/${body.id}`, { token: demoToken });
   });
 

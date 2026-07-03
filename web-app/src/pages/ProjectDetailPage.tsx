@@ -54,6 +54,7 @@ export function ProjectDetailPage() {
   const [addExistingOpen, setAddExistingOpen] = useState(false);
 
   const [newGoal, setNewGoal] = useState("");
+  const [newGoalStart, setNewGoalStart] = useState("");
   const [newGoalTarget, setNewGoalTarget] = useState("");
   const [newGoalUnit, setNewGoalUnit] = useState("");
   const [newTask, setNewTask] = useState("");
@@ -112,11 +113,16 @@ export function ProjectDetailPage() {
     const text = newGoal.trim();
     if (!text) return;
     const target = parseTarget(newGoalTarget);
+    // `start` only applies to a KPI goal; a positive baseline means progress is
+    // measured start→target and current seeds at the baseline (0% to begin).
+    const startNum = Number(newGoalStart.trim());
+    const start = Number.isFinite(startNum) && startNum > 0 ? startNum : undefined;
     const goal: ProjectGoal = target
-      ? { text, done: false, target, current: 0, unit: newGoalUnit.trim() || undefined }
+      ? { text, done: false, target, start, current: start ?? 0, unit: newGoalUnit.trim() || undefined }
       : { text, done: false };
     setGoals([...goals, goal]);
     setNewGoal("");
+    setNewGoalStart("");
     setNewGoalTarget("");
     setNewGoalUnit("");
   }
@@ -350,6 +356,16 @@ export function ProjectDetailPage() {
           <input
             type="number"
             min={0}
+            value={newGoalStart}
+            onChange={(e) => setNewGoalStart(e.target.value)}
+            onKeyDown={(e) => onEnter(e, addGoal)}
+            placeholder={t("project.goals.start")}
+            aria-label={t("project.goals.start")}
+            className="inline-input w-20 text-sm"
+          />
+          <input
+            type="number"
+            min={0}
             value={newGoalTarget}
             onChange={(e) => setNewGoalTarget(e.target.value)}
             onKeyDown={(e) => onEnter(e, addGoal)}
@@ -564,6 +580,7 @@ function GoalItem({
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: "var(--accent-primary)" }} />
       </div>
       <div className="flex items-center gap-1 text-xs text-text-muted tabular-nums">
+        {goal.start ? <span className="text-text-faint">{goal.start} →</span> : null}
         <input
           type="number"
           min={0}

@@ -24,6 +24,9 @@ const GoalSchema = z.object({
   done: z.boolean().default(false),
   target: z.number().finite().nonnegative().optional(),
   current: z.number().finite().nonnegative().optional(),
+  // `start` is the KR baseline (e.g. a metric that already sits at 20 on the
+  // way to 100); progress is measured from start→target, not 0→target.
+  start: z.number().finite().nonnegative().optional(),
   unit: z.string().max(12).optional(),
   confidence: z.enum(["on_track", "at_risk", "off_track"]).optional(),
 });

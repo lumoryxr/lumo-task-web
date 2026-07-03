@@ -21,6 +21,31 @@ describe("goalPct", () => {
     expect(goalPct({ text: "a", done: true })).toBe(100);
     expect(goalPct({ text: "a", done: false })).toBe(0);
   });
+
+  it("measures progress from a non-zero start baseline (start→target)", () => {
+    // 20→100, currently 60 → (60-20)/(100-20) = 50%
+    expect(goalPct({ text: "a", done: false, target: 100, start: 20, current: 60 })).toBe(50);
+    // at the baseline → 0%
+    expect(goalPct({ text: "a", done: false, target: 100, start: 20, current: 20 })).toBe(0);
+    // no current defaults to the baseline → 0%
+    expect(goalPct({ text: "a", done: false, target: 100, start: 20 })).toBe(0);
+    // below baseline clamps to 0, past target clamps to 100
+    expect(goalPct({ text: "a", done: false, target: 100, start: 20, current: 10 })).toBe(0);
+    expect(goalPct({ text: "a", done: false, target: 100, start: 20, current: 999 })).toBe(100);
+    // start === target: no range → reached only when current ≥ target
+    expect(goalPct({ text: "a", done: false, target: 50, start: 50, current: 50 })).toBe(100);
+    expect(goalPct({ text: "a", done: false, target: 50, start: 50, current: 40 })).toBe(0);
+  });
+
+  it("handles decreasing KRs (e.g. reduce 80 → 40)", () => {
+    // 80→40, currently 60 → (60-80)/(40-80) = 50%
+    expect(goalPct({ text: "a", done: false, target: 40, start: 80, current: 60 })).toBe(50);
+    // still at the baseline → 0%
+    expect(goalPct({ text: "a", done: false, target: 40, start: 80, current: 80 })).toBe(0);
+    // worse than baseline clamps to 0; at/under target clamps to 100
+    expect(goalPct({ text: "a", done: false, target: 40, start: 80, current: 90 })).toBe(0);
+    expect(goalPct({ text: "a", done: false, target: 40, start: 80, current: 30 })).toBe(100);
+  });
 });
 
 describe("nextConfidence", () => {
