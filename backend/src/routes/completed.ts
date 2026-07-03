@@ -14,6 +14,16 @@ const MAX_LIMIT = 500;
 const app = new Hono<{ Variables: Variables }>();
 app.use("/*", authMiddleware);
 
+function parseTags(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export function rowToEntry(row: CompletedEntryRow) {
   return {
     id: row.id,
@@ -24,6 +34,7 @@ export function rowToEntry(row: CompletedEntryRow) {
     startedAt: row.started_at ?? null,
     completedAt: row.completed_at,
     project_id: row.project_id ?? null,
+    tags: parseTags(row.tags_json),
   };
 }
 

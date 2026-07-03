@@ -142,6 +142,39 @@ export function computeAllTimeStats(entries: CompletedEntry[]): AllTimeStats {
   };
 }
 
+export interface TagCount {
+  tag: string;
+  count: number;
+  percent: number; // share of the busiest tag's count (for bar width), 0-100
+}
+
+/**
+ * Tag distribution over completed work (Tags V2). Counts how many finished
+ * entries carry each tag, sorted by count desc then tag asc for stability. One
+ * entry with N tags contributes to N tags. `percent` is relative to the top
+ * tag's count so the leader's bar is always full-width. Returns [] when nothing
+ * completed carries a tag.
+ */
+export function computeTagDistribution(entries: CompletedEntry[]): TagCount[] {
+  const counts = new Map<string, number>();
+  for (const e of entries) {
+    for (const raw of e.tags ?? []) {
+      const tag = raw.trim();
+      if (!tag) continue;
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+  }
+  const sorted = [...counts.entries()].sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
+  );
+  const max = sorted.length ? sorted[0][1] : 0;
+  return sorted.map(([tag, count]) => ({
+    tag,
+    count,
+    percent: max > 0 ? Math.round((count / max) * 100) : 0,
+  }));
+}
+
 export function fmtHour(h: number): string {
   if (h === 0) return "12am";
   if (h < 12) return `${h}am`;

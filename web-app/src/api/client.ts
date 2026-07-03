@@ -352,6 +352,7 @@ function adaptEntry(raw: any): CompletedEntry {
     startedAt: raw.startedAt ?? undefined,
     completedAt: raw.completedAt ?? undefined,
     projectId: raw.project_id ?? null,
+    tags: Array.isArray(raw.tags) ? raw.tags : [],
   };
 }
 

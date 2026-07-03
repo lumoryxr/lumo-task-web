@@ -550,4 +550,29 @@ describe("task ↔ project linkage (#213)", () => {
     assert.ok(entry);
     assert.equal(entry.project_id ?? null, null);
   });
+
+  test("completing a tagged task snapshots tags onto the completed entry (Tags V2)", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Tagged finish" }, tags: ["work", "urgent"] },
+    });
+    const done = await req("POST", `/v1/tasks/${created.body.id}/complete`, { token: demoToken });
+    assert.equal(done.status, 200);
+    const { body } = await req("GET", "/v1/completed", { token: demoToken });
+    const entry = body.items.find((e: { task_id: string | null }) => e.task_id === created.body.id);
+    assert.ok(entry, "completed entry for the task must exist");
+    assert.deepEqual([...entry.tags].sort(), ["urgent", "work"], "completed entry must carry the task's tags");
+  });
+
+  test("completing an untagged task yields an empty tags array (Tags V2)", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Untagged finish" } },
+    });
+    await req("POST", `/v1/tasks/${created.body.id}/complete`, { token: demoToken });
+    const { body } = await req("GET", "/v1/completed", { token: demoToken });
+    const entry = body.items.find((e: { task_id: string | null }) => e.task_id === created.body.id);
+    assert.ok(entry);
+    assert.deepEqual(entry.tags, []);
+  });
 });

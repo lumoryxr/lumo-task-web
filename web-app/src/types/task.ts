@@ -71,6 +71,8 @@ export interface CompletedEntry {
   taskId?: string;
   /** Owning project at completion time (#223), for real per-project done counts. */
   projectId?: string | null;
+  /** Tags snapshotted at completion time (Tags V2), for the Stats distribution. */
+  tags?: string[];
 }
 
 export interface User {

@@ -37,13 +37,14 @@ app.post("/sessions", focusRateLimit, validate("json", FocusSessionBody), async 
     );
     if (task) {
       await execute(`
-        INSERT INTO completed_entries (id, user_id, task_id, title_en, title_zh, duration, quadrant, started_at, completed_at, updated_at)
-        VALUES (:id, :user_id, :task_id, :title_en, :title_zh, :duration, :quadrant, :started_at, :completed_at, :sync_ts)
+        INSERT INTO completed_entries (id, user_id, task_id, title_en, title_zh, duration, quadrant, started_at, completed_at, updated_at, project_id, tags_json)
+        VALUES (:id, :user_id, :task_id, :title_en, :title_zh, :duration, :quadrant, :started_at, :completed_at, :sync_ts, :project_id, :tags_json)
       `, {
         id: entryId, user_id: userId, task_id: body.task_id,
         title_en: task.title_en, title_zh: task.title_zh ?? null,
         duration: body.duration, quadrant: task.quadrant,
         started_at: body.started_at ?? null, completed_at: now, sync_ts: syncTs,
+        project_id: task.project_id ?? null, tags_json: task.tags_json ?? "[]",
       });
 
       // Scope the write by `user_id` too: the SELECT above already gates this

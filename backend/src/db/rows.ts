@@ -57,6 +57,7 @@ export interface CompletedEntryRow {
   started_at: string | null;
   completed_at: string;
   project_id: string | null;
+  tags_json: string | null;
 }
 
 export interface PersonRow {
@@ -104,6 +105,8 @@ export interface FocusTaskRow {
   title_en: string;
   title_zh: string | null;
   quadrant: string;
+  project_id: string | null;
+  tags_json: string | null;
 }
 
 export interface HabitRow {

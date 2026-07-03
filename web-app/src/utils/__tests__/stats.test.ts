@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { computeWeekStats } from "../stats";
+import { computeWeekStats, computeTagDistribution } from "../stats";
 import type { CompletedEntry } from "@/types/task";
 
 // Pin time to a known Wednesday (2026-06-17)
@@ -91,5 +91,40 @@ describe("computeWeekStats — quadrantBreakdown", () => {
     ];
     const result = computeWeekStats(entries);
     expect(result.q1Tasks).toBe(result.quadrantBreakdown.find((b) => b.quadrant === "Q1")!.count);
+  });
+});
+
+describe("computeTagDistribution", () => {
+  it("returns [] when no entry carries a tag", () => {
+    expect(computeTagDistribution([makeEntry(), makeEntry({ tags: [] })])).toEqual([]);
+  });
+
+  it("counts occurrences across entries; one multi-tag entry hits every tag", () => {
+    const dist = computeTagDistribution([
+      makeEntry({ tags: ["work", "urgent"] }),
+      makeEntry({ tags: ["work"] }),
+      makeEntry({ tags: ["home"] }),
+    ]);
+    const byTag = Object.fromEntries(dist.map((d) => [d.tag, d.count]));
+    expect(byTag).toEqual({ work: 2, urgent: 1, home: 1 });
+  });
+
+  it("sorts by count desc then tag asc, and scales percent to the top tag", () => {
+    const dist = computeTagDistribution([
+      makeEntry({ tags: ["b"] }),
+      makeEntry({ tags: ["a"] }),
+      makeEntry({ tags: ["a"] }),
+    ]);
+    expect(dist.map((d) => d.tag)).toEqual(["a", "b"]);
+    expect(dist[0]).toMatchObject({ tag: "a", count: 2, percent: 100 });
+    expect(dist[1]).toMatchObject({ tag: "b", count: 1, percent: 50 });
+  });
+
+  it("trims whitespace and ignores blank tags", () => {
+    const dist = computeTagDistribution([
+      makeEntry({ tags: ["  work  ", "", "   "] }),
+      makeEntry({ tags: ["work"] }),
+    ]);
+    expect(dist).toEqual([{ tag: "work", count: 2, percent: 100 }]);
   });
 });
