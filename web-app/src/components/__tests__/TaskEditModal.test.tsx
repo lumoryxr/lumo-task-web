@@ -10,7 +10,7 @@ const mockUpdate = vi.fn();
 const mockRemove = vi.fn();
 
 vi.mock("@/store/useTasksStore", () => ({
-  useTasksStore: (sel: any) => sel({ update: mockUpdate, remove: mockRemove }),
+  useTasksStore: (sel: any) => sel({ update: mockUpdate, remove: mockRemove, tasks: [] }),
 }));
 
 vi.mock("@/store/usePeopleStore", () => ({

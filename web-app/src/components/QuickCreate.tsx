@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { IconClose, IconSparkle } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
@@ -6,6 +6,7 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { TagInput } from "@/components/TagInput";
+import { derivePlanTags } from "@/utils/planFilters";
 import { toISODate } from "@/lib/format";
 import type { Quadrant, TaskRecurrence } from "@/types/task";
 
@@ -42,6 +43,8 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   const locale = useAppStore((s) => s.locale);
   const create = useTasksStore((s) => s.create);
   const parseTaskText = useTasksStore((s) => s.parseTaskText);
+  const allTasks = useTasksStore((s) => s.tasks);
+  const tagSuggestions = useMemo(() => derivePlanTags(allTasks), [allTasks]);
   const people = usePeopleStore((s) => s.people);
 
   const todayISO = toISODate(new Date());
@@ -401,6 +404,7 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
               onChange={setTags}
               placeholder={t("edit.tags.placeholder")}
               inputAriaLabel={t("edit.tags")}
+              suggestions={tagSuggestions}
             />
           </div>
 

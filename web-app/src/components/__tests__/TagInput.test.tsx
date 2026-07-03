@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { TagInput, addTag, normalizeTag } from "../TagInput";
+import { TagInput, addTag, normalizeTag, matchSuggestions } from "../TagInput";
 
 vi.mock("@/components/icons", () => ({
   IconClose: () => <span data-testid="x" />,
@@ -83,5 +83,52 @@ describe("<TagInput />", () => {
     render(<TagInput tags={["a", "b"]} onChange={onChange} />);
     fireEvent.click(screen.getByLabelText("Remove tag a"));
     expect(onChange).toHaveBeenCalledWith(["b"]);
+  });
+});
+
+describe("matchSuggestions", () => {
+  const pool = ["work", "workout", "home", "urgent"];
+  it("returns [] when the draft is blank", () => {
+    expect(matchSuggestions(pool, [], "  ")).toEqual([]);
+  });
+  it("matches case-insensitive substrings", () => {
+    expect(matchSuggestions(pool, [], "WOR")).toEqual(["work", "workout"]);
+  });
+  it("excludes already-applied tags (case-insensitive)", () => {
+    expect(matchSuggestions(pool, ["Work"], "wor")).toEqual(["workout"]);
+  });
+  it("caps the number of results", () => {
+    const many = Array.from({ length: 10 }, (_, i) => `tag${i}`);
+    expect(matchSuggestions(many, [], "tag", 3)).toHaveLength(3);
+  });
+});
+
+describe("<TagInput /> suggestions", () => {
+  it("shows matching suggestions only while typing and applies one on click", () => {
+    const onChange = vi.fn();
+    render(
+      <TagInput tags={[]} onChange={onChange} inputAriaLabel="Tags" suggestions={["work", "home"]} />
+    );
+    // No dropdown before typing.
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    const input = screen.getByLabelText("Tags");
+    fireEvent.change(input, { target: { value: "wo" } });
+    expect(screen.getByRole("option", { name: "work" })).toBeInTheDocument();
+    expect(screen.queryByText("home")).not.toBeInTheDocument();
+
+    // mouseDown (before blur) applies the suggestion, not the raw draft.
+    fireEvent.mouseDown(screen.getByRole("button", { name: "work" }));
+    expect(onChange).toHaveBeenCalledWith(["work"]);
+  });
+
+  it("does not suggest a tag that is already applied", () => {
+    render(
+      <TagInput tags={["work"]} onChange={() => {}} inputAriaLabel="Tags" suggestions={["work", "workout"]} />
+    );
+    const input = screen.getByLabelText("Tags");
+    fireEvent.change(input, { target: { value: "work" } });
+    expect(screen.getByRole("option", { name: "workout" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "work" })).not.toBeInTheDocument();
   });
 });
