@@ -1157,6 +1157,112 @@ describe("DFX · Robustness — habit check-in `date` is format-bounded (#267)",
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS — `people` avatar fields are format/length-bounded (#279)
+//
+// Coverage-gap audit: the `people` resource is present in this daily suite only
+// via the #158 tenant-isolation + malformed-JSON cases — it has NO format/bound
+// robustness coverage on its own fields, despite carrying three strictly-bounded,
+// display-driving inputs whose ONLY guard is a Zod format/length rule at the
+// route boundary (`validate("json", PersonCreateBodySchema)`, and its partial on
+// PATCH):
+//
+//   • `color`    — `^#[0-9a-fA-F]{6}$`, rendered DIRECTLY as the avatar's CSS
+//                  background color on the client. Loosening it to `z.string()`
+//                  would let an arbitrary string into a value the UI injects into
+//                  `style` — a robustness + mild CSS-injection concern that would
+//                  surface only in the rendered DOM, past every existing case.
+//   • `initials` — `min(1).max(2)`; a UI-integrity bound (the avatar bubble is
+//                  sized for ≤ 2 chars; an over-length value overflows the layout).
+//   • `email`    — `z.string().email().max(255)`; a format bound.
+//
+// Same class as the scheduler/format-bound family (#176 remind_at → #240
+// countdowns.date → #264 settings times → #267 habit date), applied to the last
+// user-scoped CRUD resource whose format bounds are untested at the daily
+// real-HTTP + real-SQLite layer. PATCH re-validates the full partial body, so the
+// bounds apply on BOTH write paths; there is no GET /:id, so round-trips read back
+// via the owner's list (like countdowns). Gives each bound teeth (a plausible-but-
+// wrong value, not just garbage, is rejected), proves the valid round-trip, and
+// proves a rejected PATCH leaves the stored row unmutated (no partial poison).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — `people` avatar fields are format/length-bounded (#279)", () => {
+  function createPerson(token: string, overrides: Record<string, unknown> = {}) {
+    return api("POST", "/v1/people", {
+      token,
+      body: { name: "Sam", initials: "SM", color: "#3366cc", email: null, ...overrides },
+    });
+  }
+
+  function namesField(body: any, field: string): boolean {
+    return (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === field) ?? false;
+  }
+
+  test("malformed `color` (non-hex) on create → 400 VALIDATION_ERROR naming `color`, never a 5xx / write", async () => {
+    const { status, body } = await createPerson(alice.token, { color: "royalblue" });
+    assert.equal(status, 400, "a non-hex color must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(namesField(body, "color"), "the rejection must name `color` (the format bound fired, not an incidental 400)");
+  });
+
+  test("plausible-but-wrong `color` (3-digit `#fff`) → 400 — the strict 6-hex bound has teeth", async () => {
+    // `#fff` is valid CSS shorthand but NOT the contract's 6-hex shape. Proves the
+    // bound rejects a plausible-but-wrong value, not just obvious garbage.
+    const { status, body } = await createPerson(alice.token, { color: "#fff" });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(namesField(body, "color"), "a 3-digit hex must still name `color`");
+  });
+
+  test("over-length `initials` (> 2 chars) → 400 naming `initials`", async () => {
+    const { status, body } = await createPerson(alice.token, { initials: "SAM" });
+    assert.equal(status, 400, "initials longer than the 2-char avatar bubble must be rejected");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(namesField(body, "initials"), "the rejection must name `initials`");
+  });
+
+  test("malformed `email` → 400 naming `email`", async () => {
+    const { status, body } = await createPerson(alice.token, { email: "not-an-email" });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(namesField(body, "email"), "the rejection must name `email`");
+  });
+
+  test("a fully valid person round-trips — create persists it and a list read reflects it back", async () => {
+    const color = "#a1b2c3";
+    const { status, body: created } = await createPerson(alice.token, { name: "Dana", initials: "DA", color });
+    assert.equal(status, 201, "a well-formed person must be accepted");
+    assert.equal(created.color, color, "the create response must echo the stored color");
+
+    // No GET /:id on this resource — the value must survive storage and appear in
+    // the owner's list so the avatar can read it back later.
+    const list = await api("GET", "/v1/people", { token: alice.token });
+    assert.equal(list.status, 200);
+    const found = (list.body as Array<{ id: string; color: string; initials: string }>).find((p) => p.id === created.id);
+    assert.ok(found, "the created person must appear in the owner's list");
+    assert.equal(found!.color, color, "a subsequent read must reflect the persisted color");
+    assert.equal(found!.initials, "DA", "a subsequent read must reflect the persisted initials");
+  });
+
+  test("malformed `color` on PATCH → 400 and the stored row is left unmutated", async () => {
+    const good = "#0f0f0f";
+    const { body: created } = await createPerson(alice.token, { name: "Rio", initials: "RO", color: good });
+
+    const { status, body } = await api("PATCH", `/v1/people/${created.id}`, {
+      token: alice.token,
+      body: { color: "blue" },
+    });
+    assert.equal(status, 400, "the update path must validate `color` too");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(namesField(body, "color"), "the rejected PATCH must name `color`");
+
+    // No partial poison: the rejected PATCH must not have overwritten the column.
+    const list = await api("GET", "/v1/people", { token: alice.token });
+    const found = (list.body as Array<{ id: string; color: string }>).find((p) => p.id === created.id);
+    assert.equal(found?.color, good, "a rejected update must leave the stored color unchanged");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for RECOVERABILITY — bad input must not poison the server
 // ═══════════════════════════════════════════════════════════════════════════════
 
