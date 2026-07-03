@@ -43,6 +43,10 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
       const projects = await projectApi.list();
       set({ projects, loaded: true });
     } catch (e) {
+      // Mark loaded even on failure so the page falls back to the empty state
+      // (alongside the error toast) rather than trapping the user in a
+      // never-ending loading skeleton.
+      set({ loaded: true });
       toast.error(t("project.error.load"), e instanceof Error ? e.message : String(e));
     }
   },

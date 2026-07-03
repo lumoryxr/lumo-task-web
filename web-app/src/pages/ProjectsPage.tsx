@@ -5,6 +5,7 @@ import { useProjectsStore } from "@/store/useProjectsStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import type { Project, ProjectColor } from "@/types/task";
 import { EmptyState } from "@/components/EmptyState";
+import { ProjectListSkeleton } from "@/components/skeletons";
 import { ProjectTemplatePicker } from "@/components/ProjectTemplatePicker";
 import { ProjectFormModal } from "@/components/ProjectFormModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -23,6 +24,7 @@ export function ProjectsPage() {
   const t = useT();
   const navigate = useNavigate();
   const projects = useProjectsStore((s) => s.projects);
+  const loaded = useProjectsStore((s) => s.loaded);
   const removeProject = useProjectsStore((s) => s.remove);
   const doneCounts = useProjectsStore((s) => s.doneCounts);
   const loadProgress = useProjectsStore((s) => s.loadProgress);
@@ -72,6 +74,20 @@ export function ProjectsPage() {
 
   function handleNew() {
     setCreateOpen(true);
+  }
+
+  // First paint while projects are still loading and nothing is cached: show a
+  // content-shaped skeleton instead of flashing the empty state (mirrors the
+  // habits fix #285).
+  if (!loaded && projects.length === 0) {
+    return (
+      <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
+        <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} t={t} />
+        <div className="mt-4">
+          <ProjectListSkeleton />
+        </div>
+      </div>
+    );
   }
 
   if (projects.length === 0) {
