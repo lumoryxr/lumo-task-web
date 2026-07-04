@@ -704,12 +704,18 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
           <button
             onClick={handleTest}
             disabled={!hasKey || testStatus === "loading"}
-            className="btn btn-secondary"
+            aria-busy={testStatus === "loading"}
+            className="btn btn-secondary inline-flex items-center gap-1.5"
             style={{ height: 32, fontSize: 12 }}
           >
-            {testStatus === "loading"
-              ? t("settings.ai.testing")
-              : t("ai.config.test")}
+            {testStatus === "loading" ? (
+              <>
+                <Spinner size={13} />
+                {t("settings.ai.testing")}
+              </>
+            ) : (
+              t("ai.config.test")
+            )}
           </button>
           {testStatus === "ok" && (
             <span className="text-[12px] font-medium" style={{ color: "var(--accent-primary)" }}>
@@ -793,13 +799,19 @@ function IntegrationsPanel({ t }: { t: (k: string) => string }) {
             <button
               onClick={handleConnect}
               disabled={!MS_CLIENT_ID || busy || loading}
-              className="btn btn-secondary"
+              aria-busy={busy || loading}
+              className="btn btn-secondary inline-flex items-center gap-1.5"
               style={{ height: 32, fontSize: 12 }}
               title={!MS_CLIENT_ID ? t("outlook.notConfigured") : undefined}
             >
-              {busy || loading
-                ? t("settings.outlook.connecting")
-                : t("outlook.connect")}
+              {busy || loading ? (
+                <>
+                  <Spinner size={13} />
+                  {t("settings.outlook.connecting")}
+                </>
+              ) : (
+                t("outlook.connect")
+              )}
             </button>
           )}
         </div>

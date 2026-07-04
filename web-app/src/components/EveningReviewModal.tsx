@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Spinner } from "@/components/Spinner";
 import { createPortal } from "react-dom";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { TaskTitle } from "@/components/TaskTitle";
@@ -717,10 +718,12 @@ export function EveningReviewModal({ onClose }: EveningReviewModalProps) {
           <button
             onClick={goNext}
             disabled={busy || !!abandoningId}
+            aria-busy={busy}
+            aria-label={isLastStep ? t("review.btn.finish") : t("review.btn.next")}
             className="btn btn-primary"
             style={{ minHeight: 44, minWidth: 100 }}
           >
-            {busy ? "…" : isLastStep ? t("review.btn.finish") : t("review.btn.next")}
+            {busy ? <Spinner /> : isLastStep ? t("review.btn.finish") : t("review.btn.next")}
           </button>
         </div>
       </div>

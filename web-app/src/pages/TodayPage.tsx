@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Spinner } from "@/components/Spinner";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CompletedTimeline } from "@/components/CompletedTimeline";
 import { EveningReviewModal } from "@/components/EveningReviewModal";
@@ -614,7 +615,9 @@ function WeekFocusSection({ weekFocusTasks }: WeekFocusSectionProps) {
                     try { await update(task.id, { today: true }); } finally { setAddingId(null); }
                   }}
                   disabled={addingId === task.id}
-                  className="text-[11px] flex-shrink-0"
+                  aria-busy={addingId === task.id}
+                  aria-label={t("weekly.focus.add_today")}
+                  className="text-[11px] flex-shrink-0 inline-flex items-center justify-center"
                   style={{
                     color: "var(--accent-primary)",
                     background: "none",
@@ -625,7 +628,7 @@ function WeekFocusSection({ weekFocusTasks }: WeekFocusSectionProps) {
                     opacity: addingId === task.id ? 0.5 : 1,
                   }}
                 >
-                  {addingId === task.id ? "…" : t("weekly.focus.add_today")}
+                  {addingId === task.id ? <Spinner size={12} /> : t("weekly.focus.add_today")}
                 </button>
               )}
             </div>
