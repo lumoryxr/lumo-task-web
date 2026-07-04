@@ -554,6 +554,7 @@ function UnscheduledChip({ task }: { task: Task }) {
 /* ── All-day chip (in day header) ────────────────────────────────── */
 
 function AllDayChip({ task }: { task: Task }) {
+  const t = useT();
   const ls = useLocaleString();
   const [detailOpen, setDetailOpen] = useState(false);
   const complete = useTasksStore((s) => s.complete);
@@ -574,6 +575,7 @@ function AllDayChip({ task }: { task: Task }) {
         <span className="truncate flex-1"><TaskTitle text={ls(task.title)} /></span>
         <button
           onClick={(e) => { e.stopPropagation(); complete(task.id); }}
+          aria-label={t("row.complete")}
           className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
           style={{ color: "var(--accent-primary)" }}
         >
