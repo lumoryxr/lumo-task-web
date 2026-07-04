@@ -90,11 +90,13 @@ export function CountdownPage() {
     setModalOpen(true);
   }
 
-  function handleSave(values: Omit<CountdownEvent, "id" | "createdAt">) {
+  async function handleSave(values: Omit<CountdownEvent, "id" | "createdAt">) {
+    // Await the round-trip so the modal can show a spinner and only close on
+    // success (a throw keeps the modal open for retry).
     if (editTarget) {
-      update(userId, editTarget.id, values);
+      await update(userId, editTarget.id, values);
     } else {
-      create(userId, values);
+      await create(userId, values);
     }
   }
 

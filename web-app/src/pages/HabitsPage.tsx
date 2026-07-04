@@ -52,11 +52,13 @@ export function HabitsPage() {
 
   const today = toDateStr(new Date());
 
-  function handleSave(data: Omit<Habit, "id" | "createdAt">) {
+  async function handleSave(data: Omit<Habit, "id" | "createdAt">) {
+    // Await the round-trip so the modal can show a spinner and only close on
+    // success; a throw propagates to the modal, which keeps itself open.
     if (editTarget) {
-      update(userId, editTarget.id, data);
+      await update(userId, editTarget.id, data);
     } else {
-      create(userId, data);
+      await create(userId, data);
     }
     setModalOpen(false);
     setEditTarget(null);

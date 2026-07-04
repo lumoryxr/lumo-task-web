@@ -14,6 +14,7 @@ import { PERSON_COLORS } from "@/lib/personColors";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Spinner } from "@/components/Spinner";
 import { IconUsers } from "@/components/icons";
 import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
 import { useNotificationStore } from "@/store/useNotificationStore";
@@ -885,9 +886,11 @@ function PersonForm({
           className="btn btn-primary"
           onClick={onSave}
           disabled={busy || !draft.name.trim()}
-          style={{ height: 30, fontSize: 12 }}
+          aria-busy={busy}
+          aria-label={t("settings.members.save")}
+          style={{ height: 30, fontSize: 12, minWidth: 56 }}
         >
-          {t("settings.members.save")}
+          {busy ? <Spinner size={13} /> : t("settings.members.save")}
         </button>
       </div>
     </div>

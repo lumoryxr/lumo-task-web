@@ -6,6 +6,7 @@ import { toast } from "@/store/useToastStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ApiError } from "@/api/ApiError";
 import { presentError } from "@/lib/presentError";
+import { Spinner } from "@/components/Spinner";
 
 /**
  * /account/change-password — form to update the user's password.
@@ -162,9 +163,12 @@ export function ChangePasswordPage() {
               <button
                 type="submit"
                 className="btn btn-primary"
+                style={{ minWidth: 96 }}
                 disabled={loading}
+                aria-busy={loading}
+                aria-label={t("account.changePass.save")}
               >
-                {loading ? "…" : t("account.changePass.save")}
+                {loading ? <Spinner size={16} /> : t("account.changePass.save")}
               </button>
             </div>
           </form>

@@ -4,6 +4,7 @@ import { IconClose } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import type { Project, ProjectColor } from "@/types/task";
+import { Spinner } from "@/components/Spinner";
 
 const COLORS: ProjectColor[] = ["green", "cyan", "amber", "red"];
 const COLOR_PRIMARY: Record<ProjectColor, string> = {
@@ -215,6 +216,8 @@ export function ProjectFormModal({ onClose, onCreated, project }: ProjectFormMod
             <button
               type="submit"
               disabled={busy}
+              aria-busy={busy}
+              aria-label={isEdit ? t("project.save") : t("project.create")}
               className="transition-colors"
               style={{
                 padding: "8px 20px", borderRadius: "var(--radius-md)",
@@ -222,9 +225,10 @@ export function ProjectFormModal({ onClose, onCreated, project }: ProjectFormMod
                 background: busy ? "var(--bg-subtle)" : "var(--accent-fog)",
                 color: "var(--accent-primary)", fontSize: 13, fontWeight: 600,
                 cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1,
+                minWidth: 72, display: "inline-flex", alignItems: "center", justifyContent: "center",
               }}
             >
-              {isEdit ? t("project.save") : t("project.create")}
+              {busy ? <Spinner /> : isEdit ? t("project.save") : t("project.create")}
             </button>
           </div>
         </form>

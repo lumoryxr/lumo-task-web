@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Spinner } from "@/components/Spinner";
 import { EmptyState } from "@/components/EmptyState";
 import { IconBookmark, IconClose, IconTrash } from "@/components/icons";
 import { useT } from "@/i18n/useT";
@@ -119,11 +120,13 @@ export function ProjectTemplatePicker({ onClose, onCreated }: Props) {
                 <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                   <button
                     className="btn btn-secondary"
-                    style={{ height: 30, fontSize: 12 }}
+                    style={{ height: 30, fontSize: 12, minWidth: 52 }}
                     onClick={() => handleUse(tpl.id)}
                     disabled={busyId === tpl.id}
+                    aria-busy={busyId === tpl.id}
+                    aria-label={t("template.use")}
                   >
-                    {t("template.use")}
+                    {busyId === tpl.id ? <Spinner size={13} /> : t("template.use")}
                   </button>
                   <button
                     aria-label={t("template.delete")}

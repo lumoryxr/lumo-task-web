@@ -5,6 +5,7 @@ import { OAuthButton } from "@/components/OAuthButton";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
 import { presentError, fieldErrorsOf } from "@/lib/presentError";
+import { Spinner } from "@/components/Spinner";
 
 /**
  * /login — email + password + 3 OAuth providers + "continue without
@@ -69,8 +70,10 @@ export function LoginPage() {
             type="submit"
             className="btn btn-primary btn-lg w-full justify-center mt-1"
             disabled={loading}
+            aria-busy={loading}
+            aria-label={t("auth.login.btn")}
           >
-            {loading ? "…" : t("auth.login.btn")}
+            {loading ? <Spinner size={18} /> : t("auth.login.btn")}
           </button>
         </div>
 
