@@ -115,4 +115,17 @@ describe("MatrixPage project filter", () => {
     fireEvent.click(beta);
     expect(screen.getByText("Alpha-Q1")).toBeTruthy();
   });
+
+  it("announces the active view on the segmented toggle via aria-pressed", () => {
+    render(<MatrixPage />);
+    // Default view is matrix → its toggle is pressed, calendar's is not.
+    expect(screen.getByRole("button", { name: /matrix\.view\.matrix/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /matrix\.view\.calendar/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
 });

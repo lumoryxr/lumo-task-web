@@ -228,6 +228,7 @@ function ViewToggleBtn({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className="flex items-center gap-1.5 transition-colors"
       style={{
         padding: "5px 11px",
