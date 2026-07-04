@@ -755,6 +755,98 @@ describe("DFX · Security — cross-tenant id-collision guard on /v1/countdowns/
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — cross-tenant row id-collision guard on POST /v1/habits/migrate (#306)
+//
+// The last uncovered member of the migrate-family id-collision guard. #295 covered
+// the ROW id-collision for countdowns/migrate + projects/migrate (and its docstring
+// even names itself "the sibling of habits/migrate"); #276 covered habits/migrate's
+// LOG-ownership guard — but neither covers the habits *table row* itself. Like its
+// siblings, habits/migrate INSERTs rows with a CLIENT-SUPPLIED `id` while forcing
+// `user_id` from the JWT, into a table keyed on a global `id TEXT PRIMARY KEY`
+// (routes/habits.ts:105). The only barrier stopping a caller from clobbering/stealing
+// another tenant's habit by supplying its id is the statement's `INSERT OR IGNORE`.
+//
+// Insidious the same way as #295: the handler returns `migrated: { habits: <submitted>
+// .length, … }` (the SUBMITTED count, not the inserted count), so status + count stay
+// blind to an `INSERT OR IGNORE` -> `INSERT OR REPLACE` regression (OR REPLACE rewrites
+// the colliding row's user_id, letting an attacker STEAL a victim's habit by id). Only
+// cross-tenant state-survival catches it — there is no GET /:id, so read back via each
+// owner's GET /v1/habits list. Mutation-tested: flipping the habits INSERT to OR REPLACE
+// reddens exactly this case.
+describe("DFX · Security — cross-tenant id-collision guard on /v1/habits/migrate row (#306)", () => {
+  let victim: { token: string; id: string };
+  let attacker: { token: string; id: string };
+
+  before(async () => {
+    victim = await registerUser("migrate-habit-collide-victim");
+    attacker = await registerUser("migrate-habit-collide-attacker");
+  });
+
+  test("habits/migrate cannot overwrite or steal another tenant's habit by colliding id", async () => {
+    // Victim owns a real habit; its id is what the attacker will try to collide.
+    const { status: vStatus, body: victimHabit } = await api("POST", "/v1/habits", {
+      token: victim.token,
+      body: { title: "Victim Habit", color: "green", frequency: "daily" },
+    });
+    assert.equal(vStatus, 201, "victim habit should create");
+    const foreignId: string = victimHabit.id;
+
+    // Attacker bulk-imports one OWNED habit (positive control) plus one keyed to the
+    // VICTIM's id (with different content) — the collision must be ignored, not applied.
+    const ownId = "habit_attacker_owned_306";
+    const res = await api("POST", "/v1/habits/migrate", {
+      token: attacker.token,
+      body: {
+        habits: [
+          {
+            id: ownId,
+            title: "Attacker Owned",
+            color: "cyan",
+            frequency: "daily",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            id: foreignId, // collides with the victim's row
+            title: "STOLEN",
+            color: "red",
+            frequency: "daily",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+        logs: [],
+      },
+    });
+    // The endpoint returns the SUBMITTED count regardless — deliberately NOT a teeth
+    // assertion (it stays 2 under both OR IGNORE and OR REPLACE); the teeth are below.
+    assert.equal(res.status, 200, "migrate should succeed");
+
+    // Attacker's list: must contain their OWN import (positive control — the negative
+    // assertion below is not vacuously green) and must NEVER acquire the victim's id.
+    const { status: aStatus, body: attackerList } = await api("GET", "/v1/habits", {
+      token: attacker.token,
+    });
+    assert.equal(aStatus, 200);
+    assert.ok(Array.isArray(attackerList), "habits list must be an array");
+    assert.ok(
+      attackerList.some((h: any) => h.id === ownId),
+      "attacker's own migrated habit must be imported",
+    );
+    // Load-bearing teeth #1: OR REPLACE would rewrite the row's user_id → attacker gains it.
+    assert.ok(
+      !attackerList.some((h: any) => h.id === foreignId),
+      "attacker must NOT acquire the victim's habit by colliding id (OR REPLACE would leak it)",
+    );
+
+    // Victim's list: the row must survive UNMUTATED (same title, not the attacker's "STOLEN").
+    const { body: victimList } = await api("GET", "/v1/habits", { token: victim.token });
+    const survivor = victimList.find((h: any) => h.id === foreignId);
+    // Load-bearing teeth #2: OR REPLACE moves the row to the attacker → it vanishes here.
+    assert.ok(survivor, "victim's habit must survive the colliding import");
+    assert.equal(survivor.title, "Victim Habit", "victim's habit content must be unmutated");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for SECURITY — cross-tenant foreign-key reference on the task write boundary (#220)
 //
 // The #158/#165/#194 sweeps cover CRUD-by-id and state-changing sub-resources. They
