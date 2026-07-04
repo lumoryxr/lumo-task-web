@@ -89,7 +89,7 @@ export function StatsPage() {
         </div>
         <div>
           <h2 className="text-[16px] font-semibold text-text-primary">{t("auth.required.title")}</h2>
-          <p className="mt-1 text-[13px] text-text-muted max-w-xs">Sign in to view your productivity stats.</p>
+          <p className="mt-1 text-[13px] text-text-muted max-w-xs">{t("auth.required.stats")}</p>
         </div>
         <button
           onClick={() => navigate("/login")}
