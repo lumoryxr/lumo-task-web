@@ -22,6 +22,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
+    <!-- Progressive enhancement: reveal animations are JS-driven, so with JS
+         disabled we must show all content instead of a blank page. -->
+    <noscript>
+      <style>
+        .reveal { opacity: 1 !important; transform: none !important; }
+      </style>
+    </noscript>
     <!-- Set language before paint to avoid a flash of the wrong locale. -->
     <script is:inline>
       (function () {
