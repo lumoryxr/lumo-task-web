@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Spinner } from "@/components/Spinner";
 import { createPortal } from "react-dom";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { TaskTitle } from "@/components/TaskTitle";
@@ -674,10 +675,11 @@ export function MorningPlanningModal({ onClose }: MorningPlanningModalProps) {
           <button
             onClick={goNext}
             disabled={busy}
+            aria-busy={busy}
             className="btn btn-primary"
             style={{ minHeight: 44, minWidth: 100 }}
           >
-            {busy ? "…" : isLastStep ? t("planning.btn.finish") : t("planning.btn.next")}
+            {busy ? <Spinner /> : isLastStep ? t("planning.btn.finish") : t("planning.btn.next")}
           </button>
         </div>
       </div>
