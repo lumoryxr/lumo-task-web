@@ -70,10 +70,10 @@ export function Shell() {
 
   return (
     <div className={`density-${density}`}>
-      <div className="fixed inset-0 flex bg-base">
+      <div className="fixed inset-0 flex bg-base app-stage">
         <div className="lumo-pulse" />
         {!isMobile && <Sidebar />}
-        <main className="relative flex flex-1 flex-col min-w-0 min-h-0 bg-base">
+        <main className="relative flex flex-1 flex-col min-w-0 min-h-0">
           {!isFocus && (
             <Topbar
               title={meta.title}
