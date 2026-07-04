@@ -761,6 +761,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "habit.checkin.motivation.3": "You're building something great, one day at a time.",
     "habit.checkin.motivation.4": "The secret of success is the habit of doing.",
     "auth.required.habits": "Habits are tied to your account. Sign in to track your daily streaks.",
+    "auth.required.stats": "Your productivity stats are tied to your account. Sign in to view your progress.",
 
     "nav.stats": "Stats",
     "stats.title": "Focus Report",
@@ -1653,6 +1654,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "habit.checkin.motivation.3": "一天一天，你正在创造伟大。",
     "habit.checkin.motivation.4": "成功的秘密就在于日复一日的坚持。",
     "auth.required.habits": "习惯追踪与你的账号绑定，登录后才能追踪每日打卡。",
+    "auth.required.stats": "效率统计与你的账号绑定，登录后才能查看你的进度。",
 
     "nav.stats": "统计",
     "stats.title": "专注报告",
