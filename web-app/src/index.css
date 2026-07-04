@@ -83,8 +83,12 @@ html, body, #root { margin: 0; padding: 0; height: 100%; }
    open a new stacking context and trap in-stage overlays (QuickCreate z-150,
    AIClassifyModal z-120); the -1 layer stays visible without it. Glows use
    var(--accent-fog), so they follow the runtime theme accent automatically.
-   Purely decorative, static (no animation → nothing for reduce-motion to do). */
-.app-stage { position: relative; }
+   Purely decorative, static (no animation → nothing for reduce-motion to do).
+   NOTE: we do NOT set `position` on .app-stage — the stage already carries
+   Tailwind's `fixed`, which is a valid containing block for the absolute
+   ::before. Setting position:relative here would tie on specificity but win on
+   source order (this file loads after @tailwind utilities), clobbering `fixed`
+   → the stage would drop out of viewport-pin and overflow on mobile (TC85). */
 .app-stage::before {
   content: "";
   position: absolute;
