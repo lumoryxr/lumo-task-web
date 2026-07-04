@@ -326,7 +326,7 @@ function QuadrantPanel({
         <span className="ml-auto text-[11px] tabular-nums text-text-muted">{tasks.length}</span>
       </header>
 
-      <div className="flex-1 min-h-0 scroll-y p-3 flex flex-col gap-1.5">
+      <div className="flex-1 min-h-0 scroll-y p-3 flex flex-col gap-2">
         {tasks.length === 0 && (
           <div className="text-[12px] text-text-faint italic px-1 py-3">
             {over ? t("matrix.dropHere") : t("matrix.empty")}
@@ -371,12 +371,14 @@ function MatrixTaskCard({ task }: { task: Task }) {
         {...makeDragProps(task.id)}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className={`flex items-center gap-2 border-b border-border-faint rounded-md transition-colors cursor-grab active:cursor-grabbing${settling ? " matrix-card-settle" : ""}`}
+        className={`flex items-center gap-2 transition-all cursor-grab active:cursor-grabbing${settling ? " matrix-card-settle" : ""}`}
         style={{
-          padding: "8px 6px",
-          marginLeft: -6,
-          marginRight: -6,
-          background: hovered ? "var(--bg-subtle)" : "transparent",
+          padding: "9px 10px",
+          borderRadius: "var(--radius-md)",
+          background: hovered ? "var(--bg-subtle)" : "var(--bg-elevated)",
+          border: `1px solid ${hovered ? "var(--border-default)" : "var(--border-faint)"}`,
+          boxShadow: hovered ? "var(--shadow-card)" : "none",
+          transform: hovered ? "translateY(-1px)" : "none",
         }}
       >
         {/* Complete circle */}
