@@ -58,12 +58,14 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
       <div
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className="flex items-center gap-3 border-b border-border-faint rounded-md transition-colors"
+        className="task-row flex items-center gap-3 transition-all"
         style={{
-          padding: compact ? "9px 8px" : "13px 8px",
-          marginLeft: -8,
-          marginRight: -8,
-          background: selected ? "var(--accent-dim)" : hovered ? "var(--bg-subtle)" : "transparent",
+          padding: compact ? "11px 14px" : "14px 16px",
+          borderRadius: "var(--radius-lg)",
+          background: selected ? "var(--accent-dim)" : "var(--bg-surface)",
+          border: `1px solid ${selected ? "var(--accent-edge)" : hovered ? "var(--border-default)" : "var(--border-faint)"}`,
+          boxShadow: hovered ? "var(--shadow-lifted)" : "var(--shadow-card)",
+          transform: hovered ? "translateY(-1px)" : "none",
         }}
       >
         {/* ── Left: selection checkbox (select mode) or complete circle ── */}

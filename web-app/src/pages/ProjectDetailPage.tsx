@@ -423,7 +423,7 @@ export function ProjectDetailPage() {
         {projectTasks.length > 0 && taskView === "board" ? (
           <ProjectBoard tasks={projectTasks} />
         ) : (
-          <div>
+          <div className="flex flex-col gap-2">
             {projectTasks.map((task) => (
               <TaskRow key={task.id} task={task} />
             ))}

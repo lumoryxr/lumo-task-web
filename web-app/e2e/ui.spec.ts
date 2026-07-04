@@ -1583,7 +1583,7 @@ test("TC87 – templates: save a task as a template and instantiate it from the 
   const moreBtn = page.getByRole("button", { name: "More actions" }).first();
   await expect(moreBtn).toBeAttached({ timeout: 10_000 });
   const row = moreBtn.locator(
-    "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' border-b ')][1]",
+    "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' task-row ')][1]",
   );
   const savedTitle = (await row.locator(".truncate").first().innerText()).trim();
 
