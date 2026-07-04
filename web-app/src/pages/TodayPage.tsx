@@ -887,7 +887,7 @@ export function TodayPage() {
               ))}
             </div>
           )}
-          <div>
+          <div className="flex flex-col gap-2">
             {visibleRest.map((task) => (
               <TaskRow key={task.id} task={task} selectable />
             ))}
