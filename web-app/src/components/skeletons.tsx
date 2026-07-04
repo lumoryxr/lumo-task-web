@@ -55,6 +55,26 @@ export function HabitListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
+/** Loading state for the Projects page: an auto-fill grid of project-card
+ *  placeholders (title + meta line + progress bar), matching the real grid so
+ *  the page doesn't flash the "no projects yet" empty state before projects
+ *  load (mirrors the habits fix #285). Rendered below the page header. */
+export function ProjectListSkeleton({ cards = 4 }: { cards?: number }) {
+  return (
+    <SkeletonScreen>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+        {Array.from({ length: cards }, (_, i) => (
+          <div key={i} className="flex flex-col gap-3 p-4 rounded-2xl bg-surface border border-border-faint">
+            <Skeleton style={{ height: 15, width: "55%" }} />
+            <Skeleton style={{ height: 10, width: "35%" }} />
+            <Skeleton className="mt-1" style={{ height: 8, width: "100%", borderRadius: "var(--radius-sm)" }} />
+          </div>
+        ))}
+      </div>
+    </SkeletonScreen>
+  );
+}
+
 /** Loading state for the Stats page: a grid of stat cards + a chart block. */
 export function StatsSkeleton() {
   return (

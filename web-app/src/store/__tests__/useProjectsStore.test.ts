@@ -40,11 +40,14 @@ describe("useProjectsStore", () => {
     expect(useProjectsStore.getState().loaded).toBe(true);
   });
 
-  it("load surfaces a toast on failure", async () => {
+  it("load surfaces a toast on failure and still marks loaded (no infinite skeleton)", async () => {
     list.mockRejectedValueOnce(new Error("boom"));
     await useProjectsStore.getState().load();
     expect(toast.error).toHaveBeenCalled();
-    expect(useProjectsStore.getState().loaded).toBe(false);
+    // loaded flips true even on failure so the page falls back to the empty
+    // state (with the toast) instead of trapping the user in a loading skeleton.
+    expect(useProjectsStore.getState().loaded).toBe(true);
+    expect(useProjectsStore.getState().projects).toEqual([]);
   });
 
   it("create appends the returned project", async () => {
