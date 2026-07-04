@@ -85,10 +85,13 @@ describe("RegisterPage", () => {
     expect(screen.getByRole("button", { name: "auth.register.btn" })).toBeInTheDocument();
   });
 
-  it("disables the submit button while loading", () => {
+  it("disables the submit button (and marks it busy) while loading", () => {
     mockLoading = true;
     setup();
-    expect(screen.getByRole("button", { name: "…" })).toBeDisabled();
+    // The label persists via aria-label while the spinner replaces the text.
+    const btn = screen.getByRole("button", { name: "auth.register.btn" });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("aria-busy", "true");
   });
 
   it("disables the submit button when terms are not agreed", () => {

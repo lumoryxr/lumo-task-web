@@ -510,6 +510,22 @@ input[type="number"] { -moz-appearance: textfield; }
   }
 }
 
+/* Inline loading spinner (see <Spinner>). Inherits the surrounding text color
+   via currentColor so it works on any button/surface. Size + border-width are
+   set inline by the component. Under reduced-motion the global reset below
+   stops the animation; the disabled/aria-busy control still conveys progress. */
+.spinner {
+  display: inline-block;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: routeFallbackSpin 0.7s linear infinite;
+  flex-shrink: 0;
+  vertical-align: -0.15em;
+}
+
 /* ── Global reduced-motion reset ─────────────────────────────────────────
    Respect the OS "reduce motion" preference everywhere: near-instant
    animations/transitions and no smooth scroll, for users with vestibular

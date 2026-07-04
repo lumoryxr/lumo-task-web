@@ -37,7 +37,9 @@ function setup(props: { onCreated?: () => void } = {}) {
 }
 
 function getCreateBtn() {
-  return screen.getByText("qc.create").closest("button")!;
+  // Query by accessible name (persists via aria-label) — while a create is
+  // in-flight the visible label is swapped for a spinner.
+  return screen.getByRole("button", { name: "qc.create" });
 }
 
 function getTitleInput() {

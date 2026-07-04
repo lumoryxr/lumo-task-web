@@ -6,6 +6,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { TaskTitle } from "@/components/TaskTitle";
+import { Spinner } from "@/components/Spinner";
 
 interface AddExistingTaskModalProps {
   /** The project the picked tasks get assigned to. */
@@ -27,6 +28,7 @@ export function AddExistingTaskModal({ projectId, onClose }: AddExistingTaskModa
   const updateTask = useTasksStore((s) => s.update);
   const projects = useProjectsStore((s) => s.projects);
   const [query, setQuery] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   // Candidates: active tasks not already in this project. Assigning one removes
   // it from this list on the next store render (it now matches project_id).
@@ -111,9 +113,17 @@ export function AddExistingTaskModal({ projectId, onClose }: AddExistingTaskModa
                 <li key={tk.id}>
                   <button
                     type="button"
-                    onClick={() => { void updateTask(tk.id, { project_id: projectId }).catch(() => {}); }}
+                    disabled={busyId !== null}
+                    aria-busy={busyId === tk.id}
+                    onClick={async () => {
+                      if (busyId) return;
+                      setBusyId(tk.id);
+                      try { await updateTask(tk.id, { project_id: projectId }); }
+                      catch { /* store surfaces its own error toast */ }
+                      finally { setBusyId(null); }
+                    }}
                     aria-label={`${t("project.tasks.addExisting")}: ${pickLocale(tk.title, locale)}`}
-                    className="w-full flex items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-subtle transition-colors"
+                    className="w-full flex items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-subtle transition-colors disabled:opacity-60"
                   >
                     <span className="flex-1 min-w-0 text-sm text-text-primary truncate">
                       <TaskTitle text={pickLocale(tk.title, locale)} />
@@ -121,7 +131,7 @@ export function AddExistingTaskModal({ projectId, onClose }: AddExistingTaskModa
                     <span className="flex-shrink-0 text-[11px] text-text-faint truncate max-w-[120px]">
                       {projectName(tk.project_id)}
                     </span>
-                    <IconPlus size={14} />
+                    {busyId === tk.id ? <Spinner size={14} /> : <IconPlus size={14} />}
                   </button>
                 </li>
               ))}

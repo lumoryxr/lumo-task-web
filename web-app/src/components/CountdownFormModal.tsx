@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { IconClose } from "@/components/icons";
+import { Spinner } from "@/components/Spinner";
 import { useT } from "@/i18n/useT";
 import type {
   CountdownCalendar,
@@ -39,7 +40,7 @@ interface FormValues {
 
 interface CountdownFormModalProps {
   event?: CountdownEvent | null;
-  onSave: (values: Omit<CountdownEvent, "id" | "createdAt">) => void;
+  onSave: (values: Omit<CountdownEvent, "id" | "createdAt">) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -123,12 +124,14 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
     return Object.keys(errs).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
+    if (busy || !validate()) return;
     setBusy(true);
     try {
-      onSave({
+      // Await the round-trip so the button shows a spinner and the modal only
+      // closes once the event is actually saved; on failure it stays open.
+      await onSave({
         title:  form.title.trim(),
         date:   form.date,
         emoji:  form.emoji.trim() || undefined,
@@ -138,7 +141,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
         calendar: form.calendar,
       });
       onClose();
-    } finally {
+    } catch {
       setBusy(false);
     }
   }
@@ -404,6 +407,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
             <button
               type="submit"
               disabled={busy}
+              aria-label={isEdit ? t("countdown.form.save") : t("countdown.form.create")}
               style={{
                 padding: "8px 20px",
                 borderRadius: "var(--radius-md)",
@@ -413,11 +417,13 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
                 fontSize: 13, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer",
                 transition: "background 120ms, opacity 120ms",
                 opacity: busy ? 0.6 : 1,
+                minWidth: 72, display: "inline-flex", alignItems: "center", justifyContent: "center",
               }}
               onMouseEnter={(e) => { if (!busy) (e.currentTarget.style.background = "rgba(61,255,160,0.18)"); }}
               onMouseLeave={(e) => { if (!busy) (e.currentTarget.style.background = "var(--accent-fog)"); }}
+              aria-busy={busy}
             >
-              {isEdit ? t("countdown.form.save") : t("countdown.form.create")}
+              {busy ? <Spinner /> : isEdit ? t("countdown.form.save") : t("countdown.form.create")}
             </button>
           </div>
         </form>

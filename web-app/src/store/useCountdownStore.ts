@@ -101,6 +101,9 @@ export const useCountdownStore = create<CountdownState>((set) => ({
       set((s) => ({ events: s.events.map((e) => (e.id === id ? updated : e)) }));
     } catch (e) {
       toast.error(t("countdown.error.update"), e instanceof Error ? e.message : String(e));
+      // Re-throw (like create) so the edit form stays open for retry instead of
+      // closing as though the save succeeded.
+      throw e;
     }
   },
 

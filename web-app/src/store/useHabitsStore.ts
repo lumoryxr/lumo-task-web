@@ -128,6 +128,9 @@ export const useHabitsStore = create<HabitsState>((set) => ({
       set((s) => ({ habits: s.habits.map((h) => (h.id === id ? updated : h)) }));
     } catch (e) {
       toast.error(t("habit.error.update"), e instanceof Error ? e.message : String(e));
+      // Re-throw (like create) so the edit form stays open for retry instead of
+      // closing as though the save succeeded.
+      throw e;
     }
   },
 

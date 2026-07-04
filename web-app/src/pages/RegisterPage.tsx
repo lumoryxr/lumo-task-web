@@ -4,6 +4,7 @@ import { AuthShell } from "@/components/AuthShell";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
 import { presentError, fieldErrorsOf } from "@/lib/presentError";
+import { Spinner } from "@/components/Spinner";
 
 /**
  * /register — email + password + confirm + optional nickname + ToS.
@@ -118,8 +119,10 @@ export function RegisterPage() {
             type="submit"
             className="btn btn-primary btn-lg w-full justify-center mt-1"
             disabled={loading || !agreed}
+            aria-busy={loading}
+            aria-label={t("auth.register.btn")}
           >
-            {loading ? "…" : t("auth.register.btn")}
+            {loading ? <Spinner size={18} /> : t("auth.register.btn")}
           </button>
         </div>
 

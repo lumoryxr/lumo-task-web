@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { IconClose } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import { Spinner } from "@/components/Spinner";
 import type { Habit, HabitColor, HabitFrequency } from "@/types/task";
 
 const COLORS: HabitColor[] = ["green", "cyan", "amber", "red", "purple"];
@@ -39,7 +40,7 @@ interface FormState {
 
 interface Props {
   habit?: Habit | null;
-  onSave: (data: Omit<Habit, "id" | "createdAt">) => void;
+  onSave: (data: Omit<Habit, "id" | "createdAt">) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -58,6 +59,7 @@ export function HabitFormModal({ habit, onSave, onClose }: Props) {
     note: habit?.note ?? "",
   });
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setForm({
@@ -84,19 +86,26 @@ export function HabitFormModal({ habit, onSave, onClose }: Props) {
     return Object.keys(errs).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
-    onSave({
-      title: form.title.trim(),
-      emoji: form.emoji.trim() || undefined,
-      color: form.color,
-      frequency: form.frequency,
-      frequencyDays: form.frequency === "days_of_week" ? form.frequencyDays : undefined,
-      frequencyTimes: form.frequency === "times_per_week" ? form.frequencyTimes : undefined,
-      frequencyInterval: form.frequency === "interval" ? form.frequencyInterval : undefined,
-      note: form.note.trim() || undefined,
-    });
+    if (busy || !validate()) return;
+    setBusy(true);
+    try {
+      // Parent closes the modal on success; on failure it stays open so the
+      // user can retry, hence resetting busy only in the catch.
+      await onSave({
+        title: form.title.trim(),
+        emoji: form.emoji.trim() || undefined,
+        color: form.color,
+        frequency: form.frequency,
+        frequencyDays: form.frequency === "days_of_week" ? form.frequencyDays : undefined,
+        frequencyTimes: form.frequency === "times_per_week" ? form.frequencyTimes : undefined,
+        frequencyInterval: form.frequency === "interval" ? form.frequencyInterval : undefined,
+        note: form.note.trim() || undefined,
+      });
+    } catch {
+      setBusy(false);
+    }
   }
 
   function toggleDay(day: number) {
@@ -331,10 +340,13 @@ export function HabitFormModal({ habit, onSave, onClose }: Props) {
             </button>
             <button
               type="submit"
-              className="flex-1 py-2 rounded-lg text-[13px] font-semibold text-text-inverse transition-opacity"
-              style={{ background: "var(--accent-primary)" }}
+              disabled={busy}
+              aria-busy={busy}
+              aria-label={isEdit ? t("habit.form.save") : t("habit.form.create")}
+              className="flex-1 py-2 rounded-lg text-[13px] font-semibold text-text-inverse transition-opacity inline-flex items-center justify-center"
+              style={{ background: "var(--accent-primary)", opacity: busy ? 0.7 : 1 }}
             >
-              {isEdit ? t("habit.form.save") : t("habit.form.create")}
+              {busy ? <Spinner size={15} /> : isEdit ? t("habit.form.save") : t("habit.form.create")}
             </button>
           </div>
         </form>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { HabitFormModal } from "../HabitFormModal";
 import type { Habit } from "@/types/task";
 
@@ -39,6 +39,22 @@ describe("HabitFormModal (create)", () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Read books", frequency: "daily" })
     );
+  });
+
+  it("keeps the form open and re-enables submit if the save fails", async () => {
+    // The store re-throws on failure; the modal must catch, reset busy, and NOT
+    // close — so the user can retry rather than lose the edit silently.
+    const onSave = vi.fn().mockRejectedValue(new Error("network"));
+    const onClose = vi.fn();
+    render(<HabitFormModal onSave={onSave} onClose={onClose} />);
+    fireEvent.change(screen.getByPlaceholderText("habit.form.title"), {
+      target: { value: "Read books" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "habit.form.create" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "habit.form.create" })).not.toBeDisabled()
+    );
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("calls onClose when cancel button is clicked", () => {

@@ -12,6 +12,7 @@ import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { ProgressRing } from "@/components/ProgressRing";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Spinner } from "@/components/Spinner";
 import { AddExistingTaskModal } from "@/components/AddExistingTaskModal";
 import { EmptyState } from "@/components/EmptyState";
 import { computeProjectRecap } from "@/utils/projectRecap";
@@ -53,6 +54,7 @@ export function ProjectDetailPage() {
   const [taskView, setTaskView] = useState<"list" | "board">("list");
   const [notesEditing, setNotesEditing] = useState(false);
   const [addExistingOpen, setAddExistingOpen] = useState(false);
+  const [addingTask, setAddingTask] = useState(false);
 
   const [newGoal, setNewGoal] = useState("");
   const [newGoalStart, setNewGoalStart] = useState("");
@@ -142,9 +144,11 @@ export function ProjectDetailPage() {
 
   async function addTask() {
     const text = newTask.trim();
-    if (!text) return;
+    if (!text || addingTask) return;
     setNewTask("");
-    await createTask({ title: { en: text }, project_id: pid });
+    setAddingTask(true);
+    try { await createTask({ title: { en: text }, project_id: pid }); }
+    finally { setAddingTask(false); }
   }
 
   function onEnter(e: KeyboardEvent, fn: () => void) {
@@ -433,8 +437,8 @@ export function ProjectDetailPage() {
             placeholder={t("project.tasks.add")}
             className="inline-input flex-1 text-sm"
           />
-          <button onClick={addTask} aria-label={t("project.tasks.add")} className="text-text-secondary hover:text-text-primary transition-colors">
-            <IconPlus size={16} />
+          <button onClick={addTask} disabled={addingTask} aria-busy={addingTask} aria-label={t("project.tasks.add")} className="text-text-secondary hover:text-text-primary transition-colors disabled:opacity-60">
+            {addingTask ? <Spinner size={16} /> : <IconPlus size={16} />}
           </button>
         </div>
         <button

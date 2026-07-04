@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconClose, IconSparkle } from "@/components/icons";
+import { Spinner } from "@/components/Spinner";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
@@ -454,8 +455,8 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
         {/* Footer */}
         <footer className="flex items-center justify-end gap-2 px-[18px] py-3 border-t border-border-faint">
           <button className="btn btn-ghost" onClick={onClose}>{t("qc.cancel")}</button>
-          <button className="btn btn-primary" disabled={!title.trim() || busy} onClick={submit}>
-            {t("qc.create")}
+          <button className="btn btn-primary" style={{ minWidth: 76 }} disabled={!title.trim() || busy} aria-busy={busy} aria-label={t("qc.create")} onClick={submit}>
+            {busy ? <Spinner /> : t("qc.create")}
           </button>
         </footer>
       </div>
