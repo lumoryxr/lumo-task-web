@@ -607,6 +607,154 @@ describe("DFX · Security — cross-tenant log-import guard on /v1/habits/migrat
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — cross-tenant id-collision guard on the bulk-import migrate
+// endpoints POST /v1/countdowns/migrate + POST /v1/projects/migrate (#295)
+//
+// Sibling gap to the #276 habits/migrate audit. `countdowns/migrate` and
+// `projects/migrate` are bulk imports that INSERT rows with a CLIENT-SUPPLIED `id`
+// while forcing `user_id` from the JWT. The tables key each row on a GLOBAL
+// `id TEXT PRIMARY KEY` (not composite with user_id), so the ONLY thing stopping a
+// caller from clobbering another tenant's row by supplying its id is the statement's
+// conflict resolution: `INSERT OR IGNORE`. A colliding foreign id is silently skipped
+// (no-op), so the attacker neither acquires nor overwrites the victim's row.
+//
+// The insidious part: both handlers return `migrated: <submitted>.length` — the
+// SUBMITTED count, NOT the inserted count — so the response is 200 with the full
+// count whether or not the row actually landed. The status code and the count are
+// therefore BLIND to a regression that swaps `INSERT OR IGNORE` → `INSERT OR REPLACE`
+// (an easy "make migrate overwrite on re-import" refactor). That mutation would let an
+// attacker STEAL a victim's countdown/project by id: OR REPLACE rewrites the row's
+// user_id to the attacker's, so the victim LOSES the row from their list and the
+// attacker GAINS it. Only a state-survival assertion on both tenants' lists catches it.
+// There is no GET /:id on either resource, so we read back via the owner's list.
+// These endpoints have NO presence in the daily regression at all — closing that gap.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security — cross-tenant id-collision guard on /v1/countdowns/migrate + /v1/projects/migrate (#295)", () => {
+  let victim: { token: string; id: string };
+  let attacker: { token: string; id: string };
+
+  before(async () => {
+    victim = await registerUser("migrate-collide-victim");
+    attacker = await registerUser("migrate-collide-attacker");
+  });
+
+  test("countdowns/migrate cannot overwrite or steal another tenant's row by colliding id", async () => {
+    // Victim owns a real countdown; its id is what the attacker will try to collide.
+    const { status: vStatus, body: victimCd } = await api("POST", "/v1/countdowns", {
+      token: victim.token,
+      body: { title: "Victim Countdown", date: "2026-12-31", color: "green", repeat: "none" },
+    });
+    assert.equal(vStatus, 201, "victim countdown should create");
+    const foreignId: string = victimCd.id;
+
+    // Attacker bulk-imports one OWNED countdown plus one keyed to the VICTIM's id
+    // (with different content) — the collision must be ignored, not applied.
+    const ownId = "cd_attacker_owned_296";
+    const res = await api("POST", "/v1/countdowns/migrate", {
+      token: attacker.token,
+      body: {
+        events: [
+          {
+            id: ownId,
+            title: "Attacker Owned",
+            date: "2026-06-01",
+            color: "cyan",
+            repeat: "none",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            id: foreignId, // collides with the victim's row
+            title: "STOLEN",
+            date: "2026-01-01",
+            color: "red",
+            repeat: "none",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      },
+    });
+    // The endpoint returns the SUBMITTED count regardless — deliberately NOT a teeth
+    // assertion (it stays 2 under both OR IGNORE and OR REPLACE); the teeth are below.
+    assert.equal(res.status, 200, "migrate should succeed");
+
+    // Attacker's list: must contain their OWN import (positive control — the negative
+    // assertion below is not vacuously green) and must NEVER acquire the victim's id.
+    const { status: aStatus, body: attackerList } = await api("GET", "/v1/countdowns", {
+      token: attacker.token,
+    });
+    assert.equal(aStatus, 200);
+    assert.ok(Array.isArray(attackerList), "countdowns list must be an array");
+    assert.ok(
+      attackerList.some((e: any) => e.id === ownId),
+      "attacker's own migrated countdown must be imported",
+    );
+    // Load-bearing teeth #1: OR REPLACE would rewrite the row's user_id → attacker gains it.
+    assert.ok(
+      !attackerList.some((e: any) => e.id === foreignId),
+      "attacker must NOT acquire the victim's countdown by colliding id (OR REPLACE would leak it)",
+    );
+
+    // Victim's list: the row must survive UNMUTATED (same title, not the attacker's "STOLEN").
+    const { body: victimList } = await api("GET", "/v1/countdowns", { token: victim.token });
+    const survivor = victimList.find((e: any) => e.id === foreignId);
+    // Load-bearing teeth #2: OR REPLACE moves the row to the attacker → it vanishes here.
+    assert.ok(survivor, "victim's countdown must survive the colliding import");
+    assert.equal(survivor.title, "Victim Countdown", "victim's countdown content must be unmutated");
+  });
+
+  test("projects/migrate cannot overwrite or steal another tenant's row by colliding id", async () => {
+    const { status: vStatus, body: victimPrj } = await api("POST", "/v1/projects", {
+      token: victim.token,
+      body: { name: "Victim Project", color: "green" },
+    });
+    assert.equal(vStatus, 201, "victim project should create");
+    const foreignId: string = victimPrj.id;
+
+    const ownId = "prj_attacker_owned_296";
+    const res = await api("POST", "/v1/projects/migrate", {
+      token: attacker.token,
+      body: {
+        projects: [
+          {
+            id: ownId,
+            name: "Attacker Owned",
+            color: "cyan",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            id: foreignId, // collides with the victim's row
+            name: "STOLEN",
+            color: "red",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      },
+    });
+    assert.equal(res.status, 200, "migrate should succeed");
+
+    const { status: aStatus, body: attackerList } = await api("GET", "/v1/projects", {
+      token: attacker.token,
+    });
+    assert.equal(aStatus, 200);
+    assert.ok(Array.isArray(attackerList), "projects list must be an array");
+    assert.ok(
+      attackerList.some((p: any) => p.id === ownId),
+      "attacker's own migrated project must be imported",
+    );
+    assert.ok(
+      !attackerList.some((p: any) => p.id === foreignId),
+      "attacker must NOT acquire the victim's project by colliding id (OR REPLACE would leak it)",
+    );
+
+    const { body: victimList } = await api("GET", "/v1/projects", { token: victim.token });
+    const survivor = victimList.find((p: any) => p.id === foreignId);
+    assert.ok(survivor, "victim's project must survive the colliding import");
+    assert.equal(survivor.name, "Victim Project", "victim's project content must be unmutated");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for SECURITY — cross-tenant foreign-key reference on the task write boundary (#220)
 //
 // The #158/#165/#194 sweeps cover CRUD-by-id and state-changing sub-resources. They
