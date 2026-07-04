@@ -358,6 +358,7 @@ function MembersPanel({
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<PersonDraft>(emptyDraft);
   const [busy, setBusy] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState<Person | null>(null);
 
   function startEdit(person: Person) {
     setEditId(person.id);
@@ -452,10 +453,7 @@ function MembersPanel({
                 <button
                   className="text-[11px] text-text-muted hover:text-status-urgent transition-colors"
                   disabled={busy}
-                  onClick={async () => {
-                    setBusy(true);
-                    try { await onRemove(person.id); } finally { setBusy(false); }
-                  }}
+                  onClick={() => setPendingRemove(person)}
                 >
                   {t("settings.members.delete")}
                 </button>
@@ -476,6 +474,22 @@ function MembersPanel({
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        danger
+        title={t("settings.members.delete.confirm.title")}
+        message={t("settings.members.delete.confirm")}
+        detail={pendingRemove?.name}
+        confirmLabel={t("settings.members.delete")}
+        onConfirm={async () => {
+          const target = pendingRemove;
+          setPendingRemove(null);
+          if (!target) return;
+          setBusy(true);
+          try { await onRemove(target.id); } finally { setBusy(false); }
+        }}
+        onCancel={() => setPendingRemove(null)}
+      />
     </div>
   );
 }

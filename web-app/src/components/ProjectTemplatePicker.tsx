@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { IconBookmark, IconClose, IconTrash } from "@/components/icons";
 import { useT } from "@/i18n/useT";
@@ -19,7 +20,10 @@ interface Props {
  */
 export function ProjectTemplatePicker({ onClose, onCreated }: Props) {
   const t = useT();
-  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
+  const [pendingDelete, setPendingDelete] = useState<ProjectTemplate | null>(null);
+  // Suppress the picker's own Esc/backdrop-close while the confirm dialog is up,
+  // so Esc cancels only the confirm rather than tearing down the whole picker.
+  const dialogRef = useModalA11y<HTMLDivElement>(() => { if (!pendingDelete) onClose(); });
   const templates = useTemplatesStore((s) => s.templates).filter(
     (tpl): tpl is ProjectTemplate => tpl.kind === "project"
   );
@@ -124,7 +128,7 @@ export function ProjectTemplatePicker({ onClose, onCreated }: Props) {
                   <button
                     aria-label={t("template.delete")}
                     title={t("template.delete")}
-                    onClick={() => remove(tpl.id)}
+                    onClick={() => setPendingDelete(tpl)}
                     style={{
                       display: "flex", alignItems: "center", justifyContent: "center",
                       width: 30, height: 30, borderRadius: "var(--radius-sm)",
@@ -139,6 +143,16 @@ export function ProjectTemplatePicker({ onClose, onCreated }: Props) {
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        danger
+        title={t("template.delete.confirm.title")}
+        message={t("template.delete.confirm")}
+        detail={pendingDelete?.name}
+        confirmLabel={t("template.delete")}
+        onConfirm={() => { if (pendingDelete) void remove(pendingDelete.id); setPendingDelete(null); }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

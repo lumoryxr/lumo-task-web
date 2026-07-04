@@ -10,6 +10,7 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { TaskEditModal } from "@/components/TaskEditModal";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { fmtDuration, fmtScheduledStart, getDueLabel, getDueColor } from "@/lib/format";
 import { toast } from "@/store/useToastStore";
 import type { Subtask, Task } from "@/types/task";
@@ -61,8 +62,9 @@ export function TaskDetailModal({ task, onClose }: Props) {
   const subtaskInputRef = useRef<HTMLInputElement>(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const [breakdownDraft, setBreakdownDraft] = useState<string[] | null>(null);
-  // Deactivated while the nested edit modal is open so only one focus-trap runs.
-  const dialogRef = useModalA11y<HTMLDivElement>(onClose, !editOpen);
+  const [pendingSubtaskRemove, setPendingSubtaskRemove] = useState<Subtask | null>(null);
+  // Deactivated while a nested modal/confirm is open so only one focus-trap runs.
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose, !editOpen && pendingSubtaskRemove === null);
 
   const assignees = (liveTask.assignee_ids ?? []).map(byId).filter(Boolean) as import("@/types/task").Person[];
   const due = getDueLabel(liveTask.due, locale);
@@ -304,11 +306,7 @@ export function TaskDetailModal({ task, onClose }: Props) {
                   setSubtaskBusy(true);
                   try { await toggleSubtask(liveTask.id, sub.id); } finally { setSubtaskBusy(false); }
                 }}
-                onDelete={async () => {
-                  if (subtaskBusy) return;
-                  setSubtaskBusy(true);
-                  try { await deleteSubtask(liveTask.id, sub.id); } finally { setSubtaskBusy(false); }
-                }}
+                onDelete={() => setPendingSubtaskRemove(sub)}
               />
             ))}
 
@@ -464,6 +462,22 @@ export function TaskDetailModal({ task, onClose }: Props) {
           </button>
         </footer>
       </div>
+      <ConfirmDialog
+        open={pendingSubtaskRemove !== null}
+        danger
+        title={t("detail.subtask.delete.confirm.title")}
+        message={t("detail.subtask.delete.confirm")}
+        detail={pendingSubtaskRemove?.title}
+        confirmLabel={t("common.delete")}
+        onConfirm={async () => {
+          const target = pendingSubtaskRemove;
+          setPendingSubtaskRemove(null);
+          if (!target || subtaskBusy) return;
+          setSubtaskBusy(true);
+          try { await deleteSubtask(liveTask.id, target.id); } finally { setSubtaskBusy(false); }
+        }}
+        onCancel={() => setPendingSubtaskRemove(null)}
+      />
     </div>,
     document.body
   );
