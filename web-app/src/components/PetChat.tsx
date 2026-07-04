@@ -8,6 +8,7 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { PetSpecies } from "@/components/PetSvg";
 import { getSpeciesEmoji } from "@/components/PetSvg";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface Props {
   petPos: { x: number; y: number };
@@ -36,6 +37,7 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
   const [maximized, setMaximized] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const { messages, loading, chatOpen, closeChat, sendMessage, clearHistory, activeProvider, providerConfigs } = useAIStore();
   const tasks = useTasksStore((s) => s.tasks);
@@ -79,13 +81,16 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // While the clear-history confirm is up, let its own Esc handler cancel it
+        // instead of also collapsing/closing the chat behind it.
+        if (confirmClear) return;
         if (maximized) setMaximized(false);
         else closeChat();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeChat, maximized]);
+  }, [closeChat, maximized, confirmClear]);
 
   const handleSend = () => {
     const text = inputRef.current?.value.trim();
@@ -180,7 +185,7 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
           </div>
         </div>
         <button
-          onClick={clearHistory}
+          onClick={() => setConfirmClear(true)}
           title={t("ai.chat.clear")}
           className="text-[10px] text-text-faint hover:text-text-muted transition-colors px-1.5 py-0.5 rounded"
         >
@@ -391,6 +396,15 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
           </svg>
         </button>
       </div>
+      <ConfirmDialog
+        open={confirmClear}
+        danger
+        title={t("ai.chat.clear.confirm.title")}
+        message={t("ai.chat.clear.confirm")}
+        confirmLabel={t("ai.chat.clear")}
+        onConfirm={() => { clearHistory(); setConfirmClear(false); }}
+        onCancel={() => setConfirmClear(false)}
+      />
     </div>,
     document.body
   );

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { SettingsPage } from "../SettingsPage";
 
@@ -43,12 +43,13 @@ vi.mock("@/store/useAppStore", () => ({
   }),
 }));
 
+const peopleMock = vi.hoisted(() => ({ people: [] as any[], remove: vi.fn() }));
 vi.mock("@/store/usePeopleStore", () => ({
   usePeopleStore: () => ({
-    people: [],
+    people: peopleMock.people,
     create: vi.fn(),
     update: vi.fn(),
-    remove: vi.fn(),
+    remove: peopleMock.remove,
   }),
 }));
 
@@ -79,6 +80,8 @@ function clickTab(label: string) {
 afterEach(() => {
   cleanup();
   delete (window as any).electronAPI;
+  peopleMock.people = [];
+  peopleMock.remove.mockReset();
 });
 
 describe("SettingsPage · consolidated tabs (#111)", () => {
@@ -124,6 +127,20 @@ describe("SettingsPage · consolidated tabs (#111)", () => {
     renderPage();
     expect(screen.queryByText("settings.resetData")).not.toBeInTheDocument();
     expect(screen.queryByText("settings.replayOnboarding")).not.toBeInTheDocument();
+  });
+
+  it("confirms via ConfirmDialog before removing a member", () => {
+    peopleMock.people = [{ id: "u1", name: "Bob", email: "" }];
+    renderPage();
+    clickTab("settings.members");
+    // Cancel path: the member must not be removed.
+    fireEvent.click(screen.getByText("settings.members.delete"));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByText("common.cancel"));
+    expect(peopleMock.remove).not.toHaveBeenCalled();
+    // Confirm path: remove is called with the member id.
+    fireEvent.click(screen.getByText("settings.members.delete"));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByText("settings.members.delete"));
+    expect(peopleMock.remove).toHaveBeenCalledWith("u1");
   });
 });
 

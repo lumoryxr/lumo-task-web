@@ -99,6 +99,19 @@ describe("ProjectDetailPage polish", () => {
     expect(mockUpdate).toHaveBeenCalledWith("p1", { status: "archived" });
   });
 
+  it("asks for confirmation before deleting a goal (via ConfirmDialog)", () => {
+    project.goals = [{ text: "Ship v1", done: false }];
+    renderPage();
+    // Cancel path: the goal must not be removed.
+    fireEvent.click(screen.getByLabelText("common.delete: Ship v1"));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByText("common.cancel"));
+    expect(mockUpdate).not.toHaveBeenCalled();
+    // Confirm path: the goal is removed.
+    fireEvent.click(screen.getByLabelText("common.delete: Ship v1"));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByText("common.delete"));
+    expect(mockUpdate).toHaveBeenCalledWith("p1", { goals: [] });
+  });
+
   it("toggles notes between display and edit states", () => {
     project.content = '{"type":"doc","content":[]}';
     renderPage();

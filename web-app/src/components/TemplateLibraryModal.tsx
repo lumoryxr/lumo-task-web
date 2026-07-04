@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { IconBookmark, IconClose, IconEdit, IconTrash } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
@@ -26,7 +27,10 @@ interface Props {
 export function TemplateLibraryModal({ onClose }: Props) {
   const t = useT();
   const ls = useLocaleString();
-  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
+  const [pendingDelete, setPendingDelete] = useState<TaskTemplate | null>(null);
+  // Suppress the library's own Esc-close while the confirm dialog is up, so Esc
+  // cancels only the confirm rather than tearing down the whole library.
+  const dialogRef = useModalA11y<HTMLDivElement>(() => { if (!pendingDelete) onClose(); });
   // Task templates only — project templates are instantiated from the Projects
   // page (#211 V2 ⭐3), not this task library.
   const templates = useTemplatesStore((s) => s.templates).filter(
@@ -119,12 +123,22 @@ export function TemplateLibraryModal({ onClose }: Props) {
                 busy={busyId === tpl.id}
                 onUse={() => handleUse(tpl.id)}
                 onRename={(name) => rename(tpl.id, name)}
-                onDelete={() => remove(tpl.id)}
+                onDelete={() => setPendingDelete(tpl)}
               />
             ))
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        danger
+        title={t("template.delete.confirm.title")}
+        message={t("template.delete.confirm")}
+        detail={pendingDelete ? (ls(pendingDelete.payload.title) || pendingDelete.name) : undefined}
+        confirmLabel={t("template.delete")}
+        onConfirm={() => { if (pendingDelete) void remove(pendingDelete.id); setPendingDelete(null); }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

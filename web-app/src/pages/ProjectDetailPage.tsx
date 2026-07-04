@@ -48,6 +48,7 @@ export function ProjectDetailPage() {
   const userName = useAuthStore((s) => s.user.name);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [confirmKind, setConfirmKind] = useState<null | "archive" | "delete">(null);
+  const [pendingGoalRemove, setPendingGoalRemove] = useState<number | null>(null);
   const [recapOpen, setRecapOpen] = useState(false);
   const [taskView, setTaskView] = useState<"list" | "board">("list");
   const [notesEditing, setNotesEditing] = useState(false);
@@ -337,9 +338,9 @@ export function ProjectDetailPage() {
             <GoalItem
               key={i}
               goal={g}
-              deleteLabel={t("project.delete")}
+              deleteLabel={t("common.delete")}
               onToggle={() => toggleGoal(i)}
-              onRemove={() => removeGoal(i)}
+              onRemove={() => setPendingGoalRemove(i)}
               onSetCurrent={(v) => setGoalCurrent(i, v)}
               onCycleConfidence={() => cycleGoalConfidence(i)}
             />
@@ -477,6 +478,16 @@ export function ProjectDetailPage() {
         confirmLabel={t("project.delete")}
         onConfirm={() => { setConfirmKind(null); remove(project.id); navigate("/projects"); }}
         onCancel={() => setConfirmKind(null)}
+      />
+      <ConfirmDialog
+        open={pendingGoalRemove !== null}
+        danger
+        title={t("project.goal.delete.confirm.title")}
+        message={t("project.goal.delete.confirm")}
+        detail={pendingGoalRemove !== null ? goals[pendingGoalRemove]?.text : undefined}
+        confirmLabel={t("common.delete")}
+        onConfirm={() => { if (pendingGoalRemove !== null) removeGoal(pendingGoalRemove); setPendingGoalRemove(null); }}
+        onCancel={() => setPendingGoalRemove(null)}
       />
     </div>
   );
