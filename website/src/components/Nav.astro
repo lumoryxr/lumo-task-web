@@ -1,0 +1,60 @@
+---
+const app = "https://lumo-task-frontend.onrender.com";
+---
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="Lumo">
+      <span class="brand-mark">🦊</span>
+      <span class="brand-name">Lumo</span>
+    </a>
+
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#features"><span data-i18n-en>Features</span><span data-i18n-zh>功能</span></a>
+      <a href="#how"><span data-i18n-en>How it works</span><span data-i18n-zh>如何使用</span></a>
+      <a href="#faq"><span data-i18n-en>FAQ</span><span data-i18n-zh>常见问题</span></a>
+      <a href="https://github.com/lumoryxr/lumo-task-web" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+
+    <div class="nav-actions">
+      <button class="lang-btn" data-lang-toggle type="button" aria-label="Switch language">
+        <span data-i18n-en>中文</span><span data-i18n-zh>EN</span>
+      </button>
+      <a class="btn btn-primary btn-sm" href={app} target="_blank" rel="noopener">
+        <span data-i18n-en>Open app</span><span data-i18n-zh>打开应用</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<style>
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: saturate(140%) blur(14px);
+    background: rgba(7, 7, 11, 0.66);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 62px;
+  }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 18px; }
+  .brand-mark { font-size: 22px; filter: drop-shadow(0 2px 8px var(--glow-teal)); }
+  .nav-links { display: flex; gap: 28px; font-size: 14px; color: var(--text-soft); }
+  .nav-links a { transition: color 0.15s; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-actions { display: flex; align-items: center; gap: 12px; }
+  .lang-btn {
+    font-size: 13px; font-weight: 600; color: var(--text-soft);
+    background: var(--bg-card); border: 1px solid var(--border-strong);
+    padding: 8px 12px; border-radius: 999px; transition: color 0.15s, background 0.15s;
+  }
+  .lang-btn:hover { color: var(--text); background: var(--bg-card-hover); }
+  .btn-sm { padding: 9px 18px; font-size: 14px; }
+  @media (max-width: 720px) {
+    .nav-links { display: none; }
+  }
+</style>

@@ -1,0 +1,58 @@
+name: Deploy Website
+
+# Builds the Astro marketing site in website/ and publishes it to the gh-pages
+# branch, which is what GitHub Pages serves at:
+#   https://lumoryxr.github.io/lumo-task-web/
+#
+# This supersedes deploy-landing.yml (the old single-file landing/). It uses the
+# peaceiris action (push to a branch) rather than the github-pages Actions
+# environment, matching the existing setup and avoiding branch-protection rules.
+#
+# One-time Pages setup (unchanged): Settings → Pages → Deploy from branch →
+#   gh-pages / (root).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - ".github/workflows/deploy-website.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build website/ and publish to gh-pages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build (base = /lumo-task-web)
+        working-directory: website
+        run: npm run build
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./website/dist
+          force_orphan: false
+          commit_message: "deploy: update website [skip ci]"

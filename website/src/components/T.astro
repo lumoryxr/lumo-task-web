@@ -1,0 +1,11 @@
+---
+// Bilingual text. Renders both locales; global.css shows the active one via
+// html[lang]. `en`/`zh` may contain inline markup (e.g. highlight spans).
+const { en, zh, as = "span", class: className } = Astro.props;
+const Tag = as;
+---
+<Tag class={className} data-i18n-en set:html={en} /><Tag
+  class={className}
+  data-i18n-zh
+  set:html={zh}
+/>

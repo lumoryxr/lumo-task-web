@@ -1,0 +1,84 @@
+---
+// Two alternating feature spotlights: share cards + mobile/PWA.
+---
+<section class="split-sec">
+  <div class="wrap split">
+    <div class="split-copy reveal">
+      <span class="eyebrow"><span data-i18n-en>Made to share</span><span data-i18n-zh>为分享而生</span></span>
+      <h2 class="section-title"><span data-i18n-en>Turn progress into trophies</span><span data-i18n-zh>把进度,变成战绩</span></h2>
+      <p class="section-sub"><span data-i18n-en>Wrapped summaries, streak cards and project recaps — export any of them as a polished image and show off your year.</span><span data-i18n-zh>年度总结、连击卡、项目回顾 —— 每一个都能导出成精致图片,晒出你的这一年。</span></p>
+    </div>
+    <div class="split-visual reveal" data-delay="1">
+      <div class="recap-card">
+        <div class="rc-top"><span>🦊</span><span data-i18n-en>2026 Wrapped</span><span data-i18n-zh>2026 年度总结</span></div>
+        <div class="rc-big">1,284</div>
+        <div class="rc-label" data-i18n-en>tasks done</div><div class="rc-label" data-i18n-zh>完成任务</div>
+        <div class="rc-stats">
+          <div><b>96h</b><span data-i18n-en>focus</span><span data-i18n-zh>专注</span></div>
+          <div><b>47</b><span data-i18n-en>day streak</span><span data-i18n-zh>天连击</span></div>
+          <div><b>18</b><span data-i18n-en>goals hit</span><span data-i18n-zh>达成目标</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap split rev">
+    <div class="split-copy reveal">
+      <span class="eyebrow"><span data-i18n-en>Anywhere</span><span data-i18n-zh>随时随地</span></span>
+      <h2 class="section-title"><span data-i18n-en>Install it like a native app</span><span data-i18n-zh>像原生 App 一样装到手机</span></h2>
+      <p class="section-sub"><span data-i18n-en>Lumo is a PWA — add it to your home screen, work offline, and stay in sync across every device.</span><span data-i18n-zh>Lumo 是 PWA —— 装到桌面、离线可用,所有设备实时同步。</span></p>
+    </div>
+    <div class="split-visual reveal" data-delay="1">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="ps-head"><span data-i18n-en>Today</span><span data-i18n-zh>今天</span><span class="ps-ring">70%</span></div>
+          <div class="ps-row on">✓ <span data-i18n-en>Ship M1 review</span><span data-i18n-zh>提交 M1 评审</span></div>
+          <div class="ps-row">○ <span data-i18n-en>Reply feedback</span><span data-i18n-zh>回复反馈</span></div>
+          <div class="ps-row">○ <span data-i18n-en>Weekly report</span><span data-i18n-zh>周报</span></div>
+          <div class="ps-pet">🦊 <span data-i18n-en>+3 today!</span><span data-i18n-zh>今天 +3!</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .split-sec { padding: 40px 0; display: flex; flex-direction: column; gap: 72px; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+  .split-copy { max-width: 480px; }
+  .split-visual { display: grid; place-items: center; }
+
+  .recap-card {
+    width: 300px; padding: 30px; border-radius: var(--radius-lg); text-align: center;
+    background: linear-gradient(160deg, #17131f, #0c0d13);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 30px 80px -30px var(--glow-violet);
+  }
+  .rc-top { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--text-soft); font-weight: 600; }
+  .rc-big { font-size: 60px; font-weight: 900; margin: 14px 0 2px; }
+  .rc-big { background: linear-gradient(120deg, var(--accent), var(--violet)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .rc-label { font-size: 13px; color: var(--text-muted); }
+  .rc-stats { display: flex; justify-content: space-between; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+  .rc-stats div { display: flex; flex-direction: column; gap: 3px; }
+  .rc-stats b { font-size: 18px; } .rc-stats span { font-size: 11px; color: var(--text-muted); }
+
+  .phone {
+    position: relative; width: 244px; padding: 12px; border-radius: 38px;
+    background: linear-gradient(160deg, #1a1c24, #0a0b10);
+    border: 1px solid var(--border-strong); box-shadow: 0 30px 80px -28px rgba(0,0,0,0.8);
+  }
+  .phone-notch { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 92px; height: 20px; border-radius: 0 0 14px 14px; background: #05060a; z-index: 2; }
+  .phone-screen { border-radius: 28px; background: var(--bg-elev); padding: 40px 16px 18px; }
+  .ps-head { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; margin-bottom: 14px; }
+  .ps-ring { margin-left: auto; font-size: 11px; color: var(--accent); border: 2px solid var(--accent); border-radius: 50%; padding: 6px; }
+  .ps-row { font-size: 13px; color: var(--text-soft); padding: 9px 11px; margin-bottom: 7px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); }
+  .ps-row.on { color: var(--text); border-color: rgba(52,211,153,0.3); }
+  .ps-pet { margin-top: 12px; text-align: center; font-size: 13px; color: var(--accent); font-weight: 600; }
+
+  @media (max-width: 820px) {
+    .split, .split.rev { grid-template-columns: 1fr; gap: 32px; }
+    .split.rev .split-copy { order: -1; }
+    .split-copy { max-width: none; }
+  }
+</style>

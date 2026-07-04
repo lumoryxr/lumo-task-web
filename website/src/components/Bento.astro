@@ -1,0 +1,133 @@
+---
+---
+<section class="bento-sec" id="features">
+  <div class="wrap center">
+    <span class="eyebrow reveal"><span data-i18n-en>Everything in one place</span><span data-i18n-zh>一处搞定所有</span></span>
+    <h2 class="section-title reveal" data-delay="1">
+      <span data-i18n-en>One app for the whole loop</span>
+      <span data-i18n-zh>一个应用,跑通整个闭环</span>
+    </h2>
+    <p class="section-sub reveal" data-delay="2">
+      <span data-i18n-en>Capture, prioritize, focus, reflect — plus the little things that keep you coming back.</span>
+      <span data-i18n-zh>捕捉、排序、专注、复盘 —— 还有那些让你愿意每天回来的小细节。</span>
+    </p>
+  </div>
+
+  <div class="wrap">
+    <div class="bento">
+      <!-- Big: matrix -->
+      <article class="cell big reveal">
+        <div class="cell-head">
+          <span class="ci">▦</span>
+          <h3 data-i18n-en>Eisenhower matrix</h3><h3 data-i18n-zh>艾森豪威尔矩阵</h3>
+        </div>
+        <p data-i18n-en>Four quadrants, drag to reprioritize. Overdue turns red, keywords highlight — see what matters at a glance.</p>
+        <p data-i18n-zh>四象限拖拽改优先级。逾期标红、关键词高亮,一眼看到重点。</p>
+        <div class="matrix-mini" aria-hidden="true">
+          <div class="q q1"><span>Q1</span><i></i><i></i></div>
+          <div class="q q2"><span>Q2</span><i></i><i></i><i></i></div>
+          <div class="q q3"><span>Q3</span><i></i></div>
+          <div class="q q4"><span>Q4</span><i></i><i></i></div>
+        </div>
+      </article>
+
+      <article class="cell reveal" data-delay="1">
+        <span class="ci">🍅</span>
+        <h3 data-i18n-en>Pomodoro focus</h3><h3 data-i18n-zh>番茄专注</h3>
+        <p data-i18n-en>Deep-work timer tied to your tasks, with focus stats that actually add up.</p>
+        <p data-i18n-zh>与任务绑定的专注计时,专注时长真实计入统计。</p>
+      </article>
+
+      <article class="cell reveal" data-delay="2">
+        <span class="ci">🎯</span>
+        <h3 data-i18n-en>OKR key goals</h3><h3 data-i18n-zh>OKR 关键目标</h3>
+        <p data-i18n-en>Start → current → target with confidence pills. Track KPIs, not just checkboxes.</p>
+        <p data-i18n-zh>起始→当前→目标 + 信心状态。追踪 KPI,而不只是打勾。</p>
+      </article>
+
+      <article class="cell reveal" data-delay="1">
+        <span class="ci">🔥</span>
+        <h3 data-i18n-en>Habits & streaks</h3><h3 data-i18n-zh>习惯与连击</h3>
+        <p data-i18n-en>Build routines and keep the streak alive — your pet cheers you on.</p>
+        <p data-i18n-zh>养成习惯、守住连击,宠物为你加油。</p>
+      </article>
+
+      <article class="cell reveal" data-delay="2">
+        <span class="ci">⏳</span>
+        <h3 data-i18n-en>Countdowns</h3><h3 data-i18n-zh>倒数日</h3>
+        <p data-i18n-en>Birthdays, deadlines, trips — themed cards count down the days that matter.</p>
+        <p data-i18n-zh>生日、截止、旅行 —— 主题卡片为重要的日子倒数。</p>
+      </article>
+
+      <!-- Wide: share cards -->
+      <article class="cell wide reveal">
+        <div class="cell-head">
+          <span class="ci">🎁</span>
+          <h3 data-i18n-en>Shareable recap cards</h3><h3 data-i18n-zh>可分享的战绩卡</h3>
+        </div>
+        <p data-i18n-en>Export your Wrapped, streaks and project recaps as beautiful cards — one tap to PNG.</p>
+        <p data-i18n-zh>把年度总结、连击、项目回顾导成漂亮的卡片,一键存成图片。</p>
+        <div class="chips" aria-hidden="true">
+          <span class="chip">🏷️ <span data-i18n-en>Tags</span><span data-i18n-zh>标签</span></span>
+          <span class="chip">📅 <span data-i18n-en>Calendar</span><span data-i18n-zh>日历</span></span>
+          <span class="chip">📋 <span data-i18n-en>Templates</span><span data-i18n-zh>模板</span></span>
+          <span class="chip">📊 <span data-i18n-en>Stats</span><span data-i18n-zh>统计</span></span>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<style>
+  .bento-sec { padding: 72px 0; }
+  .bento {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 46px;
+  }
+  .cell {
+    padding: 22px; border-radius: var(--radius-lg);
+    background: var(--bg-card); border: 1px solid var(--border);
+    transition: transform 0.3s var(--ease), border-color 0.3s, background 0.3s;
+  }
+  .cell:hover { transform: translateY(-4px); border-color: var(--border-strong); background: var(--bg-card-hover); }
+  .cell.big { grid-column: span 2; grid-row: span 2; display: flex; flex-direction: column; }
+  .cell.wide { grid-column: span 2; }
+  .cell-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .ci {
+    width: 40px; height: 40px; display: inline-grid; place-items: center; font-size: 20px;
+    border-radius: 11px; background: rgba(255,255,255,0.05); margin-bottom: 12px; flex: none;
+  }
+  .cell-head .ci { margin-bottom: 0; }
+  .cell h3 { font-size: 16.5px; font-weight: 700; margin-bottom: 7px; }
+  .cell.big h3, .cell.wide h3 { font-size: 20px; margin-bottom: 0; }
+  .cell p { font-size: 13.8px; color: var(--text-soft); line-height: 1.55; }
+
+  .matrix-mini {
+    margin-top: auto; padding-top: 18px; display: grid;
+    grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .q {
+    position: relative; min-height: 62px; border-radius: 12px; padding: 8px;
+    display: flex; flex-wrap: wrap; align-content: flex-start; gap: 5px;
+  }
+  .q span { position: absolute; top: 6px; right: 8px; font-size: 10px; font-weight: 700; opacity: 0.7; }
+  .q i { width: 100%; height: 8px; border-radius: 4px; }
+  .q1 { background: rgba(255,90,90,0.1); } .q1 i { background: rgba(255,120,120,0.5); }
+  .q2 { background: rgba(52,211,153,0.1); } .q2 i { background: rgba(52,211,153,0.5); }
+  .q3 { background: rgba(139,123,255,0.1); } .q3 i { background: rgba(139,123,255,0.5); }
+  .q4 { background: rgba(255,255,255,0.04); } .q4 i { background: rgba(255,255,255,0.18); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip {
+    font-size: 12.5px; color: var(--text-soft); padding: 6px 12px; border-radius: 999px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  }
+
+  @media (max-width: 900px) {
+    .bento { grid-template-columns: 1fr 1fr; }
+    .cell.big, .cell.wide { grid-column: span 2; grid-row: auto; }
+  }
+  @media (max-width: 560px) {
+    .bento { grid-template-columns: 1fr; }
+    .cell.big, .cell.wide { grid-column: span 1; }
+  }
+</style>

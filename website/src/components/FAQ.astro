@@ -1,0 +1,45 @@
+---
+const faqs = [
+  { en_q: "Is Lumo really free?", zh_q: "Lumo 真的免费吗?", en_a: "Yes — free forever and open source. No credit card, no paywalled features.", zh_a: "是的 —— 永久免费,而且开源。无需信用卡,没有付费墙功能。" },
+  { en_q: "Do I need to install anything?", zh_q: "需要安装什么吗?", en_a: "No. Lumo runs in your browser and can be added to your home screen as a PWA for an app-like experience with offline support.", zh_a: "不需要。Lumo 在浏览器里就能用,也可作为 PWA 添加到主屏,获得接近原生、支持离线的体验。" },
+  { en_q: "How does the AI planning work?", zh_q: "AI 规划是怎么工作的?", en_a: "Describe your day or drop in your tasks; Lumo drafts a time-boxed, priority-aware plan you can adjust before committing.", zh_a: "描述你的一天或丢进任务,Lumo 会按时间预算和优先级排出计划,确认前你可以随手调整。" },
+  { en_q: "Is my data synced and private?", zh_q: "数据会同步吗?私密吗?", en_a: "Your tasks sync end-to-end across your devices. The project is open source, so you can inspect exactly how your data is handled.", zh_a: "任务在你的设备间端到端同步。项目开源,你可以清楚地看到数据是怎么被处理的。" },
+  { en_q: "English and Chinese both supported?", zh_q: "中英文都支持吗?", en_a: "Fully bilingual — switch the whole app (and this site) between English and 中文 anytime.", zh_a: "完整双语 —— 整个应用(以及本站)随时可在 English 与中文之间切换。" },
+];
+---
+<section class="faq-sec" id="faq">
+  <div class="wrap center">
+    <span class="eyebrow reveal"><span data-i18n-en>FAQ</span><span data-i18n-zh>常见问题</span></span>
+    <h2 class="section-title reveal" data-delay="1"><span data-i18n-en>Good questions</span><span data-i18n-zh>你可能想问</span></h2>
+  </div>
+  <div class="wrap faq-list">
+    {faqs.map((f, i) => (
+      <details class="faq reveal" data-delay={(i % 3) + 1}>
+        <summary>
+          <span data-i18n-en set:html={f.en_q} /><span data-i18n-zh set:html={f.zh_q} />
+          <span class="faq-plus" aria-hidden="true">+</span>
+        </summary>
+        <div class="faq-a">
+          <p data-i18n-en set:html={f.en_a} /><p data-i18n-zh set:html={f.zh_a} />
+        </div>
+      </details>
+    ))}
+  </div>
+</section>
+
+<style>
+  .faq-sec { padding: 64px 0; }
+  .faq-list { max-width: 760px; margin: 40px auto 0; display: flex; flex-direction: column; gap: 12px; }
+  .faq { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); overflow: hidden; transition: border-color 0.2s; }
+  .faq[open] { border-color: var(--border-strong); }
+  .faq summary {
+    list-style: none; cursor: pointer; padding: 18px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    font-size: 15.5px; font-weight: 600;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq-plus { font-size: 22px; color: var(--text-muted); transition: transform 0.25s var(--ease); flex: none; }
+  .faq[open] .faq-plus { transform: rotate(45deg); color: var(--accent); }
+  .faq-a { padding: 0 20px 18px; }
+  .faq-a p { font-size: 14.5px; color: var(--text-soft); line-height: 1.65; }
+</style>

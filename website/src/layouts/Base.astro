@@ -1,0 +1,81 @@
+---
+import "../styles/global.css";
+const { title, description } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+---
+
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#07070b" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Set language before paint to avoid a flash of the wrong locale. -->
+    <script is:inline>
+      (function () {
+        try {
+          var q = new URLSearchParams(location.search).get("lang");
+          var saved = q || localStorage.getItem("lumo-lang");
+          var lang =
+            saved === "en" || saved === "zh"
+              ? saved
+              : (navigator.language || "en").toLowerCase().indexOf("zh") === 0
+                ? "zh"
+                : "en";
+          document.documentElement.lang = lang;
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <slot />
+
+    <script is:inline>
+      // Language toggle — swaps html[lang]; CSS shows the matching copy.
+      document.addEventListener("click", function (e) {
+        var t = e.target.closest("[data-lang-toggle]");
+        if (!t) return;
+        var next = document.documentElement.lang === "zh" ? "en" : "zh";
+        document.documentElement.lang = next;
+        try {
+          localStorage.setItem("lumo-lang", next);
+        } catch (err) {}
+      });
+
+      // Scroll-reveal via IntersectionObserver (no-op under reduced-motion CSS).
+      var els = document.querySelectorAll(".reveal");
+      if ("IntersectionObserver" in window) {
+        var io = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (en) {
+              if (en.isIntersecting) {
+                en.target.classList.add("in");
+                io.unobserve(en.target);
+              }
+            });
+          },
+          { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
+        );
+        els.forEach(function (el) {
+          io.observe(el);
+        });
+      } else {
+        els.forEach(function (el) {
+          el.classList.add("in");
+        });
+      }
+    </script>
+  </body>
+</html>

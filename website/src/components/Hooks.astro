@@ -1,0 +1,63 @@
+---
+// Three core differentiators — the reasons to switch.
+const hooks = [
+  {
+    icon: "▦",
+    tint: "teal",
+    en_t: "Priorities, sorted for you",
+    zh_t: "优先级,替你理清",
+    en_d: "Drag tasks across the Eisenhower matrix — urgent vs. important becomes obvious. Or let AI sort them in one tap.",
+    zh_d: "在艾森豪威尔矩阵里拖拽任务,紧急与重要一目了然;也可以让 AI 一键分类。",
+  },
+  {
+    icon: "✨",
+    tint: "violet",
+    en_t: "AI plans your day",
+    zh_t: "AI 帮你规划一天",
+    en_d: "Tell Lumo what's on your plate. It drafts a realistic day — time-boxed, priority-aware, ready to tweak.",
+    zh_d: "把事情丢给 Lumo,它按时间预算和优先级排出一天的计划,随手就能改。",
+  },
+  {
+    icon: "🦊",
+    tint: "pink",
+    en_t: "A pet that grows with you",
+    zh_t: "一只陪你成长的宠物",
+    en_d: "Every finished task feeds your companion. Streaks, focus and habits turn progress into something you actually want.",
+    zh_d: "每完成一件事都在喂养你的伙伴。连击、专注、习惯,把进步变成你真正想要的。",
+  },
+];
+---
+<section class="hooks" id="why">
+  <div class="wrap">
+    <div class="hook-grid">
+      {hooks.map((h, i) => (
+        <article class={`hook ${h.tint} reveal`} data-delay={i + 1}>
+          <div class="hook-ico">{h.icon}</div>
+          <h3 data-i18n-en set:html={h.en_t} /><h3 data-i18n-zh set:html={h.zh_t} />
+          <p data-i18n-en set:html={h.en_d} /><p data-i18n-zh set:html={h.zh_d} />
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .hooks { padding: 40px 0; }
+  .hook-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .hook {
+    padding: 28px 24px; border-radius: var(--radius-lg);
+    background: var(--bg-card); border: 1px solid var(--border);
+    transition: transform 0.3s var(--ease), border-color 0.3s, background 0.3s;
+  }
+  .hook:hover { transform: translateY(-5px); background: var(--bg-card-hover); border-color: var(--border-strong); }
+  .hook-ico {
+    width: 52px; height: 52px; display: grid; place-items: center; font-size: 24px;
+    border-radius: 14px; margin-bottom: 18px;
+  }
+  .hook.teal .hook-ico { background: rgba(52,211,153,0.14); box-shadow: inset 0 0 0 1px rgba(52,211,153,0.28); }
+  .hook.violet .hook-ico { background: rgba(139,123,255,0.14); box-shadow: inset 0 0 0 1px rgba(139,123,255,0.28); }
+  .hook.pink .hook-ico { background: rgba(244,114,182,0.14); box-shadow: inset 0 0 0 1px rgba(244,114,182,0.28); }
+  .hook h3 { font-size: 19px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.01em; }
+  .hook p { font-size: 14.5px; color: var(--text-soft); line-height: 1.6; }
+  @media (max-width: 820px) { .hook-grid { grid-template-columns: 1fr; } }
+</style>
