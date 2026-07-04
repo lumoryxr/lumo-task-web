@@ -76,12 +76,15 @@ html, body, #root { margin: 0; padding: 0; height: 100%; }
 /* ── Ambient app background — layered accent glows for depth ──────────────
    The app stage was a flat fill; this adds two soft radial glows (top-right +
    bottom-left) so the whole app has quiet depth instead of dead black-green.
-   Painted via ::before on the stage so there's no extra DOM and no z-index
-   fighting: isolation:isolate keeps the -1 layer above the stage's own base
-   fill but below every flex child (sidebar/main paint above it). Glows use
+   Painted via ::before on the stage so there's no extra DOM: painting order
+   puts a z-index:-1 pseudo above the element's own base fill but below every
+   in-flow child (sidebar/main paint above it), so the glow shows through the
+   content gaps. We deliberately do NOT set isolation:isolate here — that would
+   open a new stacking context and trap in-stage overlays (QuickCreate z-150,
+   AIClassifyModal z-120); the -1 layer stays visible without it. Glows use
    var(--accent-fog), so they follow the runtime theme accent automatically.
    Purely decorative, static (no animation → nothing for reduce-motion to do). */
-.app-stage { position: relative; isolation: isolate; }
+.app-stage { position: relative; }
 .app-stage::before {
   content: "";
   position: absolute;
