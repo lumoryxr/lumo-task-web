@@ -719,6 +719,7 @@ export function EveningReviewModal({ onClose }: EveningReviewModalProps) {
             onClick={goNext}
             disabled={busy || !!abandoningId}
             aria-busy={busy}
+            aria-label={isLastStep ? t("review.btn.finish") : t("review.btn.next")}
             className="btn btn-primary"
             style={{ minHeight: 44, minWidth: 100 }}
           >

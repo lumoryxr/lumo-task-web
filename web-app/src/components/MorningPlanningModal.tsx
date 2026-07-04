@@ -676,6 +676,7 @@ export function MorningPlanningModal({ onClose }: MorningPlanningModalProps) {
             onClick={goNext}
             disabled={busy}
             aria-busy={busy}
+            aria-label={isLastStep ? t("planning.btn.finish") : t("planning.btn.next")}
             className="btn btn-primary"
             style={{ minHeight: 44, minWidth: 100 }}
           >

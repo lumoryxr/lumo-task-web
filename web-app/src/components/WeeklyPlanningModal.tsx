@@ -567,6 +567,7 @@ export function WeeklyPlanningModal({ onClose, prevWeekStats, prevWeekFocusTasks
             onClick={goNext}
             disabled={busy}
             aria-busy={busy}
+            aria-label={isLastStep ? t("weekly.btn.finish") : t("planning.btn.next")}
             className="btn btn-primary"
             style={{ minHeight: 44, minWidth: 100 }}
           >
