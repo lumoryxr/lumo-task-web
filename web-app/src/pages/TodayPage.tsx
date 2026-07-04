@@ -7,6 +7,7 @@ import { MorningPlanningModal } from "@/components/MorningPlanningModal";
 import { WeeklyPlanningModal, isWeeklyPlanned } from "@/components/WeeklyPlanningModal";
 import { TaskRow } from "@/components/TaskRow";
 import { TaskTitle } from "@/components/TaskTitle";
+import { TodayHero } from "@/components/TodayHero";
 import { BatchActionBar } from "@/components/BatchActionBar";
 import { FilterChip } from "@/components/FilterChip";
 import { TaskListSkeleton } from "@/components/skeletons";
@@ -16,6 +17,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { usePetStore } from "@/store/usePetStore";
+import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { derivePlanProjects, derivePlanTags, resolveActiveFilter, filterPlanTasks } from "@/utils/planFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fmtDuration, toISODate } from "@/lib/format";
@@ -692,6 +694,8 @@ export function TodayPage() {
   const projects = useProjectsStore((s) => s.projects);
   const selectMode = useTasksStore((s) => s.selectMode);
   const setSelectMode = useTasksStore((s) => s.setSelectMode);
+  const user = useAuthStore((s) => s.user);
+  const isSignedIn = useAuthStore(selectIsSignedIn);
 
   // Leaving the page exits select mode so a stray selection never lingers.
   useEffect(() => () => setSelectMode(false), [setSelectMode]);
@@ -781,10 +785,21 @@ export function TodayPage() {
   const todayAllDone =
     tasks.filter((x) => x.today && !x.completed).length === 0 && completed.length > 0;
 
+  // Hero summary: today's completion. done = entries completed today; remaining
+  // = today-flagged tasks still open. Total drives the progress ring + subline.
+  const todayISO = toISODate(new Date());
+  const doneToday = completed.filter(
+    (e) => e.completedAt && toISODate(new Date(e.completedAt)) === todayISO,
+  ).length;
+  const remainingToday = tasks.filter((x) => x.today && !x.completed).length;
+  const totalToday = doneToday + remainingToday;
+  const heroName = isSignedIn ? user.name : undefined;
+
   if (!top && completed.length === 0) {
     return (
       <>
         <div className="px-4 sm:px-7 pt-6 sm:pt-7">
+          <TodayHero name={heroName} done={doneToday} total={totalToday} />
           <PlanningBanner onOpen={() => setPlanningOpen(true)} planned={planned} />
           <WeeklyPlanningBanner onOpen={() => setWeeklyOpen(true)} planned={weeklyPlanned} />
           <EveningReviewBanner onOpen={() => setEveningOpen(true)} done={eveningDone} />
@@ -806,6 +821,8 @@ export function TodayPage() {
 
   return (
     <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
+      <TodayHero name={heroName} done={doneToday} total={totalToday} />
+
       {/* Morning planning banner — always visible */}
       <PlanningBanner onOpen={() => setPlanningOpen(true)} planned={planned} />
 

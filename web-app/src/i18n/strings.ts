@@ -39,6 +39,11 @@ export const STRINGS: Record<Locale, Dict> = {
 
     "today.title": "Today",
     "today.sub": "What matters most, right now.",
+    "today.greeting.morning": "Good morning",
+    "today.greeting.afternoon": "Good afternoon",
+    "today.greeting.evening": "Good evening",
+    "today.hero.subline": "{done} of {total} done today",
+    "today.hero.empty": "A fresh day — plan your focus.",
     "today.recommended": "Recommended",
     "today.start": "Start focus",
     "today.empty.title": "Nothing planned yet",
@@ -932,6 +937,11 @@ export const STRINGS: Record<Locale, Dict> = {
 
     "today.title": "今天",
     "today.sub": "现在最重要的事。",
+    "today.greeting.morning": "早上好",
+    "today.greeting.afternoon": "下午好",
+    "today.greeting.evening": "晚上好",
+    "today.hero.subline": "今天 {total} 件 · 已完成 {done} 件",
+    "today.hero.empty": "新的一天 · 规划你的专注。",
     "today.recommended": "推荐",
     "today.start": "开始专注",
     "today.empty.title": "今天还没有安排",
