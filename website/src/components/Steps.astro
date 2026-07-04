@@ -1,0 +1,49 @@
+---
+const steps = [
+  { n: "01", en_t: "Capture", zh_t: "捕捉", en_d: "Dump everything in — one box, zero friction. Add tags or a due date if you want.", zh_d: "把一切先丢进来 —— 一个输入框,零负担。想加标签或截止日也行。" },
+  { n: "02", en_t: "Prioritize", zh_t: "理清", en_d: "Sort with the matrix or let AI do it. Now you know exactly what to do next.", zh_d: "用矩阵排序,或交给 AI。你会清楚地知道下一步做什么。" },
+  { n: "03", en_t: "Focus & finish", zh_t: "专注完成", en_d: "Start a Pomodoro, get it done — and watch your pet celebrate with you.", zh_d: "开一个番茄钟,把它做完 —— 看你的宠物和你一起庆祝。" },
+];
+---
+<section class="steps-sec" id="how">
+  <div class="wrap center">
+    <span class="eyebrow reveal"><span data-i18n-en>How it works</span><span data-i18n-zh>如何使用</span></span>
+    <h2 class="section-title reveal" data-delay="1">
+      <span data-i18n-en>Three steps, every day</span><span data-i18n-zh>每天,三步走</span>
+    </h2>
+  </div>
+  <div class="wrap">
+    <div class="steps">
+      {steps.map((s, i) => (
+        <article class="step reveal" data-delay={i + 1}>
+          <span class="step-n">{s.n}</span>
+          <h3 data-i18n-en set:html={s.en_t} /><h3 data-i18n-zh set:html={s.zh_t} />
+          <p data-i18n-en set:html={s.en_d} /><p data-i18n-zh set:html={s.zh_d} />
+        </article>
+      ))}
+      <div class="steps-line" aria-hidden="true"></div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .steps-sec { padding: 64px 0; }
+  .steps { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 40px; }
+  .steps-line {
+    position: absolute; top: 34px; left: 12%; right: 12%; height: 2px; z-index: 0;
+    background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+  }
+  .step { position: relative; z-index: 1; }
+  .step-n {
+    display: inline-grid; place-items: center; width: 56px; height: 56px;
+    border-radius: 50%; font-size: 18px; font-weight: 800; color: var(--accent);
+    background: var(--bg-elev); border: 1px solid var(--border-strong);
+    box-shadow: 0 0 26px -8px var(--glow-teal); margin-bottom: 18px;
+  }
+  .step h3 { font-size: 19px; font-weight: 700; margin-bottom: 9px; }
+  .step p { font-size: 14.5px; color: var(--text-soft); line-height: 1.6; max-width: 300px; }
+  @media (max-width: 820px) {
+    .steps { grid-template-columns: 1fr; gap: 30px; }
+    .steps-line { display: none; }
+  }
+</style>

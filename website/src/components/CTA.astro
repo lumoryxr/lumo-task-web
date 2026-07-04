@@ -1,0 +1,44 @@
+---
+const app = "https://lumo-task-frontend.onrender.com";
+---
+<section class="cta-sec">
+  <div class="wrap">
+    <div class="cta reveal">
+      <div class="cta-glow" aria-hidden="true"></div>
+      <span class="cta-pet">🦊</span>
+      <h2 class="cta-title">
+        <span data-i18n-en>Ready to want your to-do list?</span>
+        <span data-i18n-zh>准备好,爱上你的待办清单了吗?</span>
+      </h2>
+      <p class="cta-sub">
+        <span data-i18n-en>Free forever. Open source. Start in seconds — your pet is waiting.</span>
+        <span data-i18n-zh>永久免费,开源。几秒钟就能开始 —— 你的宠物在等你。</span>
+      </p>
+      <a class="btn btn-primary btn-lg" href={app} target="_blank" rel="noopener">
+        <span data-i18n-en>Start free</span><span data-i18n-zh>免费开始</span>
+        <span aria-hidden="true">→</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta-sec { padding: 40px 0 80px; }
+  .cta {
+    position: relative; text-align: center; overflow: hidden;
+    padding: 64px 32px; border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #14161f, #0a0b11);
+    border: 1px solid var(--border-strong);
+  }
+  .cta-glow {
+    position: absolute; inset: 0; z-index: 0;
+    background: radial-gradient(ellipse 60% 80% at 50% 0%, var(--glow-teal), transparent 70%);
+    opacity: 0.5;
+  }
+  .cta > * { position: relative; z-index: 1; }
+  .cta-pet { font-size: 46px; display: inline-block; animation: petbob 3.4s var(--ease) infinite; }
+  .cta-title { font-size: clamp(26px, 4vw, 40px); font-weight: 900; letter-spacing: -0.02em; margin: 14px 0 12px; }
+  .cta-sub { font-size: 16px; color: var(--text-soft); max-width: 480px; margin: 0 auto 28px; }
+  .btn-lg { padding: 16px 34px; font-size: 16px; }
+  @keyframes petbob { 0%,100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-6px) rotate(3deg); } }
+</style>

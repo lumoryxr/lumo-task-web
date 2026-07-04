@@ -1,0 +1,137 @@
+/* ============================================================================
+   Lumo landing — design tokens + base styles
+   Dark, premium, Linear-inspired. Accent = app's teal-green + violet aurora.
+   All motion is gated behind prefers-reduced-motion.
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --bg: #07070b;
+  --bg-elev: #0d0e14;
+  --bg-card: rgba(255, 255, 255, 0.028);
+  --bg-card-hover: rgba(255, 255, 255, 0.05);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  /* Text */
+  --text: #f4f5f7;
+  --text-soft: #b9bcc7;
+  --text-muted: #7b8091;
+  --text-faint: #4c5060;
+
+  /* Brand */
+  --accent: #34d399;      /* teal-green — app accent */
+  --accent-2: #22c1a6;
+  --violet: #8b7bff;
+  --pink: #f472b6;
+  --amber: #fbbf24;
+
+  /* Effects */
+  --glow-teal: rgba(52, 211, 153, 0.5);
+  --glow-violet: rgba(139, 123, 255, 0.45);
+  --glow-pink: rgba(244, 114, 182, 0.4);
+
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 30px;
+
+  --maxw: 1160px;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; display: block; }
+button { font-family: inherit; cursor: pointer; }
+
+.wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+section { position: relative; }
+
+/* ── Typography scale ─────────────────────────────────────────────────────── */
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--accent);
+  padding: 6px 14px; border-radius: 999px;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+}
+.section-title {
+  font-size: clamp(28px, 4.5vw, 46px);
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1.1;
+  margin: 18px 0 14px;
+}
+.section-sub {
+  font-size: clamp(15px, 2vw, 18px);
+  color: var(--text-soft); max-width: 620px; line-height: 1.65;
+}
+.center { text-align: center; }
+.center .section-sub { margin-inline: auto; }
+
+.gradient-text {
+  background: linear-gradient(120deg, var(--accent) 0%, var(--violet) 55%, var(--pink) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 15px; font-weight: 600; padding: 13px 24px;
+  border-radius: 999px; border: 1px solid transparent;
+  transition: transform 0.18s var(--ease), box-shadow 0.25s var(--ease), background 0.2s;
+  white-space: nowrap;
+}
+.btn-primary {
+  color: #04120c;
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 30px -8px var(--glow-teal), inset 0 1px 0 rgba(255,255,255,0.25);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 40px -8px var(--glow-teal); }
+.btn-ghost {
+  color: var(--text); background: var(--bg-card);
+  border-color: var(--border-strong);
+}
+.btn-ghost:hover { background: var(--bg-card-hover); transform: translateY(-2px); }
+
+/* ── Scroll-reveal ────────────────────────────────────────────────────────── */
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out); }
+.reveal.in { opacity: 1; transform: none; }
+.reveal[data-delay="1"] { transition-delay: 0.08s; }
+.reveal[data-delay="2"] { transition-delay: 0.16s; }
+.reveal[data-delay="3"] { transition-delay: 0.24s; }
+.reveal[data-delay="4"] { transition-delay: 0.32s; }
+
+/* ── i18n: hide the language not active ───────────────────────────────────── */
+[data-i18n-zh] { display: none; }
+html[lang="zh"] [data-i18n-zh] { display: revert; }
+html[lang="zh"] [data-i18n-en] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

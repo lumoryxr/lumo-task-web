@@ -1,0 +1,33 @@
+---
+const items = [
+  { en: "Bilingual EN / ZH", zh: "中英双语" },
+  { en: "Installable PWA", zh: "可装到手机 PWA" },
+  { en: "End-to-end sync", zh: "端到端同步" },
+  { en: "Open source", zh: "开源" },
+  { en: "Free forever", zh: "永久免费" },
+];
+---
+<section class="trust reveal">
+  <div class="wrap trust-inner">
+    {items.map((it) => (
+      <span class="trust-item">
+        <span class="check">✓</span>
+        <span data-i18n-en set:html={it.en} /><span data-i18n-zh set:html={it.zh} />
+      </span>
+    ))}
+  </div>
+</section>
+
+<style>
+  .trust { padding: 8px 0 20px; }
+  .trust-inner {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 28px;
+    padding: 18px 24px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: var(--bg-card);
+  }
+  .trust-item { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text-soft); font-weight: 500; }
+  .check {
+    width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 10px; color: #04120c; background: var(--accent);
+  }
+</style>

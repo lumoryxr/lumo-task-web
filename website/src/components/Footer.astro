@@ -1,0 +1,46 @@
+---
+const app = "https://lumo-task-frontend.onrender.com";
+const repo = "https://github.com/lumoryxr/lumo-task-web";
+---
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <a class="brand" href="#top"><span class="brand-mark">🦊</span><span class="brand-name">Lumo</span></a>
+      <p class="footer-tag">
+        <span data-i18n-en>Turn what you should do into what you want to do.</span>
+        <span data-i18n-zh>把该做的事,变成想做的事。</span>
+      </p>
+    </div>
+
+    <nav class="footer-links" aria-label="Footer">
+      <a href="#features"><span data-i18n-en>Features</span><span data-i18n-zh>功能</span></a>
+      <a href="#how"><span data-i18n-en>How it works</span><span data-i18n-zh>如何使用</span></a>
+      <a href="#faq"><span data-i18n-en>FAQ</span><span data-i18n-zh>常见问题</span></a>
+      <a href={repo} target="_blank" rel="noopener">GitHub</a>
+      <a href={app} target="_blank" rel="noopener"><span data-i18n-en>Open app</span><span data-i18n-zh>打开应用</span></a>
+      <button class="foot-lang" data-lang-toggle type="button"><span data-i18n-en>中文</span><span data-i18n-zh>English</span></button>
+    </nav>
+  </div>
+  <div class="wrap footer-bot">
+    <span>© 2026 Lumo</span>
+    <span data-i18n-en>Free &amp; open source · Built with care</span>
+    <span data-i18n-zh>免费开源 · 用心打造</span>
+  </div>
+</footer>
+
+<style>
+  .footer { border-top: 1px solid var(--border); padding: 54px 0 30px; margin-top: 20px; }
+  .footer-inner { display: flex; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
+  .footer .brand { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 18px; }
+  .footer .brand-mark { font-size: 22px; }
+  .footer-tag { font-size: 13.5px; color: var(--text-muted); max-width: 260px; margin-top: 12px; line-height: 1.55; }
+  .footer-links { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; font-size: 14px; color: var(--text-soft); }
+  .footer-links a:hover { color: var(--text); }
+  .foot-lang { font-size: 14px; color: var(--text-soft); background: none; border: none; padding: 0; }
+  .foot-lang:hover { color: var(--text); }
+  .footer-bot {
+    display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--border);
+    font-size: 12.5px; color: var(--text-faint);
+  }
+</style>

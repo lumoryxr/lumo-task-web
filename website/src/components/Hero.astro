@@ -1,0 +1,99 @@
+---
+import AppMock from "./AppMock.astro";
+const app = "https://lumo-task-frontend.onrender.com";
+---
+<section class="hero" id="top">
+  <div class="aurora" aria-hidden="true">
+    <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
+    <div class="grid-lines"></div>
+  </div>
+
+  <div class="wrap hero-inner">
+    <div class="hero-copy">
+      <span class="eyebrow reveal">
+        <span class="eyebrow-dot"></span>
+        <span data-i18n-en>Your task companion — with a brain and a heart</span>
+        <span data-i18n-zh>会陪你、也够聪明的任务伙伴</span>
+      </span>
+
+      <h1 class="hero-title reveal" data-delay="1">
+        <span data-i18n-en>Turn what you <span class="gradient-text">should</span> do<br/>into what you <span class="gradient-text">want</span> to do.</span>
+        <span data-i18n-zh>把<span class="gradient-text">该做</span>的事,<br/>变成<span class="gradient-text">想做</span>的事。</span>
+      </h1>
+
+      <p class="hero-sub reveal" data-delay="2">
+        <span data-i18n-en>Eisenhower matrix, Pomodoro focus, AI planning and a pet that grows as you finish — Lumo makes getting things done feel good.</span>
+        <span data-i18n-zh>艾森豪威尔矩阵、番茄专注、AI 规划,还有一只随你完成任务成长的宠物 —— Lumo 让「把事做完」变得有温度。</span>
+      </p>
+
+      <div class="hero-ctas reveal" data-delay="3">
+        <a class="btn btn-primary" href={app} target="_blank" rel="noopener">
+          <span data-i18n-en>Start free</span><span data-i18n-zh>免费开始</span>
+          <span aria-hidden="true">→</span>
+        </a>
+        <a class="btn btn-ghost" href="#features">
+          <span data-i18n-en>See features</span><span data-i18n-zh>看看功能</span>
+        </a>
+      </div>
+
+      <div class="hero-meta reveal" data-delay="4">
+        <span data-i18n-en>Free forever · Open source · No credit card</span>
+        <span data-i18n-zh>永久免费 · 开源 · 无需信用卡</span>
+      </div>
+    </div>
+
+    <div class="hero-visual reveal" data-delay="2">
+      <AppMock />
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero { padding: 92px 0 72px; overflow: hidden; }
+  .hero-inner {
+    display: grid; grid-template-columns: 1fr 1.05fr; gap: 56px; align-items: center;
+  }
+  .hero-copy { max-width: 560px; }
+  .eyebrow-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 10px var(--accent); animation: pulse 2s infinite;
+  }
+  .hero-title {
+    font-size: clamp(36px, 6vw, 62px); font-weight: 900; letter-spacing: -0.03em;
+    line-height: 1.04; margin: 22px 0 20px;
+  }
+  .hero-sub { font-size: clamp(16px, 2.2vw, 19px); color: var(--text-soft); line-height: 1.6; }
+  .hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; margin: 30px 0 16px; }
+  .hero-meta { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+  .hero-visual { perspective: 1600px; }
+  .hero-visual :global(.mock) {
+    transform: rotateY(-9deg) rotateX(3deg);
+    transition: transform 0.6s var(--ease-out);
+  }
+  .hero-visual:hover :global(.mock) { transform: rotateY(-4deg) rotateX(1deg); }
+
+  /* Aurora */
+  .aurora { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.5; }
+  .b1 { width: 520px; height: 520px; top: -160px; left: -120px; background: var(--glow-teal); animation: drift1 18s ease-in-out infinite; }
+  .b2 { width: 460px; height: 460px; top: -80px; right: -100px; background: var(--glow-violet); animation: drift2 22s ease-in-out infinite; }
+  .b3 { width: 380px; height: 380px; bottom: -180px; left: 40%; background: var(--glow-pink); opacity: 0.3; animation: drift1 26s ease-in-out infinite reverse; }
+  .grid-lines {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 80%);
+  }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes drift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,30px) scale(1.1); } }
+  @keyframes drift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-40px,20px) scale(1.08); } }
+
+  @media (max-width: 900px) {
+    .hero-inner { grid-template-columns: 1fr; gap: 44px; }
+    .hero-copy { max-width: none; }
+    .hero-visual :global(.mock) { transform: none; }
+  }
+</style>
