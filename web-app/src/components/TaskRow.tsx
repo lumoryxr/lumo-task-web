@@ -58,7 +58,7 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
       <div
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className="flex items-center gap-3 transition-all"
+        className="task-row flex items-center gap-3 transition-all"
         style={{
           padding: compact ? "11px 14px" : "14px 16px",
           borderRadius: "var(--radius-lg)",
