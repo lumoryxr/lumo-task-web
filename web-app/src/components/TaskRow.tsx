@@ -221,6 +221,8 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
             ref={moreRef}
             title={t("matrix.moreActions")}
             aria-label={t("matrix.moreActions")}
+            aria-haspopup="menu"
+            aria-expanded={moreAnchor !== null}
             onClick={(e) => {
               e.stopPropagation();
               const rect = moreRef.current?.getBoundingClientRect();

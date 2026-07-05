@@ -360,6 +360,7 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
           ref={inputRef}
           onKeyDown={handleKeyDown}
           placeholder={t("ai.chat.placeholder")}
+          aria-label={t("ai.chat.placeholder")}
           rows={1}
           disabled={loading}
           className="flex-1 resize-none text-[12px] text-text-primary bg-transparent outline-none"

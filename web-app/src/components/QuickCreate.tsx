@@ -243,6 +243,7 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
                   <button
                     key={q}
                     onClick={() => setQuadrant(q)}
+                    aria-pressed={active}
                     className="text-left rounded-lg border transition-colors"
                     style={{
                       padding: "9px 11px",

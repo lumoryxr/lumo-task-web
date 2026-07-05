@@ -207,6 +207,7 @@ export function CommandPalette({ open, onClose }: Props) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleInputKeyDown}
             placeholder={t("search.placeholder")}
+            aria-label={t("search.placeholder")}
             className="flex-1 bg-transparent border-none outline-none text-[14px] text-text-primary placeholder:text-text-faint"
           />
           {/* Show completed toggle */}

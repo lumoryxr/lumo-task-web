@@ -196,6 +196,7 @@ export function TaskEditModal({ task, onClose }: Props) {
                   <button
                     key={q}
                     onClick={() => setQuadrant(q)}
+                    aria-pressed={active}
                     className="text-left rounded-lg border transition-colors"
                     style={{
                       padding: "9px 11px",
@@ -368,6 +369,7 @@ export function TaskEditModal({ task, onClose }: Props) {
               <select
                 value={recurrence}
                 onChange={(e) => setRecurrence(e.target.value as TaskRecurrence)}
+                aria-label={t("task.recurrence")}
                 className="input"
                 style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13 }}
               >

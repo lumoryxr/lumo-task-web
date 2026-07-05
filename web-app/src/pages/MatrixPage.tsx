@@ -465,6 +465,8 @@ function MatrixTaskCard({ task }: { task: Task }) {
             onMouseDown={(e) => e.stopPropagation()}
             title={t("matrix.moreActions")}
             aria-label={t("matrix.moreActions")}
+            aria-haspopup="menu"
+            aria-expanded={moreAnchor !== null}
             onClick={(e) => {
               e.stopPropagation();
               const rect = moreRef.current?.getBoundingClientRect();
