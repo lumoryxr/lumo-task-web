@@ -1061,6 +1061,103 @@ describe("DFX · Robustness/Scalability — bounded nested payload on /v1/projec
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS — bounded OKR/KPI goal fields on /v1/projects (#304)
+//
+// Coverage-gap audit (#304): #290/#291 grew each project goal from a plain
+// {text, done} checkbox into an OKR Key Result — adding `target` / `current` /
+// `start` (z.number().finite().nonnegative()), `unit` (z.string().max(12)), and
+// `confidence` (enum on_track|at_risk|off_track). These are user-supplied,
+// sync-carried, and stored in the goals_json column with NO body-size middleware,
+// so the Zod field bounds are the only guard. The #213/#219 block above covers a
+// goal's `text` / the `goals` array / `content` — the NEW KPI fields had zero
+// robustness coverage. Because ProjectUpdateBody = ProjectBody.partial(), the same
+// GoalSchema validates goals on BOTH create and update, so a rejection must also
+// leave a stored KR unmutated (no partial poison of a baseline the client renders).
+//
+// Teeth: each rejection asserts the 400 VALIDATION_ERROR envelope AND that the
+// offending dotted `goals.0.<field>` path is named (proving the RIGHT bound fired,
+// not an incidental 400); the valid case round-trips every KPI field verbatim
+// through the owner's list; the PATCH case proves the stored KR survives unmutated.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — bounded OKR/KPI goal fields on /v1/projects (#304)", () => {
+  test("over-length `goals[].unit` (> 12) → 400 VALIDATION_ERROR naming goals.0.unit", async () => {
+    const { status, body } = await api("POST", "/v1/projects", {
+      token: alice.token,
+      body: { name: "Bad unit", goals: [{ text: "Ship revenue", target: 100, unit: "x".repeat(13) }] },
+    });
+    assert.equal(status, 400, "an over-length KPI unit must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("goals.0.unit")),
+      "the rejection must name `goals.0.unit` (the 12-char cap fired inside the goal element, not an incidental 400)",
+    );
+  });
+
+  test("negative `goals[].target` (violates nonnegative) → 400 naming goals.0.target", async () => {
+    const { status, body } = await api("POST", "/v1/projects", {
+      token: alice.token,
+      body: { name: "Negative target", goals: [{ text: "KR", target: -5 }] },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("goals.0.target")),
+      "the rejection must name `goals.0.target` (the nonnegative bound fired, not an incidental 400)",
+    );
+  });
+
+  test("out-of-enum `goals[].confidence` → 400 naming goals.0.confidence", async () => {
+    const { status, body } = await api("POST", "/v1/projects", {
+      token: alice.token,
+      body: { name: "Bad confidence", goals: [{ text: "KR", confidence: "definitely" }] },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("goals.0.confidence")),
+      "the rejection must name `goals.0.confidence` (the enum bound fired)",
+    );
+  });
+
+  test("valid KPI goal round-trips verbatim; a rejected PATCH leaves the stored KR unmutated (no partial poison)", async () => {
+    // A fully-specified Key Result creates cleanly — proving it was the bound,
+    // not the KR shape, that rejected the cases above.
+    const created = await api("POST", "/v1/projects", {
+      token: alice.token,
+      body: { name: "Q3 revenue", goals: [{ text: "Grow MRR", start: 20, current: 40, target: 100, unit: "万", confidence: "on_track" }] },
+    });
+    assert.equal(created.status, 201, "a fully-valid KPI goal must create");
+    const pid = created.body.id as string;
+
+    // ...and round-trips every KPI field verbatim through the owner's list (no GET /:id).
+    const listed = await api("GET", "/v1/projects", { token: alice.token });
+    const mine = (listed.body as Array<{ id: string; goals: Array<Record<string, unknown>> }>).find((p) => p.id === pid);
+    assert.ok(mine, "the created project appears in the owner's list");
+    const g = mine!.goals[0];
+    assert.equal(g.start, 20);
+    assert.equal(g.current, 40);
+    assert.equal(g.target, 100);
+    assert.equal(g.unit, "万");
+    assert.equal(g.confidence, "on_track");
+
+    // The same GoalSchema validates goals on PATCH (ProjectUpdateBody is a
+    // .partial()), so an over-length unit is rejected — and must not poison the store.
+    const bad = await api("PATCH", `/v1/projects/${pid}`, {
+      token: alice.token,
+      body: { goals: [{ text: "Grow MRR", start: 20, current: 40, target: 100, unit: "x".repeat(13), confidence: "on_track" }] },
+    });
+    assert.equal(bad.status, 400, "an over-length unit on PATCH must be rejected");
+    assert.equal(bad.body.error?.code, "VALIDATION_ERROR");
+
+    const after = await api("GET", "/v1/projects", { token: alice.token });
+    const still = (after.body as Array<{ id: string; goals: Array<Record<string, unknown>> }>).find((p) => p.id === pid);
+    assert.equal(still!.goals[0].current, 40, "the stored KR is unmutated after the rejected PATCH (no partial poison)");
+    assert.equal(still!.goals[0].unit, "万", "the stored unit survives the rejected PATCH");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS/SCALABILITY — bounded project-kind template payload (#211 V2)
 //
 // Coverage-gap audit (#236, project templates PR1 #233): #233 turned
