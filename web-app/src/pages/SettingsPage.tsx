@@ -63,9 +63,8 @@ export function SettingsPage() {
     <div className="fade-in flex h-full" style={{ minHeight: 0 }}>
       {/* ── Left tab nav ─────────────────────────────────────────────── */}
       <nav
-        className="flex-shrink-0 flex flex-col py-6 px-3 gap-0.5 border-r overflow-y-auto"
+        className="flex-shrink-0 flex flex-col py-6 px-3 gap-0.5 border-r overflow-y-auto w-32 sm:w-[180px]"
         style={{
-          width: 180,
           borderColor: "var(--border-default)",
           background: "var(--bg-deep)",
         }}
@@ -90,7 +89,7 @@ export function SettingsPage() {
       </nav>
 
       {/* ── Right content panel ──────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-8 py-8" style={{ minWidth: 0 }}>
+      <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 sm:py-8" style={{ minWidth: 0 }}>
         <div style={{ maxWidth: 640 }}>
 
           {activeTab === "general" && (
@@ -216,8 +215,7 @@ function Row({
 }) {
   return (
     <div
-      className="grid items-center px-5 py-4 border-t border-border-faint first:border-t-0"
-      style={{ gridTemplateColumns: "200px 1fr", gap: 32 }}
+      className="settings-row items-center px-5 py-4 border-t border-border-faint first:border-t-0"
     >
       <div>
         <div className="text-[13px] font-medium text-text-primary leading-snug">{label}</div>
@@ -614,8 +612,7 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
           </div>
         )}
 
-        <div className="grid items-center px-5 py-4 border-t border-border-faint first:border-t-0"
-          style={{ gridTemplateColumns: "200px 1fr", gap: 32 }}>
+        <div className="settings-row items-center px-5 py-4 border-t border-border-faint first:border-t-0">
           <div className="text-[13px] font-medium text-text-primary">{t("ai.config.provider")}</div>
           <div className="flex gap-1.5 flex-wrap">
             {(["openai", "deepseek", "claude", "custom"] as const).map((p) => {
@@ -644,8 +641,7 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
           </div>
         </div>
 
-        <div className="grid items-center px-5 py-4 border-t border-border-faint"
-          style={{ gridTemplateColumns: "200px 1fr", gap: 32 }}>
+        <div className="settings-row items-center px-5 py-4 border-t border-border-faint">
           <div className="text-[13px] font-medium text-text-primary">{t("ai.config.apiKey")}</div>
           <div className="flex items-center gap-2">
             <input
@@ -669,8 +665,7 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
           </div>
         </div>
 
-        <div className="grid items-center px-5 py-4 border-t border-border-faint"
-          style={{ gridTemplateColumns: "200px 1fr", gap: 32 }}>
+        <div className="settings-row items-center px-5 py-4 border-t border-border-faint">
           <div className="text-[13px] font-medium text-text-primary">{t("ai.config.model")}</div>
           <input
             type="text"
@@ -683,8 +678,7 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
         </div>
 
         {!isClaude && (
-          <div className="grid items-center px-5 py-4 border-t border-border-faint"
-            style={{ gridTemplateColumns: "200px 1fr", gap: 32 }}>
+          <div className="settings-row items-center px-5 py-4 border-t border-border-faint">
             <div>
               <div className="text-[13px] font-medium text-text-primary">{t("ai.config.baseUrl")}</div>
               <div className="text-[11px] text-text-muted mt-0.5">{t("settings.ai.baseUrl.helper")}</div>
@@ -766,7 +760,7 @@ function IntegrationsPanel({ t }: { t: (k: string) => string }) {
     <div>
       <h2 className="text-[15px] font-semibold text-text-primary mb-5">{t("settings.integrations")}</h2>
       <div className="rounded-[10px] border bg-surface overflow-hidden" style={{ borderColor: "var(--border-default)" }}>
-        <div className="grid items-center px-5 py-4" style={{ gridTemplateColumns: "1fr auto", gap: 16 }}>
+        <div className="settings-row items-center px-5 py-4" style={{ gridTemplateColumns: "1fr auto", gap: 16 }}>
           <div>
             <div className="flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -970,8 +964,7 @@ function StoragePanel({ t }: { t: (k: string) => string }) {
     <div>
       <h2 className="text-[15px] font-semibold text-text-primary mb-5">{t("settings.storage")}</h2>
       <div className="rounded-[10px] border bg-surface overflow-hidden" style={{ borderColor: "var(--border-default)" }}>
-        <div className="grid items-start px-5 py-4 border-b border-border-faint"
-          style={{ gridTemplateColumns: "200px 1fr", gap: 32 }}>
+        <div className="settings-row items-start px-5 py-4 border-b border-border-faint">
           <div>
             <div className="text-[13px] font-medium text-text-primary leading-snug">
               {t("settings.storage.dbPath")}
