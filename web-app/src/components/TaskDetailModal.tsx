@@ -390,6 +390,7 @@ export function TaskDetailModal({ task, onClose }: Props) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") { e.preventDefault(); handleAddSubtask(); }
                 }}
+                aria-label={t("detail.subtask.add")}
                 placeholder={t("detail.subtask.add")}
                 disabled={subtaskBusy}
                 className="flex-1 text-[13px] bg-transparent outline-none"
