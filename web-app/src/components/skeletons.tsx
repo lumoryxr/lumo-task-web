@@ -14,7 +14,7 @@ import { Skeleton, SkeletonScreen } from "@/components/Skeleton";
 function TaskRowSkeleton() {
   return (
     <div
-      className="flex items-center gap-3 rounded-xl bg-surface border border-border-faint"
+      className="flex items-center gap-3 surface-card"
       style={{ padding: "14px 16px" }}
     >
       <Skeleton className="shrink-0" style={{ width: 18, height: 18, borderRadius: 6 }} />
@@ -109,7 +109,7 @@ export function StatsSkeleton() {
     <SkeletonScreen className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="flex flex-col gap-2 p-4 rounded-xl bg-surface border border-border-faint">
+          <div key={i} className="flex flex-col gap-2 p-4 surface-card">
             <Skeleton style={{ height: 10, width: "50%" }} />
             <Skeleton style={{ height: 26, width: "40%" }} />
             <Skeleton style={{ height: 9, width: "70%" }} />

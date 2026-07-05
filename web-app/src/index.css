@@ -99,6 +99,35 @@ html, body, #root { margin: 0; padding: 0; height: 100%; }
     radial-gradient(720px 460px at 84% -8%, var(--accent-fog), transparent 62%),
     radial-gradient(820px 620px at -12% 114%, var(--accent-fog), transparent 60%);
 }
+
+/* ── Surface card — the app's shared "raised panel" language ──────────────
+   The task-row/matrix refresh gave interactive rows depth (soft border +
+   shadow-card, lift on hover). Static info panels (Stats tiles, quadrant
+   breakdown, habit week groups, loading skeletons) were still the old flat
+   `bg-surface + border-faint` with no shadow, so those pages read a step
+   behind the refreshed lists. `.surface-card` encodes the rest state (border
+   + shadow-card + radius-lg) so every panel sits on the same raised plane.
+   `--interactive` adds the same hover lift the task cards use, for panels
+   that are themselves clickable (habit cards). Reduce-motion drops the
+   transform (the box-shadow change is fine to keep). */
+.surface-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+.surface-card--interactive {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.surface-card--interactive:hover {
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-lifted);
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface-card--interactive:hover { transform: none; }
+}
+
 body {
   font-family: "Inter", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
   color: var(--text-primary);

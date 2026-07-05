@@ -40,7 +40,7 @@ export function QuadrantBreakdown({ breakdown }: Props) {
   }
 
   return (
-    <div className="mt-4 p-4 rounded-xl bg-surface border border-border-faint">
+    <div className="mt-4 p-4 surface-card">
       <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-faint mb-3">
         {t("stats.quadrant.breakdown")}
       </h3>

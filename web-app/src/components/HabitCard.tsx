@@ -35,7 +35,7 @@ export function HabitCard({ habit, logs, onCheckIn, onEdit, onDelete, onShowCale
 
   return (
     <div
-      className="relative flex items-center gap-3 px-4 py-3 rounded-xl bg-surface border border-border-faint transition-all"
+      className="relative flex items-center gap-3 px-4 py-3 surface-card surface-card--interactive"
       style={{
         borderLeft: `3px solid ${color}`,
         ...(done ? { background: `${color}0a` } : {}),

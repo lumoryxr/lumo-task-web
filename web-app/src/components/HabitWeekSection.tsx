@@ -51,7 +51,7 @@ function HabitWeekCard({ habit, logs, weekStart, weekEnd }: CardProps) {
 
   return (
     <div
-      className="flex flex-col gap-2 p-3 rounded-xl bg-surface border border-border-faint"
+      className="flex flex-col gap-2 p-3 surface-card"
       style={{ borderLeft: `3px solid ${color}` }}
     >
       <div className="flex items-center gap-1.5 min-w-0">
