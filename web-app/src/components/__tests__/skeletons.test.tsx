@@ -10,7 +10,7 @@ vi.mock("@/i18n/useT", () => ({
   useT: () => (k: string) => (k === "app.loading" ? "Loading…" : k),
 }));
 
-import { TaskListSkeleton, StatsSkeleton, MatrixSkeleton, ProjectListSkeleton } from "../skeletons";
+import { TaskListSkeleton, StatsSkeleton, MatrixSkeleton, ProjectListSkeleton, CountdownListSkeleton } from "../skeletons";
 
 describe("TaskListSkeleton", () => {
   it("exposes a single polite, busy status region for screen readers", () => {
@@ -80,6 +80,27 @@ describe("ProjectListSkeleton", () => {
 
   it("defaults to four cards", () => {
     const { container } = render(<ProjectListSkeleton />);
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(4 * 3);
+  });
+});
+
+describe("CountdownListSkeleton", () => {
+  it("exposes a single polite, busy status region for screen readers", () => {
+    render(<CountdownListSkeleton />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-busy", "true");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    // The bars themselves stay decorative.
+    expect(status.querySelectorAll("[aria-hidden='true']").length).toBeGreaterThan(0);
+  });
+
+  it("renders one card per requested count (3 bars each)", () => {
+    const { container } = render(<CountdownListSkeleton cards={3} />);
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(3 * 3);
+  });
+
+  it("defaults to four cards", () => {
+    const { container } = render(<CountdownListSkeleton />);
     expect(container.querySelectorAll(".skeleton")).toHaveLength(4 * 3);
   });
 });
