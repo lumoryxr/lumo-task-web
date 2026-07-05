@@ -128,6 +128,18 @@ html, body, #root { margin: 0; padding: 0; height: 100%; }
   .surface-card--interactive:hover { transform: none; }
 }
 
+/* Settings label/value rows: fixed label column on desktop, stacked single
+   column on mobile so the value controls never get crushed below ~640px. */
+.settings-row {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  column-gap: 32px;
+  row-gap: 10px;
+}
+@media (max-width: 640px) {
+  .settings-row { grid-template-columns: 1fr; }
+}
+
 body {
   font-family: "Inter", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
   color: var(--text-primary);
