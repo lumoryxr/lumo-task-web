@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { useT } from "@/i18n/useT";
 
@@ -42,7 +43,7 @@ export function ConfirmDialog({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       style={{
         position: "fixed", inset: 0, zIndex: 300,
@@ -118,6 +119,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

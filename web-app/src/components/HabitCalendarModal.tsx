@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { IconArrowLeft, IconArrowRight, IconClose } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { useModalA11y } from "@/hooks/useModalA11y";
@@ -73,7 +74,7 @@ export function HabitCalendarModal({ habit, logs, onClose }: Props) {
   ];
 
   const dialogRef = useModalA11y<HTMLDivElement>(onClose);
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.5)" }}
@@ -220,7 +221,8 @@ export function HabitCalendarModal({ habit, logs, onClose }: Props) {
           </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
