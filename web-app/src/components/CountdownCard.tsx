@@ -295,6 +295,7 @@ export function CountdownCard({ event, locale, onEdit, onDelete }: CountdownCard
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-start",
+          flexWrap: "wrap",
           gap: 8,
           paddingTop: 12,
           borderTop: "1px solid var(--border-faint)",
