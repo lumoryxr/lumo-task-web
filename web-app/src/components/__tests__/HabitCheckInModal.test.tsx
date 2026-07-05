@@ -99,10 +99,11 @@ describe("HabitCheckInModal", () => {
 
   it("calls onClose when backdrop clicked", () => {
     const onClose = vi.fn();
-    const { container } = render(
+    render(
       <HabitCheckInModal habit={HABIT} logs={NO_LOGS} onConfirm={vi.fn()} onClose={onClose} />
     );
-    const backdrop = container.firstChild as HTMLElement;
+    // Modal is portaled to document.body, so query the backdrop overlay there.
+    const backdrop = document.querySelector(".fixed.inset-0") as HTMLElement;
     fireEvent.mouseDown(backdrop);
     expect(onClose).toHaveBeenCalledOnce();
   });
