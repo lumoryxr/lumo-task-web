@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useT } from "@/i18n/useT";
 import { useTasksStore } from "@/store/useTasksStore";
 import type { Task } from "@/types/task";
@@ -46,7 +47,10 @@ export function BatchActionBar({ candidateIds }: { candidateIds: string[] }) {
     }
   }
 
-  return (
+  // Portaled to document.body so the fixed positioning anchors to the viewport,
+  // not the transformed `.fade-in` page container it renders inside (which would
+  // otherwise make this "fixed" bar scroll away with the task list).
+  return createPortal(
     <div
       role="toolbar"
       aria-label={t("batch.count").replace("{n}", String(count))}
@@ -141,6 +145,7 @@ export function BatchActionBar({ candidateIds }: { candidateIds: string[] }) {
       >
         {t("batch.done")}
       </button>
-    </div>
+    </div>,
+    document.body,
   );
 }
