@@ -34,7 +34,7 @@ function topQuadrantsSub(breakdown: QuadrantCount[]): string {
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="flex flex-col gap-1 p-4 rounded-xl bg-surface border border-border-faint min-w-0">
+    <div className="flex flex-col gap-1 p-4 surface-card min-w-0">
       <span className="text-[11px] font-semibold uppercase tracking-wider text-text-faint">{label}</span>
       <span className="text-[28px] font-bold text-text-primary leading-none tabular-nums" style={{ color: "var(--accent-primary)" }}>
         {value}
@@ -237,7 +237,7 @@ export function StatsPage() {
               <QuadrantBreakdown breakdown={week.quadrantBreakdown} />
 
               {/* Daily bar chart */}
-              <div className="mt-4 p-4 rounded-xl bg-surface border border-border-faint">
+              <div className="mt-4 p-4 surface-card">
                 <div className="flex items-end gap-2 h-16">
                   {week.byDay.map((count, i) => (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -273,7 +273,7 @@ export function StatsPage() {
             {tagDist.length > 0 && (
               <section>
                 <h2 className="text-[13px] font-semibold text-text-secondary mb-3">{t("stats.tags.title")}</h2>
-                <div className="flex flex-col gap-2.5 p-4 rounded-xl bg-surface border border-border-faint">
+                <div className="flex flex-col gap-2.5 p-4 surface-card">
                   {tagDist.map((tc) => (
                     <div key={tc.tag} className="flex items-center gap-3 min-w-0">
                       <span className="text-[12px] text-text-secondary truncate w-24 flex-shrink-0" title={tc.tag}>
