@@ -33,7 +33,7 @@ Grounded in the current app (12 pages; `ErrorBoundary` + `ToastStack` exist; pet
 ## Phase 2 — Security & Stability
 From the production-readiness review (#46) + ongoing. Already shipped: #34/#36/#38/#40/#42/#45/#50 (SSRF×2, JWT/crypto, brute-force/timing, indexes+health, liveness/readiness, fail-fast secrets) and pagination #48.
 
-- [ ] **Pagination generalization** — apply `lib/cursor` + `{items,nextCursor}` (PR #48) to `completed` / `people` / `habits` / `countdowns`; update each consumer + e2e mocks.
+- [ ] **Pagination generalization** — apply `lib/cursor` + `{items,nextCursor}` (PR #48) to `completed` / `people` / `habits` / `countdowns`; update each consumer + e2e mocks. *(**#180** tracks `people` specifically: `GET /v1/people` still returns a bare unbounded array — needs `PersonListQuery/Response` schemas, limit default 50/max 200, keyset cursor + `INVALID_CURSOR`, and migrating `api.listPeople` + `ai-tools.list_people` consumers off the bare array.)*
 - [x] **Structured logging + request correlation** — JSON-line logger + per-request `x-request-id` (safe-echo or fresh UUID) + error id surfaced from `app.onError` in the 500 body for tracing. PR #153.
 - [ ] **Error tracking (Sentry/OTel)** — capture + alert on backend exceptions. *(request-id correlation from #153 is the foundation.)*
 - [ ] ~~**Idempotency keys**~~ — **dropped.** Deliberately removed as over-design in the P0/P3 sync simplification (the `idempotency_keys` table was dropped in #107). Do not re-add without revisiting that decision with Jalen.
@@ -47,6 +47,16 @@ From the production-readiness review (#46) + ongoing. Already shipped: #34/#36/#
 ### Test & quality infrastructure
 - [x] **Daily integration + DFX regression** — `integration-regression.yml` runs backend real-API + DFX (Design-for-X) + web real-backend suites daily against a fresh ephemeral env (never on push/PR). DFX suite (`backend/src/test/dfx.integration.test.ts`) covers security / robustness / recoverability / observability / scalability / interoperability; coverage tracked in `docs/testing/dfx-coverage-matrix.md`. *(Jalen 2026-06-25)*
   - **Convention (auto-replenish):** every feature PR extends the integration + DFX suites and the coverage matrix for any new/changed endpoint; the loop also periodically audits API-surface vs DFX coverage and opens gap-filling PRs.
+  - **Outstanding DFX test-gap backlog** *(filed audit findings not yet implemented — no matching DFX case + no matrix entry as of 2026-07-05; the loop's periodic gap-audit lane picks these off one PR at a time):*
+    - [ ] **#234** — server-side task search `GET /v1/tasks?q=`: tenant-scope + `LIKE` wildcard/`ESCAPE` robustness.
+    - [ ] **#263** — `DELETE /people/:id` → `tasks.assignee_ids` cascade/orphan handling has no DFX coverage.
+    - [ ] **#260** — `/v1/settings` AI-provider credential confidentiality (`enc:v1` at-rest / never echoed in cleartext).
+    - [ ] **#284** — `auth/refresh` rotation + reuse-detection has no *daily real-HTTP* DFX case (only in-process `auth-refresh.test.ts`).
+    - [ ] **#304** — project OKR/KPI goal field bounds (`target`/`current`/`start` finite/nonnegative, `unit` length).
+    - [ ] **#305** — `/v1/ai/parse` NL-capture input bounds (robustness).
+    - [ ] **#319** — task `due` + `scheduled_start` datetime-format bounds (`scheduled_start` absent from suite).
+    - [ ] **#320** — `/v1/ai/chat` request-payload bounds (unbounded-by-contract only).
+    - [ ] **#317** — bulk-import `/migrate` arrays are unbounded; needs a `.max()` cap. **⚠ needs Jalen** — the cap value is a migration-safety product/contract decision, not a pure test-gap.
 
 ### Awaiting Jalen — do not auto-build
 - **/register account enumeration (#46 #4)** — A: accept trade-off (signin timing is defense-in-depth) vs B: email-verification flow. *Product/contract call.*
@@ -54,11 +64,12 @@ From the production-readiness review (#46) + ongoing. Already shipped: #34/#36/#
 ## Phase 3 — Innovative features (propose-only; needs Jalen's go-ahead)
 Lead with the app's **unique hooks** — the virtual-pet/gamification system and shareable stats — the strongest "未来能火" / viral levers. The loop drafts a PRD and pings Jalen; it does not build these unilaterally.
 
-- [ ] *(proposal)* **Pet companion depth** — pet (Dog/Fox/Panda evolution, PetChat) reacts to real productivity; deeper evolution/moods/streak-driven growth → emotional attachment + retention.
-- [ ] *(proposal)* **Shareable "productivity wrapped" / streak cards** — extend `ShareCard` into one-tap social shares (weekly/monthly recap, streak milestones) → organic growth loop.
-- [ ] *(proposal)* **NL + AI planning** — "plan my day" / natural-language capture on the existing AI tools; smart auto-sort + focus suggestions.
+- [~] *(**#174**, v1 shipped → v2 remains)* **Pet companion depth v2** — v1 (PR #199: productivity-aware hover voice + per-species hover greetings + streak-milestone trigger) is live. **Remaining for v2:** a happiness/energy meter with idle decay + completion recovery (store is XP-only + 3 moods today); species-distinct streak *evolution* (currently a generic string); per-species personality beyond hover copy (celebrations/status/streak copy are still universal dog copy); feed/play/pet micro-interactions.
+- [~] *(**#171**, v1 shipped → yearly remains)* **Shareable "productivity wrapped" / streak cards** — milestones (`StreakMilestoneCard`, once-per-milestone), monthly Wrapped, and a re-accessible Recaps gallery (PRs #193/#196/#198) all shipped. **Remaining:** *yearly* Wrapped (`computeYearStats` + yearly recap kind — RecapsModal handles only week|month today).
+- [~] *(**#172**, v1 shipped → v2 remains)* **NL + AI planning v2** — v1 `generate_today_plan` (top-N by quadrant→due) + PetChat conversation UI shipped. **Remaining for v2:** time-budgeting (read `task.duration` + available-hours, stop at budget — only `max_tasks` today), calendar-awareness (subtract busy blocks), stateful conversational re-plan (context carried across turns), adaptive target from completion history.
+- [~] *(**#170**, v1 shipped → reliable delivery remains)* **Per-task reminders — delivery beyond active tab** — v1 (PR #176: `remind_at` model + contract + sync + edit UI + in-tab scheduler with dedup + catch-up) shipped. **Remaining:** delivery when the app/tab is closed — Web Push (`push` handler + PushManager/VAPID subscription; `public/sw.js` handles clicks only today) and/or Electron native reminders; optional email fallback (V3).
 - [ ] *(proposal)* **Light social / accountability** — optional shared focus rooms or buddy streaks.
-- [ ] *(proposal)* **Deeper integrations** — Outlook + Google/ICS two-way; Slack/Notion capture.
+- [ ] *(**#169**, untouched)* **Calendar interop — Google + ICS two-way** — only the pre-existing Outlook read-only display exists. **Needs, in order:** V1 ICS *export* (per-user signed/revocable `.ics` feed + `feed_tokens` table), V2 ICS *import*, V3 Google Calendar OAuth two-way. (Also covers the "Deeper integrations: Outlook + Google/ICS" line.)
 - [ ] *(standard features, lower bar — confirm with Jalen)* recurring tasks · subtasks · due-date push notifications · macOS/Linux Electron builds · real-time multi-device sync · team/shared workspace · public API.
 
 ---
@@ -95,4 +106,6 @@ Today view + recommended card + CompletedTimeline · Eisenhower Matrix (drag-dro
 
 - 2026-07-04 (cont.): **Test-gap audit — DFX Security id-collision guard on the top-level bulk-import migrate endpoints (#295 → PR #296, merged).** Sibling to the #276 habits/migrate audit. `POST /v1/countdowns/migrate` and `POST /v1/projects/migrate` are the two top-level bulk imports that had **zero** presence in the daily DFX suite (only the per-PR in-process api suites, in-memory). Both `INSERT` rows with a **client-supplied `id`** while forcing `user_id` from the JWT, into tables keyed on a **global `id TEXT PRIMARY KEY`** — so the *only* barrier stopping a caller from clobbering another tenant's row by supplying its id is each statement's `INSERT OR IGNORE`. The insidious part: both handlers return `migrated: <submitted>.length` (the **submitted** count), so status + count are **blind** to an `INSERT OR IGNORE`→`INSERT OR REPLACE` regression that would let an attacker **steal** a victim's countdown/project by id (OR REPLACE rewrites the row's `user_id`); only cross-tenant state-survival catches it (no GET /:id → read back via each owner's list). Added 2 cases over real HTTP + real SQLite (attacker imports one owned row = positive control + one colliding on the victim's id with different content → attacker's list gains the owned row but **never** the foreign id; victim's row survives **unmutated**). **Mutation-tested with perfect specificity** (independently re-verified this run): `OR IGNORE`→`OR REPLACE` on countdowns reddens exactly the countdowns case, projects stays green (and vice-versa). dfx 98 → 100. Both handlers verified already correct → **gap in the tests, not the code**; test + docs only, no production change. One-round high-effort review clean; posted as a PR comment.
 
-_Last restructured: 2026-06-24 (phase prioritization); status-synced 2026-06-28. Maintained by the autonomous loop each run._
+- 2026-07-05: **Issue backlog cleanup (Jalen).** Audited all 21 open issues against merged PRs + code + the DFX coverage matrix. **Closed 6 as completed** (evidence in each): #306 (habits-row migrate id-collision guard, PR #314), #244 (ai/classify unscoped-UPDATE — handler `user_id`-scoped + mock-LLM IDOR test landed), #231 (sync push/pull isolation — covered by #255), #182 + #183 (/v1/templates tenant-isolation + integration/DFX coverage), #162 (sub-resource action-endpoint cross-tenant IDOR — covered by #165/#194). **Remaining 15 recorded in-plan:** 9 DFX test-gaps → "Outstanding DFX test-gap backlog" above (#234/#263/#260/#284/#304/#305/#319/#320/#317); #180 → Phase-2 pagination; #170/#171/#172/#174 → Phase-3 (marked `[~]` v1-shipped/v2-remains); #169 → Phase-3 calendar interop.
+
+_Last restructured: 2026-06-24 (phase prioritization); status-synced 2026-06-28; issue-backlog reconciled 2026-07-05. Maintained by the autonomous loop each run._
