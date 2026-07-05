@@ -63,7 +63,7 @@ export function SettingsPage() {
     <div className="fade-in flex h-full" style={{ minHeight: 0 }}>
       {/* ── Left tab nav ─────────────────────────────────────────────── */}
       <nav
-        className="flex-shrink-0 flex flex-col py-6 px-3 gap-0.5 border-r overflow-y-auto w-32 sm:w-[180px]"
+        className="flex-shrink-0 flex flex-col py-6 px-3 gap-0.5 border-r overflow-y-auto w-40 sm:w-[180px]"
         style={{
           borderColor: "var(--border-default)",
           background: "var(--bg-deep)",
@@ -75,7 +75,7 @@ export function SettingsPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors"
+              className="w-full text-left px-3 py-2 rounded-lg text-[13px] truncate transition-colors"
               style={{
                 background: active ? "var(--accent-fog)" : "transparent",
                 color: active ? "var(--accent-primary)" : "var(--text-secondary)",
@@ -760,7 +760,7 @@ function IntegrationsPanel({ t }: { t: (k: string) => string }) {
     <div>
       <h2 className="text-[15px] font-semibold text-text-primary mb-5">{t("settings.integrations")}</h2>
       <div className="rounded-[10px] border bg-surface overflow-hidden" style={{ borderColor: "var(--border-default)" }}>
-        <div className="settings-row items-center px-5 py-4" style={{ gridTemplateColumns: "1fr auto", gap: 16 }}>
+        <div className="grid items-center px-5 py-4" style={{ gridTemplateColumns: "1fr auto", gap: 16 }}>
           <div>
             <div className="flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
