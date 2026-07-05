@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { IconCheck } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { useModalA11y } from "@/hooks/useModalA11y";
@@ -41,7 +42,7 @@ export function HabitCheckInModal({ habit, logs, onConfirm, onClose }: Props) {
     onClose();
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.55)" }}
@@ -114,6 +115,7 @@ export function HabitCheckInModal({ habit, logs, onConfirm, onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

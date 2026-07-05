@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { IconClose, IconPlus } from "@/components/icons";
 import { useT, pickLocale } from "@/i18n/useT";
@@ -44,7 +45,7 @@ export function AddExistingTaskModal({ projectId, onClose }: AddExistingTaskModa
     return p?.name ?? t("project.tasks.unassigned");
   };
 
-  return (
+  return createPortal(
     <div
       style={{
         position: "fixed", inset: 0, zIndex: 200,
@@ -139,6 +140,7 @@ export function AddExistingTaskModal({ projectId, onClose }: AddExistingTaskModa
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

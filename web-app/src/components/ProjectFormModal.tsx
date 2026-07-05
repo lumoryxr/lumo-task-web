@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { IconClose } from "@/components/icons";
 import { useT } from "@/i18n/useT";
@@ -72,7 +73,7 @@ export function ProjectFormModal({ onClose, onCreated, project }: ProjectFormMod
     }
   }
 
-  return (
+  return createPortal(
     <div
       style={{
         position: "fixed", inset: 0, zIndex: 200,
@@ -233,7 +234,8 @@ export function ProjectFormModal({ onClose, onCreated, project }: ProjectFormMod
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

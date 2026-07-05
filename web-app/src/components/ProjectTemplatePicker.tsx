@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Spinner } from "@/components/Spinner";
@@ -46,7 +47,7 @@ export function ProjectTemplatePicker({ onClose, onCreated }: Props) {
     }
   }
 
-  return (
+  return createPortal(
     <div
       style={{
         position: "fixed", inset: 0, zIndex: 200,
@@ -156,6 +157,7 @@ export function ProjectTemplatePicker({ onClose, onCreated }: Props) {
         onConfirm={() => { if (pendingDelete) void remove(pendingDelete.id); setPendingDelete(null); }}
         onCancel={() => setPendingDelete(null)}
       />
-    </div>
+    </div>,
+    document.body,
   );
 }

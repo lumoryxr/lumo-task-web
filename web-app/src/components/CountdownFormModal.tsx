@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { IconClose } from "@/components/icons";
 import { Spinner } from "@/components/Spinner";
@@ -148,7 +149,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
 
   const isEdit = !!event;
 
-  return (
+  return createPortal(
     <div
       style={{
         position: "fixed", inset: 0, zIndex: 200,
@@ -428,7 +429,8 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
