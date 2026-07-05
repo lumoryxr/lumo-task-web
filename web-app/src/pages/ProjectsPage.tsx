@@ -223,7 +223,7 @@ export function ProjectsPage() {
 
 function Header({ onNew, onFromTemplate, t }: { onNew: () => void; onFromTemplate: () => void; t: (k: string) => string }) {
   return (
-    <div className="flex items-center justify-between mb-5">
+    <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
       <h1 className="text-xl font-semibold text-text-primary">{t("project.page.title")}</h1>
       <div className="flex items-center gap-2">
         <button

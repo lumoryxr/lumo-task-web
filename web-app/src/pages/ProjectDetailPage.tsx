@@ -224,7 +224,7 @@ export function ProjectDetailPage() {
       </div>
 
       {/* Color + actions */}
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex flex-wrap items-center gap-2 mb-6">
         {COLORS.map((c) => (
           <button
             key={c}
@@ -596,7 +596,7 @@ function GoalItem({
       <div className="h-2 rounded-full overflow-hidden mb-1.5" style={{ background: "var(--border-default)" }}>
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: "var(--accent-primary)" }} />
       </div>
-      <div className="flex items-center gap-1 text-xs text-text-muted tabular-nums">
+      <div className="flex flex-wrap items-center gap-1 text-xs text-text-muted tabular-nums">
         {goal.start ? <span className="text-text-faint">{goal.start} →</span> : null}
         <input
           type="number"
