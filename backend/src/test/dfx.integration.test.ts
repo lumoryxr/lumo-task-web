@@ -2161,3 +2161,83 @@ describe("DFX · Robustness — task `tags` array is length/count-bounded (#282)
     assert.deepEqual(after.tags, ["keep"], "a rejected PATCH must not mutate the stored tags");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS — /v1/ai/chat request-payload bounds (#320)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// `/v1/ai/chat` is the app's highest-volume LLM entry point (pet PetChat). There
+// is no body-size middleware, so the `ChatBody` Zod caps — `messages` array ≤ 20,
+// each message `content` ≤ 5000 chars — are the *sole* guard against unbounded
+// LLM-prompt payload growth (a cost / prompt-injection-surface / memory
+// amplification vector). A regression loosening either cap, or returning a 5xx on
+// an oversized body instead of a clean 400, would slip past every other DFX case
+// and surface only as inflated LLM cost/latency in prod. `validate("json", …)`
+// runs as middleware *before* the handler, so every rejection is testable with no
+// AI provider configured; the valid case takes the deterministic no-key fallback
+// (`tryParseIntent` → null → `fallbackReply`) → 200 `fallback:true`.
+describe("DFX · Robustness — /v1/ai/chat request-payload bounds (#320)", () => {
+  let chatter: { token: string; id: string };
+  before(async () => {
+    chatter = await registerUser("ai-chat-bounds");
+  });
+
+  test("over-cap `messages` array (> 20) → 400 VALIDATION_ERROR naming `messages`; not a 5xx", async () => {
+    const messages = Array.from({ length: 21 }, () => ({ role: "user", content: "hi" }));
+    const { status, body } = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: { messages },
+    });
+    assert.equal(status, 400, "an over-cap messages array must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "messages"),
+      "the rejection must name `messages` (the array-length cap fired, not an incidental 400)",
+    );
+  });
+
+  test("over-length `content` (> 5000 chars) in a message → 400 naming `messages.0.content`", async () => {
+    const { status, body } = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: { messages: [{ role: "user", content: "x".repeat(5001) }] },
+    });
+    assert.equal(status, 400, "an over-length message content must be rejected (no unbounded prompt write)");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "messages.0.content"),
+      "the rejection must name the offending message field (`messages.0.content`) — the per-message length cap fired",
+    );
+
+    // Recoverability: the oversized body must not poison the server — a normal
+    // chat still succeeds afterwards, proving no crash / no unbounded read.
+    const ok = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: { messages: [{ role: "user", content: "Hi! How are you feeling today?" }] },
+    });
+    assert.equal(ok.status, 200, "server stays healthy after rejecting an over-length message");
+  });
+
+  test("a valid small chat body (no AI provider) → 200 `fallback:true` — caps are not over-restrictive", async () => {
+    const { status, body } = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: { messages: [{ role: "user", content: "Hi! How are you feeling today?" }] },
+    });
+    assert.equal(status, 200, "a valid within-caps chat body must be accepted");
+    assert.equal(body.fallback, true, "with no AI provider the no-key fallback path must serve a canned reply");
+    assert.equal(typeof body.reply, "string");
+    assert.ok(body.reply.length > 0, "the fallback reply must be non-empty");
+  });
+
+  test("payload exactly at both caps (20 messages, 5000-char content) is accepted → the caps sit at 20/5000, not below", async () => {
+    // Mutation teeth: a tightening regression (e.g. `.max(19)` or `content.max(4999)`)
+    // would flip this at-boundary body from 200 to 400.
+    const messages = Array.from({ length: 19 }, () => ({ role: "user", content: "warm-up" }));
+    messages.push({ role: "user", content: "y".repeat(5000) });
+    const { status, body } = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: { messages },
+    });
+    assert.equal(status, 200, "a body exactly at the caps (20 msgs / 5000 chars) must still be accepted");
+    assert.equal(body.fallback, true, "the at-boundary body still takes the no-key fallback path");
+  });
+});
