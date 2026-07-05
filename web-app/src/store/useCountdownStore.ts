@@ -20,6 +20,7 @@ function readLocalCountdowns(userId: string): CountdownEvent[] {
 
 interface CountdownState {
   events: CountdownEvent[];
+  loaded: boolean;
   load: (userId: string) => Promise<void>;
   clear: () => void;
   create: (userId: string, input: {
@@ -37,9 +38,10 @@ interface CountdownState {
 
 export const useCountdownStore = create<CountdownState>((set) => ({
   events: [],
+  loaded: false,
 
   async load(userId) {
-    if (userId === "local") { set({ events: [] }); return; }
+    if (userId === "local") { set({ events: [], loaded: true }); return; }
 
     // One-time migration from localStorage → server
     let migrationFailed = false;
@@ -68,19 +70,23 @@ export const useCountdownStore = create<CountdownState>((set) => ({
       if (migrationFailed && events.length === 0) {
         const localEvents = readLocalCountdowns(userId);
         if (localEvents.length > 0) {
-          set({ events: localEvents });
+          set({ events: localEvents, loaded: true });
           toast.error(t("countdown.error.load"));
           return;
         }
       }
-      set({ events });
+      set({ events, loaded: true });
     } catch (e) {
+      // Mark loaded even on failure so the page falls back to the empty state
+      // (alongside the error toast) rather than trapping the user in a
+      // never-ending loading skeleton (mirrors useProjectsStore.load #293).
+      set({ loaded: true });
       toast.error(t("countdown.error.load"), e instanceof Error ? e.message : String(e));
     }
   },
 
   clear() {
-    set({ events: [] });
+    set({ events: [], loaded: false });
   },
 
   async create(userId, input) {

@@ -78,6 +78,31 @@ export function ProjectListSkeleton({ cards = 4 }: { cards?: number }) {
   );
 }
 
+/** Loading state for the Countdown page: an auto-fill grid of countdown-card
+ *  placeholders (title + big days-number block + date line), matching the real
+ *  card grid so the page doesn't flash the "no countdowns yet" empty state
+ *  before events load (mirrors the projects fix #293). Rendered below the page
+ *  header. */
+export function CountdownListSkeleton({ cards = 4 }: { cards?: number }) {
+  return (
+    <SkeletonScreen>
+      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+        {Array.from({ length: cards }, (_, i) => (
+          <div
+            key={i}
+            className="flex flex-col gap-3 bg-surface border border-border-faint"
+            style={{ padding: "18px 16px 16px", borderRadius: "var(--radius-lg)" }}
+          >
+            <Skeleton style={{ height: 14, width: "55%" }} />
+            <Skeleton className="mt-2" style={{ height: 44, width: "45%" }} />
+            <Skeleton style={{ height: 10, width: "40%" }} />
+          </div>
+        ))}
+      </div>
+    </SkeletonScreen>
+  );
+}
+
 /** Loading state for the Stats page: a grid of stat cards + a chart block. */
 export function StatsSkeleton() {
   return (

@@ -4,6 +4,7 @@ import { CountdownCard } from "@/components/CountdownCard";
 import { CountdownFormModal } from "@/components/CountdownFormModal";
 import { IconCountdown, IconPlus } from "@/components/icons";
 import { EmptyState } from "@/components/EmptyState";
+import { CountdownListSkeleton } from "@/components/skeletons";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
@@ -18,7 +19,7 @@ export function CountdownPage() {
   const locale = useAppStore((s) => s.locale);
   const isSignedIn = useAuthStore(selectIsSignedIn);
   const userId = useAuthStore((s) => s.user.id);
-  const { events, create, update, remove } = useCountdownStore();
+  const { events, loaded, create, update, remove } = useCountdownStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CountdownEvent | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -157,14 +158,21 @@ export function CountdownPage() {
         </button>
       </div>
 
-      {/* Empty state */}
-      {events.length === 0 && (
-        <EmptyState
-          icon={<IconCountdown size={28} />}
-          title={t("countdown.empty.title")}
-          subtitle={t("countdown.empty.sub")}
-          cta={{ label: t("countdown.add"), onClick: openCreate }}
-        />
+      {/* First paint while events are still loading and nothing is cached: show
+          the skeleton so we don't flash the "no countdowns yet" empty state
+          before the list resolves (mirrors the projects fix #293). */}
+      {!loaded && events.length === 0 ? (
+        <CountdownListSkeleton />
+      ) : (
+        /* Empty state */
+        events.length === 0 && (
+          <EmptyState
+            icon={<IconCountdown size={28} />}
+            title={t("countdown.empty.title")}
+            subtitle={t("countdown.empty.sub")}
+            cta={{ label: t("countdown.add"), onClick: openCreate }}
+          />
+        )
       )}
 
       {/* Upcoming section */}
