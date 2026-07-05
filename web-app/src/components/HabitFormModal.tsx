@@ -157,6 +157,7 @@ export function HabitFormModal({ habit, onSave, onClose }: Props) {
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               placeholder={t("habit.form.title")}
+              aria-label={t("habit.form.title")}
               className="w-full px-3 py-2 rounded-lg bg-elevated border border-border-faint text-[13px] text-text-primary placeholder:text-text-faint outline-none focus:border-accent-edge transition-colors"
             />
             {errors.title && (

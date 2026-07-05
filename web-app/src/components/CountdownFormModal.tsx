@@ -240,6 +240,7 @@ export function CountdownFormModal({ event, onSave, onClose }: CountdownFormModa
                 value={form.title}
                 onChange={(e) => set("title", e.target.value)}
                 placeholder={t("countdown.form.title.ph")}
+                aria-label={t("countdown.form.title")}
                 style={inputStyle(!!errors.title)}
               />
               {errors.title && <FieldError msg={errors.title} />}
