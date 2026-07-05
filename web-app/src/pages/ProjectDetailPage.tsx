@@ -12,7 +12,7 @@ import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { ProgressRing } from "@/components/ProgressRing";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { Spinner } from "@/components/Spinner";
+import { QuickCreate } from "@/components/QuickCreate";
 import { AddExistingTaskModal } from "@/components/AddExistingTaskModal";
 import { EmptyState } from "@/components/EmptyState";
 import { computeProjectRecap } from "@/utils/projectRecap";
@@ -41,7 +41,6 @@ export function ProjectDetailPage() {
   const update = useProjectsStore((s) => s.update);
   const remove = useProjectsStore((s) => s.remove);
   const tasks = useTasksStore((s) => s.tasks);
-  const createTask = useTasksStore((s) => s.create);
   const saveFromProject = useTemplatesStore((s) => s.saveFromProject);
   const doneCount = useProjectsStore((s) => (id ? s.doneCounts[id] ?? 0 : 0));
   const focusMinutes = useProjectsStore((s) => (id ? s.focusMinutes[id] ?? 0 : 0));
@@ -54,13 +53,12 @@ export function ProjectDetailPage() {
   const [taskView, setTaskView] = useState<"list" | "board">("list");
   const [notesEditing, setNotesEditing] = useState(false);
   const [addExistingOpen, setAddExistingOpen] = useState(false);
-  const [addingTask, setAddingTask] = useState(false);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
 
   const [newGoal, setNewGoal] = useState("");
   const [newGoalStart, setNewGoalStart] = useState("");
   const [newGoalTarget, setNewGoalTarget] = useState("");
   const [newGoalUnit, setNewGoalUnit] = useState("");
-  const [newTask, setNewTask] = useState("");
 
   // Header fields are controlled drafts with an explicit ✓ confirm button, so
   // an edit is only persisted on confirm/Enter (not per keystroke). Re-seed
@@ -140,15 +138,6 @@ export function ProjectDetailPage() {
   }
   function removeGoal(i: number) {
     setGoals(goals.filter((_, idx) => idx !== i));
-  }
-
-  async function addTask() {
-    const text = newTask.trim();
-    if (!text || addingTask) return;
-    setNewTask("");
-    setAddingTask(true);
-    try { await createTask({ title: { en: text }, project_id: pid }); }
-    finally { setAddingTask(false); }
   }
 
   function onEnter(e: KeyboardEvent, fn: () => void) {
@@ -429,18 +418,15 @@ export function ProjectDetailPage() {
             ))}
           </div>
         )}
-        <div className="flex items-center gap-2 mt-2">
-          <input
-            value={newTask}
-            onChange={(e) => setNewTask(e.target.value)}
-            onKeyDown={(e) => onEnter(e, addTask)}
-            placeholder={t("project.tasks.add")}
-            className="inline-input flex-1 text-sm"
-          />
-          <button onClick={addTask} disabled={addingTask} aria-busy={addingTask} aria-label={t("project.tasks.add")} className="text-text-secondary hover:text-text-primary transition-colors disabled:opacity-60">
-            {addingTask ? <Spinner size={16} /> : <IconPlus size={16} />}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setAddTaskOpen(true)}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors"
+          style={{ color: "var(--accent-primary)", background: "var(--accent-fog)", border: "1px solid var(--accent-edge)" }}
+        >
+          <IconPlus size={14} />
+          {t("project.tasks.add")}
+        </button>
         <button
           type="button"
           onClick={() => setAddExistingOpen(true)}
@@ -464,6 +450,14 @@ export function ProjectDetailPage() {
 
       {addExistingOpen && (
         <AddExistingTaskModal projectId={pid} onClose={() => setAddExistingOpen(false)} />
+      )}
+
+      {addTaskOpen && (
+        <QuickCreate
+          projectId={pid}
+          onClose={() => setAddTaskOpen(false)}
+          onCreated={() => setAddTaskOpen(false)}
+        />
       )}
 
       <ConfirmDialog

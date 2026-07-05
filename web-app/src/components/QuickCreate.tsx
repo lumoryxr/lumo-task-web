@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { IconClose, IconSparkle } from "@/components/icons";
 import { Spinner } from "@/components/Spinner";
 import { useT } from "@/i18n/useT";
@@ -21,6 +22,8 @@ interface QuickCreateProps {
   initialQuadrant?: Quadrant;
   initialTitle?: string;
   initialDue?: string;
+  /** When set, the created task is filed under this project. */
+  projectId?: string;
   onClose: () => void;
   onCreated?: () => void;
 }
@@ -39,7 +42,7 @@ const Q_META: Record<Quadrant, { en: string; zh: string; descEn: string; descZh:
  * Modal for creating a task quickly. Per design: centered, dismiss via X or
  * Escape. Escape is a convenience but the X button is always the primary affordance.
  */
-export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, onClose, onCreated }: QuickCreateProps) {
+export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, projectId, onClose, onCreated }: QuickCreateProps) {
   const t = useT();
   const locale = useAppStore((s) => s.locale);
   const create = useTasksStore((s) => s.create);
@@ -122,6 +125,7 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
         assignee_ids: assigneeIds,
         recurrence,
         tags,
+        ...(projectId ? { project_id: projectId } : {}),
       });
       onCreated?.();
     } finally {
@@ -129,10 +133,10 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
     }
   }
 
-  return (
+  return createPortal(
     <div
       onClick={onClose}
-      className="fade-in absolute inset-0 z-[150] flex items-center justify-center"
+      className="fade-in fixed inset-0 z-[150] flex items-center justify-center"
       style={{ background: "rgba(8, 11, 10, 0.6)", backdropFilter: "blur(6px)", padding: "0 32px" }}
     >
       <div
@@ -461,6 +465,7 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
           </button>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

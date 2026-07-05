@@ -25,12 +25,12 @@ vi.mock("@/i18n/useT", () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function setup(props: { onCreated?: () => void } = {}) {
+function setup(props: { onCreated?: () => void; projectId?: string } = {}) {
   const onClose = vi.fn();
   const onCreated = props.onCreated ?? vi.fn();
   render(
     <MemoryRouter>
-      <QuickCreate onClose={onClose} onCreated={onCreated} />
+      <QuickCreate onClose={onClose} onCreated={onCreated} projectId={props.projectId} />
     </MemoryRouter>
   );
   return { onClose, onCreated };
@@ -115,5 +115,23 @@ describe("QuickCreate", () => {
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
     expect(mockCreate.mock.calls[0][0]).toMatchObject({ tags: ["work"] });
+  });
+
+  it("files the task under the given project when projectId is set", async () => {
+    setup({ projectId: "prj_abc" });
+    fireEvent.change(getTitleInput(), { target: { value: "Scoped task" } });
+    fireEvent.click(getCreateBtn());
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ project_id: "prj_abc" });
+  });
+
+  it("omits project_id when no projectId is given (global create)", async () => {
+    setup();
+    fireEvent.change(getTitleInput(), { target: { value: "Global task" } });
+    fireEvent.click(getCreateBtn());
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("project_id");
   });
 });
