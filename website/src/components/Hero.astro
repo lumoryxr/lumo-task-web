@@ -1,6 +1,9 @@
 ---
 import AppMock from "./AppMock.astro";
 const app = "https://lumo-task-frontend.onrender.com";
+// No-JS fallback → the latest GitHub release page. A script in Base.astro
+// upgrades [data-win-download] to the direct .exe asset URL + version.
+const releasesLatest = "https://github.com/lumoryxr/lumo-task-web/releases/latest";
 ---
 <section class="hero" id="top">
   <div class="aurora" aria-hidden="true">
@@ -28,11 +31,13 @@ const app = "https://lumo-task-frontend.onrender.com";
 
       <div class="hero-ctas reveal" data-delay="3">
         <a class="btn btn-primary" href={app} target="_blank" rel="noopener">
-          <span data-i18n-en>Start free</span><span data-i18n-zh>免费开始</span>
+          <span data-i18n-en>Open web app</span><span data-i18n-zh>打开网页版</span>
           <span aria-hidden="true">→</span>
         </a>
-        <a class="btn btn-ghost" href="#features">
-          <span data-i18n-en>See features</span><span data-i18n-zh>看看功能</span>
+        <a class="btn btn-ghost btn-win" data-win-download href={releasesLatest} target="_blank" rel="noopener">
+          <svg class="win-glyph" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.4 10.3 4.4v7.05H3V5.4Zm0 13.2 7.3 1v-7.05H3v6.05Zm8.4 1.15L21 21.1V12.6h-9.6v7.15Zm0-15.5v7.15H21V2.9l-9.6 1.35Z"/></svg>
+          <span data-i18n-en>Download for Windows</span><span data-i18n-zh>下载 Windows 版</span>
+          <span class="win-ver" data-win-ver aria-hidden="true"></span>
         </a>
       </div>
 

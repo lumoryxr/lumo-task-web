@@ -84,5 +84,36 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         });
       }
     </script>
+
+    <!-- Windows download: read the latest GitHub release and point the button
+         at the .exe asset directly. Falls back to the releases/latest page
+         (the button's default href) if the API is unreachable. -->
+    <script is:inline>
+      (function () {
+        var btns = document.querySelectorAll("[data-win-download]");
+        if (!btns.length) return;
+        fetch("https://api.github.com/repos/lumoryxr/lumo-task-web/releases/latest", {
+          headers: { Accept: "application/vnd.github+json" },
+        })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (rel) {
+            if (!rel) return;
+            var assets = rel.assets || [];
+            var exe = null;
+            for (var i = 0; i < assets.length; i++) {
+              if (/\.exe$/i.test(assets[i].name)) { exe = assets[i]; break; }
+            }
+            btns.forEach(function (btn) {
+              if (exe && exe.browser_download_url) {
+                btn.href = exe.browser_download_url;
+                btn.removeAttribute("target");
+              }
+              var ver = btn.querySelector("[data-win-ver]");
+              if (ver && rel.tag_name) ver.textContent = rel.tag_name;
+            });
+          })
+          .catch(function () {});
+      })();
+    </script>
   </body>
 </html>
