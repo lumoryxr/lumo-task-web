@@ -6,11 +6,17 @@ import { query, queryOne, execute, batch } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { hlcNow } from "../lib/hlc.js";
+import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
 import type { Variables } from "../env.js";
 import type { ProjectRow } from "../db/rows.js";
 
 const app = new Hono<{ Variables: Variables }>();
 app.use("/*", authMiddleware);
+
+// Projects are content-heavy (up to 1 MB each), so the page size stays modest
+// to bound each response; callers page through for the full set.
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 500;
 
 const IdParam = z.object({ id: z.string().min(1).max(64) });
 
@@ -97,14 +103,48 @@ export function rowToProject(row: ProjectRow) {
   };
 }
 
-// GET /projects
+// GET /projects[?limit=&cursor=] → { items, nextCursor }
+// Keyset-paginated by (created_at ASC, id ASC). Each project may carry up to
+// 1 MB of `content`, so an unbounded array is a real response-size risk on a
+// content-heavy account — paginating bounds every single response. The cursor
+// is a position only; the query is always re-scoped to the authenticated user.
+// Callers that want the whole list page through until nextCursor is null.
 app.get("/", async (c) => {
   const userId = c.get("userId");
-  const rows = await query<ProjectRow>(
-    "SELECT * FROM projects WHERE user_id = :uid AND deleted_at IS NULL ORDER BY created_at ASC",
-    { uid: userId }
-  );
-  return c.json(rows.map(rowToProject));
+
+  const limitRaw = Number(c.req.query("limit"));
+  const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, MAX_LIMIT) : DEFAULT_LIMIT;
+
+  let after: CursorPos | null = null;
+  const cursor = c.req.query("cursor");
+  if (cursor) {
+    try {
+      after = decodeCursor(cursor);
+    } catch {
+      return httpError(c, 400, "INVALID_CURSOR", "Invalid cursor");
+    }
+  }
+
+  let sql = "SELECT * FROM projects WHERE user_id = :uid AND deleted_at IS NULL";
+  const params: Record<string, string | number> = { uid: userId };
+  if (after) {
+    params.ca = after.createdAt;
+    params.cid = after.id;
+    sql += " AND (created_at > :ca OR (created_at = :ca AND id > :cid))";
+  }
+  // Fetch one extra row to know whether a further page exists.
+  params.lim = limit + 1;
+  sql += " ORDER BY created_at ASC, id ASC LIMIT :lim";
+  const rows = await query<ProjectRow>(sql, params);
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+  const nextCursor = hasMore && last
+    ? encodeCursor({ createdAt: last.created_at, id: last.id })
+    : null;
+
+  return c.json({ items: page.map(rowToProject), nextCursor });
 });
 
 // POST /projects/migrate — idempotent bulk import; must be before /:id

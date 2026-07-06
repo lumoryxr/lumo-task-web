@@ -843,18 +843,18 @@ describe("DFX · Security — cross-tenant id-collision guard on /v1/countdowns/
       token: attacker.token,
     });
     assert.equal(aStatus, 200);
-    assert.ok(Array.isArray(attackerList), "projects list must be an array");
+    assert.ok(Array.isArray(attackerList.items), "projects list must expose an items array");
     assert.ok(
-      attackerList.some((p: any) => p.id === ownId),
+      attackerList.items.some((p: any) => p.id === ownId),
       "attacker's own migrated project must be imported",
     );
     assert.ok(
-      !attackerList.some((p: any) => p.id === foreignId),
+      !attackerList.items.some((p: any) => p.id === foreignId),
       "attacker must NOT acquire the victim's project by colliding id (OR REPLACE would leak it)",
     );
 
     const { body: victimList } = await api("GET", "/v1/projects", { token: victim.token });
-    const survivor = victimList.find((p: any) => p.id === foreignId);
+    const survivor = victimList.items.find((p: any) => p.id === foreignId);
     assert.ok(survivor, "victim's project must survive the colliding import");
     assert.equal(survivor.name, "Victim Project", "victim's project content must be unmutated");
   });
@@ -1238,7 +1238,7 @@ describe("DFX · Robustness — bounded OKR/KPI goal fields on /v1/projects (#30
 
     // ...and round-trips every KPI field verbatim through the owner's list (no GET /:id).
     const listed = await api("GET", "/v1/projects", { token: alice.token });
-    const mine = (listed.body as Array<{ id: string; goals: Array<Record<string, unknown>> }>).find((p) => p.id === pid);
+    const mine = (listed.body.items as Array<{ id: string; goals: Array<Record<string, unknown>> }>).find((p) => p.id === pid);
     assert.ok(mine, "the created project appears in the owner's list");
     const g = mine!.goals[0];
     assert.equal(g.start, 20);
@@ -1257,7 +1257,7 @@ describe("DFX · Robustness — bounded OKR/KPI goal fields on /v1/projects (#30
     assert.equal(bad.body.error?.code, "VALIDATION_ERROR");
 
     const after = await api("GET", "/v1/projects", { token: alice.token });
-    const still = (after.body as Array<{ id: string; goals: Array<Record<string, unknown>> }>).find((p) => p.id === pid);
+    const still = (after.body.items as Array<{ id: string; goals: Array<Record<string, unknown>> }>).find((p) => p.id === pid);
     assert.equal(still!.goals[0].current, 40, "the stored KR is unmutated after the rejected PATCH (no partial poison)");
     assert.equal(still!.goals[0].unit, "万", "the stored unit survives the rejected PATCH");
   });
