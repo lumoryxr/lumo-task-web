@@ -576,7 +576,7 @@ function AllDayChip({ task }: { task: Task }) {
         <button
           onClick={(e) => { e.stopPropagation(); complete(task.id); }}
           aria-label={t("row.complete")}
-          className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="flex-shrink-0 opacity-0 group-hover:opacity-100 hover-reveal transition-opacity"
           style={{ color: "var(--accent-primary)" }}
         >
           <IconCheck size={10} strokeWidth={2.5} />

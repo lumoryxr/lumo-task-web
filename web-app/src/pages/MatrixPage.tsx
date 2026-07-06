@@ -22,6 +22,7 @@ import { FilterChip } from "@/components/FilterChip";
 import { CalendarView } from "@/components/CalendarView";
 import { MatrixSkeleton } from "@/components/skeletons";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useCoarsePointer } from "@/hooks/useCoarsePointer";
 import { derivePlanProjects, derivePlanTags, resolveActiveFilter, filterPlanTasks } from "@/utils/planFilters";
 
 /**
@@ -355,6 +356,9 @@ function MatrixTaskCard({ task }: { task: Task }) {
   const saveAsTemplate = useTemplatesStore((s) => s.saveFromTask);
 
   const [hovered, setHovered] = useState(false);
+  const coarse = useCoarsePointer();
+  // Touch devices never hover — keep the card actions reachable there.
+  const showActions = hovered || coarse;
   const [circleHover, setCircleHover] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -434,7 +438,7 @@ function MatrixTaskCard({ task }: { task: Task }) {
         {/* Hover actions */}
         <div
           className="flex items-center gap-1 transition-all"
-          style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none" }}
+          style={{ opacity: showActions ? 1 : 0, pointerEvents: showActions ? "auto" : "none" }}
         >
           <button
             onMouseDown={(e) => e.stopPropagation()}

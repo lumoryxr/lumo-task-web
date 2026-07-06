@@ -141,6 +141,13 @@ html, body, #root { margin: 0; padding: 0; height: 100%; }
 .planning-seg--nudge { background: var(--accent-fog); }
 .planning-seg--nudge:hover { background: var(--accent-dim); }
 
+/* Row/card actions that fade in on :hover (edit / delete / complete / ⋯ menu)
+   are unreachable on touch devices, which never hover. Force them visible where
+   the primary pointer can't hover, so touch users can always reach them. */
+@media (hover: none) {
+  .hover-reveal { opacity: 1 !important; pointer-events: auto !important; }
+}
+
 /* Settings label/value rows: fixed label column on desktop, stacked single
    column on mobile so the value controls never get crushed below ~640px. */
 .settings-row {
