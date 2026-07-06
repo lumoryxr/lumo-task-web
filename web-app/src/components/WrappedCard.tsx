@@ -34,6 +34,12 @@ const QUADRANT_SECTION_KEY: Record<RecapPeriod, string> = {
   year: "wrapped.quadrant.section.year",
 };
 
+const SHARE_TITLE_KEY: Record<RecapPeriod, string> = {
+  week: "wrapped.share.title",
+  month: "wrapped.share.title.month",
+  year: "wrapped.share.title.year",
+};
+
 interface WrappedCardProps {
   stats: PrevWeekStats;
   currentStreak: number;
@@ -110,7 +116,7 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
       );
       const file = new File([blob], "lumo-wrapped.png", { type: "image/png" });
       if (typeof navigator.share === "function" && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: t("wrapped.share.title") });
+        await navigator.share({ files: [file], title: t(SHARE_TITLE_KEY[period]) });
       } else {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
