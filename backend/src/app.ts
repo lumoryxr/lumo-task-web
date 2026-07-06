@@ -19,6 +19,7 @@ import templatesRoutes from "./routes/templates.js";
 import projectsRoutes from "./routes/projects.js";
 import { queryOne } from "./db/client.js";
 import { log, resolveRequestId } from "./lib/logger.js";
+import { bodySizeLimit } from "./lib/bodyLimit.js";
 
 const allowedOrigins = (process.env.LUMO_ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -77,6 +78,10 @@ app.use(
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   })
 );
+
+// Reject oversized request bodies at the edge (before JSON parse / Zod). Coarse
+// byte-level backstop complementing the per-array count caps on bulk imports.
+app.use("/*", bodySizeLimit);
 
 const v1 = new Hono();
 v1.route("/auth", authRoutes);
