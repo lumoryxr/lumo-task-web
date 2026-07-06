@@ -87,9 +87,12 @@ describe("CountdownCard", () => {
     expect(screen.getAllByText("countdown.today").length).toBeGreaterThan(0);
   });
 
-  it("shows yearly repeat badge", () => {
+  it("does not render the repeat badge on the card (keeps the bg motif clear)", () => {
+    // The 'Every year' badge was removed from the card face so it no longer
+    // sits over the themed background illustration; recurrence is still
+    // editable in the form.
     setup({ repeat: "yearly" });
-    expect(screen.getByText("countdown.repeat.yearly")).toBeTruthy();
+    expect(screen.queryByText("countdown.repeat.yearly")).toBeNull();
   });
 
   it("does not show repeat badge for one-time events", () => {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CountdownThemeArt } from "@/components/CountdownThemeArt";
-import { IconEdit, IconRepeat, IconTrash } from "@/components/icons";
+import { IconEdit, IconTrash } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { detectCountdownTheme } from "@/lib/countdownTheme";
 import type { CountdownColor, CountdownEvent } from "@/types/task";
@@ -317,21 +317,6 @@ export function CountdownCard({ event, locale, onEdit, onDelete }: CountdownCard
               </span>
             )}
           </span>
-          {event.repeat === "yearly" && (
-            <span style={{
-              display: "flex", alignItems: "center", gap: 4,
-              fontSize: 10, color: c.primary, opacity: 0.8,
-              background: c.fog,
-              border: `1px solid ${c.edge}`,
-              borderRadius: "var(--radius-sm)",
-              padding: "2px 6px",
-              letterSpacing: "0.04em",
-              fontWeight: 500,
-            }}>
-              <IconRepeat size={10} />
-              {t("countdown.repeat.yearly")}
-            </span>
-          )}
         </div>
       </div>
     </div>
