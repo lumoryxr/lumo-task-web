@@ -321,11 +321,10 @@ function ProjectCard({ project, taskCount, doneCount, onOpen, onEdit, onDelete, 
         >
           {project.emoji || "📁"}
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pr-6">
           <div className="text-sm font-semibold text-text-primary truncate">{project.name}</div>
           {project.category && <div className="text-xs text-text-muted truncate">{project.category}</div>}
         </div>
-        {total > 0 && <ProgressRing pct={pct} color={primary} />}
       </div>
       <div className="flex items-center gap-3 text-xs text-text-muted tabular-nums">
         <span title={t("project.progress.label")}>{doneCount}/{total} · {t("project.tasks.title")}</span>
@@ -335,6 +334,12 @@ function ProjectCard({ project, taskCount, doneCount, onOpen, onEdit, onDelete, 
           </span>
         )}
         {project.status === "archived" && <span style={{ color: "var(--text-faint)" }}>{t("project.status.archived")}</span>}
+        {total > 0 && (
+          <span className="ml-auto flex items-center gap-1.5 shrink-0">
+            <span style={{ color: pct === 100 ? "var(--accent-primary)" : "var(--text-muted)" }}>{pct}%</span>
+            <ProgressRing pct={pct} color={primary} size={20} stroke={2.5} />
+          </span>
+        )}
       </div>
       </button>
     </div>
