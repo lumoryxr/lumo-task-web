@@ -34,6 +34,8 @@ export const ERROR_CODES = {
   CLOUD_AUTH_FAILED: { status: 401, about: "Cloud sign-in was rejected" },
   // 404 — not found
   NOT_FOUND: { status: 404, about: "Requested resource does not exist" },
+  // 413 — payload too large
+  PAYLOAD_TOO_LARGE: { status: 413, about: "Request body exceeded the size limit" },
   // 409 — conflict
   EMAIL_TAKEN: { status: 409, about: "Email is already registered" },
   NOT_ENABLED: { status: 409, about: "Operation requires a feature that is not enabled" },
