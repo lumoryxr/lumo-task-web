@@ -397,7 +397,7 @@ describe("People management and task assignment", () => {
   test("GET /v1/people → list includes new person", async () => {
     const { status, body } = await api("GET", "/v1/people", { token: aliceToken });
     assert.equal(status, 200);
-    assert.ok(body.some((p: any) => p.id === personId));
+    assert.ok(body.items.some((p: any) => p.id === personId));
   });
 
   test("PATCH person name", async () => {
@@ -767,7 +767,7 @@ describe("Multi-user data isolation", () => {
 
     // Person still exists for alice
     const { body: people } = await api("GET", "/v1/people", { token: aliceToken });
-    assert.ok(people.some((p: any) => p.id === alicePersonId));
+    assert.ok(people.items.some((p: any) => p.id === alicePersonId));
   });
 
   test("bob's settings are independent of alice's", async () => {

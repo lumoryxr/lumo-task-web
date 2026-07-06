@@ -532,9 +532,22 @@ export const api = {
     await req("DELETE", `/tasks/${id}`);
   },
 
+  // GET /people is keyset-paginated ({ items, nextCursor }); page through
+  // transparently so callers keep their full-list semantics. Each request stays
+  // bounded; a hard page cap guards against a pathological loop.
   async listPeople(): Promise<Person[]> {
-    const rows = await req<any[]>("GET", "/people");
-    return rows.map(adaptPerson);
+    const out: Person[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 1000; page++) {
+      const path: string = cursor
+        ? `/people?limit=200&cursor=${encodeURIComponent(cursor)}`
+        : "/people?limit=200";
+      const res: { items: any[]; nextCursor: string | null } = await req("GET", path);
+      out.push(...res.items.map(adaptPerson));
+      if (res.nextCursor == null) return out;
+      cursor = res.nextCursor;
+    }
+    return out;
   },
 
   async createPerson(input: Omit<Person, "id">, id?: string): Promise<Person> {

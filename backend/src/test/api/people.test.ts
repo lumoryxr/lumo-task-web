@@ -5,8 +5,8 @@
  */
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
-import { PersonWireSchema } from "@lumo/contracts";
-import { req, setupDb, signInDemo } from "../helpers/index.js";
+import { PersonWireSchema, PersonListResponseSchema } from "@lumo/contracts";
+import { req, setupDb, signInDemo, newUserWithToken } from "../helpers/index.js";
 
 let demoToken = "";
 let personId = ""; // reused across the CRUD flow within this file
@@ -17,16 +17,64 @@ before(async () => {
 });
 
 describe("GET /v1/people", () => {
-  test("200 → returns array", async () => {
+  test("200 → returns a keyset page { items, nextCursor }", async () => {
     const { status, body } = await req("GET", "/v1/people", { token: demoToken });
     assert.equal(status, 200);
-    assert.ok(Array.isArray(body));
-    for (const p of body) PersonWireSchema.parse(p); // contract conformance
+    const parsed = PersonListResponseSchema.parse(body); // contract conformance
+    assert.ok(Array.isArray(parsed.items));
   });
 
   test("401 → no token", async () => {
     const { status } = await req("GET", "/v1/people");
     assert.equal(status, 401);
+  });
+
+  test("400 → malformed cursor is rejected", async () => {
+    const { status, body } = await req("GET", "/v1/people?cursor=not-a-valid-cursor%00%00", { token: demoToken });
+    assert.equal(status, 400);
+    assert.equal((body as any).error?.code, "INVALID_CURSOR");
+  });
+
+  test("pages through with limit + cursor, in stable created_at ASC order, no dupes/gaps", async () => {
+    // Fresh isolated user so the count is deterministic.
+    const { token } = await newUserWithToken();
+    const created: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const { body } = await req("POST", "/v1/people", {
+        token,
+        body: { name: `Person ${i}`, initials: "PX", color: "#5bc8d4" },
+      });
+      created.push(body.id);
+    }
+
+    // Walk pages of size 2 and accumulate.
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const path: string = cursor
+        ? `/v1/people?limit=2&cursor=${encodeURIComponent(cursor)}`
+        : "/v1/people?limit=2";
+      const { status, body } = await req("GET", path, { token });
+      assert.equal(status, 200);
+      const parsed = PersonListResponseSchema.parse(body);
+      assert.ok(parsed.items.length <= 2, "page must respect the limit");
+      for (const p of parsed.items) seen.push(p.id);
+      cursor = parsed.nextCursor;
+      pages += 1;
+      assert.ok(pages <= 10, "must terminate");
+    } while (cursor);
+
+    assert.equal(seen.length, 5, "every person appears exactly once across pages");
+    assert.equal(new Set(seen).size, 5, "no duplicates across pages");
+    // created_at ASC == creation order for these sequential inserts.
+    assert.deepEqual(seen, created, "stable creation order across pages");
+  });
+
+  test("limit is capped at MAX_LIMIT (over-max does not error)", async () => {
+    const { status, body } = await req("GET", "/v1/people?limit=99999", { token: demoToken });
+    assert.equal(status, 200);
+    PersonListResponseSchema.parse(body);
   });
 });
 

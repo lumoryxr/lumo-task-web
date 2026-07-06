@@ -6,11 +6,17 @@ import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { hlcNow } from "../lib/hlc.js";
+import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
 import type { Variables } from "../env.js";
 import type { PersonRow } from "../db/rows.js";
 
 const app = new Hono<{ Variables: Variables }>();
 app.use("/*", authMiddleware);
+
+// A team is usually small; page size stays generous so ordinary callers get
+// everyone in one request, while the cursor bounds a pathologically large team.
+const DEFAULT_LIMIT = 200;
+const MAX_LIMIT = 500;
 
 // Request/response shapes are owned by @lumo/contracts (Contract-First).
 export function rowToPerson(row: PersonRow): PersonWire {
@@ -24,15 +30,48 @@ export function rowToPerson(row: PersonRow): PersonWire {
   };
 }
 
-// GET /people
+// GET /people[?limit=&cursor=] → { items, nextCursor }
+// Keyset-paginated by (created_at ASC, id ASC) so a large team never returns an
+// unbounded array. The cursor is a position only; the query is always re-scoped
+// to the authenticated user. Callers that want the whole list page through
+// until nextCursor is null.
 app.get("/", async (c) => {
   const userId = c.get("userId") as string;
+
+  const limitRaw = Number(c.req.query("limit"));
+  const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, MAX_LIMIT) : DEFAULT_LIMIT;
+
+  let after: CursorPos | null = null;
+  const cursor = c.req.query("cursor");
+  if (cursor) {
+    try {
+      after = decodeCursor(cursor);
+    } catch {
+      return httpError(c, 400, "INVALID_CURSOR", "Invalid cursor");
+    }
+  }
+
   try {
-    const rows = await query<PersonRow>(
-      "SELECT * FROM people WHERE user_id = :uid AND deleted_at IS NULL ORDER BY created_at ASC",
-      { uid: userId }
-    );
-    return c.json(rows.map(rowToPerson));
+    let sql = "SELECT * FROM people WHERE user_id = :uid AND deleted_at IS NULL";
+    const params: Record<string, string | number> = { uid: userId };
+    if (after) {
+      params.ca = after.createdAt;
+      params.cid = after.id;
+      sql += " AND (created_at > :ca OR (created_at = :ca AND id > :cid))";
+    }
+    // Fetch one extra row to know whether a further page exists.
+    params.lim = limit + 1;
+    sql += " ORDER BY created_at ASC, id ASC LIMIT :lim";
+    const rows = await query<PersonRow>(sql, params);
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
+    const nextCursor = hasMore && last
+      ? encodeCursor({ createdAt: last.created_at, id: last.id })
+      : null;
+
+    return c.json({ items: page.map(rowToPerson), nextCursor });
   } catch (err) {
     console.error("[people] GET /:", err instanceof Error ? err.message : err);
     return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");

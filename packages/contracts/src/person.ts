@@ -35,11 +35,21 @@ export const PersonWireSchema = z.object({
   created_at: z.string(),
 });
 
+// ── Paginated list response ───────────────────────────────────────────────────
+// GET /people returns a keyset-paginated envelope: a page of items plus the
+// cursor to fetch the next page (null on the last page).
+
+export const PersonListResponseSchema = z.object({
+  items: z.array(PersonWireSchema),
+  nextCursor: z.string().nullable(),
+});
+
 // ── Inferred request/wire types ───────────────────────────────────────────────
 
 export type PersonCreateInput = z.input<typeof PersonCreateBodySchema>;
 export type PersonUpdateInput = z.input<typeof PersonUpdateBodySchema>;
 export type PersonWire = z.infer<typeof PersonWireSchema>;
+export type PersonListResponse = z.infer<typeof PersonListResponseSchema>;
 
 // ── Normalized client view (re-exported by web-app/src/types) ─────────────────
 

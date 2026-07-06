@@ -391,7 +391,16 @@ export async function executeTool(
     // ── People ─────────────────────────────────────────────────────────────
 
     case "list_people": {
-      const people = await api("GET", "/people") as any[];
+      // GET /people is keyset-paginated ({ items, nextCursor }); page through.
+      const people: any[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 1000; page++) {
+        const path = cursor ? `/people?limit=200&cursor=${encodeURIComponent(cursor)}` : "/people?limit=200";
+        const res = (await api("GET", path)) as { items: any[]; nextCursor: string | null };
+        people.push(...res.items);
+        if (res.nextCursor == null) break;
+        cursor = res.nextCursor;
+      }
       return JSON.stringify(people.map((p) => ({
         id: p.id, name: p.name, initials: p.initials, color: p.color, email: p.email,
       })));
