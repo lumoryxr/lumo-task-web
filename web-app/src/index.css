@@ -128,6 +128,19 @@ html, body, #root { margin: 0; padding: 0; height: 100%; }
   .surface-card--interactive:hover { transform: none; }
 }
 
+/* Today page — compact planning strip. Three low-frequency actions (plan day /
+   plan week / evening review) folded into one row of segments instead of three
+   tall banners, keeping the page focused on tasks. */
+.planning-seg {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.planning-seg:hover { background: var(--bg-elevated); }
+.planning-seg--nudge { background: var(--accent-fog); }
+.planning-seg--nudge:hover { background: var(--accent-dim); }
+
 /* Settings label/value rows: fixed label column on desktop, stacked single
    column on mobile so the value controls never get crushed below ~640px. */
 .settings-row {

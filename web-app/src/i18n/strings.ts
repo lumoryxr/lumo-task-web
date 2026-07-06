@@ -59,6 +59,9 @@ export const STRINGS: Record<Locale, Dict> = {
     "today.est": "Est",
     "today.planning.btn.start": "Start planning today",
     "today.planning.btn.adjust": "Adjust today's plan",
+    "today.strip.plan": "Plan day",
+    "today.strip.week": "Plan week",
+    "today.strip.evening": "Review",
 
     "planning.title": "Morning Planning",
     "planning.step.carry.title": "Yesterday's unfinished",
@@ -966,6 +969,9 @@ export const STRINGS: Record<Locale, Dict> = {
     "today.est": "预估",
     "today.planning.btn.start": "开始规划今天",
     "today.planning.btn.adjust": "调整今日计划",
+    "today.strip.plan": "规划今天",
+    "today.strip.week": "规划本周",
+    "today.strip.evening": "晚间回顾",
 
     "planning.title": "晨间规划",
     "planning.step.carry.title": "昨日未完成",
