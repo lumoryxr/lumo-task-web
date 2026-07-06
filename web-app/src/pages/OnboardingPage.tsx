@@ -203,11 +203,12 @@ function LangStep() {
 
 function AccentStep() {
   const { accent, setAccent } = useAppStore();
+  const t = useT();
   const options: Array<{ id: Accent; hex: string; label: string }> = [
-    { id: "green", hex: "#3DFFA0", label: "Lumo Green" },
-    { id: "cyan", hex: "#38D4D4", label: "Calm Cyan" },
-    { id: "amber", hex: "#FFAA44", label: "Warm Amber" },
-    { id: "graphite", hex: "#A0ADB0", label: "Graphite" },
+    { id: "green", hex: "#3DFFA0", label: t("accent.green") },
+    { id: "cyan", hex: "#38D4D4", label: t("accent.cyan") },
+    { id: "amber", hex: "#FFAA44", label: t("accent.amber") },
+    { id: "graphite", hex: "#A0ADB0", label: t("accent.graphite") },
   ];
   return (
     <div className="grid grid-cols-2 gap-2.5">
@@ -247,12 +248,12 @@ function DensityStep() {
     {
       id: "comfortable",
       label: t("settings.density.comfy"),
-      sub: "Roomier rows; easier to scan.",
+      sub: t("onb.density.comfy.sub"),
     },
     {
       id: "compact",
       label: t("settings.density.compact"),
-      sub: "Tighter rows; fits more on screen.",
+      sub: t("onb.density.compact.sub"),
     },
   ];
   return (
@@ -279,6 +280,7 @@ function DensityStep() {
 }
 
 function ReadyStep() {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center py-4 gap-3">
       <div
@@ -292,7 +294,7 @@ function ReadyStep() {
       >
         <IconCheck size={28} style={{ color: "var(--accent-primary)" }} />
       </div>
-      <div className="text-[11px] text-text-faint">All preferences saved locally.</div>
+      <div className="text-[11px] text-text-faint">{t("onb.ready.saved")}</div>
     </div>
   );
 }
