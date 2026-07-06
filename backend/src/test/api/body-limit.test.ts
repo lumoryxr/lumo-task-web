@@ -56,4 +56,16 @@ describe("Body-size limit", () => {
     });
     assert.equal(status, 201);
   });
+
+  test("201 → a schema-valid large CJK `content` write is NOT rejected (byte vs char)", async () => {
+    // `content` is capped at 1_000_000 *chars*; 1M CJK chars is ~3 MB UTF-8.
+    // The byte-based limit must clear that so a write the schema accepts isn't
+    // wrongly 413'd — the exact regression a 2 MB default would have caused.
+    const content = "中".repeat(1_000_000);
+    const { status } = await req("POST", "/v1/projects", {
+      token: demoToken,
+      body: { name: "Big CJK note", color: "cyan", content },
+    });
+    assert.equal(status, 201);
+  });
 });
