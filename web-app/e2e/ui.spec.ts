@@ -316,7 +316,8 @@ async function mockAPIWithData(page: Page) {
         if (idx >= 0) projects.splice(idx, 1);
         return route.fulfill({ status: 204, body: "" });
       }
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(projects) });
+      // GET → keyset-paginated envelope { items, nextCursor } (single page here).
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: projects, nextCursor: null }) });
     }
 
     // Auth

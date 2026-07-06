@@ -883,9 +883,22 @@ export type ProjectCreateInput = Omit<Project, "id" | "createdAt" | "updatedAt" 
 export type ProjectUpdateInput = Partial<Omit<Project, "id" | "createdAt" | "updatedAt">>;
 
 export const projectApi = {
+  // GET /projects is keyset-paginated ({ items, nextCursor }); page through
+  // transparently so callers keep their full-list semantics. Each request stays
+  // bounded (projects can be content-heavy); a hard page cap guards a loop.
   async list(): Promise<Project[]> {
-    const rows = await req<any[]>("GET", "/projects");
-    return Array.isArray(rows) ? rows.map(adaptProject) : [];
+    const out: Project[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 1000; page++) {
+      const path: string = cursor
+        ? `/projects?limit=100&cursor=${encodeURIComponent(cursor)}`
+        : "/projects?limit=100";
+      const res: { items: any[]; nextCursor: string | null } = await req("GET", path);
+      out.push(...res.items.map(adaptProject));
+      if (res.nextCursor == null) return out;
+      cursor = res.nextCursor;
+    }
+    return out;
   },
 
   async create(input: ProjectCreateInput, id?: string): Promise<Project> {

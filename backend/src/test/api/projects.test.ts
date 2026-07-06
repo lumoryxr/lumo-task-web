@@ -14,6 +14,59 @@ before(async () => {
   ({ token: demoToken } = await signInDemo());
 });
 
+describe("GET /v1/projects — keyset pagination", () => {
+  test("200 → returns a { items, nextCursor } page", async () => {
+    const { status, body } = await req("GET", "/v1/projects", { token: demoToken });
+    assert.equal(status, 200);
+    assert.ok(Array.isArray(body.items), "items must be an array");
+    assert.ok(body.nextCursor === null || typeof body.nextCursor === "string");
+  });
+
+  test("400 → malformed cursor is rejected", async () => {
+    const { status, body } = await req("GET", "/v1/projects?cursor=%00%00bad", { token: demoToken });
+    assert.equal(status, 400);
+    assert.equal((body as any).error?.code, "INVALID_CURSOR");
+  });
+
+  test("pages through with limit + cursor in created_at ASC order, no dupes/gaps", async () => {
+    const { token } = await newUserWithToken();
+    const created: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const { body } = await req("POST", "/v1/projects", {
+        token,
+        body: { name: `Project ${i}`, color: "cyan" },
+      });
+      created.push(body.id);
+    }
+
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const path: string = cursor
+        ? `/v1/projects?limit=2&cursor=${encodeURIComponent(cursor)}`
+        : "/v1/projects?limit=2";
+      const { status, body } = await req("GET", path, { token });
+      assert.equal(status, 200);
+      assert.ok(body.items.length <= 2, "page respects the limit");
+      for (const p of body.items) seen.push(p.id);
+      cursor = body.nextCursor;
+      pages += 1;
+      assert.ok(pages <= 10, "must terminate");
+    } while (cursor);
+
+    assert.equal(seen.length, 5, "every project appears exactly once across pages");
+    assert.equal(new Set(seen).size, 5, "no duplicates across pages");
+    assert.deepEqual(seen, created, "stable creation order across pages");
+  });
+
+  test("limit is capped (over-max does not error)", async () => {
+    const { status, body } = await req("GET", "/v1/projects?limit=99999", { token: demoToken });
+    assert.equal(status, 200);
+    assert.ok(Array.isArray(body.items));
+  });
+});
+
 describe("Projects", () => {
   let projectId = "";
 
@@ -54,7 +107,7 @@ describe("Projects", () => {
     assert.equal(body.pinned, true);
 
     const { body: list } = await req("GET", "/v1/projects", { token: demoToken });
-    assert.equal((list as any[]).find((p) => p.id === body.id)?.pinned, true, "pinned survives GET");
+    assert.equal((list.items as any[]).find((p) => p.id === body.id)?.pinned, true, "pinned survives GET");
 
     const { body: patched } = await req("PATCH", `/v1/projects/${body.id}`, {
       token: demoToken,
@@ -88,7 +141,7 @@ describe("Projects", () => {
     assert.equal(body.goals[0].unit, "万");
 
     const { body: list } = await req("GET", "/v1/projects", { token: demoToken });
-    const fetched = (list as any[]).find((p) => p.id === body.id);
+    const fetched = (list.items as any[]).find((p) => p.id === body.id);
     assert.equal(fetched?.goals[0].target, 100, "KPI target survives GET");
     assert.equal(fetched?.goals[0].current, 42, "KPI current survives GET");
     assert.equal(fetched?.goals[0].start, 20, "KPI start baseline survives GET");
@@ -107,7 +160,7 @@ describe("Projects", () => {
     assert.equal(body.goals[0].confidence, "at_risk");
 
     const { body: list } = await req("GET", "/v1/projects", { token: demoToken });
-    const fetched = (list as any[]).find((p) => p.id === body.id);
+    const fetched = (list.items as any[]).find((p) => p.id === body.id);
     assert.equal(fetched?.goals[0].confidence, "at_risk", "confidence survives GET");
     await req("DELETE", `/v1/projects/${body.id}`, { token: demoToken });
 
@@ -160,7 +213,7 @@ describe("Projects", () => {
     assert.equal(body.status, "active");
     assert.deepEqual(body.goals, []);
     const list = await req("GET", "/v1/projects", { token: demoToken });
-    assert.ok((list.body as any[]).some((p) => p.id === body.id));
+    assert.ok((list.body.items as any[]).some((p) => p.id === body.id));
   });
 
   test("200 → PATCH updates goals and content", async () => {
@@ -207,7 +260,7 @@ describe("Projects", () => {
     const { status } = await req("DELETE", `/v1/projects/${projectId}`, { token: demoToken });
     assert.equal(status, 204);
     const { body } = await req("GET", "/v1/projects", { token: demoToken });
-    assert.equal((body as any[]).some((p) => p.id === projectId), false);
+    assert.equal((body.items as any[]).some((p) => p.id === projectId), false);
   });
 
   test("404 → DELETE on an already-removed project", async () => {
@@ -255,7 +308,7 @@ describe("Projects", () => {
     assert.equal((await req("POST", "/v1/projects/migrate", { token: demoToken, body: payload })).status, 200);
     assert.equal((await req("POST", "/v1/projects/migrate", { token: demoToken, body: payload })).status, 200);
     const { body } = await req("GET", "/v1/projects", { token: demoToken });
-    assert.equal((body as any[]).filter((p) => p.id === "prj_migrate_1").length, 1);
+    assert.equal((body.items as any[]).filter((p) => p.id === "prj_migrate_1").length, 1);
   });
 
   test("400 → POST /migrate rejects an over-cap projects array (bounded bulk import)", async () => {
@@ -285,7 +338,7 @@ describe("Projects — cross-user isolation", () => {
     });
 
     const { body: bProjects } = await req("GET", "/v1/projects", { token: otherToken });
-    assert.equal((bProjects as any[]).some((p) => p.id === project.id), false);
+    assert.equal((bProjects.items as any[]).some((p) => p.id === project.id), false);
 
     assert.equal(
       (await req("PATCH", `/v1/projects/${project.id}`, { token: otherToken, body: { name: "hijacked" } })).status,
@@ -294,7 +347,7 @@ describe("Projects — cross-user isolation", () => {
     assert.equal((await req("DELETE", `/v1/projects/${project.id}`, { token: otherToken })).status, 404);
 
     const { body: aProjects } = await req("GET", "/v1/projects", { token: demoToken });
-    assert.equal((aProjects as any[]).some((p) => p.id === project.id), true);
+    assert.equal((aProjects.items as any[]).some((p) => p.id === project.id), true);
     await req("DELETE", `/v1/projects/${project.id}`, { token: demoToken });
   });
 });
