@@ -8,7 +8,7 @@ import { useTasksStore } from "@/store/useTasksStore";
 import type { CompletedEntry } from "@/types/task";
 import { computeWeekStats, computeAllTimeStats, computeTagDistribution, fmtHour } from "@/utils/stats";
 import { currentStreak as habitStreak, toDateStr } from "@/utils/habits";
-import { shouldShowWrapped, markWrappedShown, computePrevWeekStats, computeMonthStats, shouldShowMonthlyWrapped, markMonthlyWrappedShown } from "@/utils/wrapped";
+import { shouldShowWrapped, markWrappedShown, computePrevWeekStats, computeMonthStats, shouldShowMonthlyWrapped, markMonthlyWrappedShown, computeYearStats, shouldShowYearlyWrapped, markYearlyWrappedShown } from "@/utils/wrapped";
 import { pendingStreakMilestone, markStreakMilestoneCelebrated } from "@/utils/streakMilestone";
 import { useNavigate } from "react-router-dom";
 import { ShareCard } from "@/components/ShareCard";
@@ -56,6 +56,7 @@ export function StatsPage() {
   const [loading, setLoading] = useState(true);
   const [showWrapped, setShowWrapped] = useState(false);
   const [showMonthlyWrapped, setShowMonthlyWrapped] = useState(false);
+  const [showYearlyWrapped, setShowYearlyWrapped] = useState(false);
   const [streakMilestone, setStreakMilestone] = useState<number | null>(null);
   const [showRecaps, setShowRecaps] = useState(false);
 
@@ -71,6 +72,10 @@ export function StatsPage() {
       if (shouldShowMonthlyWrapped(userId)) {
         setShowMonthlyWrapped(true);
         markMonthlyWrappedShown(userId);
+      }
+      if (shouldShowYearlyWrapped(userId)) {
+        setShowYearlyWrapped(true);
+        markYearlyWrappedShown(userId);
       }
       // Celebrate a freshly-reached completion-streak milestone, once per user.
       const reached = pendingStreakMilestone(userId, computeAllTimeStats(data).currentStreak);
@@ -106,6 +111,7 @@ export function StatsPage() {
   const allTime = computeAllTimeStats(entries);
   const prevWeekStats = computePrevWeekStats(entries);
   const monthStats = computeMonthStats(entries);
+  const yearStats = computeYearStats(entries);
 
   const bestHabitStreak = habits.length > 0
     ? Math.max(...habits.map((h) => habitStreak(h, habitLogs)))
@@ -193,6 +199,20 @@ export function StatsPage() {
                   userName={userName}
                   period="month"
                   onDismiss={() => setShowMonthlyWrapped(false)}
+                />
+              </section>
+            )}
+
+            {/* Yearly Wrapped — shown once at the start of a new year */}
+            {showYearlyWrapped && yearStats.tasksCompleted > 0 && (
+              <section>
+                <h2 className="text-[13px] font-semibold text-text-secondary mb-3">{t("wrapped.year.section.title")}</h2>
+                <WrappedCard
+                  stats={yearStats}
+                  currentStreak={allTime.currentStreak}
+                  userName={userName}
+                  period="year"
+                  onDismiss={() => setShowYearlyWrapped(false)}
                 />
               </section>
             )}

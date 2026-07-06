@@ -88,8 +88,8 @@ export function ChangePasswordPage() {
       </h1>
 
       <div
-        className="rounded-[10px] border bg-surface overflow-hidden"
-        style={{ borderColor: "var(--border-default)", maxWidth: 480 }}
+        className="surface-card overflow-hidden"
+        style={{ maxWidth: 480 }}
       >
         {success ? (
           <div className="px-6 py-8 flex flex-col items-center gap-3 text-center">

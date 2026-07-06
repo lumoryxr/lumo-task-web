@@ -20,13 +20,33 @@ const QUADRANT_COLOR: Record<string, string> = {
   Q4: "var(--q4-color)",
 };
 
+type RecapPeriod = "week" | "month" | "year";
+
+const TITLE_KEY: Record<RecapPeriod, string> = {
+  week: "wrapped.title",
+  month: "wrapped.month.title",
+  year: "wrapped.year.title",
+};
+
+const QUADRANT_SECTION_KEY: Record<RecapPeriod, string> = {
+  week: "wrapped.quadrant.section",
+  month: "wrapped.quadrant.section.month",
+  year: "wrapped.quadrant.section.year",
+};
+
+const SHARE_TITLE_KEY: Record<RecapPeriod, string> = {
+  week: "wrapped.share.title",
+  month: "wrapped.share.title.month",
+  year: "wrapped.share.title.year",
+};
+
 interface WrappedCardProps {
   stats: PrevWeekStats;
   currentStreak: number;
   userName: string;
   onDismiss: () => void;
   /** Recap period — drives the title and the coaching-insight wording. */
-  period?: "week" | "month";
+  period?: RecapPeriod;
 }
 
 export function WrappedCard({ stats, currentStreak, userName, onDismiss, period = "week" }: WrappedCardProps) {
@@ -54,10 +74,10 @@ export function WrappedCard({ stats, currentStreak, userName, onDismiss, period 
     const q2Pct = getQ("Q2");
     const q3Pct = getQ("Q3");
     const q4Pct = getQ("Q4");
-    const pastZh = period === "month" ? "上月" : "上周";
-    const nextZh = period === "month" ? "下月" : "下周";
-    const pastEn = period === "month" ? "last month's" : "last week's";
-    const nextEn = period === "month" ? "next-month" : "next-week";
+    const pastZh = period === "year" ? "去年" : period === "month" ? "上月" : "上周";
+    const nextZh = period === "year" ? "明年" : period === "month" ? "下月" : "下周";
+    const pastEn = period === "year" ? "last year's" : period === "month" ? "last month's" : "last week's";
+    const nextEn = period === "year" ? "next-year" : period === "month" ? "next-month" : "next-week";
     fetchWrappedInsight(
       [{
         role: "user",
@@ -96,7 +116,7 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
       );
       const file = new File([blob], "lumo-wrapped.png", { type: "image/png" });
       if (typeof navigator.share === "function" && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: t("wrapped.share.title") });
+        await navigator.share({ files: [file], title: t(SHARE_TITLE_KEY[period]) });
       } else {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -140,7 +160,7 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 2 }}>
-              {userName ? `${userName} · ` : ""}{t(period === "month" ? "wrapped.month.title" : "wrapped.title")}
+              {userName ? `${userName} · ` : ""}{t(TITLE_KEY[period])}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{stats.weekLabel}</div>
           </div>
@@ -173,7 +193,7 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
         {stats.tasksCompleted > 0 && visibleQuadrants.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 10, color: "var(--text-faint)", marginBottom: 6, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-              {t("wrapped.quadrant.section")}
+              {t(QUADRANT_SECTION_KEY[period])}
             </div>
             {/* Proportional color bar */}
             <div style={{ display: "flex", height: 5, borderRadius: 3, overflow: "hidden", gap: 2, marginBottom: 7 }}>

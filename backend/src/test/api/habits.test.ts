@@ -181,6 +181,28 @@ describe("Habits", () => {
     const { body: logs } = await req("GET", "/v1/habits/logs", { token: demoToken });
     assert.equal((logs as any[]).filter((l) => l.habitId === "habit_migrate_1").length, 1);
   });
+
+  test("400 → POST /migrate rejects an over-cap habits array (bounded bulk import)", async () => {
+    const habits = Array.from({ length: 10_001 }, (_, i) => ({
+      id: `h_over_${i}`,
+      title: "x",
+      color: "green",
+      frequency: "daily",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const { status, body } = await req("POST", "/v1/habits/migrate", { token: demoToken, body: { habits, logs: [] } });
+    assert.equal(status, 400);
+    assert.equal((body as any).error?.code, "VALIDATION_ERROR");
+  });
+
+  test("400 → POST /migrate rejects an over-cap logs array", async () => {
+    const logs = Array.from({ length: 200_001 }, () => ({
+      habitId: "h", date: "2026-01-01", completedAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const { status, body } = await req("POST", "/v1/habits/migrate", { token: demoToken, body: { habits: [], logs } });
+    assert.equal(status, 400);
+    assert.equal((body as any).error?.code, "VALIDATION_ERROR");
+  });
 });
 
 describe("Habits — cross-user isolation", () => {

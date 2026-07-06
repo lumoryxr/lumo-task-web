@@ -257,6 +257,18 @@ describe("Projects", () => {
     const { body } = await req("GET", "/v1/projects", { token: demoToken });
     assert.equal((body as any[]).filter((p) => p.id === "prj_migrate_1").length, 1);
   });
+
+  test("400 → POST /migrate rejects an over-cap projects array (bounded bulk import)", async () => {
+    const projects = Array.from({ length: 10_001 }, (_, i) => ({
+      id: `prj_over_${i}`,
+      name: "x",
+      color: "amber",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const { status, body } = await req("POST", "/v1/projects/migrate", { token: demoToken, body: { projects } });
+    assert.equal(status, 400);
+    assert.equal((body as any).error?.code, "VALIDATION_ERROR");
+  });
 });
 
 describe("Projects — cross-user isolation", () => {

@@ -194,10 +194,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   return (
     <div>
       <h2 className="text-[15px] font-semibold text-text-primary mb-5">{title}</h2>
-      <div
-        className="rounded-[10px] border bg-surface overflow-hidden"
-        style={{ borderColor: "var(--border-default)" }}
-      >
+      <div className="surface-card overflow-hidden">
         {children}
       </div>
     </div>
@@ -252,7 +249,7 @@ function PetPanel({
   return (
     <div>
       <h2 className="text-[15px] font-semibold text-text-primary mb-5">{t("settings.pet")}</h2>
-      <div className="rounded-[10px] border bg-surface overflow-hidden" style={{ borderColor: "var(--border-default)" }}>
+      <div className="surface-card overflow-hidden">
         {/* Visibility + reset */}
         <div className="px-5 py-3 flex items-center justify-between border-b border-border-faint">
           <div>
@@ -413,7 +410,7 @@ function MembersPanel({
           </button>
         )}
       </div>
-      <div className="rounded-[10px] border bg-surface overflow-hidden" style={{ borderColor: "var(--border-default)" }}>
+      <div className="surface-card overflow-hidden">
         {people.length === 0 && !adding && (
           <EmptyState
             variant="panel"
@@ -585,7 +582,7 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
   return (
     <div>
       <h2 className="text-[15px] font-semibold text-text-primary mb-5">{t("ai.config.title")}</h2>
-      <div className="rounded-[10px] border bg-surface overflow-hidden" style={{ borderColor: "var(--border-default)" }}>
+      <div className="surface-card overflow-hidden">
 
         {cloudEnabled && !anyKeyConfigured && (
           <div className="px-5 py-3.5 border-b border-border-faint">
@@ -759,7 +756,7 @@ function IntegrationsPanel({ t }: { t: (k: string) => string }) {
   return (
     <div>
       <h2 className="text-[15px] font-semibold text-text-primary mb-5">{t("settings.integrations")}</h2>
-      <div className="rounded-[10px] border bg-surface overflow-hidden" style={{ borderColor: "var(--border-default)" }}>
+      <div className="surface-card overflow-hidden">
         <div className="grid items-center px-5 py-4" style={{ gridTemplateColumns: "1fr auto", gap: 16 }}>
           <div>
             <div className="flex items-center gap-2">
@@ -963,7 +960,7 @@ function StoragePanel({ t }: { t: (k: string) => string }) {
   return (
     <div>
       <h2 className="text-[15px] font-semibold text-text-primary mb-5">{t("settings.storage")}</h2>
-      <div className="rounded-[10px] border bg-surface overflow-hidden" style={{ borderColor: "var(--border-default)" }}>
+      <div className="surface-card overflow-hidden">
         <div className="settings-row items-start px-5 py-4 border-b border-border-faint">
           <div>
             <div className="text-[13px] font-medium text-text-primary leading-snug">
@@ -1176,7 +1173,7 @@ function SyncPanel({ t }: { t: (k: string) => string }) {
   return (
     <div>
       <h2 className="text-[15px] font-semibold text-text-primary mb-5">{t("settings.sync")}</h2>
-      <div className="rounded-[10px] border bg-surface overflow-hidden" style={{ borderColor: "var(--border-default)" }}>
+      <div className="surface-card overflow-hidden">
 
         <div className="px-5 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
