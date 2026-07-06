@@ -248,6 +248,20 @@ describe("useHabitsStore", () => {
     expect(useHabitsStore.getState().logs).toHaveLength(1);
   });
 
+  it("log rethrows and adds no entry when the API fails", async () => {
+    const habit = makeHabit();
+    useHabitsStore.setState({ habits: [habit], logs: [] });
+    mockFetch(500, { error: { code: "INTERNAL_ERROR", message: "fail" } });
+
+    // Rethrow lets the check-in modal keep itself open for a retry instead of
+    // closing on a failed log (which would look like success to the user).
+    await expect(
+      useHabitsStore.getState().log(UID, habit.id, "2026-06-20"),
+    ).rejects.toThrow();
+
+    expect(useHabitsStore.getState().logs).toHaveLength(0);
+  });
+
   it("unlog calls DELETE /habits/:id/log/:date and removes the entry", async () => {
     const habit = makeHabit();
     useHabitsStore.setState({

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { IconCheck } from "@/components/icons";
+import { Spinner } from "@/components/Spinner";
 import { useT } from "@/i18n/useT";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import type { Habit, HabitLog } from "@/types/task";
@@ -19,7 +20,7 @@ const MOTIVATION_COUNT = 5;
 interface Props {
   habit: Habit;
   logs: HabitLog[];
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -35,11 +36,18 @@ export function HabitCheckInModal({ habit, logs, onConfirm, onClose }: Props) {
 
   const dialogRef = useModalA11y<HTMLDivElement>(onClose);
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (confirmed) return;
     setConfirmed(true);
-    onConfirm();
-    onClose();
+    try {
+      // Wait for the log to persist before closing — a failed check-in keeps
+      // the modal open (store already toasts) so the user can retry instead of
+      // believing it succeeded.
+      await onConfirm();
+      onClose();
+    } catch {
+      setConfirmed(false);
+    }
   }
 
   return createPortal(
@@ -99,11 +107,19 @@ export function HabitCheckInModal({ habit, logs, onConfirm, onClose }: Props) {
           <button
             onClick={handleConfirm}
             disabled={confirmed}
+            aria-busy={confirmed}
+            aria-label={t("habit.checkin.btn")}
             className="w-full py-3 rounded-xl text-[14px] font-semibold text-white transition-opacity hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
             style={{ background: color, opacity: confirmed ? 0.5 : 1, cursor: confirmed ? "default" : "pointer" }}
           >
-            <IconCheck size={16} />
-            {t("habit.checkin.btn")}
+            {confirmed ? (
+              <Spinner size={16} />
+            ) : (
+              <>
+                <IconCheck size={16} />
+                {t("habit.checkin.btn")}
+              </>
+            )}
           </button>
 
           {/* Cancel */}
