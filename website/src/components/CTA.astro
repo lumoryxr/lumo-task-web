@@ -1,5 +1,6 @@
 ---
 const app = "https://lumo-task-frontend.onrender.com";
+const releasesLatest = "https://github.com/lumoryxr/lumo-task-web/releases/latest";
 ---
 <section class="cta-sec">
   <div class="wrap">
@@ -14,10 +15,17 @@ const app = "https://lumo-task-frontend.onrender.com";
         <span data-i18n-en>Free forever. Open source. Start in seconds — your pet is waiting.</span>
         <span data-i18n-zh>永久免费,开源。几秒钟就能开始 —— 你的宠物在等你。</span>
       </p>
-      <a class="btn btn-primary btn-lg" href={app} target="_blank" rel="noopener">
-        <span data-i18n-en>Start free</span><span data-i18n-zh>免费开始</span>
-        <span aria-hidden="true">→</span>
-      </a>
+      <div class="cta-ctas">
+        <a class="btn btn-primary btn-lg" href={app} target="_blank" rel="noopener">
+          <span data-i18n-en>Open web app</span><span data-i18n-zh>打开网页版</span>
+          <span aria-hidden="true">→</span>
+        </a>
+        <a class="btn btn-ghost btn-lg btn-win" data-win-download href={releasesLatest} target="_blank" rel="noopener">
+          <svg class="win-glyph" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.4 10.3 4.4v7.05H3V5.4Zm0 13.2 7.3 1v-7.05H3v6.05Zm8.4 1.15L21 21.1V12.6h-9.6v7.15Zm0-15.5v7.15H21V2.9l-9.6 1.35Z"/></svg>
+          <span data-i18n-en>Download for Windows</span><span data-i18n-zh>下载 Windows 版</span>
+          <span class="win-ver" data-win-ver aria-hidden="true"></span>
+        </a>
+      </div>
     </div>
   </div>
 </section>
@@ -39,6 +47,7 @@ const app = "https://lumo-task-frontend.onrender.com";
   .cta-pet { font-size: 46px; display: inline-block; animation: petbob 3.4s var(--ease) infinite; }
   .cta-title { font-size: clamp(26px, 4vw, 40px); font-weight: 900; letter-spacing: -0.02em; margin: 14px 0 12px; }
   .cta-sub { font-size: 16px; color: var(--text-soft); max-width: 480px; margin: 0 auto 28px; }
+  .cta-ctas { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
   .btn-lg { padding: 16px 34px; font-size: 16px; }
   @keyframes petbob { 0%,100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-6px) rotate(3deg); } }
 </style>
