@@ -208,10 +208,8 @@ function Group({
         {title}
       </h3>
       <div
-        className="rounded-[10px] border bg-surface overflow-hidden"
-        style={{
-          borderColor: danger ? "rgba(255, 107, 107, 0.25)" : "var(--border-default)",
-        }}
+        className="surface-card overflow-hidden"
+        style={danger ? { borderColor: "rgba(255, 107, 107, 0.25)" } : undefined}
       >
         {children}
       </div>
