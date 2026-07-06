@@ -91,7 +91,7 @@ describe("Cross-user data isolation", () => {
     assert.equal(status, 404);
 
     const { body: people } = await req("GET", "/v1/people", { token: demoToken });
-    const found = (people as any[]).find((p: any) => p.id === person.id);
+    const found = (people.items as any[]).find((p: any) => p.id === person.id);
     assert.ok(found, "person should still exist for user A");
 
     await req("DELETE", `/v1/people/${person.id}`, { token: demoToken });

@@ -95,7 +95,7 @@ describe("Soft delete · people / habits / countdowns", () => {
     const row = await tombstone("people", p.id);
     assert.ok(row?.deleted_at, "person deleted_at must be set");
     const list = await req("GET", "/v1/people", { token });
-    assert.ok(!list.body.some((x: any) => x.id === p.id), "list must exclude soft-deleted person");
+    assert.ok(!list.body.items.some((x: any) => x.id === p.id), "list must exclude soft-deleted person");
     assert.equal((await req("DELETE", `/v1/people/${p.id}`, { token })).status, 404);
   });
 

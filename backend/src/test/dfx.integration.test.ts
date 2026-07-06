@@ -243,6 +243,10 @@ const TENANT_RESOURCES: Array<{
   },
 ];
 
+// Some list endpoints are keyset-paginated ({ items, nextCursor }); others still
+// return a bare array. Normalize to the row array either way.
+const asRows = (body: any): any[] => (Array.isArray(body) ? body : body.items);
+
 describe("DFX · Security — tenant isolation across user-scoped resources (#158)", () => {
   for (const r of TENANT_RESOURCES) {
     test(`${r.name}: attacker cannot PATCH another tenant's row → 404, owner's row survives`, async () => {
@@ -254,7 +258,7 @@ describe("DFX · Security — tenant isolation across user-scoped resources (#15
 
       // Owner's row must be untouched.
       const { body: list } = await api("GET", r.path, { token: alice.token });
-      const still = (list as any[]).find((x) => x.id === row.id);
+      const still = asRows(list).find((x) => x.id === row.id);
       assert.ok(still, `${r.name} owner's row must still exist after a failed cross-tenant PATCH`);
       const patchedKey = Object.keys(r.patch)[0];
       assert.notEqual(still[patchedKey], (r.patch as any)[patchedKey], `${r.name} owner's field must not be mutated`);
@@ -266,15 +270,16 @@ describe("DFX · Security — tenant isolation across user-scoped resources (#15
       assert.equal(del.status, 404, `${r.name} cross-tenant DELETE must 404`);
 
       const { body: list } = await api("GET", r.path, { token: alice.token });
-      assert.ok((list as any[]).some((x) => x.id === row.id), `${r.name} owner's row must survive a cross-tenant DELETE`);
+      assert.ok(asRows(list).some((x) => x.id === row.id), `${r.name} owner's row must survive a cross-tenant DELETE`);
     });
 
     test(`${r.name}: attacker's list never contains the owner's row (tenant-scoped reads)`, async () => {
       const { body: row } = await api("POST", r.path, { token: alice.token, body: r.create() });
       const { status, body: bobList } = await api("GET", r.path, { token: bob.token });
       assert.equal(status, 200);
-      assert.ok(Array.isArray(bobList), `${r.name} list should be an array`);
-      assert.ok(!(bobList as any[]).some((x) => x.id === row.id), `${r.name} attacker's read must not leak the owner's row`);
+      const bobRows = asRows(bobList);
+      assert.ok(Array.isArray(bobRows), `${r.name} list should expose a row array`);
+      assert.ok(!bobRows.some((x) => x.id === row.id), `${r.name} attacker's read must not leak the owner's row`);
     });
 
     test(`${r.name}: malformed JSON body → 400 INVALID_JSON (global handler, not a tasks quirk)`, async () => {
@@ -1830,7 +1835,7 @@ describe("DFX · Robustness — `people` avatar fields are format/length-bounded
     // the owner's list so the avatar can read it back later.
     const list = await api("GET", "/v1/people", { token: alice.token });
     assert.equal(list.status, 200);
-    const found = (list.body as Array<{ id: string; color: string; initials: string }>).find((p) => p.id === created.id);
+    const found = (list.body.items as Array<{ id: string; color: string; initials: string }>).find((p) => p.id === created.id);
     assert.ok(found, "the created person must appear in the owner's list");
     assert.equal(found!.color, color, "a subsequent read must reflect the persisted color");
     assert.equal(found!.initials, "DA", "a subsequent read must reflect the persisted initials");
@@ -1850,7 +1855,7 @@ describe("DFX · Robustness — `people` avatar fields are format/length-bounded
 
     // No partial poison: the rejected PATCH must not have overwritten the column.
     const list = await api("GET", "/v1/people", { token: alice.token });
-    const found = (list.body as Array<{ id: string; color: string }>).find((p) => p.id === created.id);
+    const found = (list.body.items as Array<{ id: string; color: string }>).find((p) => p.id === created.id);
     assert.equal(found?.color, good, "a rejected update must leave the stored color unchanged");
   });
 });

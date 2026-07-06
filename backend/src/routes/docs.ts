@@ -379,9 +379,24 @@ const spec = {
     "/v1/people": {
       get: {
         tags: ["People"],
-        summary: "List all people",
+        summary: "List people — keyset paginated",
+        parameters: [
+          { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500, default: 200 }, description: "Max items per page (default 200)" },
+          { name: "cursor", in: "query", required: false, schema: { type: "string" }, description: "Opaque keyset cursor from a previous response's nextCursor" },
+        ],
         responses: {
-          "200": { description: "People array", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/Person" } } } } },
+          "200": {
+            description: "A page of people plus the next-page cursor (null on the last page)",
+            content: { "application/json": { schema: {
+              type: "object",
+              required: ["items", "nextCursor"],
+              properties: {
+                items: { type: "array", items: { $ref: "#/components/schemas/Person" } },
+                nextCursor: { type: "string", nullable: true },
+              },
+            } } },
+          },
+          "400": { description: "Invalid limit or cursor" },
           "401": { description: "Unauthorized" },
         },
       },
