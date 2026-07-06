@@ -194,6 +194,113 @@ describe("DFX · Security — authentication & authorization", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY & ROBUSTNESS — server-side task search (GET /v1/tasks?q=) (#234)
+//
+// The search endpoint is a DISTINCT query code path from the plain task list: it
+// appends its own `LIKE … ESCAPE '\'` clause and escapes user-supplied LIKE
+// wildcards (`% _ \`) to literals (routes/tasks.ts). Two invariants live *only*
+// on this separate SQL builder and were never exercised over real HTTP + real
+// file SQLite in the daily suite:
+//   1. Security/IDOR — the search filter is re-scoped to the caller
+//      (`WHERE user_id = :uid`). A dropped/loosened scope on this separate builder
+//      would let one tenant surface another tenant's task titles/descriptions via
+//      `?q=` — an info-disclosure IDOR the CRUD-by-id isolation cases never touch.
+//   2. Robustness — user-supplied `%` / `_` are escaped to literals. Dropping the
+//      escape would turn `?q=%` into "match everything" (defeating the filter /
+//      disclosing the full list) and `?q=c_t` into a single-char wildcard.
+// Mutation teeth: dropping the search-path `WHERE user_id` reddens AC1; dropping
+// the wildcard escape reddens AC2/AC3.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security & Robustness — server-side task search (GET /v1/tasks?q=) (#234)", () => {
+  let owner: { token: string; id: string };
+  let attacker: { token: string; id: string };
+  // Owner's seeded tasks — captured ids so assertions target specific rows, not counts.
+  let rareTask: any; // AC1: only-owner keyword
+  let percentTask: any; // AC2: title contains a LITERAL '%'
+  let noPercentTask: any; // AC2: control — no '%', must NOT surface on a `%` search
+  let literalCutTask: any; // AC3: title contains the LITERAL substring 'c_t'
+  let catTask: any; // AC3: 'cat' — would match `c_t` iff '_' acted as a wildcard
+
+  async function createTask(token: string, titleEn: string): Promise<any> {
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token,
+      body: { title: { en: titleEn }, quadrant: "unclassified" },
+    });
+    assert.equal(status, 201, `seed task "${titleEn}" should create`);
+    return body;
+  }
+
+  function idsOf(body: any): string[] {
+    assert.ok(Array.isArray(body.items), "search must return the { items, nextCursor } envelope");
+    return (body.items as any[]).map((t) => t.id);
+  }
+
+  before(async () => {
+    owner = await registerUser("search-owner");
+    attacker = await registerUser("search-attacker");
+
+    rareTask = await createTask(owner.token, "quarterly zzqrareword report");
+    percentTask = await createTask(owner.token, "apply 50% discount code");
+    noPercentTask = await createTask(owner.token, "fifty tasks backlog");
+    literalCutTask = await createTask(owner.token, "refactor the c_t module");
+    catTask = await createTask(owner.token, "feed the cat tonight");
+
+    // The attacker owns a task with the same rare keyword-free content so their
+    // search space is non-empty but never legitimately matches the owner's terms.
+    await createTask(attacker.token, "attacker unrelated errand");
+  });
+
+  // ── AC1 · Security: the search path is tenant-scoped ──────────────────────────
+  test("AC1: owner's `?q=` finds the owner's own matching task (search works)", async () => {
+    const { status, body } = await api("GET", "/v1/tasks?q=zzqrareword", { token: owner.token });
+    assert.equal(status, 200);
+    const ids = idsOf(body);
+    assert.ok(ids.includes(rareTask.id), "owner must find their own task by keyword");
+  });
+
+  test("AC1: attacker's `?q=<owner's rare keyword>` returns none of the owner's tasks (no IDOR)", async () => {
+    const { status, body } = await api("GET", "/v1/tasks?q=zzqrareword", { token: attacker.token });
+    assert.equal(status, 200, "search must succeed for the attacker (200, just empty of leaks)");
+    const ids = idsOf(body);
+    assert.ok(
+      !ids.includes(rareTask.id),
+      "search path must be WHERE user_id-scoped — the attacker must NOT surface the owner's task",
+    );
+    assert.equal(ids.length, 0, "attacker has no task with the owner's keyword → zero results");
+  });
+
+  // ── AC2 · Robustness: a literal '%' is escaped, not treated as a wildcard ──────
+  test("AC2: a literal `%` (?q=%25) is escaped — returns only tasks that literally contain '%', not the full list", async () => {
+    const { status, body } = await api("GET", `/v1/tasks?q=${encodeURIComponent("%")}`, {
+      token: owner.token,
+    });
+    assert.equal(status, 200);
+    const ids = idsOf(body);
+    assert.ok(ids.includes(percentTask.id), "the task literally containing '%' must match");
+    assert.ok(
+      !ids.includes(noPercentTask.id),
+      "escape has teeth: a '%'-less task must NOT surface (dropping the escape → LIKE '%%%' matches everything)",
+    );
+    assert.ok(!ids.includes(rareTask.id), "unrelated owner task must not surface on a literal-'%' search");
+  });
+
+  // ── AC3 · Robustness: a literal '_' is escaped, not the single-char wildcard ───
+  test("AC3: a literal `_` (?q=c_t) is escaped — '_' does not act as a single-char wildcard", async () => {
+    const { status, body } = await api("GET", `/v1/tasks?q=${encodeURIComponent("c_t")}`, {
+      token: owner.token,
+    });
+    assert.equal(status, 200);
+    const ids = idsOf(body);
+    assert.ok(ids.includes(literalCutTask.id), "the task literally containing 'c_t' must match");
+    assert.ok(
+      !ids.includes(catTask.id),
+      "escape has teeth: 'cat' must NOT match (dropping the escape → 'c_t' LIKE would match 'cat')",
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for SECURITY — tenant isolation across ALL user-scoped resources (#158)
 //
 // The cases above prove isolation for /v1/tasks; the coverage-gap audit found the
