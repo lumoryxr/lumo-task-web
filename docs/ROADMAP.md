@@ -54,7 +54,7 @@ From the production-readiness review (#46) + ongoing. Already shipped: #34/#36/#
     - [ ] **#284** — `auth/refresh` rotation + reuse-detection has no *daily real-HTTP* DFX case (only in-process `auth-refresh.test.ts`).
     - [ ] **#304** — project OKR/KPI goal field bounds (`target`/`current`/`start` finite/nonnegative, `unit` length).
     - [ ] **#305** — `/v1/ai/parse` NL-capture input bounds (robustness).
-    - [ ] **#319** — task `due` + `scheduled_start` datetime-format bounds (`scheduled_start` absent from suite).
+    - [x] **#319** — task `due` + `scheduled_start` datetime-format bounds (`scheduled_start` absent from suite). *(PR #335, merged 2026-07-06 — 8 DFX robustness cases, mutation-tested perfect specificity; test+docs only.)*
     - [ ] **#320** — `/v1/ai/chat` request-payload bounds (unbounded-by-contract only).
     - [ ] **#317** — bulk-import `/migrate` arrays are unbounded; needs a `.max()` cap. **⚠ needs Jalen** — the cap value is a migration-safety product/contract decision, not a pure test-gap.
 
@@ -108,4 +108,6 @@ Today view + recommended card + CompletedTimeline · Eisenhower Matrix (drag-dro
 
 - 2026-07-05: **Issue backlog cleanup (Jalen).** Audited all 21 open issues against merged PRs + code + the DFX coverage matrix. **Closed 6 as completed** (evidence in each): #306 (habits-row migrate id-collision guard, PR #314), #244 (ai/classify unscoped-UPDATE — handler `user_id`-scoped + mock-LLM IDOR test landed), #231 (sync push/pull isolation — covered by #255), #182 + #183 (/v1/templates tenant-isolation + integration/DFX coverage), #162 (sub-resource action-endpoint cross-tenant IDOR — covered by #165/#194). **Remaining 15 recorded in-plan:** 9 DFX test-gaps → "Outstanding DFX test-gap backlog" above (#234/#263/#260/#284/#304/#305/#319/#320/#317); #180 → Phase-2 pagination; #170/#171/#172/#174 → Phase-3 (marked `[~]` v1-shipped/v2-remains); #169 → Phase-3 calendar interop.
 
-_Last restructured: 2026-06-24 (phase prioritization); status-synced 2026-06-28; issue-backlog reconciled 2026-07-05. Maintained by the autonomous loop each run._
+- 2026-07-06: **Test-gap audit finished — DFX robustness for task `due` + `scheduled_start` datetime-format bounds (#319 → PR #335, merged).** Authored by an earlier loop run and left open with CI green + a clean one-round adversarial review already posted; this run verified all checks green + review clean (`CLEAN` merge state), merged, and closed #319. 8 DFX robustness cases over real HTTP + real SQLite: `due` (`^\d{4}-\d{2}-\d{2}$`) and `scheduled_start` (`^…T\d{2}:\d{2}(:\d{2})?$`) each get malformed-create → 400 naming the field, plausible-but-wrong-shape near-miss (the other field's valid shape → 400 on this field), valid round-trip, and malformed-PATCH → 400 with stored value unmutated. Mutation-tested with perfect specificity (loosening `due`'s regex reddens exactly its 3 bound cases; all 4 `scheduled_start` cases stay green). dfx 109 → 117. Handlers/contract already correct → **gap in the tests, not the code**; test+docs only, no production change.
+
+_Last restructured: 2026-06-24 (phase prioritization); status-synced 2026-06-28; issue-backlog reconciled 2026-07-05; #319 ticked 2026-07-06. Maintained by the autonomous loop each run._
