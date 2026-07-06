@@ -194,6 +194,107 @@ describe("DFX · Security — authentication & authorization", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY & ROBUSTNESS — server-side task search (GET /v1/tasks?q=) (#234)
+//
+// The search filter (`?q=`) is a DISTINCT SQL builder from the plain task list:
+// it appends its own `LIKE :q ESCAPE '\'` clause over title/desc in BOTH locales
+// and escapes user-supplied LIKE wildcards (`% _ \`) to literals
+// (routes/tasks.ts:120-124). The daily suite exercised the plain list + cursor
+// pagination but NEVER this branch, leaving two failure modes uncovered:
+//   1. Security/IDOR — a dropped `WHERE user_id` on THIS builder would leak
+//      another tenant's task titles/descriptions via `?q=` (info-disclosure).
+//   2. Robustness — a dropped wildcard-escape would turn a user's `%`/`_` into
+//      SQL wildcards (`?q=%` → "return everything", defeating the filter).
+// Handler verified already scoped + escaped → gap in the tests, not the code.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security & Robustness — task search GET /v1/tasks?q= (#234)", () => {
+  let owner: { token: string; id: string };
+  let intruder: { token: string; id: string };
+
+  // A keyword rare enough that no other task in the shared DB contains it, so
+  // each search below sees only the rows this block creates.
+  const RARE = "Zqxwv7Rarekw";
+
+  async function createTask(token: string, titleEn: string): Promise<string> {
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token,
+      body: { title: { en: titleEn }, quadrant: "Q1" },
+    });
+    assert.equal(status, 201, `create "${titleEn}" should 201`);
+    return body.id;
+  }
+
+  async function search(token: string, q: string): Promise<any[]> {
+    const { status, body } = await api(
+      "GET",
+      `/v1/tasks?q=${encodeURIComponent(q)}`,
+      { token },
+    );
+    assert.equal(status, 200, `search ?q=${q} should 200`);
+    assert.ok(Array.isArray(body.items), "search returns { items: [...] }");
+    return body.items;
+  }
+
+  before(async () => {
+    owner = await registerUser("searchowner");
+    intruder = await registerUser("searchintruder");
+  });
+
+  test("AC1 · Security — search is tenant-scoped: intruder's ?q= never surfaces the owner's task; owner finds their own", async () => {
+    const ownerTaskId = await createTask(owner.token, `${RARE} owner private note`);
+    // The intruder holds a task with the SAME rare keyword — proving the filter
+    // still matches for them, so the emptiness below is scope, not a dead query.
+    await createTask(intruder.token, `${RARE} intruder own task`);
+
+    const intruderHits = await search(intruder.token, RARE);
+    assert.ok(
+      intruderHits.every((t) => t.id !== ownerTaskId),
+      "cross-tenant leak: no owner-owned row may appear in the intruder's search results",
+    );
+
+    const ownerHits = await search(owner.token, RARE);
+    assert.ok(
+      ownerHits.some((t) => t.id === ownerTaskId),
+      "the owner's own matching task must be returned (search still works when scoped)",
+    );
+  });
+
+  test("AC2 · Robustness — literal `%` is escaped, not treated as a match-all wildcard", async () => {
+    const pctId = await createTask(owner.token, `${RARE} 50% budget done`);
+    const plainId = await createTask(owner.token, `${RARE} plain milestone no percent`);
+
+    // If the escape were dropped, `?q=%` → LIKE `%%%` → matches EVERYTHING the
+    // owner has (incl. the plain task and every earlier task in this suite).
+    const hits = await search(owner.token, "%");
+    const ids = hits.map((t) => t.id);
+    assert.ok(ids.includes(pctId), "the task literally containing `%` should match `?q=%`");
+    assert.ok(
+      !ids.includes(plainId),
+      "a task WITHOUT a literal `%` must NOT match `?q=%` (escape has teeth)",
+    );
+    assert.ok(
+      hits.every((t) => (t.title?.en ?? "").includes("%")),
+      "every `?q=%` hit must literally contain `%` — not a match-all over the tenant",
+    );
+  });
+
+  test("AC3 · Robustness — literal `_` is escaped, not treated as a single-char wildcard", async () => {
+    const underscoreId = await createTask(owner.token, `${RARE} c_t literal underscore`);
+    const catId = await createTask(owner.token, `${RARE} cat animal`);
+    const cotId = await createTask(owner.token, `${RARE} cot furniture`);
+
+    // If `_` acted as a LIKE single-char wildcard, `?q=c_t` (`%c_t%`) would also
+    // match `cat` and `cot`; escaped (`%c\_t%`) it needs the literal "c_t".
+    const hits = await search(owner.token, "c_t");
+    const ids = hits.map((t) => t.id);
+    assert.ok(ids.includes(underscoreId), "the literal `c_t` task must match `?q=c_t`");
+    assert.ok(!ids.includes(catId), "`?q=c_t` must NOT match `cat` (underscore escaped)");
+    assert.ok(!ids.includes(cotId), "`?q=c_t` must NOT match `cot` (underscore escaped)");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for SECURITY — tenant isolation across ALL user-scoped resources (#158)
 //
 // The cases above prove isolation for /v1/tasks; the coverage-gap audit found the
