@@ -1961,6 +1961,93 @@ describe("DFX · Robustness — `people` avatar fields are format/length-bounded
   });
 });
 
+// ── Design for RELIABILITY — person-delete → tasks.assignee_ids cascade (#263) ──
+//
+// `DELETE /v1/people/:id` (routes/people.ts) is the app's ONLY cross-resource
+// cascade: after tombstoning the person it rewrites `tasks.assignee_ids`,
+// dropping the deleted id from every referencing task via json_each, scoped
+// `WHERE user_id = :uid AND EXISTS(SELECT 1 FROM json_each(assignee_ids) WHERE value = :pid)`.
+// The daily suite reached `/v1/people` only via #158 (tenant isolation) + #279
+// (avatar bounds) — those pin the person ROW, nothing pins the cascade. A
+// regression that neutered the cascade would leave dangling assignee ids; one
+// that dropped the `EXISTS(... = :pid)` predicate would rewrite EVERY task in
+// the tenant (write amplification) — both invisible to every existing case.
+describe("DFX · Reliability — person-delete cascades into tasks.assignee_ids (#263)", () => {
+  let owner: { token: string; id: string };
+
+  function createPerson(name: string, initials: string): Promise<string> {
+    return api("POST", "/v1/people", {
+      token: owner.token,
+      body: { name, initials, color: "#3366cc" },
+    }).then(({ status, body }) => {
+      assert.equal(status, 201, `create person ${name} should 201`);
+      return body.id as string;
+    });
+  }
+
+  function createTask(titleEn: string, assigneeIds: string[]): Promise<string> {
+    return api("POST", "/v1/tasks", {
+      token: owner.token,
+      body: { title: { en: titleEn }, quadrant: "Q2", assignee_ids: assigneeIds },
+    }).then(({ status, body }) => {
+      assert.equal(status, 201, `create task "${titleEn}" should 201`);
+      assert.deepEqual(body.assignee_ids, assigneeIds, "the create response must echo the assignees");
+      return body.id as string;
+    });
+  }
+
+  // No GET /:id on tasks — read the row back out of the owner's list.
+  async function getTask(id: string): Promise<{ assignee_ids: string[]; updated_at: string }> {
+    const { status, body } = await api("GET", "/v1/tasks", { token: owner.token });
+    assert.equal(status, 200);
+    const found = (body.items as Array<{ id: string; assignee_ids: string[]; updated_at: string }>).find((t) => t.id === id);
+    assert.ok(found, `task ${id} must appear in the owner's list`);
+    return found!;
+  }
+
+  before(async () => {
+    owner = await registerUser("people-cascade-owner");
+  });
+
+  test("AC1 — deleting a person drops its id from referencing tasks, keeps co-assignees, leaves non-referencing tasks whole", async () => {
+    const [pTarget, pKeep] = await Promise.all([createPerson("Target", "TG"), createPerson("Keep", "KP")]);
+    // T1 references BOTH (the removed one + a co-assignee); T2 references only the co-assignee.
+    const t1 = await createTask("cascade-both", [pTarget, pKeep]);
+    const t2 = await createTask("cascade-neither", [pKeep]);
+
+    const del = await api("DELETE", `/v1/people/${pTarget}`, { token: owner.token });
+    assert.equal(del.status, 204, "deleting an owned person returns 204");
+
+    const after1 = await getTask(t1);
+    assert.deepEqual(after1.assignee_ids, [pKeep], "the deleted id is dropped but the co-assignee is retained — partial removal, not a blanket clear");
+
+    const after2 = await getTask(t2);
+    assert.deepEqual(after2.assignee_ids, [pKeep], "a task that never referenced the deleted person is untouched");
+  });
+
+  test("AC2 — the cascade is precise: only referencing tasks are rewritten (no tenant-wide write amplification)", async () => {
+    const pTarget = await createPerson("Amp", "AM");
+    const referencing = await createTask("amp-referencing", [pTarget]);
+    const unrelated = await createTask("amp-unrelated", []);
+
+    const beforeRef = (await getTask(referencing)).updated_at;
+    const beforeUnrel = (await getTask(unrelated)).updated_at;
+
+    const del = await api("DELETE", `/v1/people/${pTarget}`, { token: owner.token });
+    assert.equal(del.status, 204);
+
+    const afterRef = (await getTask(referencing)).updated_at;
+    const afterUnrel = (await getTask(unrelated)).updated_at;
+
+    // The referencing task's LWW clock must advance (it was rewritten)…
+    assert.ok(afterRef > beforeRef, "the referencing task's updated_at must advance (it was rewritten by the cascade)");
+    // …but an unrelated task must be byte-for-byte untouched — proves the
+    // `EXISTS(... = :pid)` predicate scoped the write. Dropping it would bump
+    // every task in the tenant and redden exactly this line.
+    assert.equal(afterUnrel, beforeUnrel, "an unrelated task's updated_at must be unchanged — the EXISTS predicate scopes the write");
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Design for RECOVERABILITY — bad input must not poison the server
 // ═══════════════════════════════════════════════════════════════════════════════
