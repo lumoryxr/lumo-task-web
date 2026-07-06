@@ -49,6 +49,13 @@ const ProjectBody = z.object({
 
 const ProjectUpdateBody = ProjectBody.partial();
 
+// Bulk-import array is bounded so a single /migrate call can't force
+// unbounded memory/CPU. Each project may carry up to 1MB of `content`, so an
+// unbounded array is the dominant memory vector here. The cap sits well above
+// any realistic export (a heavy user has at most low-hundreds of projects) so
+// no genuine migration is rejected; only pathological payloads are.
+const MIGRATE_MAX_PROJECTS = 10_000;
+
 const MigrateBody = z.object({
   projects: z.array(z.object({
     id: z.string().min(1).max(64),
@@ -61,7 +68,7 @@ const MigrateBody = z.object({
     status: z.enum(["active", "archived"]).default("active"),
     pinned: z.boolean().default(false),
     createdAt: z.string(),
-  })),
+  })).max(MIGRATE_MAX_PROJECTS),
 });
 
 function parseGoals(raw: string | null): Array<z.infer<typeof GoalSchema>> {
