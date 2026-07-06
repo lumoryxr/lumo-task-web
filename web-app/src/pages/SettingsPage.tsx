@@ -20,11 +20,11 @@ import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import type { SyncStatusResponse } from "@lumo/contracts";
 
-const ACCENT_SWATCHES: Array<{ id: Accent; hex: string; label: string }> = [
-  { id: "green", hex: "#3DFFA0", label: "Lumo Green" },
-  { id: "cyan", hex: "#38D4D4", label: "Calm Cyan" },
-  { id: "amber", hex: "#FFAA44", label: "Warm Amber" },
-  { id: "graphite", hex: "#A0ADB0", label: "Graphite" },
+const ACCENT_SWATCHES: Array<{ id: Accent; hex: string; labelKey: string }> = [
+  { id: "green", hex: "#3DFFA0", labelKey: "accent.green" },
+  { id: "cyan", hex: "#38D4D4", labelKey: "accent.cyan" },
+  { id: "amber", hex: "#FFAA44", labelKey: "accent.amber" },
+  { id: "graphite", hex: "#A0ADB0", labelKey: "accent.graphite" },
 ];
 
 type TabId = "general" | "notifications" | "pet" | "members" | "ai" | "integrations" | "datasync";
@@ -100,7 +100,7 @@ export function SettingsPage() {
                     <button
                       key={sw.id}
                       onClick={() => setAccent(sw.id)}
-                      title={sw.label}
+                      title={t(sw.labelKey)}
                       className="flex items-center justify-center rounded-full transition-transform"
                       style={{
                         width: 28,

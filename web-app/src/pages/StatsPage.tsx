@@ -284,7 +284,7 @@ export function StatsPage() {
                 <StatCard label={t("stats.focus")} value={`${allFocusHours}${t("stats.hours")}`} />
                 <StatCard label={t("stats.best")} value={allTime.bestStreak} sub={t("stats.days")} />
                 {bestHabitStreak > 0 && (
-                  <StatCard label="🔥 Habit" value={bestHabitStreak} sub={t("stats.days")} />
+                  <StatCard label={t("stats.habit.best")} value={bestHabitStreak} sub={t("stats.days")} />
                 )}
               </div>
             </section>
