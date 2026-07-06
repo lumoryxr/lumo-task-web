@@ -29,6 +29,12 @@ const CountdownBody = z.object({
 
 const CountdownUpdateBody = CountdownBody.partial();
 
+// Bulk-import arrays are bounded so a single /migrate call can't force
+// unbounded memory/CPU. The cap is set well above any realistic export
+// (dozens of countdowns for even a heavy user) so no genuine migration is
+// ever rejected — it only stops pathological millions-of-items payloads.
+const MIGRATE_MAX_EVENTS = 10_000;
+
 const MigrateBody = z.object({
   events: z.array(z.object({
     id: z.string().min(1).max(64),
@@ -40,7 +46,7 @@ const MigrateBody = z.object({
     note: z.string().optional().nullable(),
     calendar: z.enum(["solar", "lunar"]).default("solar"),
     createdAt: z.string(),
-  })),
+  })).max(MIGRATE_MAX_EVENTS),
 });
 
 export function rowToEvent(row: CountdownEventRow) {

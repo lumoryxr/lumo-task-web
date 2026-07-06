@@ -143,6 +143,20 @@ describe("Countdowns", () => {
     const { body } = await req("GET", "/v1/countdowns", { token: demoToken });
     assert.equal((body as any[]).filter((e) => e.id === "cd_migrate_1").length, 1);
   });
+
+  test("400 → POST /migrate rejects an over-cap events array (bounded bulk import)", async () => {
+    const events = Array.from({ length: 10_001 }, (_, i) => ({
+      id: `cd_over_${i}`,
+      title: "x",
+      date: "2026-09-09",
+      color: "red",
+      repeat: "none",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const { status, body } = await req("POST", "/v1/countdowns/migrate", { token: demoToken, body: { events } });
+    assert.equal(status, 400);
+    assert.equal((body as any).error?.code, "VALIDATION_ERROR");
+  });
 });
 
 describe("Countdowns — cross-user isolation", () => {

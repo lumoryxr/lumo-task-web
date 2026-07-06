@@ -33,6 +33,14 @@ const HabitBody = z.object({
 
 const HabitUpdateBody = HabitBody.partial();
 
+// Bulk-import arrays are bounded so a single /migrate call can't force
+// unbounded memory/CPU. Caps sit well above any realistic export — a heavy
+// user has dozens of habits, and `logs` is high-cardinality (one row per
+// habit per completed day, so years of daily habits still fit under 200k) —
+// so no genuine migration is rejected; only pathological payloads are.
+const MIGRATE_MAX_HABITS = 10_000;
+const MIGRATE_MAX_LOGS = 200_000;
+
 const MigrateBody = z.object({
   habits: z.array(z.object({
     id: z.string().min(1).max(64),
@@ -45,12 +53,12 @@ const MigrateBody = z.object({
     frequencyInterval: z.number().optional().nullable(),
     note: z.string().optional().nullable(),
     createdAt: z.string(),
-  })),
+  })).max(MIGRATE_MAX_HABITS),
   logs: z.array(z.object({
     habitId: z.string().min(1).max(64),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     completedAt: z.string(),
-  })),
+  })).max(MIGRATE_MAX_LOGS),
 });
 
 export function rowToHabit(row: HabitRow) {
