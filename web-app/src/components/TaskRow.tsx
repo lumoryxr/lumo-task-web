@@ -3,6 +3,7 @@ import type { Task } from "@/types/task";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { useNavigate } from "react-router-dom";
+import { useCoarsePointer } from "@/hooks/useCoarsePointer";
 import { fmtDuration, getDueLabel, getDueColor } from "@/lib/format";
 import { getStagnationTag, getStagnationLevel, getStagnationColor, getStagnationDays } from "@/lib/stagnation";
 import { TaskDetailModal } from "@/components/TaskDetailModal";
@@ -38,6 +39,9 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
   const toggleSelected = useTasksStore((s) => s.toggleSelected);
 
   const [hovered, setHovered] = useState(false);
+  const coarse = useCoarsePointer();
+  // Touch devices never hover, so keep the row actions reachable there.
+  const showActions = (hovered || coarse) && !selecting;
   const [circleHover, setCircleHover] = useState(false);
   const [busy, setBusy] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -188,8 +192,8 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
         <div
           className="flex items-center gap-1.5 transition-all"
           style={{
-            opacity: hovered && !selecting ? 1 : 0,
-            pointerEvents: hovered && !selecting ? "auto" : "none",
+            opacity: showActions ? 1 : 0,
+            pointerEvents: showActions ? "auto" : "none",
           }}
         >
           {/* Start focus — labeled accent pill */}

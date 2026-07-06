@@ -292,7 +292,7 @@ function ProjectCard({ project, taskCount, doneCount, onOpen, onEdit, onDelete, 
           aria-label={t("project.menu")}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          className={`flex items-center justify-center w-6 h-6 rounded-md transition-opacity ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"}`}
+          className={`flex items-center justify-center w-6 h-6 rounded-md transition-opacity hover-reveal ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"}`}
           style={{ color: "var(--text-muted)", background: menuOpen ? "var(--bg-subtle)" : "transparent" }}
         >
           <IconMore size={15} />
