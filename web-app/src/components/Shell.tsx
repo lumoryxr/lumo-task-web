@@ -62,7 +62,7 @@ export function Shell() {
     "/today": { title: t("today.title"), sub: t("today.sub") },
     "/matrix": { title: t("matrix.title"), sub: t("matrix.sub") },
     "/focus": { title: t("focus.title"), sub: t("focus.sub") },
-    "/settings": { title: t("nav.settings"), sub: "AI · Appearance · Sync" },
+    "/settings": { title: t("nav.settings"), sub: t("settings.sub") },
     "/account": { title: t("account.title"), sub: t("account.profile") },
   };
   const meta = titleMap[location.pathname] ?? titleMap["/today"];

@@ -197,7 +197,7 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
           title={maximized ? t("ai.chat.restore") : t("ai.chat.maximize")}
           className="flex items-center justify-center w-6 h-6 rounded-md text-text-muted hover:bg-subtle hover:text-text-primary transition-colors"
           style={{ border: "1px solid var(--border-default)" }}
-          aria-label={maximized ? "Restore" : "Maximize"}
+          aria-label={maximized ? t("ai.chat.restore") : t("ai.chat.maximize")}
         >
           {maximized ? (
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">

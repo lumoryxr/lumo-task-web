@@ -158,6 +158,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "detail.breakdown.remove": "Remove",
 
     "settings.general": "General",
+    "settings.sub": "AI · Appearance · Sync",
     "settings.dataSync": "Data & Sync",
     "settings.accent": "Accent",
     "settings.density": "Density",
@@ -276,6 +277,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "auth.github": "Continue with GitHub",
     "auth.forgot": "Forgot password?",
     "auth.comingSoon": "Coming soon",
+    "auth.soon": "Soon",
     "auth.toregister": "Create account",
     "auth.tologin": "Already have an account?",
     "auth.localonly": "Continue without an account",
@@ -1063,6 +1065,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "detail.breakdown.remove": "移除",
 
     "settings.general": "通用",
+    "settings.sub": "AI · 外观 · 同步",
     "settings.dataSync": "数据与同步",
     "settings.accent": "强调色",
     "settings.density": "密度",
@@ -1181,6 +1184,7 @@ export const STRINGS: Record<Locale, Dict> = {
     "auth.github": "使用 GitHub 登录",
     "auth.forgot": "忘记密码?",
     "auth.comingSoon": "即将推出",
+    "auth.soon": "即将",
     "auth.toregister": "创建账号",
     "auth.tologin": "已有账号?",
     "auth.localonly": "不登录,继续使用",

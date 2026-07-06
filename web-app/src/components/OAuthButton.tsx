@@ -3,6 +3,7 @@
  * styling. Provider icons rendered inline so no extra deps.
  */
 import type { ReactNode } from "react";
+import { useT } from "@/i18n/useT";
 
 type Provider = "google" | "apple" | "github";
 
@@ -40,12 +41,13 @@ export function OAuthButton({
   disabled?: boolean;
   comingSoon?: boolean;
 }) {
+  const t = useT();
   return (
     <button
       className="btn btn-secondary w-full justify-center"
       onClick={onClick}
       disabled={disabled || comingSoon}
-      title={comingSoon ? "Coming soon" : undefined}
+      title={comingSoon ? t("auth.comingSoon") : undefined}
     >
       {ICONS[provider]}
       <span>{label}</span>
@@ -62,7 +64,7 @@ export function OAuthButton({
             lineHeight: "1.4",
           }}
         >
-          Soon
+          {t("auth.soon")}
         </span>
       )}
     </button>
