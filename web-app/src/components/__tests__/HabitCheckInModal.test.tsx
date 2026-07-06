@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { HabitCheckInModal } from "../HabitCheckInModal";
 import type { Habit, HabitLog } from "@/types/task";
 
@@ -77,15 +77,49 @@ describe("HabitCheckInModal", () => {
     expect(screen.queryByText(/habit\.checkin\.streak/)).not.toBeInTheDocument();
   });
 
-  it("calls onConfirm and onClose when confirm button clicked", () => {
-    const onConfirm = vi.fn();
+  it("calls onConfirm then onClose after the async check-in resolves", async () => {
+    const onConfirm = vi.fn().mockResolvedValue(undefined);
     const onClose = vi.fn();
     render(
       <HabitCheckInModal habit={HABIT} logs={NO_LOGS} onConfirm={onConfirm} onClose={onClose} />
     );
-    fireEvent.click(screen.getByText("habit.checkin.btn"));
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("habit.checkin.btn"));
+    });
     expect(onConfirm).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the modal open (no onClose) and re-enables the button when the check-in fails", async () => {
+    const onConfirm = vi.fn().mockRejectedValue(new Error("network"));
+    const onClose = vi.fn();
+    render(
+      <HabitCheckInModal habit={HABIT} logs={NO_LOGS} onConfirm={onConfirm} onClose={onClose} />
+    );
+    const btn = screen.getByLabelText("habit.checkin.btn");
+    await act(async () => {
+      fireEvent.click(btn);
+    });
+    expect(onConfirm).toHaveBeenCalledOnce();
+    // Store already toasts the error; the modal must NOT close on failure so the
+    // user can retry instead of believing the check-in succeeded.
+    expect(onClose).not.toHaveBeenCalled();
+    expect(btn).not.toBeDisabled();
+  });
+
+  it("shows a spinner and disables the button while the check-in is in flight", async () => {
+    let resolveConfirm: () => void = () => {};
+    const onConfirm = vi.fn(() => new Promise<void>((r) => { resolveConfirm = r; }));
+    render(
+      <HabitCheckInModal habit={HABIT} logs={NO_LOGS} onConfirm={onConfirm} onClose={vi.fn()} />
+    );
+    const btn = screen.getByLabelText("habit.checkin.btn");
+    fireEvent.click(btn);
+    // In flight: aria-busy set, disabled, label text swapped for the spinner.
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    expect(btn).toBeDisabled();
+    expect(screen.queryByText("habit.checkin.btn")).not.toBeInTheDocument();
+    await act(async () => { resolveConfirm(); });
   });
 
   it("calls onClose when cancel button clicked", () => {

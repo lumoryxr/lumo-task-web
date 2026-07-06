@@ -156,6 +156,7 @@ export const useHabitsStore = create<HabitsState>((set) => ({
       });
     } catch (e) {
       toast.error(t("habit.error.log"), e instanceof Error ? e.message : String(e));
+      throw e;
     }
   },
 
@@ -165,6 +166,7 @@ export const useHabitsStore = create<HabitsState>((set) => ({
       set((s) => ({ logs: s.logs.filter((l) => !(l.habitId === habitId && l.date === date)) }));
     } catch (e) {
       toast.error(t("habit.error.log"), e instanceof Error ? e.message : String(e));
+      throw e;
     }
   },
 }));
