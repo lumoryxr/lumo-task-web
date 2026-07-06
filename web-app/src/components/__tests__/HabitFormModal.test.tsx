@@ -41,6 +41,22 @@ describe("HabitFormModal (create)", () => {
     );
   });
 
+  it("accepts a title that only exceeds the max length via trailing whitespace", () => {
+    // Titles are saved trimmed, so the max-length check must trim too — a 100-char
+    // title plus trailing spaces is valid and must not be rejected as "too long".
+    const onSave = vi.fn();
+    render(<HabitFormModal onSave={onSave} onClose={vi.fn()} />);
+    const title = "a".repeat(100) + "     ";
+    fireEvent.change(screen.getByPlaceholderText("habit.form.title"), {
+      target: { value: title },
+    });
+    fireEvent.click(screen.getByText("habit.form.create"));
+    expect(screen.queryByText("habit.form.error.title.maxlen")).toBeNull();
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "a".repeat(100) })
+    );
+  });
+
   it("keeps the form open and re-enables submit if the save fails", async () => {
     // The store re-throws on failure; the modal must catch, reset busy, and NOT
     // close — so the user can retry rather than lose the edit silently.
