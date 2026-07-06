@@ -1320,6 +1320,172 @@ describe("DFX · Robustness — `remind_at` reminder field is format-bounded (#1
   });
 });
 
+// Design for ROBUSTNESS — task `due` date anchor is format-bounded (#319)
+//
+// Coverage-gap audit (task write boundary temporal fields, #319): sibling of the
+// `remind_at` block above. `tasks.due` (#177) is the STRICT DATE-ONLY ISO anchor
+// (`^\d{4}-\d{2}-\d{2}$`, on create + partial update) that drives due-date display
+// / sorting and the planned due-date reminders. The regex is the ONLY barrier
+// between a client and a junk value landing in the column — a regression loosening
+// it to `z.string()` (or dropped) would let `"tomorrow"` / a full-datetime string
+// into storage and slip past every existing case, surfacing only as a mis-sorted
+// due list in prod. Before this block `due` had no daily integration/DFX coverage
+// (only a fast in-process contract unit test + a happy-path api test).
+//
+// Gives the bound teeth on BOTH write paths (create + update) and proves the
+// round-trip: malformed → clean 400 (never 5xx / silent write), a valid value
+// persists + reflects back via `GET /v1/tasks/:id`, and a bad PATCH leaves the
+// stored date unmutated (no partial poison).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — task `due` date anchor is format-bounded (#319)", () => {
+  test("malformed `due` on create → 400 VALIDATION_ERROR naming the field, never a 5xx / write", async () => {
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Bad due" }, quadrant: "Q1", due: "tomorrow" },
+    });
+    assert.equal(status, 400, "a junk due value must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "due"),
+      "the rejection must name `due` (the format bound fired, not an incidental 400)",
+    );
+  });
+
+  test("full-datetime `due` (a valid `scheduled_start`/`remind_at` shape) → 400 — the date-only bound has teeth", async () => {
+    // `"2026-12-01T09:30"` is a valid `scheduled_start`/`remind_at` value but NOT a
+    // valid `due`: the due anchor is date-only, so the regex forbids a time
+    // component. Proves the bound rejects a plausible-but-wrong-shape value, not
+    // just garbage.
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Datetime due" }, quadrant: "Q1", due: "2026-12-01T09:30" },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "due"),
+      "a datetime where a date is required must still name `due`",
+    );
+  });
+
+  test("valid `due` round-trips — create persists it and a read reflects it back", async () => {
+    const due = "2026-12-01";
+    const { status, body: created } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Ship it" }, quadrant: "Q1", due },
+    });
+    assert.equal(status, 201, "a well-formed due date must be accepted");
+    assert.equal(created.due, due, "the create response must echo the stored due date");
+
+    const read = await api("GET", `/v1/tasks/${created.id}`, { token: alice.token });
+    assert.equal(read.status, 200);
+    assert.equal(read.body.due, due, "a subsequent read must reflect the persisted due date");
+  });
+
+  test("malformed `due` on PATCH → 400 and the stored value is left unmutated", async () => {
+    const good = "2026-12-02";
+    const { body: created } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Patch due target" }, quadrant: "Q1", due: good },
+    });
+
+    const { status, body } = await api("PATCH", `/v1/tasks/${created.id}`, {
+      token: alice.token,
+      body: { due: "not-a-date" },
+    });
+    assert.equal(status, 400, "the update path must validate `due` too");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+
+    const read = await api("GET", `/v1/tasks/${created.id}`, { token: alice.token });
+    assert.equal(read.status, 200);
+    assert.equal(read.body.due, good, "a rejected update must leave the stored due date unchanged");
+  });
+});
+
+// Design for ROBUSTNESS — task `scheduled_start` slot anchor is format-bounded (#319)
+//
+// Coverage-gap audit (task write boundary temporal fields, #319): the third
+// format-bounded temporal field on the task write boundary (with `remind_at` and
+// `due`), and the one with NO prior format-bound coverage at all. `scheduled_start`
+// is the day-plan slot — a wall-clock DATETIME anchor
+// (`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$`, same shape as `remind_at`, on create
+// + partial update) that places a task on the schedule. The regex is the sole guard
+// between a client and a junk value in the column the scheduler reads to position
+// the task — a regression loosening it to `z.string()` would let a date-only value
+// / garbage into storage and slip past every existing case, surfacing only as a
+// task that can't be placed on the day plan in prod.
+//
+// Gives the bound teeth on BOTH write paths (create + update) and proves the
+// round-trip: malformed → clean 400 (never 5xx / silent write), a valid value
+// persists + reflects back via `GET /v1/tasks/:id`, and a bad PATCH leaves the
+// stored slot unmutated (no partial poison).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — task `scheduled_start` slot anchor is format-bounded (#319)", () => {
+  test("malformed `scheduled_start` on create → 400 VALIDATION_ERROR naming the field, never a 5xx / write", async () => {
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Bad slot" }, quadrant: "Q1", scheduled_start: "someday" },
+    });
+    assert.equal(status, 400, "a junk schedule slot must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "scheduled_start"),
+      "the rejection must name `scheduled_start` (the format bound fired, not an incidental 400)",
+    );
+  });
+
+  test("date-only `scheduled_start` (no time component) → 400 — the full-datetime bound has teeth", async () => {
+    // `"2026-12-01"` is a valid `due` date but NOT a valid `scheduled_start`: the
+    // schedule slot needs a wall-clock time, so the regex demands `T HH:MM`. Proves
+    // the bound rejects a plausible-but-incomplete value, not just garbage.
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Date only slot" }, quadrant: "Q1", scheduled_start: "2026-12-01" },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "scheduled_start"),
+      "a date with no time must still name `scheduled_start`",
+    );
+  });
+
+  test("valid `scheduled_start` round-trips — create persists it and a read reflects it back", async () => {
+    const slot = "2026-12-01T14:15";
+    const { status, body: created } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Deep work" }, quadrant: "Q1", scheduled_start: slot },
+    });
+    assert.equal(status, 201, "a well-formed schedule slot must be accepted");
+    assert.equal(created.scheduled_start, slot, "the create response must echo the stored slot");
+
+    const read = await api("GET", `/v1/tasks/${created.id}`, { token: alice.token });
+    assert.equal(read.status, 200);
+    assert.equal(read.body.scheduled_start, slot, "a subsequent read must reflect the persisted slot");
+  });
+
+  test("malformed `scheduled_start` on PATCH → 400 and the stored value is left unmutated", async () => {
+    const good = "2026-12-02T08:45";
+    const { body: created } = await api("POST", "/v1/tasks", {
+      token: alice.token,
+      body: { title: { en: "Patch slot target" }, quadrant: "Q1", scheduled_start: good },
+    });
+
+    const { status, body } = await api("PATCH", `/v1/tasks/${created.id}`, {
+      token: alice.token,
+      body: { scheduled_start: "not-a-datetime" },
+    });
+    assert.equal(status, 400, "the update path must validate `scheduled_start` too");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+
+    const read = await api("GET", `/v1/tasks/${created.id}`, { token: alice.token });
+    assert.equal(read.status, 200);
+    assert.equal(read.body.scheduled_start, good, "a rejected update must leave the stored slot unchanged");
+  });
+});
+
 // Design for ROBUSTNESS — countdown `date` anchor is format-bounded (#240)
 //
 // Coverage-gap audit: a countdown event's `date` is the solar (Gregorian) ISO
