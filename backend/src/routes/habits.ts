@@ -48,7 +48,9 @@ const MigrateBody = z.object({
     emoji: z.string().max(10).optional().nullable(),
     color: z.enum(["green", "cyan", "amber", "red", "purple"]),
     frequency: z.enum(["daily", "weekdays", "weekend", "days_of_week", "times_per_week", "interval"]),
-    frequencyDays: z.array(z.number()).optional().nullable(),
+    // Weekday indices only (0–6), and at most 7 — matches HabitBody and keeps
+    // this nested array from being an unbounded vector on bulk import.
+    frequencyDays: z.array(z.number().int().min(0).max(6)).max(7).optional().nullable(),
     frequencyTimes: z.number().optional().nullable(),
     frequencyInterval: z.number().optional().nullable(),
     note: z.string().optional().nullable(),
