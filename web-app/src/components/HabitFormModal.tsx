@@ -81,8 +81,8 @@ export function HabitFormModal({ habit, onSave, onClose }: Props) {
   function validate(): boolean {
     const errs: typeof errors = {};
     if (!form.title.trim()) errs.title = t("habit.form.error.title");
-    else if (form.title.length > 100) errs.title = t("habit.form.error.title.maxlen");
-    if (form.note.length > 500) errs.note = t("habit.form.error.note.maxlen");
+    else if (form.title.trim().length > 100) errs.title = t("habit.form.error.title.maxlen");
+    if (form.note.trim().length > 500) errs.note = t("habit.form.error.note.maxlen");
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
