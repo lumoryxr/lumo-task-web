@@ -137,7 +137,7 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
           <div className="text-sm font-medium text-text-primary truncate leading-snug">
             <TaskTitle text={ls(task.title)} />
           </div>
-          <div className="flex items-center gap-3 mt-0.5 text-xs text-text-muted tabular-nums">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5 text-xs text-text-muted tabular-nums">
             {due && <span style={{ color: dueColor }}>{due}</span>}
             {task.duration > 0 && <span>{fmtDuration(task.duration, locale)}</span>}
             <span className="pip">
