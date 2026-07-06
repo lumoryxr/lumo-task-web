@@ -481,72 +481,101 @@ function AllDoneBanner() {
   );
 }
 
-// ─── Planning Banner ────────────────────────────────────────────────────────
+// ─── Planning Strip ─────────────────────────────────────────────────────────
+// The three low-frequency planning actions (plan day / plan week / evening
+// review) folded into one compact row of segments, instead of three tall
+// full-width banners, so the Today page stays focused on tasks. A done/planned
+// segment dims and shows a ✓; the not-yet-planned "day" segment gets a gentle
+// accent nudge.
 
-function PlanningBanner({ onOpen, planned }: { onOpen: () => void; planned: boolean }) {
-  const t = useT();
-  return (
-    <button
-      onClick={onOpen}
-      className="w-full text-left rounded-xl mb-6"
-      style={{
-        padding: "12px 16px",
-        border: "1px solid var(--accent-edge)",
-        background: planned
-          ? "var(--bg-surface)"
-          : "linear-gradient(135deg, var(--accent-fog) 0%, var(--bg-surface) 70%)",
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        cursor: "pointer",
-        minHeight: 52,
-        transition: "opacity 0.15s",
-      }}
-    >
-      <div className="lumo-glyph flex-shrink-0" style={{ width: 18, height: 18 }}>
-        <div className="halo" />
-        <div className="core" />
-      </div>
-      <span
-        className="text-sm font-medium"
-        style={{ color: planned ? "var(--text-secondary)" : "var(--accent-primary)", flex: 1 }}
-      >
-        {planned ? t("today.planning.btn.adjust") : t("today.planning.btn.start")}
-      </span>
-      <span style={{ color: "var(--text-faint)", fontSize: 14 }}>›</span>
-    </button>
-  );
+interface PlanningStripProps {
+  onPlanning: () => void;
+  planned: boolean;
+  onWeekly: () => void;
+  weeklyPlanned: boolean;
+  onEvening: () => void;
+  eveningDone: boolean;
 }
 
-// ─── Weekly Planning Banner ─────────────────────────────────────────────────
-
-function WeeklyPlanningBanner({ onOpen, planned }: { onOpen: () => void; planned: boolean }) {
+function PlanningStrip({
+  onPlanning, planned, onWeekly, weeklyPlanned, onEvening, eveningDone,
+}: PlanningStripProps) {
   const t = useT();
+
+  const segs = [
+    {
+      key: "plan",
+      glyph: (
+        <div className="lumo-glyph flex-shrink-0" style={{ width: 14, height: 14 }}>
+          <div className="halo" />
+          <div className="core" />
+        </div>
+      ),
+      label: t("today.strip.plan"),
+      aria: planned ? t("today.planning.btn.adjust") : t("today.planning.btn.start"),
+      done: planned,
+      nudge: !planned,
+      onClick: onPlanning,
+    },
+    {
+      key: "week",
+      glyph: <span style={{ fontSize: 12, flexShrink: 0 }}>★</span>,
+      label: t("today.strip.week"),
+      aria: weeklyPlanned ? t("weekly.planning.btn.adjust") : t("weekly.planning.btn.start"),
+      done: weeklyPlanned,
+      nudge: false,
+      onClick: onWeekly,
+    },
+    {
+      key: "evening",
+      glyph: <span style={{ fontSize: 12, flexShrink: 0 }}>🌙</span>,
+      label: t("today.strip.evening"),
+      aria: eveningDone ? t("today.evening.btn.done") : t("today.evening.btn.start"),
+      done: eveningDone,
+      nudge: false,
+      onClick: onEvening,
+    },
+  ];
+
   return (
-    <button
-      onClick={onOpen}
-      className="w-full text-left rounded-xl mb-3"
+    <div
+      className="flex mb-6 rounded-xl"
       style={{
-        padding: "10px 16px",
-        border: `1px solid ${planned ? "var(--border-faint)" : "var(--border-default)"}`,
-        background: planned ? "var(--bg-surface)" : "var(--bg-deep)",
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        cursor: "pointer",
-        minHeight: 44,
-        transition: "opacity 0.15s",
+        padding: 4,
+        gap: 4,
+        border: "1px solid var(--border-faint)",
+        background: "var(--bg-surface)",
       }}
     >
-      <span style={{ fontSize: 15, flexShrink: 0 }}>★</span>
-      <span
-        className="text-sm font-medium"
-        style={{ color: planned ? "var(--text-faint)" : "var(--text-secondary)", flex: 1 }}
-      >
-        {planned ? t("weekly.planning.btn.adjust") : t("weekly.planning.btn.start")}
-      </span>
-      <span style={{ color: "var(--text-faint)", fontSize: 14 }}>›</span>
-    </button>
+      {segs.map((s) => (
+        <button
+          key={s.key}
+          onClick={s.onClick}
+          aria-label={s.aria}
+          className={`planning-seg${s.nudge ? " planning-seg--nudge" : ""} flex-1 inline-flex items-center justify-center gap-1.5 min-w-0`}
+          style={{ padding: "8px 8px", borderRadius: "var(--radius-md)" }}
+        >
+          <span style={{ color: s.nudge ? "var(--accent-primary)" : "var(--text-muted)", display: "inline-flex" }}>
+            {s.glyph}
+          </span>
+          <span
+            className="text-[12px] font-medium truncate"
+            style={{ color: s.nudge ? "var(--accent-primary)" : s.done ? "var(--text-faint)" : "var(--text-secondary)" }}
+          >
+            {s.label}
+          </span>
+          {s.done && (
+            <svg
+              width="11" height="11" viewBox="0 0 24 24" fill="none"
+              stroke="var(--accent-primary)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ flexShrink: 0 }} aria-hidden="true"
+            >
+              <path d="M4 12l5 5 11-11" />
+            </svg>
+          )}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -638,38 +667,6 @@ function WeekFocusSection({ weekFocusTasks }: WeekFocusSectionProps) {
         </div>
       )}
     </section>
-  );
-}
-
-// ─── Evening Review Banner ──────────────────────────────────────────────────
-
-function EveningReviewBanner({ onOpen, done }: { onOpen: () => void; done: boolean }) {
-  const t = useT();
-  return (
-    <button
-      onClick={onOpen}
-      className="w-full text-left rounded-xl mb-6"
-      style={{
-        padding: "12px 16px",
-        border: "1px solid var(--border-faint)",
-        background: done ? "var(--bg-surface)" : "var(--bg-deep)",
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        cursor: "pointer",
-        minHeight: 52,
-        transition: "opacity 0.15s",
-      }}
-    >
-      <span style={{ fontSize: 16, flexShrink: 0 }}>🌙</span>
-      <span
-        className="text-sm font-medium"
-        style={{ color: done ? "var(--text-faint)" : "var(--text-secondary)", flex: 1 }}
-      >
-        {done ? t("today.evening.btn.done") : t("today.evening.btn.start")}
-      </span>
-      <span style={{ color: "var(--text-faint)", fontSize: 14 }}>›</span>
-    </button>
   );
 }
 
@@ -800,9 +797,11 @@ export function TodayPage() {
       <>
         <div className="px-4 sm:px-7 pt-6 sm:pt-7">
           <TodayHero name={heroName} done={doneToday} total={totalToday} />
-          <PlanningBanner onOpen={() => setPlanningOpen(true)} planned={planned} />
-          <WeeklyPlanningBanner onOpen={() => setWeeklyOpen(true)} planned={weeklyPlanned} />
-          <EveningReviewBanner onOpen={() => setEveningOpen(true)} done={eveningDone} />
+          <PlanningStrip
+            onPlanning={() => setPlanningOpen(true)} planned={planned}
+            onWeekly={() => setWeeklyOpen(true)} weeklyPlanned={weeklyPlanned}
+            onEvening={() => setEveningOpen(true)} eveningDone={eveningDone}
+          />
           <WeekFocusSection weekFocusTasks={weekFocusTasks} />
         </div>
         <TodayEmptyState />
@@ -823,14 +822,13 @@ export function TodayPage() {
     <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
       <TodayHero name={heroName} done={doneToday} total={totalToday} />
 
-      {/* Morning planning banner — always visible */}
-      <PlanningBanner onOpen={() => setPlanningOpen(true)} planned={planned} />
-
-      {/* Weekly planning banner */}
-      <WeeklyPlanningBanner onOpen={() => setWeeklyOpen(true)} planned={weeklyPlanned} />
-
-      {/* Evening review banner — always visible */}
-      <EveningReviewBanner onOpen={() => setEveningOpen(true)} done={eveningDone} />
+      {/* Planning strip — plan day / plan week / evening review, folded into one
+          compact row so these low-frequency actions don't dominate the page */}
+      <PlanningStrip
+        onPlanning={() => setPlanningOpen(true)} planned={planned}
+        onWeekly={() => setWeeklyOpen(true)} weeklyPlanned={weeklyPlanned}
+        onEvening={() => setEveningOpen(true)} eveningDone={eveningDone}
+      />
 
       {/* This week's focus — shown above today's tasks when set */}
       <WeekFocusSection weekFocusTasks={weekFocusTasks} />
