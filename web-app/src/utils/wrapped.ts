@@ -14,7 +14,7 @@ export interface PrevWeekStats {
 /** A past recap the user can re-open from the Recaps gallery (#171 V2b). */
 export interface RecapRef {
   id: string;
-  kind: "week" | "month";
+  kind: "week" | "month" | "year";
   stats: PrevWeekStats;
 }
 
@@ -75,6 +75,15 @@ function monthRangeAgo(now: Date, monthsAgo: number): PeriodRange {
   return { start, end, label, id };
 }
 
+/** Range + label + stable id for the calendar year `yearsAgo` years back (1 = last year). */
+function yearRangeAgo(now: Date, yearsAgo: number): PeriodRange {
+  const year = now.getFullYear() - yearsAgo;
+  const start = new Date(year, 0, 1, 0, 0, 0, 0);
+  const end = new Date(year + 1, 0, 1, 0, 0, 0, 0);
+  end.setMilliseconds(-1);
+  return { start, end, label: `${year}`, id: `year:${year}` };
+}
+
 function statsForRange(entries: CompletedEntry[], r: PeriodRange): PrevWeekStats {
   const inRange = entries.filter((e) => {
     if (!e.completedAt) return false;
@@ -93,17 +102,23 @@ export function computeMonthStats(entries: CompletedEntry[]): PrevWeekStats {
   return statsForRange(entries, monthRangeAgo(new Date(), 1));
 }
 
+/** Recap of the previous calendar year over the full completed history. */
+export function computeYearStats(entries: CompletedEntry[]): PrevWeekStats {
+  return statsForRange(entries, yearRangeAgo(new Date(), 1));
+}
+
 /**
  * Past recaps (most recent first within each kind) that had ≥1 completed task,
- * for the re-accessible Recaps gallery (#171 V2b): up to `weeks` past weeks
- * followed by up to `months` past months.
+ * for the re-accessible Recaps gallery (#171 V2b): up to `weeks` past weeks,
+ * then up to `months` past months, then up to `years` past calendar years.
  */
 export function listRecaps(
   entries: CompletedEntry[],
-  opts: { weeks?: number; months?: number } = {},
+  opts: { weeks?: number; months?: number; years?: number } = {},
 ): RecapRef[] {
   const weeks = opts.weeks ?? 8;
   const months = opts.months ?? 6;
+  const years = opts.years ?? 2;
   const now = new Date();
   const out: RecapRef[] = [];
   for (let w = 1; w <= weeks; w++) {
@@ -115,6 +130,11 @@ export function listRecaps(
     const r = monthRangeAgo(now, m);
     const stats = statsForRange(entries, r);
     if (stats.tasksCompleted > 0) out.push({ id: r.id, kind: "month", stats });
+  }
+  for (let y = 1; y <= years; y++) {
+    const r = yearRangeAgo(now, y);
+    const stats = statsForRange(entries, r);
+    if (stats.tasksCompleted > 0) out.push({ id: r.id, kind: "year", stats });
   }
   return out;
 }
@@ -133,6 +153,22 @@ export function shouldShowMonthlyWrapped(userId: string): boolean {
 
 export function markMonthlyWrappedShown(userId: string): void {
   localStorage.setItem(monthlyWrappedKey(userId), "1");
+}
+
+function yearlyWrappedKey(userId: string): string {
+  const prevYear = new Date().getFullYear() - 1;
+  return `lumo.wrapped.year.${userId}.${prevYear}`;
+}
+
+/** Offer the yearly recap during the first 7 days of a new year, once per year. */
+export function shouldShowYearlyWrapped(userId: string): boolean {
+  const now = new Date();
+  if (now.getMonth() !== 0 || now.getDate() > 7) return false;
+  return !localStorage.getItem(yearlyWrappedKey(userId));
+}
+
+export function markYearlyWrappedShown(userId: string): void {
+  localStorage.setItem(yearlyWrappedKey(userId), "1");
 }
 
 const QUADRANT_ORDER = ["Q1", "Q2", "Q3", "Q4", "unclassified"] as const;
