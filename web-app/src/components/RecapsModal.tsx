@@ -27,6 +27,7 @@ export function RecapsModal({ entries, currentStreak, userName, onClose }: Recap
 
   const weeks = recaps.filter((r) => r.kind === "week");
   const months = recaps.filter((r) => r.kind === "month");
+  const years = recaps.filter((r) => r.kind === "year");
 
   return createPortal(
     <div
@@ -106,6 +107,9 @@ export function RecapsModal({ entries, currentStreak, userName, onClose }: Recap
             )}
             {months.length > 0 && (
               <RecapGroup label={t("recaps.group.months")} items={months} tasksLabel={t("stats.tasks")} onPick={setSelected} />
+            )}
+            {years.length > 0 && (
+              <RecapGroup label={t("recaps.group.years")} items={years} tasksLabel={t("stats.tasks")} onPick={setSelected} />
             )}
           </div>
         )}

@@ -5,8 +5,11 @@ import {
   markWrappedShown,
   computePrevWeekStats,
   computeMonthStats,
+  computeYearStats,
   shouldShowMonthlyWrapped,
   markMonthlyWrappedShown,
+  shouldShowYearlyWrapped,
+  markYearlyWrappedShown,
   listRecaps,
 } from "../wrapped";
 import type { CompletedEntry } from "@/types/task";
@@ -210,6 +213,53 @@ describe("computeMonthStats", () => {
   });
 });
 
+describe("computeYearStats", () => {
+  // 2024-01-05 → previous calendar year is 2023.
+  const EARLY_JAN = new Date("2024-01-05T10:00:00");
+
+  it("aggregates only the previous calendar year and labels it", () => {
+    vi.setSystemTime(EARLY_JAN);
+    const entries = [
+      makeEntry({ quadrant: "Q1", duration: 30, completedAt: "2023-01-03T10:00:00" }), // 2023 ✓
+      makeEntry({ quadrant: "Q2", duration: 15, completedAt: "2023-12-31T23:00:00" }), // 2023 ✓ (boundary)
+      makeEntry({ quadrant: "Q3", duration: 10, completedAt: "2022-12-31T10:00:00" }), // 2022 ✗
+      makeEntry({ quadrant: "Q4", duration: 10, completedAt: "2024-01-01T10:00:00" }), // 2024 ✗
+    ];
+    const r = computeYearStats(entries);
+    expect(r.tasksCompleted).toBe(2);
+    expect(r.focusMinutes).toBe(45);
+    expect(r.weekLabel).toBe("2023");
+    const find = (q: string) => r.quadrantBreakdown.find((b) => b.quadrant === q)!;
+    expect(find("Q1").count).toBe(1);
+    expect(find("Q2").count).toBe(1);
+    expect(find("Q3").count).toBe(0);
+  });
+});
+
+describe("shouldShowYearlyWrapped / markYearlyWrappedShown", () => {
+  it("shows within the first 7 days of January, not later and not in other months", () => {
+    vi.setSystemTime(new Date("2024-01-01T09:00:00"));
+    expect(shouldShowYearlyWrapped("u1")).toBe(true);
+    vi.setSystemTime(new Date("2024-01-07T09:00:00"));
+    expect(shouldShowYearlyWrapped("u1")).toBe(true);
+    vi.setSystemTime(new Date("2024-01-08T09:00:00"));
+    expect(shouldShowYearlyWrapped("u1")).toBe(false);
+    vi.setSystemTime(new Date("2024-02-01T09:00:00"));
+    expect(shouldShowYearlyWrapped("u1")).toBe(false);
+  });
+
+  it("shows once per year, then is gated; independent per user and per year", () => {
+    vi.setSystemTime(new Date("2024-01-02T09:00:00"));
+    expect(shouldShowYearlyWrapped("u1")).toBe(true);
+    markYearlyWrappedShown("u1");
+    expect(shouldShowYearlyWrapped("u1")).toBe(false);
+    expect(shouldShowYearlyWrapped("u2")).toBe(true); // per-user
+    // Next January is a fresh key.
+    vi.setSystemTime(new Date("2025-01-02T09:00:00"));
+    expect(shouldShowYearlyWrapped("u1")).toBe(true);
+  });
+});
+
 describe("shouldShowMonthlyWrapped / markMonthlyWrappedShown", () => {
   it("shows within the first 3 days of the month, not later", () => {
     vi.setSystemTime(new Date("2024-02-01T09:00:00"));
@@ -265,9 +315,22 @@ describe("listRecaps", () => {
     vi.setSystemTime(MID_MARCH);
     const recaps = listRecaps(
       [makeEntry({ completedAt: "2024-01-10T10:00:00" })], // ~10 weeks ago, 2 months ago
-      { weeks: 2, months: 1 },
+      { weeks: 2, months: 1, years: 0 },
     );
-    // Outside a 2-week / 1-month window → nothing.
+    // Outside a 2-week / 1-month window (and no year lookback) → nothing.
     expect(recaps).toEqual([]);
+  });
+
+  it("includes a past calendar year, after weeks and months", () => {
+    vi.setSystemTime(MID_MARCH);
+    const recaps = listRecaps([
+      makeEntry({ completedAt: "2023-06-15T10:00:00" }), // last year (2023) only
+    ]);
+    const years = recaps.filter((r) => r.kind === "year");
+    expect(years).toHaveLength(1);
+    expect(years[0].stats.weekLabel).toBe("2023");
+    // Years come after weeks and months in the list.
+    const kinds = recaps.map((r) => r.kind);
+    expect(kinds.lastIndexOf("year")).toBe(kinds.length - 1);
   });
 });
