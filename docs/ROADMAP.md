@@ -56,6 +56,7 @@ From the production-readiness review (#46) + ongoing. Already shipped: #34/#36/#
     - [x] **#305** — `/v1/ai/parse` NL-capture input bounds (robustness). *(PR #368, merged 2026-07-07 — 4 DFX robustness cases over real HTTP + real SQLite, mutation-tested perfect specificity; test+docs only.)*
     - [x] **#319** — task `due` + `scheduled_start` datetime-format bounds (`scheduled_start` absent from suite). *(PR #335, merged 2026-07-06 — 8 DFX robustness cases, mutation-tested perfect specificity; test+docs only.)*
     - [x] **#320** — `/v1/ai/chat` request-payload bounds. *(Already covered in the daily suite — "DFX · Robustness — /v1/ai/chat request-payload bounds (#320)" block, 3 cases incl. at-boundary teeth; checkbox was stale.)*
+    - [x] **#380** — `/v1/ai/chat` `context.todayTasks` / `recentCompleted` nested-payload bounds (sibling of #320, which covered only `messages`/`content`). *(PR #381, merged 2026-07-07 — 4 DFX robustness cases over real HTTP + real file SQLite: over-cap `todayTasks` array / over-length `todayTasks.0.title` (+recoverability) / over-cap `recentCompleted` array / at-both-caps 50-20 accepted; mutation-tested perfect specificity; test+docs only, contract already correct.)*
     - [ ] **#317** — bulk-import `/migrate` arrays are unbounded; needs a `.max()` cap. **⚠ needs Jalen** — the cap value is a migration-safety product/contract decision, not a pure test-gap.
 
 ### Awaiting Jalen — do not auto-build
