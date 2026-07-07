@@ -14,6 +14,7 @@ import type { CompletedEntry, Subtask, Task, TaskCompleteResponse, TaskCreateInp
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
 import { usePetStore } from "@/store/usePetStore";
+import { petLineKey } from "@/lib/petMood";
 import { useDogStore, XP_PER_TASK } from "@/store/useDogStore";
 
 /** Outcome of a bulk action — how many of the requested ids succeeded vs failed. */
@@ -168,11 +169,13 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       const result = await api.completeTask(id);
       const [tasks, completed] = await Promise.all([api.listTasks(), api.listCompletedToday()]);
       set({ tasks, completed });
+      const pet = usePetStore.getState();
+      pet.recordCompletion();
       if (completingTask?.quadrant === "Q1") {
-        usePetStore.getState().celebrate("pet.celebrate.q1");
+        pet.celebrate(petLineKey(pet.species, "celebrate"));
       } else {
         // Smaller wins still get a brief, message-less pet bounce as feedback.
-        usePetStore.getState().react();
+        pet.react();
       }
       useDogStore.getState().addXP(XP_PER_TASK);
       return result;
@@ -225,8 +228,10 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     });
     if (ok > 0) {
       // One aggregate celebration, not N — a Q1 in the batch upgrades the cheer.
-      if (anyQ1) usePetStore.getState().celebrate("pet.celebrate.q1");
-      else usePetStore.getState().react();
+      const pet = usePetStore.getState();
+      pet.recordCompletion();
+      if (anyQ1) pet.celebrate(petLineKey(pet.species, "celebrate"));
+      else pet.react();
       useDogStore.getState().addXP(XP_PER_TASK * ok);
     }
     const failed = ids.length - ok;

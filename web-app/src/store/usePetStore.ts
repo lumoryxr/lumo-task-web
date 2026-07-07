@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { PetSpecies } from "@/components/PetSvg";
+import { HAPPINESS_MAX, decayHappiness, gainHappiness } from "@/lib/petMood";
 
 export type PetMood = "idle" | "happy" | "excited";
 
@@ -11,6 +12,9 @@ interface PetStore {
   mood: PetMood;
   species: PetSpecies;
   petName: string;
+  /** Gentle happiness meter (#174). Stored raw; decayed on read. */
+  happiness: number;
+  lastActivityAt: number;
   setPos: (pos: { x: number; y: number }) => void;
   setMsg: (key: string | null) => void;
   setMood: (mood: PetMood) => void;
@@ -20,6 +24,10 @@ interface PetStore {
   react: (durationMs?: number) => void;
   setSpecies: (species: PetSpecies) => void;
   setPetName: (name: string) => void;
+  /** A task was completed → recover happiness and reset the idle clock. */
+  recordCompletion: () => void;
+  /** Current happiness after applying inactivity decay (does not mutate). */
+  readHappiness: () => number;
 }
 
 function defaultPos() {
@@ -40,6 +48,8 @@ export const usePetStore = create<PetStore>()(
       mood: "idle",
       species: "dog",
       petName: "",
+      happiness: HAPPINESS_MAX,
+      lastActivityAt: Date.now(),
       setPos: (pos) => set({ pos }),
       setMsg: (activeMsg) => set({ activeMsg }),
       setMood: (mood) => set({ mood }),
@@ -61,10 +71,27 @@ export const usePetStore = create<PetStore>()(
       },
       setSpecies: (species) => set({ species }),
       setPetName: (petName) => set({ petName }),
+      recordCompletion: () => {
+        const now = Date.now();
+        const s = get();
+        const decayed = decayHappiness(s.happiness, s.lastActivityAt, now);
+        set({ happiness: gainHappiness(decayed), lastActivityAt: now });
+      },
+      readHappiness: () => {
+        const s = get();
+        return decayHappiness(s.happiness, s.lastActivityAt, Date.now());
+      },
     }),
     {
       name: "lumo-pet",
-      partialize: (s) => ({ pos: s.pos, visible: s.visible, species: s.species, petName: s.petName }),
+      partialize: (s) => ({
+        pos: s.pos,
+        visible: s.visible,
+        species: s.species,
+        petName: s.petName,
+        happiness: s.happiness,
+        lastActivityAt: s.lastActivityAt,
+      }),
     }
   )
 );

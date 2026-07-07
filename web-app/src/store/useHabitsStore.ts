@@ -4,6 +4,9 @@ import type { Habit, HabitColor, HabitFrequency, HabitLog } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
 import { clientId } from "@/lib/id";
+import { currentStreak } from "@/utils/habits";
+import { usePetStore } from "@/store/usePetStore";
+import { isStreakMilestone, petLineKey } from "@/lib/petMood";
 
 function migrationKey(userId: string) {
   return `lumo.habits.migrated.v1.${userId}`;
@@ -150,10 +153,23 @@ export const useHabitsStore = create<HabitsState>((set) => ({
   async log(userId, habitId, date) {
     try {
       const entry = await habitApi.logHabit(userId, habitId, date);
+      let added = false;
       set((s) => {
         const already = s.logs.some((l) => l.habitId === habitId && l.date === date);
-        return already ? s : { logs: [...s.logs, entry] };
+        if (already) return s;
+        added = true;
+        return { logs: [...s.logs, entry] };
       });
+      // Only on a fresh check-in: if this pushes the streak to a milestone,
+      // give the pet a distinct, species-flavoured reaction (#174).
+      if (added) {
+        const st = useHabitsStore.getState();
+        const habit = st.habits.find((h) => h.id === habitId);
+        if (habit && isStreakMilestone(currentStreak(habit, st.logs))) {
+          const pet = usePetStore.getState();
+          pet.celebrate(petLineKey(pet.species, "streak"));
+        }
+      }
     } catch (e) {
       toast.error(t("habit.error.log"), e instanceof Error ? e.message : String(e));
       throw e;
