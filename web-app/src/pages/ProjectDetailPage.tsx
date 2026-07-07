@@ -9,6 +9,7 @@ import type { Project, ProjectColor, ProjectGoal, GoalConfidence } from "@/types
 import { TaskRow } from "@/components/TaskRow";
 import { ProjectBoard } from "@/components/ProjectBoard";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
+import { ProjectNotesModal } from "@/components/ProjectNotesModal";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { ProgressRing } from "@/components/ProgressRing";
 import { Spinner } from "@/components/Spinner";
@@ -52,7 +53,7 @@ export function ProjectDetailPage() {
   const [pendingGoalRemove, setPendingGoalRemove] = useState<number | null>(null);
   const [recapOpen, setRecapOpen] = useState(false);
   const [taskView, setTaskView] = useState<"list" | "board">("list");
-  const [notesEditing, setNotesEditing] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [addExistingOpen, setAddExistingOpen] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
 
@@ -296,35 +297,43 @@ export function ProjectDetailPage() {
         />
       </div>
 
-      {/* Notes — editable rich text with a display/edit state, hoisted to the
-          top so the project's write-up is the first thing you see (#215). */}
+      {/* Notes — collapsed to a compact preview here; viewed/edited in a modal so
+          the detail page stays scannable (#215 follow-up). */}
       <Section
         title={t("project.content.title")}
         extra={
           <button
-            onClick={() => setNotesEditing((v) => !v)}
-            aria-pressed={notesEditing}
+            onClick={() => setNotesOpen(true)}
             className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md normal-case tracking-normal transition-colors"
-            style={{ border: "1px solid var(--border-default)", color: notesEditing ? "var(--accent-primary)" : "var(--text-muted)" }}
+            style={{ border: "1px solid var(--border-default)", color: "var(--text-muted)" }}
           >
-            {notesEditing ? (<><IconCheck size={12} />{t("project.content.done")}</>) : t("project.content.edit")}
+            {project.content ? t("project.content.edit") : t("project.content.add")}
           </button>
         }
       >
-        {notesEditing ? (
-          <ProjectContentEditor
-            value={project.content}
-            onChange={(json) => update(pid, { content: json || undefined })}
-          />
-        ) : project.content ? (
-          <ProjectContentEditor value={project.content} editable={false} onChange={() => {}} />
+        {project.content ? (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setNotesOpen(true)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setNotesOpen(true); } }}
+            aria-label={t("project.content.open")}
+            className="surface-card surface-card--interactive overflow-hidden cursor-pointer"
+            style={{ maxHeight: 120, padding: "10px 12px" }}
+          >
+            <ProjectContentEditor value={project.content} editable={false} onChange={() => {}} />
+          </div>
         ) : (
-          <p className="text-xs text-text-faint">{t("project.content.empty")}</p>
+          <button
+            type="button"
+            onClick={() => setNotesOpen(true)}
+            className="text-xs text-text-faint hover:text-text-secondary transition-colors"
+          >
+            {t("project.content.empty")}
+          </button>
         )}
       </Section>
 
-      <div className="lg:grid lg:grid-cols-2 lg:gap-x-8 lg:items-start">
-        <div>
       {/* Key goals */}
       <Section title={t("project.goals.title")}>
         {goals.length === 0 && <p className="text-xs text-text-faint mb-2">{t("project.goals.empty")}</p>}
@@ -383,9 +392,7 @@ export function ProjectDetailPage() {
           </button>
         </div>
       </Section>
-        </div>
 
-        <div>
       {/* Tasks */}
       <Section
         title={t("project.tasks.title")}
@@ -438,8 +445,6 @@ export function ProjectDetailPage() {
           {t("project.tasks.addExisting")}
         </button>
       </Section>
-        </div>
-      </div>
 
       {recapOpen && (
         <ProjectRecapCard
@@ -459,6 +464,14 @@ export function ProjectDetailPage() {
           projectId={pid}
           onClose={() => setAddTaskOpen(false)}
           onCreated={() => setAddTaskOpen(false)}
+        />
+      )}
+
+      {notesOpen && (
+        <ProjectNotesModal
+          value={project.content}
+          onChange={(json) => update(pid, { content: json || undefined })}
+          onClose={() => setNotesOpen(false)}
         />
       )}
 
