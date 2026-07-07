@@ -3217,3 +3217,89 @@ describe("DFX · Security — auth/refresh rotation, single-use & reuse-detectio
     assert.equal(after.status, 401, "a password change must invalidate refresh tokens issued before it (session_version bump)");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS — auth register/signin input bounds (#387)
+// ═══════════════════════════════════════════════════════════════════════════════
+// `POST /v1/auth/register` and `POST /v1/auth/signin` are the app's TWO public,
+// unauthenticated, highest-traffic endpoints, yet the daily suite exercised them
+// only as the `registerUser` fixture helper — the sole input case was the single
+// "weak password rejected at registration" security assertion. Their validation
+// boundary otherwise had NO daily coverage: `register` never had its `email`
+// shape / `name` length bounds pinned, and `signin` had ZERO validation coverage
+// at all.
+//
+// Each body is gated by a Zod schema (`RegisterBody` / `SigninBody`, routes/auth.ts)
+// that runs via `validate("json", …)` BEFORE the handler touches the users table
+// or spends any bcrypt time — so these caps are the only barrier stopping a
+// malformed row (bad-shape email, blank/oversized display name) from reaching
+// storage. A regression loosening any of them would surface only as corrupt data
+// / a 5xx in prod, past every existing case. `register`: `email` is
+// `z.string().email().max(255)`, `name` is `z.string().min(1).max(100)`.
+// `signin`: `email` is `z.string().email()`.
+//
+// NOTE — this pins the pre-auth VALIDATION layer only (malformed shape → 400),
+// which is orthogonal to the signin account-enumeration/timing policy (the
+// deliberately-uniform 401 for a VALID-but-unknown email, an open Jalen decision):
+// a malformed email is rejected at the shape gate before the credential path ever
+// runs, so it is a clean 400, never the 401 that enumeration concerns are about.
+describe("DFX · Robustness — auth register/signin input bounds (#387)", () => {
+  test("AC1 · register with a malformed `email` → 400 VALIDATION_ERROR naming `email`; a valid register still 201 (recoverability)", async () => {
+    const bad = await api("POST", "/v1/auth/register", {
+      body: { email: "not-an-email", password: "Secret1234!", name: "Shape" },
+    });
+    assert.equal(bad.status, 400, "a bad-shape email must be a client error, not a 5xx or a stored row");
+    assert.equal(bad.body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (bad.body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "email"),
+      "the rejection must name `email` (the .email() shape bound fired, not an incidental 400)",
+    );
+
+    // Recoverability + proof it was the email shape (not a dead endpoint): a
+    // well-formed registration right after still succeeds → 201 with a token.
+    const good = await api("POST", "/v1/auth/register", {
+      body: { email: uniqueEmail("authbounds-ok"), password: "Secret1234!", name: "Valid" },
+    });
+    assert.equal(good.status, 201, "a well-formed register after a rejected one must still succeed");
+    assert.ok(typeof good.body.token === "string" && good.body.token.length > 0, "a successful register returns a token");
+  });
+
+  test("AC2 · register with an over-length `name` (> 100) → 400 VALIDATION_ERROR naming `name`", async () => {
+    const { status, body } = await api("POST", "/v1/auth/register", {
+      body: { email: uniqueEmail("authbounds-longname"), password: "Secret1234!", name: "x".repeat(101) },
+    });
+    assert.equal(status, 400, "an over-length display name must be rejected, not stored");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "name"),
+      "the rejection must name `name` (the max(100) bound fired)",
+    );
+  });
+
+  test("AC3 · register with an empty `name` (`\"\"`) → 400 VALIDATION_ERROR naming `name` — the min(1) lower bound", async () => {
+    const { status, body } = await api("POST", "/v1/auth/register", {
+      body: { email: uniqueEmail("authbounds-blankname"), password: "Secret1234!", name: "" },
+    });
+    assert.equal(status, 400, "a blank display name must be rejected, not stored");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "name"),
+      "a blank name must name `name` (the min(1) bound fired, distinct from the max(100) cap)",
+    );
+  });
+
+  test("AC4 · signin with a malformed `email` → 400 VALIDATION_ERROR naming `email` (validation before the credential/enumeration path, not a 401)", async () => {
+    const { status, body } = await api("POST", "/v1/auth/signin", {
+      body: { email: "not-an-email", password: "whatever" },
+    });
+    // 400 (shape gate), NOT 401: the malformed email is rejected before the
+    // no-user credential path runs, so this is orthogonal to the uniform-401
+    // enumeration policy for valid-but-unknown emails.
+    assert.equal(status, 400, "a malformed signin email is a validation error (400), never the credential-path 401");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "email"),
+      "the rejection must name `email` (signin's own .email() shape bound fired)",
+    );
+  });
+});
