@@ -54,6 +54,24 @@ describe("CalendarFeedCard", () => {
     await waitFor(() => expect(input.value).toContain("token=new"));
   });
 
+  it("keeps the dialog open and the old URL on a rotate failure (retry-safe)", async () => {
+    getCalendarFeed.mockResolvedValue({ token: "old", url: "https://x/feed.ics?token=old" });
+    rotateCalendarFeed.mockRejectedValue(new Error("network"));
+    render(<CalendarFeedCard t={t} />);
+
+    const input = (await screen.findByLabelText("calendar.feed.title")) as HTMLInputElement;
+    await waitFor(() => expect(input.value).toContain("token=old"));
+
+    fireEvent.click(screen.getByText("calendar.feed.regenerate"));
+    const confirmBtns = screen.getAllByText("calendar.feed.regenerate");
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+
+    await waitFor(() => expect(rotateCalendarFeed).toHaveBeenCalledTimes(1));
+    // Dialog stays open (its message is still shown) and the old URL is intact.
+    expect(screen.getByText("calendar.feed.regenerate.confirm")).toBeTruthy();
+    expect(input.value).toContain("token=old");
+  });
+
   it("copies the URL to the clipboard", async () => {
     getCalendarFeed.mockResolvedValue({ token: "tok", url: "https://x/feed.ics?token=tok" });
     const writeText = vi.fn().mockResolvedValue(undefined);

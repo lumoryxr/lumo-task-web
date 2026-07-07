@@ -5,7 +5,7 @@ import { usePeopleStore } from "@/store/usePeopleStore";
 import { useAIStore } from "@/store/useAIStore";
 import { useCalendarStore } from "@/store/useCalendarStore";
 import { usePetStore } from "@/store/usePetStore";
-import { useT } from "@/i18n/useT";
+import { useT, t as translate } from "@/i18n/useT";
 import { toast } from "@/store/useToastStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { reloadAllData } from "@/lib/reloadData";
@@ -821,15 +821,18 @@ export function CalendarFeedCard({ t }: { t: (k: string) => string }) {
   const [rotating, setRotating] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
 
+  // Fetch once on mount. Uses the stable module-level translator for the error
+  // toast so the effect doesn't depend on the per-render `t`, which would re-run
+  // (and re-fetch) on every render.
   useEffect(() => {
     let alive = true;
     api
       .getCalendarFeed()
       .then((r) => { if (alive) setUrl(r.url); })
-      .catch(() => { if (alive) toast.error(t("calendar.feed.error"), ""); })
+      .catch(() => { if (alive) toast.error(translate("calendar.feed.error"), ""); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [t]);
+  }, []);
 
   async function copy() {
     if (!url) return;
@@ -842,16 +845,20 @@ export function CalendarFeedCard({ t }: { t: (k: string) => string }) {
   }
 
   async function rotate() {
+    if (rotating) return; // ConfirmDialog has no busy state — guard double-confirm
     setRotating(true);
     try {
       const r = await api.rotateCalendarFeed();
       setUrl(r.url);
       toast.success(t("calendar.feed.rotated"));
+      setConfirmRotate(false); // close only on success
     } catch {
+      // Keep the dialog open so the user can retry. A retry is safe and
+      // self-heals the rare "rotated server-side but the response was lost"
+      // case: it returns the current valid URL.
       toast.error(t("calendar.feed.error"), "");
     } finally {
       setRotating(false);
-      setConfirmRotate(false);
     }
   }
 
