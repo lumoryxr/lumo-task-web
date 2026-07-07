@@ -231,7 +231,49 @@ jobs:
           "tag=$tag"   | Out-File -Append $env:GITHUB_OUTPUT
           "name=$name" | Out-File -Append $env:GITHUB_OUTPUT
 
-      # ── Create GitHub Release & upload installer (skipped on dry runs) ─────
+      # ── Web package (local/LAN browser build) ──────────────────────────────
+      # Same repo, a different artifact from the desktop installer above: the
+      # browser-accessed web server (the backend serves the SPA + /v1 API on one
+      # port — LUMO_WEB_ROOT) as a no-install zip with a bundled node.exe. Built
+      # here so a release ships BOTH the desktop installer and the web package.
+      # The frontend is rebuilt with VITE_API_BASE=/v1 (same-origin) — the
+      # electron build above used the default (desktop IPC) base, so this
+      # overwrites web-app/dist, which is safe now that the installer is built.
+      - name: Rebuild frontend for the web package (same-origin /v1)
+        run: npm run build
+        working-directory: web-app
+        env:
+          VITE_API_BASE: /v1
+
+      - name: Assemble web package + bundle node.exe
+        id: webpkg
+        shell: pwsh
+        run: |
+          node scripts/package-web.mjs --skip-build --out dist-web/LumoTask-Web
+          # Ship the exact Node this was built against so the target needs nothing.
+          Copy-Item (Get-Command node).Source -Destination "dist-web/LumoTask-Web/node.exe"
+          $zip = "LumoTask-Web-Windows-x64-${{ steps.release-meta.outputs.tag }}.zip"
+          # Zip the directory (not dir/*) so node_modules/.node binaries recurse
+          # reliably and it unzips into a clean LumoTask-Web/ folder.
+          Compress-Archive -Path "dist-web/LumoTask-Web" -DestinationPath $zip -Force
+          $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+          if ((Get-Item $zip).Length -lt 20MB) {
+            Write-Error "Web package is suspiciously small ($mb MB) - packaging likely incomplete"
+            exit 1
+          }
+          Write-Host "Web package built: $zip ($mb MB)"
+          "path=$((Get-Item $zip).FullName)" | Out-File -Append $env:GITHUB_OUTPUT
+          "name=$zip"                        | Out-File -Append $env:GITHUB_OUTPUT
+
+      - name: Upload web package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumo-web-windows-${{ github.run_id }}
+          path: ${{ steps.webpkg.outputs.path }}
+          retention-days: 7
+          if-no-files-found: error
+
+      # ── Create GitHub Release & upload BOTH artifacts (skipped on dry runs) ─
       - name: Create GitHub Release
         if: ${{ github.event.inputs.dry_run != 'true' }}
         uses: softprops/action-gh-release@v2
@@ -239,13 +281,21 @@ jobs:
           tag_name: ${{ steps.release-meta.outputs.tag }}
           name:     ${{ steps.release-meta.outputs.name }}
           draft:    false
-          files:    ${{ steps.installer.outputs.path }}
+          files: |
+            ${{ steps.installer.outputs.path }}
+            ${{ steps.webpkg.outputs.path }}
           body: |
             ## Lumo Task for Windows (x64)
 
-            下载 `${{ steps.installer.outputs.name }}` 双击安装即可。
+            两种安装方式，任选其一：
+
+            ### 🖥️ 桌面版（推荐日常使用）
+            下载 `${{ steps.installer.outputs.name }}` 双击安装即可。本地优先、可选云同步。
 
             > **提示**：首次运行 Windows 可能弹出 SmartScreen 安全提示，点击「更多信息」→「仍要运行」即可正常安装。
+
+            ### 🌐 网页版（本机 / 局域网自托管）
+            下载 `${{ steps.webpkg.outputs.name }}`，解压后双击 `start.bat` 即可——**免安装、免装 Node**。浏览器自动打开 `http://localhost:47291`；同一 Wi-Fi 的其他设备可用 `http://<本机IP>:47291` 访问同一份数据。数据存在本地 `data\lumo.db`。
 
             ---
             **构建信息**
@@ -259,5 +309,6 @@ jobs:
         if: ${{ github.event.inputs.dry_run == 'true' }}
         shell: bash
         run: |
-          echo "dry_run=true -> gates passed, installer built & uploaded as an artifact, but NO GitHub Release was published."
-          echo "Installer: ${{ steps.installer.outputs.name }}"
+          echo "dry_run=true -> gates passed, both artifacts built & uploaded as CI artifacts, but NO GitHub Release was published."
+          echo "Installer:   ${{ steps.installer.outputs.name }}"
+          echo "Web package: ${{ steps.webpkg.outputs.name }}"

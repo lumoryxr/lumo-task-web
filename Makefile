@@ -16,7 +16,7 @@ CONTRACTS := packages/contracts
 .PHONY: dev install build preview typecheck lint ci clean reset \
         backend-install backend-build backend-dev backend-migrate backend-seed \
         backend-ci contracts-build contracts-ci web-test \
-        dev-full package-win \
+        dev-full package-win package-web \
         test-integration test-integration-backend test-integration-web test-integration-electron \
         help
 
@@ -159,6 +159,11 @@ package-win: $(APP)/node_modules backend-build build   ## Build backend + fronte
 	cd $(APP) && npx electron-builder --win --x64 --config.directories.output="$(CURDIR)/$(APP)/dist-electron"
 	@echo ">>> Done. Installer is in $(APP)/dist-electron/"
 
+package-web: $(APP)/node_modules $(BACKEND)/node_modules   ## Assemble the local/LAN web package → dist-web/ (run on target platform for correct native binaries; ship via the Windows CI workflow)
+	@echo ">>> Assembling local/LAN web package..."
+	node scripts/package-web.mjs --out "$(CURDIR)/dist-web/LumoTask-Web"
+	@echo ">>> Done. Folder is in dist-web/. Add node.exe (Windows x64) and zip to ship."
+
 # -----------------------------------------------------------------------
 # Maintenance
 # -----------------------------------------------------------------------
@@ -215,6 +220,7 @@ help:   ## Show this help
 	@echo ""
 	@echo "Desktop:"
 	@echo "  package-win  Build backend + frontend, package Windows installer → web-app/dist-electron/"
+	@echo "  package-web  Assemble the local/LAN web package (single-process) → dist-web/"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  clean        Remove node_modules and dist artifacts"

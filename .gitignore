@@ -25,6 +25,9 @@ Thumbs.db
 # Electron packaged output
 web-app/dist-electron/
 
+# Local/LAN web package output
+dist-web/
+
 # Playwright test artifacts (all report variants + failure screenshots)
 web-app/playwright-report/
 web-app/playwright-report-integration/
