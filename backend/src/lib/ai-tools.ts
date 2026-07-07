@@ -1,4 +1,5 @@
 import type { ToolDefinition, ToolCall } from "./ai-client.js";
+import { selectTodayPlan, planTaskMinutes } from "./planner.js";
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
 //
@@ -229,11 +230,12 @@ export const TASK_TOOLS: ToolDefinition[] = [
 
   {
     name: "generate_today_plan",
-    description: "Automatically select the most important tasks and add them to today's plan. Picks up to 5 high-priority tasks the user hasn't planned yet.",
+    description: "Automatically select the most important tasks and add them to today's plan. Picks up to 5 high-priority tasks the user hasn't planned yet. If the user mentions how much time they have (e.g. 'I only have 2 hours'), pass available_hours so the plan's total estimated time stays within that budget.",
     parameters: {
       type: "object",
       properties: {
         max_tasks: { type: "string", description: "Maximum number of tasks to add to today (default 5, max 10)" },
+        available_hours: { type: "string", description: "Optional. Hours available today; the plan's total estimated time (sum of task durations) will not exceed this." },
       },
     },
   },
@@ -516,26 +518,25 @@ export async function executeTool(
 
     case "generate_today_plan": {
       const maxTasks = Math.min(10, parseInt(String(a.max_tasks ?? "5"), 10) || 5);
+      const rawHours = a.available_hours != null ? parseFloat(String(a.available_hours)) : NaN;
+      const availableHours = Number.isFinite(rawHours) && rawHours > 0 ? rawHours : null;
       const allTasks = await listAllTasks();
       const notToday = allTasks.filter((t) => !t.today && !t.completed);
-      // Priority: Q1 first, then Q2, then by due date
-      const priority = ["Q1", "Q2", "Q3", "Q4", "unclassified"];
-      notToday.sort((a: any, b: any) => {
-        const pa = priority.indexOf(a.quadrant);
-        const pb = priority.indexOf(b.quadrant);
-        if (pa !== pb) return pa - pb;
-        if (a.due && b.due) return a.due.localeCompare(b.due);
-        if (a.due) return -1;
-        if (b.due) return 1;
-        return 0;
-      });
-      const toAdd = notToday.slice(0, maxTasks);
+      const toAdd = selectTodayPlan(notToday, { maxTasks, availableHours });
       const added: { id: string; title: string; quadrant: string }[] = [];
+      let plannedMinutes = 0;
       for (const task of toAdd) {
         await api("PATCH", `/tasks/${task.id}`, { today: true });
+        plannedMinutes += planTaskMinutes(task);
         added.push({ id: task.id, title: taskTitle(task), quadrant: task.quadrant });
       }
-      return JSON.stringify({ added: added.length, tasks: added });
+      return JSON.stringify({
+        added: added.length,
+        tasks: added,
+        ...(availableHours != null
+          ? { planned_minutes: plannedMinutes, budget_minutes: Math.round(availableHours * 60) }
+          : {}),
+      });
     }
 
     case "reorganize_matrix": {

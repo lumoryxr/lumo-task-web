@@ -482,7 +482,7 @@ You live inside the Lumo Task app as the user's AI companion. Keep replies to 1-
 - User asks what tasks exist / 有什么任务 → call list_tasks
 - User asks to search for a task / 搜索任务 → call search_tasks
 - User asks to add to today / 加入今天 → call list_tasks then update_task with today=true
-- User asks to plan today / generate today's plan → call generate_today_plan
+- User asks to plan today / generate today's plan → call generate_today_plan (if they mention available time, e.g. "I only have 2 hours" / "只有两小时", pass available_hours so the plan fits the budget)
 - User asks about progress / stats / 完成了什么 → call get_focus_stats or list_completed
 - User asks for recommendation / next task / 做什么 → call get_recommended_task
 - User asks to classify tasks / 分类 → call classify_tasks
