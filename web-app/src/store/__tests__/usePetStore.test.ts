@@ -69,3 +69,33 @@ describe("usePetStore — react (lightweight pulse)", () => {
     expect(usePetStore.getState().mood).toBe("excited");
   });
 });
+
+describe("usePetStore — happiness (#174)", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it("readHappiness applies inactivity decay without mutating state", () => {
+    const now = Date.now();
+    usePetStore.setState({ happiness: 100, lastActivityAt: now - 5 * DAY });
+    // 5 idle days − 1 grace = 4 decaying days × 10 = 40 → 60.
+    expect(usePetStore.getState().readHappiness()).toBe(60);
+    // Raw stored value is untouched by a read.
+    expect(usePetStore.getState().happiness).toBe(100);
+  });
+
+  it("recordCompletion recovers happiness off the decayed value and resets the idle clock", () => {
+    const now = Date.now();
+    usePetStore.setState({ happiness: 100, lastActivityAt: now - 5 * DAY });
+    usePetStore.getState().recordCompletion();
+    // decayed 60 + gain 8 = 68, clock reset so a fresh read shows ~68.
+    expect(usePetStore.getState().happiness).toBe(68);
+    expect(usePetStore.getState().readHappiness()).toBe(68);
+    expect(usePetStore.getState().lastActivityAt).toBeGreaterThanOrEqual(now);
+  });
+
+  it("never exceeds the max on repeated completions", () => {
+    usePetStore.setState({ happiness: 98, lastActivityAt: Date.now() });
+    usePetStore.getState().recordCompletion();
+    usePetStore.getState().recordCompletion();
+    expect(usePetStore.getState().happiness).toBe(100);
+  });
+});

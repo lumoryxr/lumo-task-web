@@ -43,6 +43,12 @@ const DYNAMIC_KEY_FAMILIES: Record<string, string[]> = {
     "dog.en", "cat.en", "fox.en", "panda.en", "robot.en",
     "dog.zh", "cat.zh", "fox.zh", "panda.zh", "robot.zh",
   ],
+  // Per-species personality copy (#174, lib/petMood.ts petLineKey) — species ×
+  // event. Only the wired events are enumerated here.
+  "pet.line.": [
+    "dog.celebrate", "cat.celebrate", "fox.celebrate", "panda.celebrate", "robot.celebrate",
+    "dog.streak", "cat.streak", "fox.streak", "panda.streak", "robot.streak",
+  ],
 };
 
 describe("i18n strings", () => {
