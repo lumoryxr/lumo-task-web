@@ -19,10 +19,15 @@ const project = {
   content: undefined as string | undefined,
 };
 
+// Mutable so individual tests can exercise the cold-load / not-found branches.
+let projectsState: Array<typeof project> = [project];
+let loadedState = true;
+
 vi.mock("@/store/useProjectsStore", () => ({
   useProjectsStore: (sel: any) =>
     sel({
-      projects: [project],
+      projects: projectsState,
+      loaded: loadedState,
       update: mockUpdate,
       remove: mockRemove,
       doneCounts: { p1: 2 },
@@ -61,7 +66,7 @@ vi.mock("@/components/ProjectBoard", () => ({ ProjectBoard: () => null }));
 vi.mock("@/components/ProjectRecapCard", () => ({ ProjectRecapCard: () => null }));
 
 function renderPage() {
-  render(<ProjectDetailPage />);
+  return render(<ProjectDetailPage />);
 }
 
 describe("ProjectDetailPage polish", () => {
@@ -69,6 +74,30 @@ describe("ProjectDetailPage polish", () => {
     vi.clearAllMocks();
     project.content = undefined;
     project.goals = [];
+    projectsState = [project];
+    loadedState = true;
+  });
+
+  // Cold deep-link/refresh: the projects list is still loading async, so the
+  // page must show a loading skeleton (not the "not found" empty state) until
+  // the store reports loaded (#370, mirrors the grid fix #293).
+  it("shows a loading skeleton (not the empty state) while the store is loading", () => {
+    projectsState = [];
+    loadedState = false;
+    renderPage();
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-busy", "true");
+    expect(status.querySelectorAll(".skeleton").length).toBeGreaterThan(0);
+    expect(screen.queryByText("project.empty.title")).toBeNull();
+  });
+
+  it("shows the not-found empty state once loaded and the project is absent", () => {
+    projectsState = [];
+    loadedState = true;
+    const { container } = renderPage();
+    expect(screen.getByText("project.empty.title")).toBeTruthy();
+    // No skeleton bars — the empty state replaces the loading skeleton.
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(0);
   });
 
   it("shows a confirm button only after the name changes, and commits on click", () => {

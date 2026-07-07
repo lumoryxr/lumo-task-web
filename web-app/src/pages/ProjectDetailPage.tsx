@@ -17,6 +17,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { QuickCreate } from "@/components/QuickCreate";
 import { AddExistingTaskModal } from "@/components/AddExistingTaskModal";
 import { EmptyState } from "@/components/EmptyState";
+import { ProjectDetailSkeleton } from "@/components/skeletons";
 import { computeProjectRecap } from "@/utils/projectRecap";
 import { isKpiGoal, goalPct, parseTarget, nextConfidence } from "@/utils/goalKpi";
 import { IconArrowLeft, IconBookmark, IconCheck, IconClose, IconPlus, IconProject, IconShare, IconTrash } from "@/components/icons";
@@ -47,6 +48,7 @@ export function ProjectDetailPage() {
   const doneCount = useProjectsStore((s) => (id ? s.doneCounts[id] ?? 0 : 0));
   const focusMinutes = useProjectsStore((s) => (id ? s.focusMinutes[id] ?? 0 : 0));
   const loadProgress = useProjectsStore((s) => s.loadProgress);
+  const loaded = useProjectsStore((s) => s.loaded);
   const userName = useAuthStore((s) => s.user.name);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [confirmKind, setConfirmKind] = useState<null | "archive" | "delete">(null);
@@ -78,10 +80,18 @@ export function ProjectDetailPage() {
   }, [loadProgress]);
 
   if (!project) {
+    // On a cold deep-link/refresh the projects list is still loading async
+    // (App fires load() on sign-in), so `project` is undefined only because
+    // nothing has arrived yet — show a skeleton, not the "not found" empty
+    // state, until the store has actually loaded (mirrors the grid fix #293).
     return (
       <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
         <BackLink onClick={() => navigate("/projects")} label={t("project.page.title")} />
-        <EmptyState icon={<IconProject size={28} />} title={t("project.empty.title")} />
+        {loaded ? (
+          <EmptyState icon={<IconProject size={28} />} title={t("project.empty.title")} />
+        ) : (
+          <ProjectDetailSkeleton />
+        )}
       </div>
     );
   }
