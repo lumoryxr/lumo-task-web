@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { computeWeekStats, computeTagDistribution } from "../stats";
+import { computeWeekStats, computeTagDistribution, percentDistribution } from "../stats";
 import type { CompletedEntry } from "@/types/task";
 
 // Pin time to a known Wednesday (2026-06-17)
@@ -53,14 +53,13 @@ describe("computeWeekStats — quadrantBreakdown", () => {
     expect(find("unclassified").count).toBe(1);
   });
 
-  it("percentages sum to ≤ 101 (rounding tolerance)", () => {
+  it("percentages sum to exactly 100 (largest-remainder rounding)", () => {
     const entries = Array.from({ length: 3 }, (_, i) =>
       makeEntry({ quadrant: (["Q1", "Q2", "Q3"] as const)[i] })
     );
     const { quadrantBreakdown } = computeWeekStats(entries);
     const sum = quadrantBreakdown.reduce((s, b) => s + b.percent, 0);
-    expect(sum).toBeGreaterThanOrEqual(99);
-    expect(sum).toBeLessThanOrEqual(101);
+    expect(sum).toBe(100);
   });
 
   it("returns 0% for all quadrants when no entries", () => {
@@ -126,5 +125,31 @@ describe("computeTagDistribution", () => {
       makeEntry({ tags: ["work"] }),
     ]);
     expect(dist).toEqual([{ tag: "work", count: 2, percent: 100 }]);
+  });
+});
+
+describe("percentDistribution", () => {
+  it("sums to exactly 100 where plain rounding would give 99", () => {
+    // Three equal thirds: Math.round(33.33)*3 = 99. Largest-remainder → 100.
+    const out = percentDistribution([1, 1, 1]);
+    expect(out.reduce((s, x) => s + x, 0)).toBe(100);
+    // One item absorbs the leftover point.
+    expect(out.filter((x) => x === 34)).toHaveLength(1);
+    expect(out.filter((x) => x === 33)).toHaveLength(2);
+  });
+
+  it("keeps exact splits exact", () => {
+    expect(percentDistribution([2, 1, 1, 0])).toEqual([50, 25, 25, 0]);
+  });
+
+  it("leaves zero counts at 0 and still sums to 100", () => {
+    const out = percentDistribution([5, 0, 0, 2]);
+    expect(out[1]).toBe(0);
+    expect(out[2]).toBe(0);
+    expect(out.reduce((s, x) => s + x, 0)).toBe(100);
+  });
+
+  it("returns all zeros for an all-zero total", () => {
+    expect(percentDistribution([0, 0, 0])).toEqual([0, 0, 0]);
   });
 });

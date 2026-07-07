@@ -154,7 +154,7 @@ describe("computePrevWeekStats — quadrantBreakdown", () => {
     expect(find("Q2").count).toBe(0);
   });
 
-  it("percentages sum to ≤ 101 (rounding tolerance)", () => {
+  it("percentages sum to exactly 100 (largest-remainder rounding)", () => {
     vi.setSystemTime(MONDAY);
     const entries = [
       makeEntry({ quadrant: "Q1", completedAt: "2024-01-08T10:00:00" }),
@@ -163,8 +163,7 @@ describe("computePrevWeekStats — quadrantBreakdown", () => {
     ];
     const { quadrantBreakdown } = computePrevWeekStats(entries);
     const sum = quadrantBreakdown.reduce((s, b) => s + b.percent, 0);
-    expect(sum).toBeLessThanOrEqual(101);
-    expect(sum).toBeGreaterThanOrEqual(99);
+    expect(sum).toBe(100);
   });
 });
 
