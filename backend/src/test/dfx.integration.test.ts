@@ -1593,6 +1593,90 @@ describe("DFX · Robustness — task `scheduled_start` slot anchor is format-bou
   });
 });
 
+// Design for ROBUSTNESS — NL-capture input bounds on POST /v1/ai/parse (#305)
+//
+// Coverage-gap audit (AI request surfaces): `/v1/ai/parse` is the natural-language
+// quick-capture endpoint ("type a task in plain English") and the foundation of the
+// Phase-3 NL+AI-planning proposal. Sibling AI surfaces are covered for IDOR
+// (`/ai/breakdown` #209, `/ai/classify` #249) but the `/ai/parse` INPUT BOUNDS had
+// no daily DFX coverage. Its body is validated by `validate("json", ParseBody)`
+// (routes/ai.ts:300-303) BEFORE any LLM call, with two load-bearing bounds:
+//   • `text: z.string().min(1).max(500)` — the free text injected verbatim into the
+//     prompt (`Input: "${text}"`). The `max(500)` cap is the ONLY bound on how much
+//     attacker-controlled text reaches the model (prompt-cost / oversized-input
+//     surface); `min(1)` rejects an empty capture.
+//   • `locale: z.enum(["en","zh"]).optional()` — steers the prompt's language note.
+// A regression loosening `text` to `z.string()` (unbounded prompt input) or dropping
+// the `locale` enum would slip past every existing case, surfacing only as runaway
+// LLM cost / a malformed prompt in prod.
+//
+// `/ai/parse` has a graceful no-LLM fallback: with no provider configured (as in the
+// daily ephemeral harness) a VALID request returns 200 with a deterministic
+// `{ title: text.trim(), quadrant:"unclassified", confidence:0 }` — so BOTH the 400
+// (bad input, before any LLM call) and the 200 (valid input degrades gracefully,
+// never a 5xx) paths are fully verifiable with no AI provider. Uses a dedicated
+// actor so the per-user classify rate-limit (20/min) can't couple to other blocks.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — NL-capture input bounds on POST /v1/ai/parse (#305)", () => {
+  let parseUser: { token: string; id: string };
+  before(async () => {
+    parseUser = await registerUser("parse305");
+  });
+
+  test("AC1 · over-cap `text` (> 500 chars) → 400 VALIDATION_ERROR naming `text`, before any LLM call", async () => {
+    const { status, body } = await api("POST", "/v1/ai/parse", {
+      token: parseUser.token,
+      body: { text: "a".repeat(501) },
+    });
+    assert.equal(status, 400, "an over-cap capture must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "text"),
+      "the rejection must name `text` (the prompt-size bound fired, not an incidental 400)",
+    );
+  });
+
+  test("AC2 · empty `text` (`\"\"`) → 400 VALIDATION_ERROR naming `text` — the min(1) lower bound", async () => {
+    const { status, body } = await api("POST", "/v1/ai/parse", {
+      token: parseUser.token,
+      body: { text: "" },
+    });
+    assert.equal(status, 400, "an empty capture must be rejected, not sent to the model");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "text"),
+      "an empty capture must name `text` (the min(1) bound fired)",
+    );
+  });
+
+  test("AC3 · out-of-enum `locale` (e.g. `\"fr\"`) → 400 VALIDATION_ERROR naming `locale`", async () => {
+    const { status, body } = await api("POST", "/v1/ai/parse", {
+      token: parseUser.token,
+      body: { text: "buy milk", locale: "fr" },
+    });
+    assert.equal(status, 400, "an unsupported locale must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "locale"),
+      "the rejection must name `locale` (the enum bound fired, not an incidental 400)",
+    );
+  });
+
+  test("AC4 · a valid `text` with no LLM configured → 200 graceful fallback (never a 5xx)", async () => {
+    // The daily ephemeral harness has no AI provider, so a valid capture must
+    // degrade to the deterministic no-LLM fallback rather than erroring.
+    const { status, body } = await api("POST", "/v1/ai/parse", {
+      token: parseUser.token,
+      body: { text: "  Call the dentist  ", locale: "en" },
+    });
+    assert.equal(status, 200, "a valid capture must degrade gracefully, never a 5xx");
+    assert.equal(body.quadrant, "unclassified", "no-LLM fallback leaves the task unclassified");
+    assert.equal(body.title, "Call the dentist", "the fallback title echoes the trimmed input");
+    assert.equal(body.confidence, 0, "the fallback carries zero confidence (no model ran)");
+  });
+});
+
 // Design for ROBUSTNESS — countdown `date` anchor is format-bounded (#240)
 //
 // Coverage-gap audit: a countdown event's `date` is the solar (Gregorian) ISO
