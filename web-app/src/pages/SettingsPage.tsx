@@ -1,9 +1,10 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from "react";
 import { useAppStore, type Accent, type Density } from "@/store/useAppStore";
 import { api } from "@/api/client";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useAIStore } from "@/store/useAIStore";
 import { useCalendarStore } from "@/store/useCalendarStore";
+import { useImportedCalendarStore } from "@/store/useImportedCalendarStore";
 import { usePetStore } from "@/store/usePetStore";
 import { useT, t as translate } from "@/i18n/useT";
 import { toast } from "@/store/useToastStore";
@@ -809,6 +810,63 @@ function IntegrationsPanel({ t }: { t: (k: string) => string }) {
       </div>
 
       <CalendarFeedCard t={t} />
+      <ImportCalendarCard t={t} />
+    </div>
+  );
+}
+
+/* ── Import external calendar (#169 V2) ───────────────────────────── */
+
+export function ImportCalendarCard({ t }: { t: (k: string) => string }) {
+  const { events, sourceName, hadRecurrence, importIcs, clear } = useImportedCalendarStore();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function onPick(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const count = importIcs(text, file.name);
+      if (count === 0) toast.error(t("calendar.import.empty"), "");
+      else toast.success(t("calendar.import.done").replace("{n}", String(count)));
+    } catch {
+      toast.error(t("calendar.import.error"), "");
+    }
+  }
+
+  const summary =
+    sourceName !== null
+      ? t("calendar.import.summary").replace("{n}", String(events.length)).replace("{name}", sourceName)
+      : t("calendar.import.hint");
+
+  return (
+    <div className="surface-card overflow-hidden mt-3">
+      <div className="px-5 py-4">
+        <span className="text-[13px] font-medium text-text-primary">{t("calendar.import.title")}</span>
+        <div className="mt-0.5 text-[11px] text-text-muted">{summary}</div>
+        {sourceName !== null && hadRecurrence && (
+          <div className="mt-0.5 text-[11px] text-text-faint">{t("calendar.import.recurrence")}</div>
+        )}
+
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".ics,text/calendar"
+            hidden
+            onChange={onPick}
+          />
+          <button onClick={() => fileRef.current?.click()} className="btn btn-secondary" style={{ height: 32, fontSize: 12 }}>
+            {t("calendar.import.button")}
+          </button>
+          {sourceName !== null && (
+            <button onClick={clear} className="btn btn-secondary" style={{ height: 32, fontSize: 12 }}>
+              {t("calendar.import.clear")}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
