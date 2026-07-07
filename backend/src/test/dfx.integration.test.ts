@@ -2888,3 +2888,129 @@ describe("DFX · Robustness — /v1/ai/chat request-payload bounds (#320)", () =
     assert.equal(body.fallback, true, "the at-boundary body still takes the no-key fallback path");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — auth/refresh rotation, single-use & reuse-detection (#284)
+//
+// `POST /v1/auth/refresh` (routes/auth.ts:175) exchanges a long-lived refresh
+// token for a fresh access token, ROTATING the refresh token on every use
+// (rotateRefreshToken, lib/refreshToken.ts:80). Its security invariants are the
+// backbone of "stay logged in without a 7-day bearer token":
+//   • single-use rotation — the presented token is revoked, a new one issued;
+//   • theft response — replaying an already-revoked token revokes the WHOLE
+//     family (revokeAllForUser), so a stolen-and-replayed token also kills the
+//     legitimate client;
+//   • revocation on sign-out — a refresh token handed to /signout is dead;
+//   • session-version invalidation — a password change bumps session_version and
+//     strands outstanding refresh tokens.
+// These are only exercised in-process (api/auth-refresh.test.ts via app.request());
+// the daily suite — real fetch() over TCP against a real *file* SQLite, the layer
+// that has caught file-DB-only bugs the in-memory tests missed — had no coverage
+// of the refresh lifecycle at all. Dedicated actors per test isolate token
+// families (a family-revoke in one test must not bleed into another).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security — auth/refresh rotation, single-use & reuse-detection (#284)", () => {
+  test("AC1 · rotation & single-use — valid refresh → 200 with a working new access token + a rotated refresh token; the old token is now dead", async () => {
+    await registerUser("refresh-rotate"); // create the account; signin below yields a known token pair
+    const { status: sIn, body: creds } = await api("POST", "/v1/auth/signin", {
+      body: { email: uniqueEmail("refresh-rotate"), password: "Secret1234!" },
+    });
+    assert.equal(sIn, 200, "signin should return a fresh token pair");
+    const rt1: string = creds.refreshToken;
+    assert.equal(typeof rt1, "string");
+    assert.ok(rt1.length > 0, "signin must return a non-empty refresh token");
+
+    const { status, body } = await api("POST", "/v1/auth/refresh", { body: { refreshToken: rt1 } });
+    assert.equal(status, 200, "a valid refresh token must be exchanged, not rejected");
+    assert.ok(body.token, "refresh must return a new access token");
+    assert.ok(body.refreshToken, "refresh must return a rotated refresh token");
+    assert.notEqual(body.refreshToken, rt1, "the refresh token MUST rotate (single-use) — a stable token defeats reuse-detection");
+
+    // The freshly minted access token authenticates a protected route.
+    const protectedRes = await api("GET", "/v1/tasks", { token: body.token });
+    assert.equal(protectedRes.status, 200, "the refreshed access token must be accepted on a protected route");
+
+    // Single-use: replaying the now-rotated rt1 is refused.
+    const replay = await api("POST", "/v1/auth/refresh", { body: { refreshToken: rt1 } });
+    assert.equal(replay.status, 401, "the presented (now-rotated) refresh token must be single-use → 401");
+  });
+
+  test("AC2 · theft response — replaying a rotated token revokes the WHOLE family (the successor token dies too)", async () => {
+    // This is the load-bearing security case: it is the ONLY thing that pins the
+    // revokeAllForUser(row.user_id) branch. Deleting that line still 401s the
+    // replayed rt1 (it is revoked), but the successor rt2 would stay live → this
+    // test's final assertion is what reddens on that mutation (perfect specificity).
+    await registerUser("refresh-theft");
+    const { body: creds } = await api("POST", "/v1/auth/signin", {
+      body: { email: uniqueEmail("refresh-theft"), password: "Secret1234!" },
+    });
+    const rt1: string = creds.refreshToken;
+
+    const { status: rotStatus, body: rotated } = await api("POST", "/v1/auth/refresh", { body: { refreshToken: rt1 } });
+    assert.equal(rotStatus, 200);
+    const rt2: string = rotated.refreshToken; // legitimate successor
+
+    // Attacker replays the captured, already-rotated rt1 → reuse detected → 401.
+    const reuse = await api("POST", "/v1/auth/refresh", { body: { refreshToken: rt1 } });
+    assert.equal(reuse.status, 401, "a replayed (already-rotated) refresh token must be rejected");
+    assert.equal(reuse.body?.error?.code, "INVALID_REFRESH_TOKEN", "reuse must surface the auth error code, not a 5xx");
+
+    // Theft response: the reuse revoked the entire family, so the otherwise-valid
+    // successor rt2 is now dead too — the legitimate client is forced to re-auth.
+    const successor = await api("POST", "/v1/auth/refresh", { body: { refreshToken: rt2 } });
+    assert.equal(successor.status, 401, "reuse-detection must revoke the whole token family — the successor token must also die");
+  });
+
+  test("AC3 · robustness — unknown token → 401 (never 5xx), missing field → 400; the server recovers", async () => {
+    const garbage = await api("POST", "/v1/auth/refresh", { body: { refreshToken: "not-a-real-token" } });
+    assert.equal(garbage.status, 401, "an unknown refresh token is a clean 401, never a 5xx crash");
+    assert.equal(garbage.body?.error?.code, "INVALID_REFRESH_TOKEN");
+
+    const missing = await api("POST", "/v1/auth/refresh", { body: {} });
+    assert.equal(missing.status, 400, "a missing refreshToken field is a 400 validation error");
+    assert.equal(missing.body?.error?.code, "VALIDATION_ERROR");
+
+    // Recoverability: the malformed requests must not poison the server — a real
+    // token still refreshes afterward.
+    await registerUser("refresh-recover");
+    const { body: creds } = await api("POST", "/v1/auth/signin", {
+      body: { email: uniqueEmail("refresh-recover"), password: "Secret1234!" },
+    });
+    const ok = await api("POST", "/v1/auth/refresh", { body: { refreshToken: creds.refreshToken } });
+    assert.equal(ok.status, 200, "the server stays healthy after rejecting malformed refresh requests");
+  });
+
+  test("AC4 · revocation on sign-out — a refresh token sent to /signout can no longer refresh", async () => {
+    await registerUser("refresh-signout");
+    const { body: creds } = await api("POST", "/v1/auth/signin", {
+      body: { email: uniqueEmail("refresh-signout"), password: "Secret1234!" },
+    });
+    const rt: string = creds.refreshToken;
+
+    const out = await api("POST", "/v1/auth/signout", { token: creds.token, body: { refreshToken: rt } });
+    assert.equal(out.status, 200, "signout with a refresh token in the body should succeed");
+
+    const after = await api("POST", "/v1/auth/refresh", { body: { refreshToken: rt } });
+    assert.equal(after.status, 401, "a refresh token revoked at sign-out must no longer mint access tokens");
+  });
+
+  test("AC5 · session-version invalidation — a password change strands outstanding refresh tokens", async () => {
+    // Pins the `row.session_version < user.session_version` guard: a password
+    // change bumps session_version, so a refresh token issued before it is stale.
+    await registerUser("refresh-pwchange");
+    const { body: creds } = await api("POST", "/v1/auth/signin", {
+      body: { email: uniqueEmail("refresh-pwchange"), password: "Secret1234!" },
+    });
+    const staleRt: string = creds.refreshToken;
+
+    const chg = await api("POST", "/v1/auth/change-password", {
+      token: creds.token,
+      body: { current_password: "Secret1234!", new_password: "Secret5678!" },
+    });
+    assert.equal(chg.status, 200, "password change should succeed");
+
+    const after = await api("POST", "/v1/auth/refresh", { body: { refreshToken: staleRt } });
+    assert.equal(after.status, 401, "a password change must invalidate refresh tokens issued before it (session_version bump)");
+  });
+});

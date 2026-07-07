@@ -51,11 +51,11 @@ From the production-readiness review (#46) + ongoing. Already shipped: #34/#36/#
     - [x] **#234** — server-side task search `GET /v1/tasks?q=`: tenant-scope + `LIKE` wildcard/`ESCAPE` robustness. *(PR #342, merged 2026-07-06 — 3 DFX cases, mutation-tested perfect specificity; test+docs only.)*
     - [x] **#263** — `DELETE /people/:id` → `tasks.assignee_ids` cascade/orphan handling. *(PR #346, merged 2026-07-06 — 2 DFX Reliability cases over real HTTP + real file SQLite; test+docs only.)*
     - [x] **#260** — `/v1/settings` AI-provider credential confidentiality (`enc:v1` at-rest / never echoed in cleartext). *(PR #360, merged 2026-07-07 — 3 DFX Security cases over real HTTP + real file SQLite, mutation-tested perfect specificity; test+docs only.)*
-    - [ ] **#284** — `auth/refresh` rotation + reuse-detection has no *daily real-HTTP* DFX case (only in-process `auth-refresh.test.ts`).
-    - [ ] **#304** — project OKR/KPI goal field bounds (`target`/`current`/`start` finite/nonnegative, `unit` length).
+    - [x] **#284** — `auth/refresh` rotation + reuse-detection now has *daily real-HTTP* DFX coverage. *(5 DFX Security cases over real HTTP + real file SQLite: rotation/single-use, theft-response family-revoke, robustness 401/400, signout-revoke, password-change session-version invalidation; mutation-tested perfect specificity — family-revoke removal reddens exactly the successor-dies case, session-version guard removal reddens exactly the password-change case; test+docs only, handler already correct.)*
+    - [x] **#304** — project OKR/KPI goal field bounds (`target`/`current`/`start` finite/nonnegative, `unit` length). *(Already covered in the daily suite — "DFX · Robustness — bounded OKR/KPI goal fields on /v1/projects (#304)" block, 4 cases; checkbox was stale.)*
     - [x] **#305** — `/v1/ai/parse` NL-capture input bounds (robustness). *(PR #368, merged 2026-07-07 — 4 DFX robustness cases over real HTTP + real SQLite, mutation-tested perfect specificity; test+docs only.)*
     - [x] **#319** — task `due` + `scheduled_start` datetime-format bounds (`scheduled_start` absent from suite). *(PR #335, merged 2026-07-06 — 8 DFX robustness cases, mutation-tested perfect specificity; test+docs only.)*
-    - [ ] **#320** — `/v1/ai/chat` request-payload bounds (unbounded-by-contract only).
+    - [x] **#320** — `/v1/ai/chat` request-payload bounds. *(Already covered in the daily suite — "DFX · Robustness — /v1/ai/chat request-payload bounds (#320)" block, 3 cases incl. at-boundary teeth; checkbox was stale.)*
     - [ ] **#317** — bulk-import `/migrate` arrays are unbounded; needs a `.max()` cap. **⚠ needs Jalen** — the cap value is a migration-safety product/contract decision, not a pure test-gap.
 
 ### Awaiting Jalen — do not auto-build
