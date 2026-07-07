@@ -312,16 +312,18 @@ export function ProjectDetailPage() {
         }
       >
         {project.content ? (
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => setNotesOpen(true)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setNotesOpen(true); } }}
-            aria-label={t("project.content.open")}
-            className="surface-card surface-card--interactive overflow-hidden cursor-pointer"
-            style={{ maxHeight: 120, padding: "10px 12px" }}
-          >
+          // Clamped read-only preview with a transparent overlay button for the
+          // click/keyboard affordance — the editor stays a sibling (not nested
+          // inside an interactive element, which would be invalid a11y).
+          <div className="relative surface-card surface-card--interactive overflow-hidden" style={{ maxHeight: 120, padding: "10px 12px" }}>
             <ProjectContentEditor value={project.content} editable={false} onChange={() => {}} />
+            <button
+              type="button"
+              onClick={() => setNotesOpen(true)}
+              aria-label={t("project.content.open")}
+              className="absolute inset-0 cursor-pointer"
+              style={{ background: "transparent", border: "none" }}
+            />
           </div>
         ) : (
           <button
