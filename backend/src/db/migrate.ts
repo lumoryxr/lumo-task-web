@@ -106,6 +106,23 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE tasks ADD COLUMN assignee_ids TEXT NOT NULL DEFAULT '[]'");
   }
 
+  // Migrate: per-user calendar feed token (#169 V1 — read-only .ics feed).
+  // A high-entropy opaque token acts as a revocable secret URL (the Google/Apple
+  // "secret iCal address" model). Stored two ways so a DB leak yields nothing
+  // usable: the SHA-256 *hash* for the O(1) reverse lookup on the public feed
+  // (one-way), and an AES-GCM *encryption* (same at-rest scheme as AI keys) so
+  // Settings can re-display the stable URL. Both nullable; generated lazily.
+  const userCols = await query<{ name: string }>("PRAGMA table_info(users)");
+  if (!userCols.some((c) => c.name === "calendar_feed_token_hash")) {
+    await execRaw("ALTER TABLE users ADD COLUMN calendar_feed_token_hash TEXT");
+  }
+  if (!userCols.some((c) => c.name === "calendar_feed_token_enc")) {
+    await execRaw("ALTER TABLE users ADD COLUMN calendar_feed_token_enc TEXT");
+  }
+  await execRaw(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_feed_token_hash ON users(calendar_feed_token_hash) WHERE calendar_feed_token_hash IS NOT NULL"
+  );
+
   // Migrate: add AI config columns to settings
   const settingsCols = await query<{ name: string }>("PRAGMA table_info(settings)");
   if (!settingsCols.some((c) => c.name === "ai_provider")) {
