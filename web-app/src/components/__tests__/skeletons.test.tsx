@@ -10,7 +10,7 @@ vi.mock("@/i18n/useT", () => ({
   useT: () => (k: string) => (k === "app.loading" ? "Loading…" : k),
 }));
 
-import { TaskListSkeleton, StatsSkeleton, MatrixSkeleton, ProjectListSkeleton, CountdownListSkeleton } from "../skeletons";
+import { TaskListSkeleton, StatsSkeleton, MatrixSkeleton, ProjectListSkeleton, CountdownListSkeleton, ProjectDetailSkeleton } from "../skeletons";
 
 describe("TaskListSkeleton", () => {
   it("exposes a single polite, busy status region for screen readers", () => {
@@ -81,6 +81,22 @@ describe("ProjectListSkeleton", () => {
   it("defaults to four cards", () => {
     const { container } = render(<ProjectListSkeleton />);
     expect(container.querySelectorAll(".skeleton")).toHaveLength(4 * 3);
+  });
+});
+
+describe("ProjectDetailSkeleton", () => {
+  it("exposes a single polite, busy status region for screen readers", () => {
+    render(<ProjectDetailSkeleton />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-busy", "true");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    // The bars themselves stay decorative.
+    expect(status.querySelectorAll("[aria-hidden='true']").length).toBeGreaterThan(0);
+  });
+
+  it("renders the header (2 bars) + summary block (1 bar) + three task rows (3 bars each)", () => {
+    const { container } = render(<ProjectDetailSkeleton />);
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(2 + 1 + 3 * 3);
   });
 });
 

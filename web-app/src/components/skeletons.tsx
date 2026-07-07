@@ -103,6 +103,28 @@ export function CountdownListSkeleton({ cards = 4 }: { cards?: number }) {
   );
 }
 
+/** Loading state for a project **detail** deep-link/refresh: a header block
+ *  (title + meta line) + a summary block + a few task-row placeholders, so a
+ *  cold navigation to `/projects/:id` doesn't flash the "not found" empty state
+ *  before the projects list resolves (mirrors the grid fix #293). Rendered
+ *  below the page's back-link. */
+export function ProjectDetailSkeleton() {
+  return (
+    <SkeletonScreen className="flex flex-col gap-6 mt-4">
+      <div className="flex flex-col gap-3">
+        <Skeleton style={{ height: 26, width: "45%" }} />
+        <Skeleton style={{ height: 12, width: "30%" }} />
+      </div>
+      <Skeleton style={{ height: 80, width: "100%", borderRadius: "var(--radius-lg)" }} />
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: 3 }, (_, i) => (
+          <TaskRowSkeleton key={i} />
+        ))}
+      </div>
+    </SkeletonScreen>
+  );
+}
+
 /** Loading state for the Stats page: a grid of stat cards + a chart block. */
 export function StatsSkeleton() {
   return (
