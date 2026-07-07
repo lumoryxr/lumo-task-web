@@ -496,6 +496,7 @@ export const STRINGS: Record<Locale, Dict> = {
 
     "detail.due": "Due",
     "detail.estimate": "Estimate",
+    "detail.pomodoro": "Pomodoro",
     "detail.assignee": "Assignee",
     "detail.nextstep": "Next step",
     "detail.start": "Start focus",
@@ -1414,6 +1415,7 @@ export const STRINGS: Record<Locale, Dict> = {
 
     "detail.due": "截止",
     "detail.estimate": "预估",
+    "detail.pomodoro": "番茄钟",
     "detail.assignee": "责任人",
     "detail.nextstep": "下一步",
     "detail.start": "开始专注",
