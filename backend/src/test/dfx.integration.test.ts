@@ -2915,6 +2915,93 @@ describe("DFX · Robustness — /v1/ai/chat request-payload bounds (#320)", () =
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS — /v1/ai/chat context.todayTasks / recentCompleted bounds (#380)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Sibling to #320 (which pinned the `messages` array / per-message `content` caps on
+// the same endpoint). `ChatBody.context` also carries the two largest *client-supplied*
+// nested payloads injected into the LLM prompt — `todayTasks` (array `.max(50)`, each
+// `title.max(500)` / `quadrant.max(20)`; up to 50×500 chars of task titles) and
+// `recentCompleted` (array `.max(20)`, each `title.max(500)`). There is no body-size
+// middleware, so these Zod caps are the *sole* bound on how much task data floods the
+// prompt (cost / prompt-injection-surface / memory amplification). A regression loosening
+// any cap, or a 5xx on an oversized body instead of a clean 400, slips past every other
+// DFX case and surfaces only as inflated LLM cost in prod. `validate("json", ChatBody)`
+// runs before the handler, so both the 400 (bad input) and 200 (valid → no-key
+// `fallback:true`) paths are verifiable with no AI provider configured.
+describe("DFX · Robustness — /v1/ai/chat context.todayTasks / recentCompleted bounds (#380)", () => {
+  let chatter: { token: string; id: string };
+  before(async () => {
+    chatter = await registerUser("ai-chat-ctx-bounds");
+  });
+
+  test("over-cap `context.todayTasks` array (> 50) → 400 VALIDATION_ERROR naming `context.todayTasks`; not a 5xx", async () => {
+    const todayTasks = Array.from({ length: 51 }, (_, i) => ({ id: `t${i}`, title: "task", quadrant: "q1" }));
+    const { status, body } = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: { messages: [{ role: "user", content: "plan my day" }], context: { todayTasks } },
+    });
+    assert.equal(status, 400, "an over-cap todayTasks array must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "context.todayTasks"),
+      "the rejection must name `context.todayTasks` (the array-length cap fired, not an incidental 400)",
+    );
+  });
+
+  test("over-length `context.todayTasks.0.title` (> 500 chars) → 400 naming the dotted path; server stays healthy", async () => {
+    const { status, body } = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: {
+        messages: [{ role: "user", content: "plan my day" }],
+        context: { todayTasks: [{ id: "t0", title: "x".repeat(501), quadrant: "q1" }] },
+      },
+    });
+    assert.equal(status, 400, "an over-length task title must be rejected (no unbounded prompt write)");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "context.todayTasks.0.title"),
+      "the rejection must name `context.todayTasks.0.title` — the per-title length cap fired inside the array element",
+    );
+
+    // Recoverability: the oversized body must not poison the server — a normal chat
+    // still succeeds afterwards, proving no crash / no unbounded read.
+    const ok = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: { messages: [{ role: "user", content: "Hi!" }] },
+    });
+    assert.equal(ok.status, 200, "server stays healthy after rejecting an over-length task title");
+  });
+
+  test("over-cap `context.recentCompleted` array (> 20) → 400 naming `context.recentCompleted`", async () => {
+    const recentCompleted = Array.from({ length: 21 }, () => ({ title: "done", completedAt: "2026-07-07T09:00" }));
+    const { status, body } = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: { messages: [{ role: "user", content: "how did I do" }], context: { recentCompleted } },
+    });
+    assert.equal(status, 400, "an over-cap recentCompleted array must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "context.recentCompleted"),
+      "the rejection must name `context.recentCompleted` (the array-length cap fired)",
+    );
+  });
+
+  test("context exactly at both caps (50 todayTasks / 20 recentCompleted, all valid) is accepted → the caps sit at 50/20, not below", async () => {
+    // Mutation teeth: a tightening regression (e.g. todayTasks `.max(49)` or
+    // recentCompleted `.max(19)`) would flip this at-boundary body from 200 to 400.
+    const todayTasks = Array.from({ length: 50 }, (_, i) => ({ id: `t${i}`, title: "task", quadrant: "q1" }));
+    const recentCompleted = Array.from({ length: 20 }, () => ({ title: "done", completedAt: "2026-07-07T09:00" }));
+    const { status, body } = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: { messages: [{ role: "user", content: "plan my day" }], context: { todayTasks, recentCompleted } },
+    });
+    assert.equal(status, 200, "a context exactly at the caps (50 / 20) must still be accepted");
+    assert.equal(body.fallback, true, "the at-boundary body still takes the no-key fallback path");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for SECURITY — auth/refresh rotation, single-use & reuse-detection (#284)
 //
 // `POST /v1/auth/refresh` (routes/auth.ts:175) exchanges a long-lived refresh
