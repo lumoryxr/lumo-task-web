@@ -1041,6 +1041,97 @@ describe("DFX · Security — cross-tenant project reference on task write bound
   });
 });
 
+describe("DFX · Security — public calendar feed capability (#169)", () => {
+  // GET /v1/calendar/feed.ics?token=… is the app's ONLY public, unauthenticated,
+  // token-as-capability endpoint: the opaque token IS the read capability for a
+  // user's open due-tasks + countdown events (the Google/Apple "secret iCal
+  // address" model). Its capability-security contract had no presence in this
+  // daily real-HTTP + real-file-SQLite suite (only the in-process
+  // api/calendar.test.ts exercised it) — the same gap #260/#264/#234 filled for
+  // settings/search. A bad guard here silently becomes a cross-tenant leak.
+  //
+  // The feed queries are scoped `WHERE user_id = :uid` where uid comes from the
+  // token → user *hash* lookup (calendar_feed_token_hash), not a JWT — a distinct
+  // auth path. `api()` returns the .ics as a text body (Content-Type
+  // text/calendar is not application/json), so we assert on that text.
+
+  const A_TASK = "CAL_ALICE_TASK_169";
+  const B_TASK = "CAL_BOB_TASK_169";
+
+  before(async () => {
+    // Give each actor one open due task so their feed is non-empty.
+    await api("POST", "/v1/tasks", { token: alice.token, body: { title: { en: A_TASK }, due: "2026-09-01" } });
+    await api("POST", "/v1/tasks", { token: bob.token, body: { title: { en: B_TASK }, due: "2026-09-02" } });
+  });
+
+  async function feedTokenFor(token: string): Promise<string> {
+    const { status, body } = await api("GET", "/v1/calendar/feed", { token });
+    assert.equal(status, 200, "authed GET /v1/calendar/feed should mint/return the feed token");
+    assert.ok(typeof body.token === "string" && body.token.length > 0, "feed token must be a non-empty string");
+    return body.token;
+  }
+
+  test("AC1 · capability isolation — a feed contains only its owner's tasks, never another tenant's", async () => {
+    const aliceFeedTok = await feedTokenFor(alice.token);
+    const bobFeedTok = await feedTokenFor(bob.token);
+
+    const aliceIcs = await api("GET", `/v1/calendar/feed.ics?token=${encodeURIComponent(aliceFeedTok)}`);
+    assert.equal(aliceIcs.status, 200, "Alice's own token must resolve to her feed");
+    assert.match(aliceIcs.contentType, /text\/calendar/, "the feed is served as text/calendar");
+    // Positive control: Alice's own task is present (emptiness alone would be a false-green).
+    assert.ok(aliceIcs.body.includes(A_TASK), "Alice's feed must contain her own task");
+    // Load-bearing: Bob's task must NOT appear in Alice's feed.
+    assert.ok(!aliceIcs.body.includes(B_TASK), "Alice's feed must NOT leak Bob's task (WHERE user_id scoping)");
+
+    const bobIcs = await api("GET", `/v1/calendar/feed.ics?token=${encodeURIComponent(bobFeedTok)}`);
+    assert.equal(bobIcs.status, 200);
+    assert.ok(bobIcs.body.includes(B_TASK), "Bob's feed must contain his own task");
+    assert.ok(!bobIcs.body.includes(A_TASK), "Bob's feed must NOT leak Alice's task");
+  });
+
+  test("AC2 · anti-enumeration — missing and unknown tokens both → 404; a valid token → 200 (no validity oracle)", async () => {
+    // Missing token and an unknown/garbage token must be indistinguishable: the
+    // endpoint never confirms whether a token is valid (no 401-vs-404 oracle).
+    const missing = await api("GET", "/v1/calendar/feed.ics");
+    assert.equal(missing.status, 404, "a missing token must be 404 NOT_FOUND");
+
+    const unknown = await api("GET", "/v1/calendar/feed.ics?token=definitely-not-a-real-token-169");
+    assert.equal(unknown.status, 404, "an unknown token must be the SAME 404 (never confirm token validity)");
+
+    // Positive control: a real token resolves — proves the 404s are the guard, not a broken route.
+    const valid = await feedTokenFor(alice.token);
+    const ok = await api("GET", `/v1/calendar/feed.ics?token=${encodeURIComponent(valid)}`);
+    assert.equal(ok.status, 200, "a valid token must resolve to 200");
+  });
+
+  test("AC3 · rotation revokes — after /feed/rotate the old token → 404, the new token → 200", async () => {
+    const oldTok = await feedTokenFor(bob.token);
+    // Sanity: the old token resolves before rotation.
+    assert.equal(
+      (await api("GET", `/v1/calendar/feed.ics?token=${encodeURIComponent(oldTok)}`)).status,
+      200,
+      "the pre-rotation token should resolve",
+    );
+
+    const rot = await api("POST", "/v1/calendar/feed/rotate", { token: bob.token });
+    assert.equal(rot.status, 200, "rotate should succeed");
+    const newTok: string = rot.body.token;
+    assert.ok(newTok && newTok !== oldTok, "rotate must issue a genuinely new token");
+
+    // Revocation: the old token no longer resolves; the new one does.
+    assert.equal(
+      (await api("GET", `/v1/calendar/feed.ics?token=${encodeURIComponent(oldTok)}`)).status,
+      404,
+      "the rotated-away token must be revoked (404)",
+    );
+    assert.equal(
+      (await api("GET", `/v1/calendar/feed.ics?token=${encodeURIComponent(newTok)}`)).status,
+      200,
+      "the freshly-issued token must resolve (200)",
+    );
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — malformed / wrong-typed / missing input
 // ═══════════════════════════════════════════════════════════════════════════════
