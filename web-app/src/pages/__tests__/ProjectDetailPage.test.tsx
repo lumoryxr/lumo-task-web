@@ -112,16 +112,21 @@ describe("ProjectDetailPage polish", () => {
     expect(mockUpdate).toHaveBeenCalledWith("p1", { goals: [] });
   });
 
-  it("toggles notes between display and edit states", () => {
+  it("collapses notes to a preview and opens/closes the edit modal", () => {
     project.content = '{"type":"doc","content":[]}';
     renderPage();
-    // Display state renders the read-only editor.
+    // Collapsed on the page: a read-only preview, no modal yet.
     expect(screen.getByTestId("content-editor").textContent).toBe("display");
+    expect(screen.queryByRole("dialog")).toBeNull();
 
+    // Header Edit button opens the modal, which renders the editable editor.
     fireEvent.click(screen.getByText("project.content.edit"));
-    expect(screen.getByTestId("content-editor").textContent).toBe("edit");
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByTestId("content-editor").textContent).toBe("edit");
 
-    fireEvent.click(screen.getByText("project.content.done"));
+    // Done closes the modal; the page shows only the preview again.
+    fireEvent.click(within(dialog).getByText("project.content.done"));
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByTestId("content-editor").textContent).toBe("display");
   });
 
@@ -135,10 +140,12 @@ describe("ProjectDetailPage polish", () => {
     });
   });
 
-  it("shows an empty-notes hint with no content, and enters edit from it", () => {
+  it("shows an empty-notes button with no content, and opens the modal from it", () => {
     renderPage();
-    expect(screen.getByText("project.content.empty")).toBeTruthy();
-    fireEvent.click(screen.getByText("project.content.edit"));
-    expect(screen.getByTestId("content-editor").textContent).toBe("edit");
+    // No preview editor when empty; the empty hint is the affordance.
+    expect(screen.queryByTestId("content-editor")).toBeNull();
+    fireEvent.click(screen.getByText("project.content.empty"));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByTestId("content-editor").textContent).toBe("edit");
   });
 });
