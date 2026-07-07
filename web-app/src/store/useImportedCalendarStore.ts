@@ -1,6 +1,22 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { parseICS, type ImportedEvent } from "@/lib/icsParse";
+import type { OutlookEvent } from "@/store/useCalendarStore";
+
+/**
+ * Adapt an imported event to the OutlookEvent shape so it can render through the
+ * shared OutlookEventCard / calendar bucketing. The id is prefixed so it never
+ * collides with a real Outlook event's id.
+ */
+export function importedToBusyEvent(ev: ImportedEvent): OutlookEvent {
+  return {
+    id: `imported-${ev.id}`,
+    subject: ev.subject,
+    start: { dateTime: ev.startISO, timeZone: "UTC" },
+    end: { dateTime: ev.endISO, timeZone: "UTC" },
+    isAllDay: ev.isAllDay,
+  };
+}
 
 /**
  * Cap on stored events so a huge multi-year .ics can't blow the ~5MB
