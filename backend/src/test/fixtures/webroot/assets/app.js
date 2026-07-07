@@ -1,0 +1,1 @@
+console.log("LUMO_APP_BUNDLE_MARKER");
