@@ -26,6 +26,7 @@ import { rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { serve } from "@hono/node-server";
 import { runMigrations } from "../db/migrate.js";
+import { queryOne } from "../db/client.js";
 import { app } from "../app.js";
 
 // ── Server lifecycle ──────────────────────────────────────────────────────────
@@ -1749,6 +1750,112 @@ describe("DFX · Robustness — settings reminder-time fields are format-bounded
     // No partial poison: the rejected PATCH must not have overwritten the column.
     const get = await api("GET", "/v1/settings", { token: alice.token });
     assert.equal(get.body.morning_reminder_time, good, "a rejected update must leave the stored time unchanged");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — AI-provider credential confidentiality on /v1/settings (#260)
+//
+// `PATCH /v1/settings` with `ai_configs_update.key` is the ONE place a user hands
+// the backend a long-lived secret (their OpenAI/DeepSeek/Claude/custom API key).
+// The confidentiality contract has two load-bearing halves:
+//   (1) ENCRYPTED AT REST — the key is stored `enc:v1:`-encrypted (AES-256-GCM via
+//       `encryptSecret`) in the `settings.ai_configs` JSON column, never plaintext,
+//       so a DB / backup leak does not spill usable provider keys.
+//   (2) NEVER ECHOED — `rowToSettings` projects each provider config down to
+//       `{ hasKey, model, baseUrl }`; the key value (plaintext OR its `enc:v1:`
+//       ciphertext) is returned by NEITHER `PATCH` NOR `GET /v1/settings`.
+// Settings' only prior presence in this daily suite is the #264 reminder-time
+// robustness cases; the secret-handling contract — the whole reason the column is
+// JSON-with-an-encrypted-field rather than a plain value — had no real-HTTP +
+// real-file-SQLite coverage. A regression that (a) dropped the `encryptSecret`
+// wrap (stored the key in cleartext) or (b) surfaced the key in `rowToSettings`
+// would ship silently: the per-PR in-process `api/settings.test.ts` asserts
+// `hasKey` shape but not at-rest ciphertext or full-body non-echo. These cases
+// pin both halves at the layer where a real DB file exists to inspect.
+describe("DFX · Security — AI-provider credential confidentiality on /v1/settings (#260)", () => {
+  // A distinctive sentinel so a substring scan of any response / column is
+  // unambiguous — it cannot legitimately appear anywhere but as the raw secret.
+  const SECRET = "sk-lumo-dfx-CONFIDENTIAL-SENTINEL-260-do-not-echo";
+  let secretsUser: { token: string; id: string };
+
+  before(async () => {
+    secretsUser = await registerUser("settings-secrets-260");
+  });
+
+  async function storedAiConfigs(): Promise<Record<string, { key: string }>> {
+    const row = await queryOne<{ ai_configs: string | null }>(
+      "SELECT ai_configs FROM settings WHERE user_id = :uid",
+      { uid: secretsUser.id },
+    );
+    return JSON.parse(row?.ai_configs ?? "{}");
+  }
+
+  test("a submitted provider key is stored `enc:v1:`-encrypted at rest, never as plaintext", async () => {
+    const { status, body } = await api("PATCH", "/v1/settings", {
+      token: secretsUser.token,
+      body: { ai_configs_update: { provider: "custom", key: SECRET } },
+    });
+    assert.equal(status, 200, "a valid key update must be accepted");
+    // The response acknowledges the key is set …
+    assert.equal(body.ai_provider_configs?.custom?.hasKey, true, "hasKey must flip true once a key is stored");
+
+    // … but the raw `settings.ai_configs` column must hold ONLY ciphertext.
+    const configs = await storedAiConfigs();
+    const stored = configs.custom?.key ?? "";
+    assert.ok(stored.startsWith("enc:v1:"), `stored key must be enc:v1:-encrypted, got ${JSON.stringify(stored).slice(0, 40)}…`);
+    assert.ok(!stored.includes(SECRET), "the plaintext secret must NOT appear in the at-rest column (AES-256-GCM → base64)");
+  });
+
+  test("the key is NEVER echoed — neither the plaintext nor its ciphertext appears in PATCH or GET responses", async () => {
+    // Read back what is actually stored, so we can prove the API leaks NEITHER form.
+    const configs = await storedAiConfigs();
+    const ciphertext = configs.custom?.key ?? "";
+    assert.ok(ciphertext.startsWith("enc:v1:"), "precondition: a key was stored encrypted by the prior case");
+
+    // PATCH response body (re-fetch via a no-op-ish valid PATCH that returns settings).
+    const patch = await api("PATCH", "/v1/settings", {
+      token: secretsUser.token,
+      body: { ai_provider: "custom" },
+    });
+    assert.equal(patch.status, 200);
+
+    const get = await api("GET", "/v1/settings", { token: secretsUser.token });
+    assert.equal(get.status, 200);
+
+    for (const [label, res] of [["PATCH", patch], ["GET", get]] as const) {
+      const serialized = JSON.stringify(res.body);
+      assert.ok(!serialized.includes(SECRET), `${label} /v1/settings must never echo the plaintext key`);
+      assert.ok(!serialized.includes(ciphertext), `${label} /v1/settings must never echo the stored ciphertext either`);
+      // The projection exposes presence + non-secret display fields, never the key itself.
+      const custom = res.body.ai_provider_configs?.custom;
+      assert.equal(custom?.hasKey, true, `${label} must report hasKey:true`);
+      assert.ok(!("key" in (custom ?? {})), `${label} provider config must not carry a \`key\` field at all`);
+    }
+  });
+
+  test("an unrelated settings PATCH keeps the key encrypted at rest and un-echoed (conditional-write has teeth)", async () => {
+    // The handler only (re)writes the key on `key != null && key.trim()`. A PATCH
+    // that touches ONLY a non-secret field (here `model`) must leave the encrypted
+    // key intact — not wipe it, not round-trip it back through cleartext.
+    const before = (await storedAiConfigs()).custom?.key ?? "";
+    assert.ok(before.startsWith("enc:v1:"), "precondition: key already stored encrypted");
+
+    const { status, body } = await api("PATCH", "/v1/settings", {
+      token: secretsUser.token,
+      body: { ai_configs_update: { provider: "custom", model: "custom-model-260" } },
+    });
+    assert.equal(status, 200);
+    assert.equal(body.ai_provider_configs?.custom?.model, "custom-model-260", "the non-secret field update must persist");
+    assert.equal(body.ai_provider_configs?.custom?.hasKey, true, "the pre-existing key must still be reported present");
+
+    const after = (await storedAiConfigs()).custom?.key ?? "";
+    assert.ok(after.startsWith("enc:v1:"), "the key must remain enc:v1:-encrypted after the unrelated update");
+    assert.ok(!after.includes(SECRET), "the unrelated update must not round-trip the key back to cleartext at rest");
+
+    // And still no leak in the response body.
+    assert.ok(!JSON.stringify(body).includes(SECRET), "the unrelated PATCH must not echo the plaintext key");
+    assert.ok(!JSON.stringify(body).includes(after), "the unrelated PATCH must not echo the stored ciphertext");
   });
 });
 
