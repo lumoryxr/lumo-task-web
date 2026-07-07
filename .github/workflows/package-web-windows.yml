@@ -1,0 +1,114 @@
+name: Package Web (Windows)
+
+# Builds the self-contained local/LAN WEB package for Windows: one folder that
+# runs the whole app (backend serving the SPA + API on one port) via a bundled
+# node.exe — no install, no Node prerequisite, double-click start.bat.
+#
+# Unlike the Electron installer (a desktop window that syncs to cloud), this is
+# the browser-accessed web build, meant to run on a LAN machine and be reached
+# from other devices on the same network.
+#
+# On-demand only (windows-latest minutes are billed higher). Produces a zip
+# artifact; also smoke-tests that the packaged server actually serves.
+on:
+  workflow_dispatch:
+
+jobs:
+  package-web-windows:
+    name: Build & smoke Windows web package (x64)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build shared contracts (@lumo/contracts)
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+        shell: bash
+
+      - name: Install & build backend (bundle + native deps)
+        working-directory: backend
+        run: |
+          npm ci --include=dev
+          npm run build
+        shell: bash
+
+      - name: Install & build frontend (same-origin /v1)
+        working-directory: web-app
+        run: npm ci && npm run build
+        shell: bash
+        env:
+          VITE_API_BASE: /v1
+
+      - name: Assemble web package
+        run: node scripts/package-web.mjs --skip-build --out dist-web/LumoTask-Web
+        shell: bash
+
+      - name: Bundle the Node runtime (node.exe)
+        shell: pwsh
+        run: |
+          # Ship the exact Node the package was built against so the target
+          # machine needs nothing installed.
+          Copy-Item (Get-Command node).Source -Destination "dist-web/LumoTask-Web/node.exe"
+          Write-Host "Bundled node.exe: $((Get-Command node).Version)"
+
+      - name: Zip the package (clean, before smoke creates runtime data)
+        shell: pwsh
+        run: |
+          # Zip the directory itself (not dir/*) so subfolders — node_modules
+          # with its .node binaries — recurse reliably and unzip nests cleanly
+          # under a LumoTask-Web/ folder.
+          Compress-Archive -Path "dist-web/LumoTask-Web" `
+                           -DestinationPath "LumoTask-Web-Windows-x64.zip" -Force
+          Write-Host "Zipped: $((Get-Item 'LumoTask-Web-Windows-x64.zip').Length / 1MB) MB"
+
+      - name: Smoke test — the packaged server serves the app + API
+        shell: pwsh
+        working-directory: dist-web/LumoTask-Web
+        run: |
+          $env:LUMO_HOST = "127.0.0.1"
+          $env:LUMO_PORT = "47291"
+          # Launch exactly as start.bat does: bundled node runs the launcher,
+          # which generates secrets and boots bundle.cjs.
+          $p = Start-Process -FilePath ".\node.exe" -ArgumentList "launcher.mjs" `
+                 -PassThru -NoNewWindow
+          try {
+            $base = "http://127.0.0.1:47291"
+            $ok = $false
+            foreach ($i in 1..40) {
+              try {
+                $health = Invoke-WebRequest "$base/health" -UseBasicParsing -TimeoutSec 3
+                if ($health.StatusCode -eq 200) { $ok = $true; break }
+              } catch { Start-Sleep -Seconds 1 }
+            }
+            if (-not $ok) { Write-Error "Server never became healthy on $base"; exit 1 }
+
+            # App shell served at root (single-quoted pattern — no escaping)
+            $root = Invoke-WebRequest "$base/" -UseBasicParsing
+            if ($root.StatusCode -ne 200 -or $root.Content -notmatch 'id="root"') {
+              Write-Error "Root did not return the app shell (status $($root.StatusCode))"; exit 1
+            }
+            # SPA fallback for a client route
+            $spa = Invoke-WebRequest "$base/matrix" -UseBasicParsing
+            if ($spa.StatusCode -ne 200) { Write-Error "SPA fallback failed"; exit 1 }
+            # Persisted per-install secrets were created
+            if (-not (Test-Path ".\data\secrets.json")) {
+              Write-Error "Launcher did not persist data/secrets.json"; exit 1
+            }
+            Write-Host "✓ Smoke passed: /health 200, app shell served, SPA fallback 200, secrets persisted"
+          } finally {
+            if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+          }
+
+      - name: Upload web package artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumo-web-windows-${{ github.run_id }}
+          path: LumoTask-Web-Windows-x64.zip
+          retention-days: 7
+          if-no-files-found: warn

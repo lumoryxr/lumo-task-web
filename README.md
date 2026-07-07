@@ -123,6 +123,22 @@ LUMO_CLOUD_API_BASE=https://your-backend.example.com make package-win
 
 For sync to actually succeed, that backend must be deployed and reachable (serving `/v1/auth/signin` + `/v1/sync/pull|push`), have its own Turso DB + secrets, and the user must have an account on it. Windows installers are built on a Windows runner via the **Package Windows** / **Release (Windows)** GitHub Actions workflows (`workflow_dispatch`); neither sets `LUMO_CLOUD_API_BASE`, so they use the `main.cjs` default above.
 
+### Local / LAN Web Server (self-hosted, single process)
+
+A different Windows artifact from the desktop installer above: a **web** build you run on one machine and use through the **browser** — locally, or from other devices on the same network. It has no cloud dependency; data lives in a local SQLite file.
+
+**How it works.** When `LUMO_WEB_ROOT` is set, the backend serves the built SPA **and** the `/v1` API from **one process on one port** (`backend/src/lib/webStatic.ts`) — so the package is one folder, one origin, no CORS. Bind host is controlled by `LUMO_HOST` (unset → all interfaces, i.e. LAN-reachable; `127.0.0.1` → this machine only).
+
+**The package** (built by the **Package Web (Windows)** workflow, `workflow_dispatch`) is a zip containing a bundled `node.exe`, `bundle.cjs`, the `web/` SPA, libsql native deps, and `start.bat`. The end user unzips and double-clicks `start.bat` — no Node, no install, no config. `launcher.mjs` generates per-install secrets on first run (`data/secrets.json`, like the desktop app), then boots the server; the browser opens at `http://localhost:47291` and other devices on the LAN can reach `http://<machine-ip>:47291`.
+
+**Build it yourself** (produces `dist-web/LumoTask-Web/`; run on the target platform for correct native binaries):
+
+```bash
+make package-web          # or: node scripts/package-web.mjs
+```
+
+The Windows CI job additionally bundles `node.exe`, smoke-tests that the packaged server serves, and zips the artifact.
+
 ---
 
 ## Project Structure
