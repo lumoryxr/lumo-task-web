@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useAppStore } from "@/store/useAppStore";
-import { useCalendarStore } from "@/store/useCalendarStore";
+import { useCalendarStore, type OutlookEvent } from "@/store/useCalendarStore";
+import { useImportedCalendarStore, importedToBusyEvent } from "@/store/useImportedCalendarStore";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { TaskTitle } from "@/components/TaskTitle";
 import type { Task, Locale } from "@/types/task";
@@ -126,6 +127,14 @@ export function CalendarView() {
   const outlookEvents = useCalendarStore((s) => s.events);
   const fetchEvents = useCalendarStore((s) => s.fetchEvents);
 
+  // Imported .ics events (#169 V2) surface as read-only busy blocks alongside
+  // Outlook events, via the same OutlookEventCard shape.
+  const importedEvents = useImportedCalendarStore((s) => s.events);
+  const importedAsEvents = useMemo<OutlookEvent[]>(
+    () => importedEvents.map(importedToBusyEvent),
+    [importedEvents],
+  );
+
   const [weekOffset, setWeekOffset] = useState(0);
   const [overUnscheduled, setOverUnscheduled] = useState(false);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
@@ -158,10 +167,10 @@ export function CalendarView() {
     setQcOpen(true);
   }
 
-  // Partition Outlook events into day buckets
-  const eventBuckets = new Map<string, typeof outlookEvents>();
+  // Partition Outlook + imported events into day buckets
+  const eventBuckets = new Map<string, OutlookEvent[]>();
   days.forEach((d) => eventBuckets.set(d.iso, []));
-  for (const evt of outlookEvents) {
+  for (const evt of [...outlookEvents, ...importedAsEvents]) {
     const dateStr = evt.start.dateTime.substring(0, 10);
     if (eventBuckets.has(dateStr)) {
       eventBuckets.get(dateStr)!.push(evt);

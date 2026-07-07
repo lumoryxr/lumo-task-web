@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useImportedCalendarStore } from "../useImportedCalendarStore";
+import { useImportedCalendarStore, importedToBusyEvent } from "../useImportedCalendarStore";
 
 const ICS =
   "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1\r\nSUMMARY:Meeting\r\nDTSTART:20260101T100000Z\r\nDTEND:20260101T110000Z\r\n" +
@@ -39,6 +39,29 @@ describe("useImportedCalendarStore", () => {
     const n = useImportedCalendarStore.getState().importIcs(body, "huge.ics");
     expect(n).toBe(1000);
     expect(useImportedCalendarStore.getState().events).toHaveLength(1000);
+  });
+
+  it("importedToBusyEvent adapts to the OutlookEvent shape with a collision-safe id", () => {
+    const busy = importedToBusyEvent({
+      id: "1",
+      subject: "Dentist",
+      startISO: "2026-07-10T09:00:00Z",
+      endISO: "2026-07-10T10:00:00Z",
+      isAllDay: false,
+    });
+    expect(busy.id).toBe("imported-1"); // prefixed so it can't clash with an Outlook id
+    expect(busy.subject).toBe("Dentist");
+    // Calendar buckets by start.dateTime.substring(0,10) → must be the event's day.
+    expect(busy.start.dateTime.substring(0, 10)).toBe("2026-07-10");
+    expect(busy.isAllDay).toBe(false);
+  });
+
+  it("an all-day imported event keeps a date-only start (buckets to its day)", () => {
+    const busy = importedToBusyEvent({
+      id: "x", subject: "Trip", startISO: "2026-12-25", endISO: "2026-12-26", isAllDay: true,
+    });
+    expect(busy.start.dateTime.substring(0, 10)).toBe("2026-12-25");
+    expect(busy.isAllDay).toBe(true);
   });
 
   it("clear resets everything", () => {
