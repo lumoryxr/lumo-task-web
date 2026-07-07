@@ -63,12 +63,19 @@ function splitLine(line: string): { name: string; params: string; value: string 
   return null;
 }
 
+/** True only for a real calendar date (rejects e.g. 2026-02-30, 2026-13-01). */
+function isRealDate(y: number, mo: number, d: number): boolean {
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+}
+
 /** Parse a DATE (`YYYYMMDD`) or DATE-TIME (`YYYYMMDDTHHMMSS[Z]`) value to ISO. */
 function parseDateValue(value: string, params: string): { iso: string; allDay: boolean } | null {
   const v = value.trim();
   const isDateParam = /VALUE=DATE(?![-])/i.test(params);
   const dateOnly = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
   if (dateOnly && (isDateParam || !v.includes("T"))) {
+    if (!isRealDate(+dateOnly[1], +dateOnly[2], +dateOnly[3])) return null;
     return { iso: `${dateOnly[1]}-${dateOnly[2]}-${dateOnly[3]}`, allDay: true };
   }
   const dt = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/.exec(v);
@@ -98,7 +105,7 @@ export function parseICS(text: string): ParseResult {
   let hadRecurrence = false;
 
   let inEvent = false;
-  let cur: Partial<ImportedEvent> & { rrule?: boolean; endAllDay?: boolean } = {};
+  let cur: Partial<ImportedEvent> & { rrule?: boolean } = {};
   let fallback = 0;
 
   for (const line of lines) {

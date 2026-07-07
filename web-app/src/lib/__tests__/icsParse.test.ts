@@ -105,4 +105,14 @@ describe("parseICS", () => {
     const { events } = parseICS(wrap(vevent("UID:bad\r\nSUMMARY:Bad\r\nDTSTART:not-a-date")));
     expect(events).toHaveLength(0);
   });
+
+  it("rejects a well-formed but non-existent all-day date (Feb 30)", () => {
+    const { events } = parseICS(wrap(vevent("UID:feb30\r\nSUMMARY:Nope\r\nDTSTART;VALUE=DATE:20260230")));
+    expect(events).toHaveLength(0);
+  });
+
+  it("accepts a real leap day as all-day", () => {
+    const { events } = parseICS(wrap(vevent("UID:leap\r\nSUMMARY:Leap\r\nDTSTART;VALUE=DATE:20280229")));
+    expect(events[0]).toMatchObject({ startISO: "2028-02-29", endISO: "2028-03-01", isAllDay: true });
+  });
 });

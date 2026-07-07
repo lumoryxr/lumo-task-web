@@ -3,6 +3,13 @@ import { persist } from "zustand/middleware";
 import { parseICS, type ImportedEvent } from "@/lib/icsParse";
 
 /**
+ * Cap on stored events so a huge multi-year .ics can't blow the ~5MB
+ * localStorage quota (which would make persist throw). Busy context only needs
+ * a bounded window; extras are dropped (earliest-in-file kept).
+ */
+const MAX_IMPORTED_EVENTS = 1000;
+
+/**
  * Imported external calendar (#169 V2). Holds the read-only events parsed from a
  * user-uploaded .ics file so they can surface as "busy" context (and feed
  * calendar-aware planning, #172 V2). Purely client-side — no server fetch, so no
@@ -27,8 +34,9 @@ export const useImportedCalendarStore = create<ImportedCalendarStore>()(
       importedAt: null,
       hadRecurrence: false,
       importIcs: (text, sourceName) => {
-        const { events, hadRecurrence } = parseICS(text);
-        set({ events, sourceName, hadRecurrence, importedAt: Date.now() });
+        const parsed = parseICS(text);
+        const events = parsed.events.slice(0, MAX_IMPORTED_EVENTS);
+        set({ events, sourceName, hadRecurrence: parsed.hadRecurrence, importedAt: Date.now() });
         return events.length;
       },
       clear: () => set({ events: [], sourceName: null, importedAt: null, hadRecurrence: false }),

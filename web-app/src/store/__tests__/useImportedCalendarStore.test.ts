@@ -30,6 +30,17 @@ describe("useImportedCalendarStore", () => {
     expect(useImportedCalendarStore.getState().hadRecurrence).toBe(false);
   });
 
+  it("caps stored events to bound localStorage on a huge import", () => {
+    let body = "BEGIN:VCALENDAR\r\n";
+    for (let i = 0; i < 1500; i++) {
+      body += `BEGIN:VEVENT\r\nUID:${i}\r\nSUMMARY:E${i}\r\nDTSTART:20260101T100000Z\r\nEND:VEVENT\r\n`;
+    }
+    body += "END:VCALENDAR";
+    const n = useImportedCalendarStore.getState().importIcs(body, "huge.ics");
+    expect(n).toBe(1000);
+    expect(useImportedCalendarStore.getState().events).toHaveLength(1000);
+  });
+
   it("clear resets everything", () => {
     useImportedCalendarStore.getState().importIcs(ICS, "work.ics");
     useImportedCalendarStore.getState().clear();
