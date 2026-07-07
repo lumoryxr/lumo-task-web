@@ -70,3 +70,24 @@ export function selectTodayPlan(
   }
   return chosen;
 }
+
+/**
+ * Reduce a stated time budget by hours already committed to calendar events
+ * today (#172 V2 — calendar-aware planning), so a plan is sized to the time
+ * actually free, not the raw hours the user claims. Returns:
+ *   - `null` when there is no usable stated budget (busy alone never creates one
+ *     — matching V1, "no budget" means plan top-N by priority);
+ *   - `0` when the day is fully booked (available hours are all committed) — the
+ *     caller should then plan nothing;
+ *   - otherwise the positive hours left for tasks.
+ */
+export function effectiveBudgetHours(
+  availableHours: number | null | undefined,
+  busyHours: number | null | undefined,
+): number | null {
+  if (availableHours == null || !Number.isFinite(availableHours) || availableHours <= 0) {
+    return null;
+  }
+  const busy = busyHours != null && Number.isFinite(busyHours) && busyHours > 0 ? busyHours : 0;
+  return Math.max(0, availableHours - busy);
+}

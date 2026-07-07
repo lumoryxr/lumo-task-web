@@ -1,5 +1,5 @@
 import type { ToolDefinition, ToolCall } from "./ai-client.js";
-import { selectTodayPlan, planTaskMinutes } from "./planner.js";
+import { selectTodayPlan, planTaskMinutes, effectiveBudgetHours } from "./planner.js";
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
 //
@@ -230,12 +230,13 @@ export const TASK_TOOLS: ToolDefinition[] = [
 
   {
     name: "generate_today_plan",
-    description: "Automatically select the most important tasks and add them to today's plan. Picks up to 5 high-priority tasks the user hasn't planned yet. If the user mentions how much time they have (e.g. 'I only have 2 hours'), pass available_hours so the plan's total estimated time stays within that budget.",
+    description: "Automatically select the most important tasks and add them to today's plan. Picks up to 5 high-priority tasks the user hasn't planned yet. If the user mentions how much time they have (e.g. 'I only have 2 hours'), pass available_hours so the plan's total estimated time stays within that budget. The plan is already calendar-aware: hours the user has booked in their imported calendar today are subtracted from available_hours automatically, so do NOT double-count meetings the user hasn't explicitly mentioned. Only pass busy_hours for commitments the user states that are NOT already in their calendar.",
     parameters: {
       type: "object",
       properties: {
         max_tasks: { type: "string", description: "Maximum number of tasks to add to today (default 5, max 10)" },
-        available_hours: { type: "string", description: "Optional. Hours available today; the plan's total estimated time (sum of task durations) will not exceed this." },
+        available_hours: { type: "string", description: "Optional. Hours available today; the plan's total estimated time (sum of task durations) will not exceed this (minus already-booked calendar time)." },
+        busy_hours: { type: "string", description: "Optional. Extra hours already committed today that are NOT in the imported calendar (e.g. 'I have 2 hours of meetings'). Subtracted from available_hours. Calendar events are already accounted for — do not restate them here." },
       },
     },
   },
@@ -266,10 +267,18 @@ export const TASK_TOOLS: ToolDefinition[] = [
 
 // ── Tool executor ─────────────────────────────────────────────────────────────
 
+/** Per-request context threaded from the caller (not from the LLM). */
+export interface ToolContext {
+  /** Hours already committed to calendar events today (#172 V2 — from the
+   *  client's imported .ics, deterministic — preferred over the model's guess). */
+  calendarBusyHours?: number;
+}
+
 export async function executeTool(
   tool: ToolCall,
   jwt: string,
   locale: string,
+  ctx: ToolContext = {},
 ): Promise<string> {
   // Read the port at call time (not module load) so the loopback target tracks
   // the actually-bound port — the real server uses PORT; tests set LUMO_PORT.
@@ -520,9 +529,26 @@ export async function executeTool(
       const maxTasks = Math.min(10, parseInt(String(a.max_tasks ?? "5"), 10) || 5);
       const rawHours = a.available_hours != null ? parseFloat(String(a.available_hours)) : NaN;
       const availableHours = Number.isFinite(rawHours) && rawHours > 0 ? rawHours : null;
+
+      // Calendar-aware budget (#172 V2): subtract hours already committed today —
+      // the client's imported calendar (deterministic, preferred) plus any extra
+      // commitments the user stated in NL. `effective` is null (no budget → top-N),
+      // 0 (fully booked → plan nothing), or the positive hours left for tasks.
+      const rawBusy = a.busy_hours != null ? parseFloat(String(a.busy_hours)) : NaN;
+      const nlBusy = Number.isFinite(rawBusy) && rawBusy > 0 ? rawBusy : 0;
+      const calBusy = Number.isFinite(ctx.calendarBusyHours) && (ctx.calendarBusyHours as number) > 0
+        ? (ctx.calendarBusyHours as number)
+        : 0;
+      const busyHours = nlBusy + calBusy;
+      const effective = effectiveBudgetHours(availableHours, busyHours);
+
       const allTasks = await listAllTasks();
       const notToday = allTasks.filter((t) => !t.today && !t.completed);
-      const toAdd = selectTodayPlan(notToday, { maxTasks, availableHours });
+      // effective === 0 means the day is fully booked → plan nothing (passing 0 to
+      // selectTodayPlan would read as "no budget" and wrongly pick top-N).
+      const toAdd = effective === 0
+        ? []
+        : selectTodayPlan(notToday, { maxTasks, availableHours: effective });
       const added: { id: string; title: string; quadrant: string }[] = [];
       let plannedMinutes = 0;
       for (const task of toAdd) {
@@ -534,7 +560,12 @@ export async function executeTool(
         added: added.length,
         tasks: added,
         ...(availableHours != null
-          ? { planned_minutes: plannedMinutes, budget_minutes: Math.round(availableHours * 60) }
+          ? {
+              planned_minutes: plannedMinutes,
+              budget_minutes: Math.round((effective ?? 0) * 60),
+              stated_available_minutes: Math.round(availableHours * 60),
+              ...(busyHours > 0 ? { calendar_busy_minutes: Math.round(busyHours * 60) } : {}),
+            }
           : {}),
       });
     }

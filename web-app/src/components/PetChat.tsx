@@ -6,6 +6,8 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAIStore } from "@/store/useAIStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useImportedCalendarStore } from "@/store/useImportedCalendarStore";
+import { todayBusyHours } from "@/utils/calendarBusy";
 import type { PetSpecies } from "@/components/PetSvg";
 import { getSpeciesEmoji } from "@/components/PetSvg";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -43,6 +45,7 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
   const tasks = useTasksStore((s) => s.tasks);
   const completed = useTasksStore((s) => s.completed);
   const user = useAuthStore((s) => s.user);
+  const importedEvents = useImportedCalendarStore((s) => s.events);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -50,6 +53,9 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
   // Build activity context for each message
   const context = useMemo(() => {
     const activeTasks = tasks.filter((tk) => !tk.completed);
+    // Calendar-aware planning (#172 V2): today's booked hours from the imported
+    // calendar, so "plan my day" sizes to time actually free. Omit when 0/none.
+    const busy = todayBusyHours(importedEvents);
     return {
       page: location.pathname,
       todayTasks: activeTasks
@@ -64,8 +70,9 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
       userName: user?.name ?? undefined,
       species,
       petName: petName || undefined,
+      ...(busy > 0 ? { calendarBusyHours: Math.round(busy * 100) / 100 } : {}),
     };
-  }, [tasks, completed, location.pathname, locale, user, species, petName]);
+  }, [tasks, completed, importedEvents, location.pathname, locale, user, species, petName]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

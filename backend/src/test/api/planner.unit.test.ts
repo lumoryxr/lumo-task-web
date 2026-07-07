@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {
   selectTodayPlan,
   planTaskMinutes,
+  effectiveBudgetHours,
   DEFAULT_TASK_MINUTES,
   type PlanCandidate,
 } from "../../lib/planner.js";
@@ -96,5 +97,41 @@ describe("planner · selectTodayPlan", () => {
     const snapshot = cands.map((t) => t.id);
     selectTodayPlan(cands, { maxTasks: 5, availableHours: null });
     assert.deepEqual(cands.map((t) => t.id), snapshot);
+  });
+});
+
+describe("planner · effectiveBudgetHours (#172 V2 — calendar-aware)", () => {
+  test("no stated budget → null (busy alone never creates one)", () => {
+    assert.equal(effectiveBudgetHours(null, 2), null);
+    assert.equal(effectiveBudgetHours(undefined, 2), null);
+    assert.equal(effectiveBudgetHours(0, 2), null);
+    assert.equal(effectiveBudgetHours(-1, 2), null);
+    assert.equal(effectiveBudgetHours(NaN, 2), null);
+  });
+
+  test("busy hours are subtracted from the stated budget", () => {
+    assert.equal(effectiveBudgetHours(6, 2), 4);
+    assert.equal(effectiveBudgetHours(3, 1.5), 1.5);
+  });
+
+  test("no/invalid busy → full stated budget", () => {
+    assert.equal(effectiveBudgetHours(5, 0), 5);
+    assert.equal(effectiveBudgetHours(5, null), 5);
+    assert.equal(effectiveBudgetHours(5, undefined), 5);
+    assert.equal(effectiveBudgetHours(5, -2), 5);
+    assert.equal(effectiveBudgetHours(5, NaN), 5);
+  });
+
+  test("fully booked (busy ≥ available) → 0, never negative", () => {
+    assert.equal(effectiveBudgetHours(2, 2), 0);
+    assert.equal(effectiveBudgetHours(2, 5), 0);
+  });
+
+  test("feeds selectTodayPlan: a 4h day with 3h of meetings fits only ~1h of tasks", () => {
+    const cands = [task("a", "Q1", 60), task("b", "Q2", 60), task("c", "Q3", 60)];
+    const effective = effectiveBudgetHours(4, 3); // 1h free
+    const picked = selectTodayPlan(cands, { maxTasks: 5, availableHours: effective });
+    assert.equal(picked.length, 1, "only one 60-min task fits the 1h left after meetings");
+    assert.equal(picked[0].id, "a", "highest priority within budget");
   });
 });

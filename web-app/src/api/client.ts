@@ -609,6 +609,7 @@ export const api = {
       recentCompleted?: { title: string; completedAt: string }[];
       locale?: string;
       userName?: string;
+      calendarBusyHours?: number;
     };
   }): Promise<{ reply: string; mood: "idle" | "happy" | "excited"; fallback: boolean; toolsUsed?: string[] }> {
     return req("POST", "/ai/chat", body);
