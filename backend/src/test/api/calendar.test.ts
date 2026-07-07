@@ -7,8 +7,10 @@
  */
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { req, setupDb, signInDemo, newUserWithToken } from "../helpers/index.js";
 import { app } from "../../app.js";
+import { queryOne } from "../../db/client.js";
 
 /** Fetch the raw .ics text (req() would try JSON first). */
 async function fetchFeed(token: string | null): Promise<{ status: number; ctype: string | null; text: string }> {
@@ -42,6 +44,19 @@ describe("Calendar feed", () => {
     // Idempotent: a second call returns the same token (stable subscription URL).
     const again = await req("GET", "/v1/calendar/feed", { token: demoToken });
     assert.equal(again.body.token, feedToken);
+  });
+
+  test("security → the raw token is never stored (hash for lookup, AES for re-display)", async () => {
+    const row = await queryOne<{ calendar_feed_token_hash: string | null; calendar_feed_token_enc: string | null }>(
+      "SELECT u.calendar_feed_token_hash, u.calendar_feed_token_enc FROM users u " +
+        "WHERE u.calendar_feed_token_hash = :h",
+      { h: createHash("sha256").update(feedToken).digest("hex") },
+    );
+    assert.ok(row, "user is found by the token's hash (proves lookup is hash-based)");
+    // Neither stored column equals the raw token → a DB leak isn't directly usable.
+    assert.notEqual(row!.calendar_feed_token_hash, feedToken);
+    assert.notEqual(row!.calendar_feed_token_enc, feedToken);
+    assert.ok(!(row!.calendar_feed_token_enc ?? "").includes(feedToken), "ciphertext must not contain the raw token");
   });
 
   test("200 → public feed carries the user's due tasks + countdowns as VEVENTs", async () => {

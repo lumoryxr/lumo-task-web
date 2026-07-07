@@ -12,6 +12,7 @@ export * from "./person.js";
 export * from "./template.js";
 export * from "./error.js";
 export * from "./ai.js";
+export * from "./calendar.js";
 export * from "./sync.js";
 export {
   zodToOpenApi,

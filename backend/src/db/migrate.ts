@@ -107,15 +107,20 @@ export async function runMigrations() {
   }
 
   // Migrate: per-user calendar feed token (#169 V1 — read-only .ics feed).
-  // A high-entropy opaque token that acts as a revocable secret URL (the
-  // Google/Apple "secret iCal address" model). Nullable; lazily generated on
-  // first feed request. Partial-unique index gives O(1) reverse lookup.
+  // A high-entropy opaque token acts as a revocable secret URL (the Google/Apple
+  // "secret iCal address" model). Stored two ways so a DB leak yields nothing
+  // usable: the SHA-256 *hash* for the O(1) reverse lookup on the public feed
+  // (one-way), and an AES-GCM *encryption* (same at-rest scheme as AI keys) so
+  // Settings can re-display the stable URL. Both nullable; generated lazily.
   const userCols = await query<{ name: string }>("PRAGMA table_info(users)");
-  if (!userCols.some((c) => c.name === "calendar_feed_token")) {
-    await execRaw("ALTER TABLE users ADD COLUMN calendar_feed_token TEXT");
+  if (!userCols.some((c) => c.name === "calendar_feed_token_hash")) {
+    await execRaw("ALTER TABLE users ADD COLUMN calendar_feed_token_hash TEXT");
+  }
+  if (!userCols.some((c) => c.name === "calendar_feed_token_enc")) {
+    await execRaw("ALTER TABLE users ADD COLUMN calendar_feed_token_enc TEXT");
   }
   await execRaw(
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_feed_token ON users(calendar_feed_token) WHERE calendar_feed_token IS NOT NULL"
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_feed_token_hash ON users(calendar_feed_token_hash) WHERE calendar_feed_token_hash IS NOT NULL"
   );
 
   // Migrate: add AI config columns to settings

@@ -73,18 +73,32 @@ describe("ics · buildICS", () => {
     assert.ok(ics.includes("SUMMARY:Meet Bob\\; bring notes\\, please"));
   });
 
-  test("skips events with a malformed date rather than emitting invalid VEVENTs", () => {
+  test("skips malformed AND well-formed-but-nonexistent dates", () => {
     const ics = buildICS({
       calName: "c",
       dtstamp: STAMP,
       events: [
         { uid: "good@lumo", summary: "ok", date: "2026-05-05" },
-        { uid: "bad@lumo", summary: "nope", date: "not-a-date" },
+        { uid: "garbage@lumo", summary: "nope", date: "not-a-date" },
+        { uid: "feb30@lumo", summary: "impossible", date: "2026-02-30" },
+        { uid: "month13@lumo", summary: "impossible", date: "2026-13-01" },
       ],
     });
     assert.ok(ics.includes("UID:good@lumo"));
-    assert.ok(!ics.includes("UID:bad@lumo"));
+    assert.ok(!ics.includes("garbage@lumo"));
+    assert.ok(!ics.includes("feb30@lumo"), "Feb 30 does not exist → skipped");
+    assert.ok(!ics.includes("month13@lumo"), "month 13 does not exist → skipped");
     assert.equal(ics.match(/BEGIN:VEVENT/g)?.length, 1);
+  });
+
+  test("accepts a real leap day", () => {
+    const ics = buildICS({
+      calName: "c",
+      dtstamp: STAMP,
+      events: [{ uid: "leap@lumo", summary: "leap", date: "2028-02-29" }],
+    });
+    assert.ok(ics.includes("DTSTART;VALUE=DATE:20280229"));
+    assert.ok(ics.includes("DTEND;VALUE=DATE:20280301"));
   });
 
   test("empty event list still produces a valid empty calendar", () => {
