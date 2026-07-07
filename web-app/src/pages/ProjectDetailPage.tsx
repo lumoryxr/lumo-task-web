@@ -11,6 +11,7 @@ import { ProjectBoard } from "@/components/ProjectBoard";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { ProgressRing } from "@/components/ProgressRing";
+import { Spinner } from "@/components/Spinner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { QuickCreate } from "@/components/QuickCreate";
 import { AddExistingTaskModal } from "@/components/AddExistingTaskModal";
@@ -240,10 +241,11 @@ export function ProjectDetailPage() {
         <button
           onClick={() => void handleSaveTemplate(project)}
           disabled={savingTemplate}
+          aria-busy={savingTemplate}
           className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
           style={{ border: "1px solid var(--border-default)" }}
         >
-          <IconBookmark size={12} />
+          {savingTemplate ? <Spinner size={12} /> : <IconBookmark size={12} />}
           {t("project.saveAsTemplate")}
         </button>
         <button

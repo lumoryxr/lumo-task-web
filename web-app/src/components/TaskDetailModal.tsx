@@ -219,7 +219,7 @@ export function TaskDetailModal({ task, onClose }: Props) {
           {liveTask.pomos_total > 0 && (
             <div className="col-span-2 flex items-center gap-2">
               <span className="text-[11px] font-medium" style={{ color: "var(--text-faint)", minWidth: 64 }}>
-                Pomodoro
+                {t("detail.pomodoro")}
               </span>
               <span className="pip">
                 {Array.from({ length: liveTask.pomos_total }).map((_, i) => (
