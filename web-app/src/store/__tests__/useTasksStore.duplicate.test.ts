@@ -23,7 +23,7 @@ const { createTask } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/api/client", () => ({ api: { createTask } }));
-vi.mock("@/store/usePetStore", () => ({ usePetStore: { getState: () => ({ celebrate: vi.fn(), react: vi.fn() }) } }));
+vi.mock("@/store/usePetStore", () => ({ usePetStore: { getState: () => ({ celebrate: vi.fn(), react: vi.fn(), recordCompletion: vi.fn(), species: "dog" }) } }));
 vi.mock("@/store/useDogStore", () => ({ useDogStore: { getState: () => ({ addXP: vi.fn() }) }, XP_PER_TASK: 10 }));
 vi.mock("@/store/useToastStore", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/i18n/useT", () => ({ t: (k: string) => k }));

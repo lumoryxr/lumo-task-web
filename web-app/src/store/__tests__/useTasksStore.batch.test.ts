@@ -31,9 +31,10 @@ function mk(id: string, quadrant: Task["quadrant"] = "Q2"): Task {
 const addXP = vi.fn();
 const celebrate = vi.fn();
 const react = vi.fn();
+const recordCompletion = vi.fn();
 
 vi.mock("@/api/client", () => ({ api: { completeTask, deleteTask, updateTask, listTasks, listCompletedToday } }));
-vi.mock("@/store/usePetStore", () => ({ usePetStore: { getState: () => ({ celebrate, react }) } }));
+vi.mock("@/store/usePetStore", () => ({ usePetStore: { getState: () => ({ celebrate, react, recordCompletion, species: "dog" }) } }));
 vi.mock("@/store/useDogStore", () => ({ useDogStore: { getState: () => ({ addXP }) }, XP_PER_TASK: 10 }));
 vi.mock("@/store/useToastStore", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/i18n/useT", () => ({ t: (k: string) => k }));
@@ -80,6 +81,7 @@ describe("completeBatch", () => {
     expect(addXP).toHaveBeenCalledWith(20); // 10 * 2
     expect(celebrate).toHaveBeenCalledTimes(1); // "a" was Q1 → upgraded cheer
     expect(react).not.toHaveBeenCalled();
+    expect(recordCompletion).toHaveBeenCalledTimes(1); // happiness recovers once per batch
   });
 
   it("non-Q1 batch gives a plain react, not a celebrate", async () => {
