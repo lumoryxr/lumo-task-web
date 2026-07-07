@@ -807,6 +807,105 @@ function IntegrationsPanel({ t }: { t: (k: string) => string }) {
           )}
         </div>
       </div>
+
+      <CalendarFeedCard t={t} />
+    </div>
+  );
+}
+
+/* ── Calendar ICS feed (#169 V1) ──────────────────────────────────── */
+
+export function CalendarFeedCard({ t }: { t: (k: string) => string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [rotating, setRotating] = useState(false);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .getCalendarFeed()
+      .then((r) => { if (alive) setUrl(r.url); })
+      .catch(() => { if (alive) toast.error(t("calendar.feed.error"), ""); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [t]);
+
+  async function copy() {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(t("calendar.feed.copied"));
+    } catch {
+      toast.error(t("calendar.feed.copyError"), "");
+    }
+  }
+
+  async function rotate() {
+    setRotating(true);
+    try {
+      const r = await api.rotateCalendarFeed();
+      setUrl(r.url);
+      toast.success(t("calendar.feed.rotated"));
+    } catch {
+      toast.error(t("calendar.feed.error"), "");
+    } finally {
+      setRotating(false);
+      setConfirmRotate(false);
+    }
+  }
+
+  return (
+    <div className="surface-card overflow-hidden mt-3">
+      <div className="px-5 py-4">
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-medium text-text-primary">{t("calendar.feed.title")}</span>
+        </div>
+        <div className="mt-0.5 text-[11px] text-text-muted">{t("calendar.feed.hint")}</div>
+
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            readOnly
+            value={loading ? t("calendar.feed.loading") : url ?? ""}
+            aria-label={t("calendar.feed.title")}
+            onFocus={(e) => e.currentTarget.select()}
+            className="input flex-1"
+            style={{ height: 32, fontSize: 12, fontFamily: "monospace" }}
+          />
+          <button
+            onClick={copy}
+            disabled={loading || !url}
+            className="btn btn-secondary"
+            style={{ height: 32, fontSize: 12 }}
+          >
+            {t("calendar.feed.copy")}
+          </button>
+        </div>
+
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-[11px] text-text-faint">{t("calendar.feed.privacy")}</span>
+          <button
+            onClick={() => setConfirmRotate(true)}
+            disabled={loading || rotating}
+            aria-busy={rotating}
+            className="btn btn-secondary inline-flex items-center gap-1.5"
+            style={{ height: 30, fontSize: 12 }}
+          >
+            {rotating ? <Spinner size={12} /> : null}
+            {t("calendar.feed.regenerate")}
+          </button>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        open={confirmRotate}
+        danger
+        title={t("calendar.feed.regenerate.confirm.title")}
+        message={t("calendar.feed.regenerate.confirm")}
+        confirmLabel={t("calendar.feed.regenerate")}
+        onConfirm={rotate}
+        onCancel={() => setConfirmRotate(false)}
+      />
     </div>
   );
 }
