@@ -568,6 +568,16 @@ export const api = {
     return req<AppSettings>("GET", "/settings");
   },
 
+  /** Calendar ICS feed (#169 V1): the subscribable secret URL + its token. */
+  async getCalendarFeed(): Promise<{ token: string; url: string }> {
+    return req<{ token: string; url: string }>("GET", "/calendar/feed");
+  },
+
+  /** Rotate the calendar feed token — invalidates the old subscription URL. */
+  async rotateCalendarFeed(): Promise<{ token: string; url: string }> {
+    return req<{ token: string; url: string }>("POST", "/calendar/feed/rotate");
+  },
+
   async patchSettings(patch: {
     locale?: string;
     accent?: string;
