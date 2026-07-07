@@ -2887,6 +2887,31 @@ describe("DFX · Robustness — /v1/ai/chat request-payload bounds (#320)", () =
     assert.equal(status, 200, "a body exactly at the caps (20 msgs / 5000 chars) must still be accepted");
     assert.equal(body.fallback, true, "the at-boundary body still takes the no-key fallback path");
   });
+
+  // #172 V2 — calendar-aware planning threads `context.calendarBusyHours` (hours
+  // booked in the client's imported calendar) into generate_today_plan. It is
+  // bounded `z.number().nonnegative().max(24)` so a malformed client value can't
+  // distort the plan's time budget; these pin that bound.
+  test("out-of-range `context.calendarBusyHours` → 400 naming the field; in-range → 200", async () => {
+    for (const bad of [-1, 25]) {
+      const { status, body } = await api("POST", "/v1/ai/chat", {
+        token: chatter.token,
+        body: { messages: [{ role: "user", content: "plan my day" }], context: { calendarBusyHours: bad } },
+      });
+      assert.equal(status, 400, `calendarBusyHours=${bad} must be rejected (outside [0,24])`);
+      assert.equal(body.error?.code, "VALIDATION_ERROR");
+      assert.ok(
+        (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "context.calendarBusyHours"),
+        "the rejection must name context.calendarBusyHours",
+      );
+    }
+    // A valid in-range value is accepted (no AI provider → fallback path).
+    const ok = await api("POST", "/v1/ai/chat", {
+      token: chatter.token,
+      body: { messages: [{ role: "user", content: "plan my day" }], context: { calendarBusyHours: 3 } },
+    });
+    assert.equal(ok.status, 200, "an in-range calendarBusyHours (3) must be accepted");
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

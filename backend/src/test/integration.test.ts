@@ -819,6 +819,49 @@ describe("AI tools · list_tasks over the paginated envelope", () => {
     assert.ok(Array.isArray(parsed), "list_tasks must return a JSON array");
     assert.ok(parsed.some((t: any) => t.title === "AI sees me"), "seeded task missing from AI tool output");
   });
+
+  // #172 V2 — calendar-aware planning: hours booked in the imported calendar
+  // (threaded as ToolContext.calendarBusyHours) are subtracted from the stated
+  // budget, so the plan is sized to the time actually free.
+  test("generate_today_plan subtracts calendar-busy hours from the budget", async () => {
+    const { body: reg } = await api("POST", "/v1/auth/register", {
+      body: { email: `ai-cal-${Date.now()}@test.local`, password: "password123", name: "AI Cal" },
+    });
+    const token = reg.token as string;
+    // Three Q1 tasks at 60 min each.
+    for (const n of [1, 2, 3]) {
+      await api("POST", "/v1/tasks", { token, body: { title: { en: `Cal task ${n}` }, quadrant: "Q1", duration: 60 } });
+    }
+
+    // Stated 4h, but 3h already booked in the calendar → only ~1h free → 1 task.
+    const out = await executeTool(
+      { id: "p1", name: "generate_today_plan", args: { available_hours: "4" } },
+      token, "en",
+      { calendarBusyHours: 3 },
+    );
+    const res = JSON.parse(out);
+    assert.equal(res.added, 1, "only one 60-min task fits the 1h left after 3h of meetings");
+    assert.equal(res.budget_minutes, 60, "effective budget = (4h − 3h) = 60 min");
+    assert.equal(res.stated_available_minutes, 240, "raw stated budget preserved for the model");
+    assert.equal(res.calendar_busy_minutes, 180, "reports the busy hours it accounted for");
+  });
+
+  test("generate_today_plan plans nothing when the calendar fully books the day", async () => {
+    const { body: reg } = await api("POST", "/v1/auth/register", {
+      body: { email: `ai-full-${Date.now()}@test.local`, password: "password123", name: "AI Full" },
+    });
+    const token = reg.token as string;
+    await api("POST", "/v1/tasks", { token, body: { title: { en: "Blocked out" }, quadrant: "Q1", duration: 60 } });
+
+    const out = await executeTool(
+      { id: "p2", name: "generate_today_plan", args: { available_hours: "2" } },
+      token, "en",
+      { calendarBusyHours: 2 },
+    );
+    const res = JSON.parse(out);
+    assert.equal(res.added, 0, "fully booked → nothing planned");
+    assert.equal(res.budget_minutes, 0, "effective budget is zero");
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

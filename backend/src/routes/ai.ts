@@ -371,6 +371,9 @@ const ChatBody = z.object({
     userName: z.string().max(100).optional(),
     species: z.enum(["dog", "cat", "fox", "panda", "robot"]).optional(),
     petName: z.string().max(50).optional(),
+    // Hours booked in the user's imported calendar today (#172 V2). Bounded so a
+    // malformed client value can't distort planning; feeds generate_today_plan.
+    calendarBusyHours: z.number().nonnegative().max(24).optional(),
   }).optional(),
 });
 
@@ -774,7 +777,9 @@ app.post("/chat", chatRateLimit, validate("json", ChatBody), async (c) => {
       for (const call of result.calls) {
         toolsUsed.push(call.name);
         try {
-          const res = await executeTool(call, jwt, locale);
+          const res = await executeTool(call, jwt, locale, {
+            calendarBusyHours: context?.calendarBusyHours,
+          });
           toolResults.push(res);
         } catch (err: any) {
           toolResults.push(JSON.stringify({ error: err?.message ?? "Tool execution failed" }));

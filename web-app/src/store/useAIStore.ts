@@ -16,6 +16,8 @@ interface ActivityContext {
   recentCompleted?: { title: string; completedAt: string }[];
   locale?: string;
   userName?: string;
+  /** Hours booked in the imported calendar today (#172 V2 — calendar-aware plan). */
+  calendarBusyHours?: number;
 }
 
 interface AIStore {
