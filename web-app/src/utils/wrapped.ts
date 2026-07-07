@@ -1,5 +1,5 @@
 import type { CompletedEntry } from "@/types/task";
-import type { QuadrantCount } from "@/utils/stats";
+import { percentDistribution, type QuadrantCount } from "@/utils/stats";
 
 export interface PrevWeekStats {
   tasksCompleted: number;
@@ -196,11 +196,11 @@ function buildPeriodStats(periodEntries: CompletedEntry[], label: string): PrevW
     const q = e.quadrant ?? "unclassified";
     counts[q] = (counts[q] ?? 0) + 1;
   }
-  const total = periodEntries.length;
-  const quadrantBreakdown: QuadrantCount[] = QUADRANT_ORDER.map((q) => ({
+  const percents = percentDistribution(QUADRANT_ORDER.map((q) => counts[q]));
+  const quadrantBreakdown: QuadrantCount[] = QUADRANT_ORDER.map((q, i) => ({
     quadrant: q,
     count: counts[q],
-    percent: total > 0 ? Math.round((counts[q] / total) * 100) : 0,
+    percent: percents[i],
   }));
 
   return {

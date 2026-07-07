@@ -6,6 +6,30 @@ export interface QuadrantCount {
   percent: number;
 }
 
+/**
+ * Percent share of each count in an ordered list, rounded so the results sum to
+ * exactly 100 when the total is positive (plain per-item `Math.round` can drift
+ * to 99 or 101, which shows up as distribution labels that don't add up). Uses
+ * the largest-remainder (Hamilton) method: floor everything, then hand the
+ * leftover points to the largest fractional parts. Zero counts stay 0; an
+ * all-zero total returns all zeros.
+ */
+export function percentDistribution(counts: number[]): number[] {
+  const total = counts.reduce((s, c) => s + c, 0);
+  if (total <= 0) return counts.map(() => 0);
+  const exact = counts.map((c) => (c / total) * 100);
+  const result = exact.map((x) => Math.floor(x));
+  let leftover = 100 - result.reduce((s, x) => s + x, 0);
+  const byFrac = exact
+    .map((x, i) => ({ i, frac: x - Math.floor(x) }))
+    .sort((a, b) => b.frac - a.frac);
+  for (let k = 0; k < byFrac.length && leftover > 0; k++) {
+    result[byFrac[k].i] += 1;
+    leftover -= 1;
+  }
+  return result;
+}
+
 export interface WeekStats {
   tasksCompleted: number;
   focusMinutes: number;
@@ -66,11 +90,11 @@ export function computeWeekStats(entries: CompletedEntry[]): WeekStats {
     const q = e.quadrant ?? "unclassified";
     counts[q] = (counts[q] ?? 0) + 1;
   }
-  const total = weekEntries.length;
-  const quadrantBreakdown: QuadrantCount[] = quadrantOrder.map((q) => ({
+  const percents = percentDistribution(quadrantOrder.map((q) => counts[q]));
+  const quadrantBreakdown: QuadrantCount[] = quadrantOrder.map((q, i) => ({
     quadrant: q,
     count: counts[q],
-    percent: total > 0 ? Math.round((counts[q] / total) * 100) : 0,
+    percent: percents[i],
   }));
 
   return {
