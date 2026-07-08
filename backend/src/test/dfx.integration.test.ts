@@ -1242,6 +1242,115 @@ describe("DFX · Security — GET /v1/user profile + stats aggregate tenant scop
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — next-task recommender POST /v1/ai/recommend tenant isolation (#398)
+//
+// `/ai/recommend` is the one AI *mutation* endpoint with zero prior DFX-suite
+// presence (classify/parse/breakdown/chat all have cases; recommend was only in
+// a comment). It READS the caller's Q1+today open tasks
+//   `SELECT … FROM tasks WHERE user_id = :uid AND completed = 0
+//        AND deleted_at IS NULL AND quadrant = 'Q1' AND today = 1`
+// and WRITES the chosen task's conviction —
+//   `UPDATE tasks SET conviction = …, updated_at = … WHERE id = :id AND user_id = :uid`.
+// The heuristic fallback runs that UPDATE even with **no LLM configured**, so the
+// whole path is verifiable here without an AI provider.
+//
+// The insidious IDOR class: recommend returns `{ task: null }` when the caller has
+// no Q1+today task — so a dropped read-scope would hand a task-less caller ANOTHER
+// tenant's Q1 task with NO status-code change (still 200), invisible to every other
+// case; only a "task-less caller gets null, not the victim's task" assertion catches
+// it (same shape as the #190 focus/sessions footgun). A dropped write-scope would let
+// one tenant's recommend mutate another tenant's conviction/updated_at.
+// Handler verified already scoped by `user_id` on both the read and the write →
+// gap in the tests, not the code (test + docs only, no production change).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security — next-task recommender POST /v1/ai/recommend tenant isolation (#398)", () => {
+  // Fresh dedicated actors (not shared alice/bob, whose tasks other tests mutate)
+  // so the null / unchanged-row assertions are deterministic.
+  let recOwner: { token: string; id: string };
+  let recAttacker: { token: string; id: string };
+  let ownerTaskId: string;
+
+  before(async () => {
+    recOwner = await registerUser("rec-owner");
+    recAttacker = await registerUser("rec-attacker");
+    // Owner has exactly one Q1 + today task; recommend must be able to surface it.
+    const { status, body } = await api("POST", "/v1/tasks", {
+      token: recOwner.token,
+      body: { title: { en: "Owner Q1 today" }, quadrant: "Q1", today: true },
+    });
+    assert.equal(status, 201, "owner Q1 task should be created");
+    ownerTaskId = body.id;
+  });
+
+  test("AC1 — a task-less attacker's recommend returns { task: null }, never the owner's task", async () => {
+    // Positive control: the owner's own recommend surfaces the owner's task, so a
+    // null below means "correctly scoped out", not "endpoint returns null for all".
+    const own = await api("POST", "/v1/ai/recommend", { token: recOwner.token, body: {} });
+    assert.equal(own.status, 200);
+    assert.equal(own.body.task?.id, ownerTaskId, "owner should be recommended their own Q1 task");
+
+    // Load-bearing: attacker has NO Q1+today task → must get null, not a leaked task.
+    const res = await api("POST", "/v1/ai/recommend", { token: recAttacker.token, body: {} });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.task, null, "task-less attacker must get null — a dropped read WHERE user_id would leak the owner's Q1 task here");
+  });
+
+  test("AC2 — the recommend write is caller-scoped: the owner's row is byte-for-byte unchanged when the attacker recommends", async () => {
+    // Snapshot the owner's task AFTER the owner's AC1 recommend already bumped it.
+    const before = await api("GET", `/v1/tasks/${ownerTaskId}`, { token: recOwner.token });
+    assert.equal(before.status, 200);
+    const ownerConvictionBefore = before.body.conviction;
+    const ownerUpdatedAtBefore = before.body.updated_at;
+
+    // Give the attacker their own Q1+today task so recommend has something to write to.
+    const mk = await api("POST", "/v1/tasks", {
+      token: recAttacker.token,
+      body: { title: { en: "Attacker Q1 today" }, quadrant: "Q1", today: true },
+    });
+    assert.equal(mk.status, 201);
+    const attackerTaskId = mk.body.id;
+
+    const rec = await api("POST", "/v1/ai/recommend", { token: recAttacker.token, body: {} });
+    assert.equal(rec.status, 200);
+    assert.equal(rec.body.task?.id, attackerTaskId, "attacker must be recommended their OWN task, never the owner's");
+
+    // The owner's row must be untouched — the UPDATE … WHERE user_id never reached it.
+    const after = await api("GET", `/v1/tasks/${ownerTaskId}`, { token: recOwner.token });
+    assert.equal(after.status, 200);
+    assert.equal(after.body.conviction, ownerConvictionBefore, "owner's conviction must be unchanged by the attacker's recommend");
+    assert.equal(after.body.updated_at, ownerUpdatedAtBefore, "owner's updated_at (LWW/cursor key) must be unchanged — no cross-tenant write");
+  });
+
+  test("AC3 — authn: no token → 401 UNAUTHORIZED; a garbage bearer → 401 (never 500)", async () => {
+    const noToken = await api("POST", "/v1/ai/recommend", { body: {} });
+    assert.equal(noToken.status, 401);
+    assert.equal(noToken.body.error?.code, "UNAUTHORIZED");
+
+    for (const bad of ["Bearer not-a-jwt", "Bearer aaa.bbb.ccc"]) {
+      const res = await fetch(`${BASE_URL}/v1/ai/recommend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: bad },
+        body: "{}",
+      });
+      assert.equal(res.status, 401, `garbage bearer "${bad}" must 401, never 500`);
+    }
+  });
+
+  test("AC4 — robustness/recoverability: an unknown body field → 400 VALIDATION_ERROR, and a normal recommend still works after", async () => {
+    // Body schema is z.object({}).strict() → an extra key is a hard 400, not a 5xx.
+    const bad = await api("POST", "/v1/ai/recommend", { token: recOwner.token, body: { surprise: true } });
+    assert.equal(bad.status, 400, "unknown body field must be rejected 400, never 5xx");
+    assert.equal(bad.body.error?.code, "VALIDATION_ERROR");
+
+    // The bad request never poisoned the server — the owner's recommend still succeeds.
+    const ok = await api("POST", "/v1/ai/recommend", { token: recOwner.token, body: {} });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.task?.id, ownerTaskId, "server recovered — owner recommend still returns the owner's task");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — malformed / wrong-typed / missing input
 // ═══════════════════════════════════════════════════════════════════════════════
 
