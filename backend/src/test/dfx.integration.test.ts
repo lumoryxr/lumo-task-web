@@ -2012,6 +2012,105 @@ describe("DFX · Robustness — task `scheduled_start` slot anchor is format-bou
   });
 });
 
+// Design for ROBUSTNESS — focus-session `started_at` anchor is format-bounded (#402)
+//
+// Coverage-gap audit (datetime anchors): `POST /v1/focus/sessions` records a
+// pomodoro. Its optional `started_at` timestamp is persisted verbatim into
+// `completed_entries.started_at` (read back as `startedAt` on GET /v1/completed).
+// The endpoint had DFX SECURITY coverage (cross-tenant IDOR, #190) but NO
+// robustness/input-bounds coverage: the field was bound as a bare
+// `z.string().optional()` — any string accepted — which (a) contradicts the
+// endpoint's OWN published contract (routes/docs.ts declares it
+// `format: date-time`) and (b) is inconsistent with every other datetime anchor
+// in the app, all of which are format-bounded (task scheduled_start/remind_at/due
+// #319, countdown date #240, habit check-in date #267, settings reminder-time
+// #264). A regression relaxing the bound would let garbage / oversized timestamps
+// into stored history with no status-code change.
+//
+// The bound is a SUPERSET regex accepting both the client's real wire format
+// (`new Date().toISOString()` → `…THH:MM:SS.sssZ`, used by the existing api test)
+// and the app-wide `scheduled_start` shape (`YYYY-MM-DDTHH:MM`), so nothing
+// currently valid is newly rejected. It rejects free-form junk and a date-only
+// value (no time component) — the same "has teeth" property as scheduled_start.
+// Validated by `validate("json", FocusSessionBody)` BEFORE the write, so a bad
+// anchor is a clean 400, never a 5xx or a poisoned row. Uses dedicated actors so
+// the per-user focus rate-limit (10/min) can't couple to other blocks.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — focus-session `started_at` anchor is format-bounded (#402)", () => {
+  let fowner: { token: string; id: string };
+
+  before(async () => {
+    fowner = await registerUser("focus-startedat");
+  });
+
+  test("malformed `started_at` → 400 VALIDATION_ERROR naming the field, no poisoned entry, server survives (recoverability)", async () => {
+    const before = await api("GET", "/v1/completed", { token: fowner.token });
+    const beforeCount = (before.body.items as unknown[]).length;
+
+    const { status, body } = await api("POST", "/v1/focus/sessions", {
+      token: fowner.token,
+      body: { duration: 25, started_at: "someday" },
+    });
+    assert.equal(status, 400, "a junk timestamp must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "started_at"),
+      "the rejection must name `started_at` (the format bound fired, not an incidental 400)",
+    );
+
+    // No poison: the rejected request must not have written a completed entry.
+    const after = await api("GET", "/v1/completed", { token: fowner.token });
+    assert.equal((after.body.items as unknown[]).length, beforeCount, "a rejected session must not persist an entry");
+
+    // Recoverability: the next well-formed request still succeeds.
+    const ok = await api("POST", "/v1/focus/sessions", { token: fowner.token, body: { duration: 5 } });
+    assert.equal(ok.status, 200, "server survives the bad request; the next valid one works");
+  });
+
+  test("date-only `started_at` (no time component) → 400 — the datetime bound has teeth", async () => {
+    const { status, body } = await api("POST", "/v1/focus/sessions", {
+      token: fowner.token,
+      body: { duration: 25, started_at: "2026-07-08" },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "started_at"),
+      "a date with no time must still name `started_at`",
+    );
+  });
+
+  test("valid full-ISO `started_at` (toISOString) is accepted and round-trips onto GET /completed", async () => {
+    const { body: task } = await api("POST", "/v1/tasks", {
+      token: fowner.token,
+      body: { title: { en: "Deep work" }, quadrant: "Q1", pomos_total: 2 },
+    });
+    const startedAt = "2026-07-08T03:46:00.000Z"; // exactly new Date().toISOString() shape
+
+    const { status } = await api("POST", "/v1/focus/sessions", {
+      token: fowner.token,
+      body: { task_id: task.id, duration: 25, started_at: startedAt },
+    });
+    assert.equal(status, 200, "a well-formed ISO timestamp must be accepted (no happy-path regression)");
+
+    const read = await api("GET", "/v1/completed", { token: fowner.token });
+    const entry = (read.body.items as Array<{ task_id: string | null; startedAt: string | null }>).find(
+      (e) => e.task_id === task.id,
+    );
+    assert.ok(entry, "the focus session must produce a completed entry");
+    assert.equal(entry?.startedAt, startedAt, "a subsequent read must reflect the persisted anchor");
+  });
+
+  test("app-form `started_at` (YYYY-MM-DDTHH:MM, the scheduled_start shape) is also accepted (superset bound)", async () => {
+    const { status } = await api("POST", "/v1/focus/sessions", {
+      token: fowner.token,
+      body: { duration: 25, started_at: "2026-12-01T14:15" },
+    });
+    assert.equal(status, 200, "the app-wide datetime shape must remain valid — nothing currently valid is newly rejected");
+  });
+});
+
 // Design for ROBUSTNESS — NL-capture input bounds on POST /v1/ai/parse (#305)
 //
 // Coverage-gap audit (AI request surfaces): `/v1/ai/parse` is the natural-language

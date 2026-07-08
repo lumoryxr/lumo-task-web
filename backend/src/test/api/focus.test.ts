@@ -91,4 +91,36 @@ describe("POST /v1/focus/sessions", () => {
     });
     assert.equal(status, 401);
   });
+
+  // `started_at` is documented as `format: date-time` (routes/docs.ts) and every
+  // other datetime anchor in the app is format-bounded — these guard that the
+  // focus-session anchor rejects malformed input at the request boundary (#402).
+  test("400 → malformed started_at names the field, never persists", async () => {
+    const { status, body } = await req("POST", "/v1/focus/sessions", {
+      token: demoToken,
+      body: { duration: 25, started_at: "someday" },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "started_at"),
+      "the rejection must name `started_at`",
+    );
+  });
+
+  test("400 → date-only started_at (no time component) is rejected", async () => {
+    const { status } = await req("POST", "/v1/focus/sessions", {
+      token: demoToken,
+      body: { duration: 25, started_at: "2026-07-08" },
+    });
+    assert.equal(status, 400);
+  });
+
+  test("200 → app-form started_at (YYYY-MM-DDTHH:MM) is accepted", async () => {
+    const { status } = await req("POST", "/v1/focus/sessions", {
+      token: demoToken,
+      body: { duration: 25, started_at: "2026-12-01T14:15" },
+    });
+    assert.equal(status, 200);
+  });
 });

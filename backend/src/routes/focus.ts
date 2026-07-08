@@ -14,10 +14,21 @@ app.use("/*", authMiddleware);
 
 const focusRateLimit = createRateLimiter<{ Variables: Variables }>(10, 60_000, (c) => c.get("userId") as string);
 
+// `started_at` is the wall-clock time the pomodoro began, persisted verbatim into
+// `completed_entries.started_at`. Bound it to an ISO 8601 date-time — matching the
+// endpoint's own published contract (`format: date-time`, routes/docs.ts) and the
+// app-wide datetime-anchor convention (task scheduled_start/remind_at, countdown
+// date, habit check-in date). The regex is a deliberate SUPERSET: it accepts both
+// the client's real wire format (`new Date().toISOString()` → `…THH:MM:SS.sssZ`)
+// and the shorter `scheduled_start` shape (`YYYY-MM-DDTHH:MM`), so nothing
+// currently valid is newly rejected — while junk and date-only values (no time
+// component) are now a clean 400 instead of silently poisoning stored history.
+const STARTED_AT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})?$/;
+
 const FocusSessionBody = z.object({
   task_id: z.string().nullable().optional(),
   duration: z.number().int().min(1),
-  started_at: z.string().optional(),
+  started_at: z.string().regex(STARTED_AT_RE).optional(),
 });
 
 // POST /focus/sessions
