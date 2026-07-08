@@ -1651,6 +1651,116 @@ describe("DFX · Robustness/Scalability — bounded project-kind template payloa
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for RELIABILITY — PATCH /v1/templates wrong-kind payload → 400 not 5xx (#395)
+//
+// Coverage-gap + real-defect audit (#395): `TemplateUpdateBodySchema.payload` is a
+// BARE `z.union([TemplatePayloadSchema, ProjectTemplatePayloadSchema])` — it accepts
+// EITHER kind's payload shape regardless of the template's actual kind. The PATCH
+// handler then re-encodes the payload against the template's EFFECTIVE kind via
+// `payloadSchemaFor(effectiveKind).safeParse(...)`. Before the #395 fix that call
+// was a `.parse()`, so a payload matching the *other* kind passed the request
+// validator, then threw a raw ZodError at the re-encode — and because routes never
+// throw HTTPException, `app.onError` turned it into a 500 INTERNAL_ERROR. A
+// DFX Reliability violation: mismatched input must degrade to a clean 4xx, never a
+// 5xx. The CREATE path is safe (its union variants pin kind↔payload together, so
+// the re-parse always matches) — only UPDATE decouples them.
+//
+// Both directions get teeth (task-kind ← project payload AND project-kind ← task
+// payload), each pairs the 400 with a read-back proving the stored row is
+// UNMUTATED (no partial poison), and a same-kind PATCH still succeeds (200 +
+// persists) so we prove it was the KIND MISMATCH that rejected, not a broken
+// update path.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Reliability — PATCH /v1/templates wrong-kind payload → 400, never 5xx (#395)", () => {
+  let tplUser: { token: string; id: string };
+
+  before(async () => {
+    tplUser = await registerUser("tpl-patch-kind-395");
+  });
+
+  // No GET /:id — read a template back through the owner's list.
+  async function getTemplate(token: string, id: string): Promise<any> {
+    const { body } = await api("GET", "/v1/templates", { token });
+    return (body as any[]).find((t) => t.id === id);
+  }
+
+  test("PATCH a task-kind template with a valid PROJECT-shaped payload → 400 VALIDATION_ERROR (never 5xx); row unmutated", async () => {
+    // A task template (kind defaults to "task").
+    const created = await api("POST", "/v1/templates", {
+      token: tplUser.token,
+      body: { name: "Task tpl A", payload: { title: { en: "Original task title" } } },
+    });
+    assert.equal(created.status, 201);
+    const id = created.body.id as string;
+
+    // A payload that is a VALID *project* blueprint (has `name`, lacks `title`) —
+    // it passes the request-body union but is the wrong kind for this template.
+    const { status, body } = await api("PATCH", `/v1/templates/${id}`, {
+      token: tplUser.token,
+      body: { payload: { name: "Project shaped", goals: [{ text: "g" }] } },
+    });
+    assert.equal(status, 400, "a wrong-kind payload must degrade to a client error, not a 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("payload.")),
+      "the rejection must name the offending payload field (the task-schema re-parse fired, e.g. payload.title)",
+    );
+
+    // No-poison: the stored template is untouched (still its original task payload).
+    const after = await getTemplate(tplUser.token, id);
+    assert.equal(after.kind, "task", "kind must be unchanged");
+    assert.equal(after.payload?.title?.en, "Original task title", "payload must be unmutated after the rejected PATCH");
+  });
+
+  test("PATCH a project-kind template with a valid TASK-shaped payload → 400 VALIDATION_ERROR (never 5xx); row unmutated", async () => {
+    const created = await api("POST", "/v1/templates", {
+      token: tplUser.token,
+      body: { name: "Project tpl B", kind: "project", payload: { name: "Original project name" } },
+    });
+    assert.equal(created.status, 201);
+    const id = created.body.id as string;
+
+    // A valid *task* blueprint (has `title`, lacks `name`) — wrong kind here.
+    const { status, body } = await api("PATCH", `/v1/templates/${id}`, {
+      token: tplUser.token,
+      body: { payload: { title: { en: "Task shaped" } } },
+    });
+    assert.equal(status, 400, "a wrong-kind payload must degrade to a client error, not a 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("payload.")),
+      "the rejection must name the offending payload field (the project-schema re-parse fired, e.g. payload.name)",
+    );
+
+    const after = await getTemplate(tplUser.token, id);
+    assert.equal(after.kind, "project", "kind must be unchanged");
+    assert.equal(after.payload?.name, "Original project name", "payload must be unmutated after the rejected PATCH");
+  });
+
+  test("PATCH with a valid SAME-kind payload still succeeds (200) and persists — no regression", async () => {
+    const created = await api("POST", "/v1/templates", {
+      token: tplUser.token,
+      body: { name: "Task tpl C", payload: { title: { en: "Before" } } },
+    });
+    assert.equal(created.status, 201);
+    const id = created.body.id as string;
+
+    const { status, body } = await api("PATCH", `/v1/templates/${id}`, {
+      token: tplUser.token,
+      body: { payload: { title: { en: "After" } } },
+    });
+    assert.equal(status, 200, "a matching-kind payload replace must succeed");
+    assert.equal(body.payload?.title?.en, "After", "the response reflects the replaced payload");
+
+    // Persisted (the handler re-reads from the DB before responding, but confirm
+    // via the list too that the write landed).
+    const after = await getTemplate(tplUser.token, id);
+    assert.equal(after.payload?.title?.en, "After", "the replaced payload is persisted");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — `remind_at` reminder field is format-bounded (#176)
 //
 // Coverage-gap audit (per-task reminders, #176): `tasks.remind_at` is the field

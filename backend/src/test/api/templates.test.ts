@@ -119,6 +119,22 @@ describe("Templates", () => {
     assert.equal(status, 404);
   });
 
+  test("400 → PATCH a task template with a valid PROJECT-shaped payload (wrong kind) is a clean client error, not 5xx (#395)", async () => {
+    // The update body's payload union accepts either kind's shape; the handler
+    // re-parses against the template's effective kind. A wrong-kind payload must
+    // degrade to 400 VALIDATION_ERROR (safeParse), never throw → 500.
+    const { status, body } = await req("PATCH", `/v1/templates/${templateId}`, {
+      token: demoToken,
+      body: { payload: { name: "Project shaped", goals: [{ text: "g" }] } },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error.fields as Array<{ path: string }>).some((f) => f.path.startsWith("payload.")),
+      "the offending payload field is named",
+    );
+  });
+
   test("204 → DELETE removes the template", async () => {
     const { status } = await req("DELETE", `/v1/templates/${templateId}`, { token: demoToken });
     assert.equal(status, 204);
