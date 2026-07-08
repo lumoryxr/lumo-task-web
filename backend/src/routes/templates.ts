@@ -122,10 +122,29 @@ app.patch("/:id", validate("param", IdParam), validate("json", TemplateUpdateBod
 
   // Re-encode a replaced payload against the effective kind (patch may switch it).
   const effectiveKind = body.kind ?? existing.kind;
-  const payload =
-    "payload" in body && body.payload !== undefined
-      ? JSON.stringify(payloadSchemaFor(effectiveKind).parse(body.payload))
-      : existing.payload;
+  let payload = existing.payload;
+  if ("payload" in body && body.payload !== undefined) {
+    // TemplateUpdateBodySchema.payload is a bare union of BOTH kinds' shapes, so a
+    // payload matching the *other* kind passes the request validator and reaches
+    // here. safeParse (not parse) so a wrong-kind / malformed payload degrades to a
+    // clean 400 VALIDATION_ERROR instead of throwing a raw ZodError → 500 (routes
+    // never throw HTTPException, so app.onError would treat a throw as a server fault).
+    const result = payloadSchemaFor(effectiveKind).safeParse(body.payload);
+    if (!result.success) {
+      const fields = result.error.issues.map((issue: z.ZodIssue) => ({
+        path: ["payload", ...issue.path.map(String)].join("."),
+        message: issue.message,
+      }));
+      return httpError(
+        c,
+        400,
+        "VALIDATION_ERROR",
+        fields.map((f) => `${f.path}: ${f.message}`).join("; "),
+        fields,
+      );
+    }
+    payload = JSON.stringify(result.data);
+  }
 
   await execute(
     `UPDATE templates SET
