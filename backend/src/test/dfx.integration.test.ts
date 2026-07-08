@@ -1132,6 +1132,115 @@ describe("DFX · Security — public calendar feed capability (#169)", () => {
   });
 });
 
+describe("DFX · Security — GET /v1/user profile + stats aggregate tenant scoping (#390)", () => {
+  // GET /v1/user returns the caller's profile PLUS an aggregate stats block:
+  //   stats.tasks     = COUNT(open tasks)  — COUNT(CASE WHEN completed = 0 …)
+  //   stats.pomodoros = SUM(pomos_done)    — across the caller's tasks
+  // computed by a single query scoped `WHERE user_id = :uid AND deleted_at IS NULL`
+  // (routes/user.ts:17-22). Unlike every other user-scoped read — which returns
+  // *rows* pinned by the #158 isolation sweep — this is the app's only user-facing
+  // cross-tenant *aggregate*: a dropped `WHERE user_id = :uid` on the stats query
+  // would silently fold another tenant's open-task + pomodoro counts into the
+  // caller's profile — an info-disclosure leak with NO status-code change (still
+  // 200), invisible to every existing case. The endpoint had zero presence in this
+  // daily real-HTTP + real-file-SQLite suite (only the per-PR in-process api suite
+  // exercised it), so a green PR CI is not proof of daily coverage.
+  //
+  // Fresh dedicated actors (not the shared alice/bob, whose task/pomo counts other
+  // tests mutate) so the exact-count assertions are deterministic. `pomos_done` is
+  // hardcoded 0 on create — its only write path is POST /v1/focus/sessions (+1 each,
+  // rate-limited 10/60s so we keep counts small).
+
+  let owner: { token: string; id: string };
+  let other: { token: string; id: string };
+
+  const OWNER_OPEN_TASKS = 3; // + 1 completed → pins the `completed = 0` (open-only) predicate
+  const OWNER_POMODOROS = 2;
+  const OTHER_OPEN_TASKS = 5; // different, non-zero → positive control for the leak
+  const OTHER_POMODOROS = 3;
+
+  async function addPomodoro(token: string, taskId: string): Promise<void> {
+    const { status } = await api("POST", "/v1/focus/sessions", {
+      token,
+      body: { task_id: taskId, duration: 25 },
+    });
+    assert.equal(status, 200, "recording a focus session should succeed (bumps pomos_done +1)");
+  }
+
+  async function createTask(token: string, en: string, quadrant: string): Promise<string> {
+    const { status, body } = await api("POST", "/v1/tasks", { token, body: { title: { en }, quadrant } });
+    assert.equal(status, 201, `creating task ${en} should succeed`);
+    return body.id as string;
+  }
+
+  before(async () => {
+    owner = await registerUser("profile-owner");
+    other = await registerUser("profile-other");
+
+    // Owner: OWNER_OPEN_TASKS open tasks + 1 completed; OWNER_POMODOROS pomodoros.
+    let ownerFirst = "";
+    for (let i = 0; i < OWNER_OPEN_TASKS; i++) {
+      const id = await createTask(owner.token, `owner-open-${i}`, "Q1");
+      if (i === 0) ownerFirst = id;
+    }
+    // One completed owner task so stats.tasks pins open-only, not all rows.
+    const ownerDoneId = await createTask(owner.token, "owner-done", "Q1");
+    const done = await api("POST", `/v1/tasks/${ownerDoneId}/complete`, { token: owner.token });
+    assert.equal(done.status, 200, "completing the owner's task should succeed");
+    // Pomodoros accrue on any owned task (SUM is across all the owner's rows).
+    for (let i = 0; i < OWNER_POMODOROS; i++) await addPomodoro(owner.token, ownerFirst);
+
+    // Other tenant: DIFFERENT, non-zero counts so a dropped WHERE user_id shows up.
+    let otherFirst = "";
+    for (let i = 0; i < OTHER_OPEN_TASKS; i++) {
+      const id = await createTask(other.token, `other-open-${i}`, "Q2");
+      if (i === 0) otherFirst = id;
+    }
+    for (let i = 0; i < OTHER_POMODOROS; i++) await addPomodoro(other.token, otherFirst);
+  });
+
+  test("AC1 · authN required — no token → 401, garbage bearer → 401 (never 500), valid → 200", async () => {
+    const noTok = await api("GET", "/v1/user");
+    assert.equal(noTok.status, 401, "GET /v1/user without a token must be 401 UNAUTHORIZED");
+    assert.equal(noTok.body.error?.code, "UNAUTHORIZED");
+
+    const garbage = await fetch(`${BASE_URL}/v1/user`, { headers: { Authorization: "Bearer not-a-jwt" } });
+    assert.equal(garbage.status, 401, "a garbage bearer must be 401, never a 500 crash");
+
+    const ok = await api("GET", "/v1/user", { token: owner.token });
+    assert.equal(ok.status, 200, "a valid token must resolve to 200");
+  });
+
+  test("AC2 · profile identity — the row is loaded from the JWT owner, not another tenant", async () => {
+    const { status, body } = await api("GET", "/v1/user", { token: owner.token });
+    assert.equal(status, 200);
+    assert.equal(body.email, "dfx-profile-owner@lumo.test", "email must be the token-owner's");
+    assert.equal(body.name, "profile-owner", "name must be the token-owner's");
+    assert.equal(body.id, owner.id, "id must be the token-owner's");
+  });
+
+  test("AC3 · stats aggregate is tenant-scoped — only the owner's open tasks + pomodoros, never the combined total", async () => {
+    const { status, body } = await api("GET", "/v1/user", { token: owner.token });
+    assert.equal(status, 200);
+    // Load-bearing: EXACTLY the owner's own counts. The completed owner task is
+    // excluded (open-only), and the other tenant's tasks/pomodoros are NOT folded
+    // in. Dropping `WHERE user_id = :uid` on the aggregate inflates both numbers
+    // (to at least owner+other) → reddens exactly this case.
+    assert.equal(body.stats.tasks, OWNER_OPEN_TASKS,
+      `stats.tasks must be the owner's ${OWNER_OPEN_TASKS} OPEN tasks — excludes the completed one, excludes the other tenant's ${OTHER_OPEN_TASKS}`);
+    assert.equal(body.stats.pomodoros, OWNER_POMODOROS,
+      `stats.pomodoros must be the owner's ${OWNER_POMODOROS} — never the other tenant's ${OTHER_POMODOROS} folded in`);
+
+    // Positive control: the OTHER tenant sees its OWN distinct counts — proves both
+    // tenants hold real, different, non-zero data, so the owner assertion above
+    // isn't passing merely because the other tenant is empty.
+    const otherView = await api("GET", "/v1/user", { token: other.token });
+    assert.equal(otherView.status, 200);
+    assert.equal(otherView.body.stats.tasks, OTHER_OPEN_TASKS, "the other tenant sees its own open-task count");
+    assert.equal(otherView.body.stats.pomodoros, OTHER_POMODOROS, "the other tenant sees its own pomodoro count");
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — malformed / wrong-typed / missing input
 // ═══════════════════════════════════════════════════════════════════════════════
