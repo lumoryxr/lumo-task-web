@@ -638,3 +638,24 @@ here rather than leaving a silent hole.
   boundary value `duration = 1440` (24h) is accepted → 200 (inclusive ceiling, no off-by-one / happy-path
   regression). Plus 3 mirrored cases in the in-process `api/focus.test.ts`. Route had a real gap (every sibling
   minutes field capped, this one wasn't) → **small production change + tests + docs**. dfx 157 → 160.
+
+- **2026-07-11 (#411 `/v1/outlook` route family — authN + fail-closed + config confidentiality)** — A live
+  API-surface diff against this matrix found the **entire `/v1/outlook` route family** (`routes/outlook.ts` —
+  `GET /status`, `GET /calendar`) had **zero** daily-suite presence: no security, robustness, or availability
+  row. It is an **optional external integration** (server-side Outlook/Graph calendar proxy) active only when
+  four env vars are set (`LUMO_MS_TENANT_ID`/`CLIENT_ID`/`CLIENT_SECRET`/`USER_EMAIL`); the daily ephemeral env —
+  and every default self-host that never wires up Azure — leaves them **absent**, so both endpoints have
+  deterministic, **external-call-free** behavior and are cleanly testable here with **zero network egress** in
+  the passing state. Three load-bearing production properties, none previously pinned: **AC1 authN** — both
+  endpoints sit behind `app.use("/*", authMiddleware)`, so a missing/garbage bearer → 401, never a 5xx; **AC2
+  fail-closed / graceful degradation** — with the integration unconfigured, `GET /calendar` must short-circuit
+  to a clean **503 `OUTLOOK_NOT_CONFIGURED` before any token/Graph fetch** (valid `start`/`end` supplied on
+  purpose: the config guard runs **ahead** of the missing-param 400, so a 503 proves it was the fail-closed guard
+  that fired, and no outbound call is attempted — keeping the suite hermetic; dropping the `if (!TENANT_ID…)`
+  guard would send a doomed request to `login.microsoftonline.com/undefined/…` and surface as a 502/hang — a real
+  availability footgun); **AC3 config confidentiality** — `GET /status` must report `configured:false` truthfully
+  and **not disclose the server mailbox** (`userEmail` null/absent) when the integration is off. Closed with
+  **4 cases** over real HTTP + real file SQLite. Handlers verified **already correct** → **gap in the tests, not
+  the code** (test + docs only, no production change). Mutation-tested: dropping the auth middleware reddens AC1;
+  dropping the `/calendar` config guard turns AC2 into a 502 (perfect specificity); forcing `configured:true`
+  reddens AC3. dfx 160 → 164.
