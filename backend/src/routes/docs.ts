@@ -528,7 +528,7 @@ const spec = {
                 required: ["duration"],
                 properties: {
                   task_id: { type: "string", nullable: true, description: "Link session to a task" },
-                  duration: { type: "integer", description: "Session length in minutes" },
+                  duration: { type: "integer", minimum: 1, maximum: 1440, description: "Session length in minutes (1–1440 = up to 24h)" },
                   started_at: { type: "string", format: "date-time" },
                 },
               },

@@ -25,9 +25,16 @@ const focusRateLimit = createRateLimiter<{ Variables: Variables }>(10, 60_000, (
 // component) are now a clean 400 instead of silently poisoning stored history.
 const STARTED_AT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})?$/;
 
+// `duration` is the session length in minutes, persisted verbatim into
+// `completed_entries.duration` and summed into Stats totals. Bound it to
+// [1, 1440] (= 24h) — the same ceiling the contract puts on `tasks.duration`
+// (task.ts / template.ts). An unbounded value silently poisons Stats (a single
+// overflow-shaped session dwarfs every real total) and has no legitimate
+// meaning: a pomodoro longer than a day is junk, so reject it at the request
+// boundary with a clean 400 rather than storing it.
 const FocusSessionBody = z.object({
   task_id: z.string().nullable().optional(),
-  duration: z.number().int().min(1),
+  duration: z.number().int().min(1).max(1440),
   started_at: z.string().regex(STARTED_AT_RE).optional(),
 });
 

@@ -85,6 +85,54 @@ describe("POST /v1/focus/sessions", () => {
     assert.equal(status, 400);
   });
 
+  // `completed_entries.duration` stores the same kind of value as `tasks.duration`
+  // (session length in minutes), which the contract bounds at max 1440 (= 24h).
+  // An unbounded focus duration silently poisons Stats totals; reject absurd /
+  // overflow-shaped values at the request boundary (#405).
+  test("400 → duration above 1440 (24h) is rejected and names the field", async () => {
+    const { status, body } = await req("POST", "/v1/focus/sessions", {
+      token: demoToken,
+      body: { duration: 9_999_999 },
+    });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "duration"),
+      "the rejection must name `duration`",
+    );
+  });
+
+  test("400 → oversized duration persists nothing (no entry, no pomos bump)", async () => {
+    const { body: task } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Overflow guard" }, pomos_total: 4 },
+    });
+    const { status } = await req("POST", "/v1/focus/sessions", {
+      token: demoToken,
+      body: { task_id: task.id, duration: 9_999_999 },
+    });
+    assert.equal(status, 400);
+
+    const { body: after } = await req("GET", `/v1/tasks/${task.id}`, { token: demoToken });
+    assert.equal(after.pomos_done, 0, "a rejected oversized session must not bump pomos_done");
+    const { body: completed } = await req("GET", "/v1/completed", { token: demoToken });
+    assert.ok(
+      !completed.items.some((e: { task_id: string | null }) => e.task_id === task.id),
+      "a rejected oversized session must not create a completed entry",
+    );
+
+    await req("DELETE", `/v1/tasks/${task.id}`, { token: demoToken });
+  });
+
+  test("200 → boundary duration = 1440 (24h) is accepted", async () => {
+    const { status, body } = await req("POST", "/v1/focus/sessions", {
+      token: demoToken,
+      body: { duration: 1440 },
+    });
+    assert.equal(status, 200);
+    assert.equal(body.ok, true);
+  });
+
   test("401 → no token", async () => {
     const { status } = await req("POST", "/v1/focus/sessions", {
       body: { duration: 25 },

@@ -2111,6 +2111,81 @@ describe("DFX · Robustness — focus-session `started_at` anchor is format-boun
   });
 });
 
+// Design for ROBUSTNESS — focus-session `duration` is range-bounded [1, 1440] (#405)
+//
+// Coverage-gap audit (magnitude bounds): the same #402 focus-log write path had its
+// datetime anchor bounded but left `duration` as `z.number().int().min(1)` — no
+// UPPER bound. That minutes value is persisted verbatim into
+// `completed_entries.duration` and SUMMED into Stats totals (GET /v1/completed →
+// dashboards), so a single overflow-shaped session (e.g. 9_999_999) silently
+// dwarfs every real total with no status-code change — the classic unbounded-
+// magnitude footgun. Every sibling minutes field is already capped at 1440 (=24h):
+// `tasks.duration` and the task/project-template `payload.duration` (contract
+// task.ts/template.ts, exercised by the #211/#184 DFX cases above). A pomodoro
+// longer than a day is junk; bound it at the request boundary so the poison never
+// reaches the row. Validated by `validate("json", FocusSessionBody)` BEFORE the
+// write → a bad magnitude is a clean 400, never a 5xx or a poisoned Stats total.
+// Dedicated actor so the per-user focus rate-limit (10/min) can't couple to other
+// blocks.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness/Scalability — focus-session `duration` is range-bounded [1,1440] (#405)", () => {
+  let fdur: { token: string; id: string };
+
+  before(async () => {
+    fdur = await registerUser("focus-duration");
+  });
+
+  test("oversized `duration` → 400 VALIDATION_ERROR naming the field, no poisoned Stats total, server survives", async () => {
+    const before = await api("GET", "/v1/completed", { token: fdur.token });
+    const beforeCount = (before.body.items as unknown[]).length;
+
+    const { status, body } = await api("POST", "/v1/focus/sessions", {
+      token: fdur.token,
+      body: { duration: 9_999_999 },
+    });
+    assert.equal(status, 400, "an absurd duration must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "duration"),
+      "the rejection must name `duration` (the range bound fired, not an incidental 400)",
+    );
+
+    // No poison: the rejected request must not have written a completed entry that
+    // would inflate the summed Stats total.
+    const after = await api("GET", "/v1/completed", { token: fdur.token });
+    assert.equal((after.body.items as unknown[]).length, beforeCount, "a rejected oversized session must not persist an entry");
+
+    // Recoverability: the next in-range request still succeeds.
+    const ok = await api("POST", "/v1/focus/sessions", { token: fdur.token, body: { duration: 5 } });
+    assert.equal(ok.status, 200, "server survives the bad request; the next valid one works");
+  });
+
+  test("oversized `duration` with a task_id does not bump the task's pomos_done (rejected before the write)", async () => {
+    const { body: task } = await api("POST", "/v1/tasks", {
+      token: fdur.token,
+      body: { title: { en: "Overflow guard" }, quadrant: "Q1", pomos_total: 4 },
+    });
+    const { status } = await api("POST", "/v1/focus/sessions", {
+      token: fdur.token,
+      body: { task_id: task.id, duration: 9_999_999 },
+    });
+    assert.equal(status, 400);
+
+    const read = await api("GET", `/v1/tasks/${task.id}`, { token: fdur.token });
+    assert.equal(read.body.pomos_done, 0, "a rejected oversized session must not advance pomos_done");
+  });
+
+  test("boundary `duration` = 1440 (24h) is accepted — the cap is inclusive, no happy-path regression", async () => {
+    const { status, body } = await api("POST", "/v1/focus/sessions", {
+      token: fdur.token,
+      body: { duration: 1440 },
+    });
+    assert.equal(status, 200, "exactly 24h must remain valid — the bound is a ceiling, not an off-by-one");
+    assert.equal(body.ok, true);
+  });
+});
+
 // Design for ROBUSTNESS — NL-capture input bounds on POST /v1/ai/parse (#305)
 //
 // Coverage-gap audit (AI request surfaces): `/v1/ai/parse` is the natural-language
