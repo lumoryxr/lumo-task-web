@@ -15,6 +15,13 @@ vi.mock("@/store/usePeopleStore", () => ({
   usePeopleStore: (sel: any) => sel({ people: [] }),
 }));
 
+// Mutable so individual tests can populate the project list; defaults to empty
+// (project selector hidden) to keep the pre-existing cases unchanged.
+let mockProjects: Array<{ id: string; name: string; emoji?: string }> = [];
+vi.mock("@/store/useProjectsStore", () => ({
+  useProjectsStore: (sel: any) => sel({ projects: mockProjects }),
+}));
+
 vi.mock("@/store/useAppStore", () => ({
   useAppStore: (sel: any) => sel({ locale: "en" }),
 }));
@@ -53,6 +60,7 @@ describe("QuickCreate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCreate.mockResolvedValue({});
+    mockProjects = [];
   });
 
   it("disables create button when title is empty", () => {
@@ -129,6 +137,62 @@ describe("QuickCreate", () => {
   it("omits project_id when no projectId is given (global create)", async () => {
     setup();
     fireEvent.change(getTitleInput(), { target: { value: "Global task" } });
+    fireEvent.click(getCreateBtn());
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("project_id");
+  });
+
+  // ── Project selector (#211) ──────────────────────────────────────────────
+
+  function getProjectSelect() {
+    return screen.getByRole("combobox", { name: "project.select.label" }) as HTMLSelectElement;
+  }
+
+  it("shows the project selector only when projects exist", () => {
+    setup();
+    expect(screen.queryByRole("combobox", { name: "project.select.label" })).toBeNull();
+
+    mockProjects = [{ id: "prj_a", name: "Alpha" }];
+    setup();
+    expect(getProjectSelect()).toBeTruthy();
+  });
+
+  it("files the task under the project picked in the selector", async () => {
+    mockProjects = [
+      { id: "prj_a", name: "Alpha" },
+      { id: "prj_b", name: "Beta" },
+    ];
+    setup();
+    fireEvent.change(getTitleInput(), { target: { value: "Picked task" } });
+    fireEvent.change(getProjectSelect(), { target: { value: "prj_b" } });
+    fireEvent.click(getCreateBtn());
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ project_id: "prj_b" });
+  });
+
+  it("prefills the selector from the projectId prop and lets the user change it", async () => {
+    mockProjects = [
+      { id: "prj_a", name: "Alpha" },
+      { id: "prj_b", name: "Beta" },
+    ];
+    setup({ projectId: "prj_a" });
+    expect(getProjectSelect().value).toBe("prj_a");
+
+    fireEvent.change(getTitleInput(), { target: { value: "Moved task" } });
+    fireEvent.change(getProjectSelect(), { target: { value: "prj_b" } });
+    fireEvent.click(getCreateBtn());
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ project_id: "prj_b" });
+  });
+
+  it("drops project_id when the prefilled project is cleared to none", async () => {
+    mockProjects = [{ id: "prj_a", name: "Alpha" }];
+    setup({ projectId: "prj_a" });
+    fireEvent.change(getTitleInput(), { target: { value: "Unfiled task" } });
+    fireEvent.change(getProjectSelect(), { target: { value: "" } });
     fireEvent.click(getCreateBtn());
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
