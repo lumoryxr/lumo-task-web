@@ -683,3 +683,27 @@ here rather than leaving a silent hole.
   production change). Mutation-tested with perfect specificity: dropping `app.use("/*", authMiddleware)` reddens
   exactly AC1; removing the `if (!cloudBase)` `NO_CLOUD_BASE` guard reddens exactly AC2; removing the `NOT_ENABLED`
   throw in `syncNow` reddens exactly AC3's `/now` case. dfx 167 → 172.
+
+- **2026-07-12 (#419 `POST /v1/auth/change-password` — failed attempt has no side effects + full session rotation)** —
+  A live API-surface diff against this matrix found the security-sensitive `POST /v1/auth/change-password` endpoint had
+  **no dedicated daily-suite block**: its only appearance was the happy-path 200 buried inside the refresh AC5 case
+  (which pins refresh's *consumption* of the `session_version` bump, not this endpoint's own contract), and the
+  in-process `api/auth.test.ts` never runs in the daily regression. No test anywhere pinned the load-bearing property
+  that a **FAILED** attempt (wrong `current_password`) leaves **both** the stored password **and** `session_version`
+  untouched. The endpoint carries two coupled security invariants: it re-hashes the new password **and** bumps
+  `session_version` (stranding every previously-issued token — full session rotation) but **only on a verified
+  current password**. A regression that bumped `session_version` regardless of the check would let a **stolen access
+  token** strand the victim's other sessions (a self-inflicted DoS on the legit user); one that skipped the check
+  would silently accept the change — neither caught by any existing case. Closed with **3 cases** over real HTTP +
+  real file SQLite, all verified **black-box** (no DB reads): session_version un-bumped ⇔ a token minted *before* the
+  failed attempt still authenticates a protected route (`GET /v1/user`); password unchanged ⇔ the old password still
+  signs in and the attempted new one does not. **AC1 authN + input bounds** — no token → 401 (never 5xx), weak
+  `new_password` → 400 `VALIDATION_ERROR` naming `new_password` (the strength bound, not an incidental 400), and the
+  endpoint still 200s on a subsequent valid change (recoverability — not wedged); **AC2 failed attempt is a no-op** —
+  wrong `current_password` → 400 `WRONG_PASSWORD`, old password still signs in, attempted new one rejected at signin,
+  and the pre-attempt token **still** authenticates (session_version un-bumped — no stolen-token DoS); **AC3 success
+  is a full rotation** — correct `current_password` → 200, old password rejected + new works, and the pre-change
+  token is now **revoked** (session_version bumped). Handler verified **already correct** → **gap in the tests, not
+  the code** (test + docs only, no production change). Mutation-tested: dropping the `session_version + 1` bump
+  reddens **exactly** AC3 (AC1/AC2 stay green — proving AC3 is the load-bearing guard for the rotation invariant).
+  dfx 172 → 175.

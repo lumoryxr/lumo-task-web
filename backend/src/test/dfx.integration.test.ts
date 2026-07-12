@@ -3807,6 +3807,117 @@ describe("DFX · Robustness — auth register/signin input bounds (#387)", () =>
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY — change-password: a FAILED attempt has no side effects (#419)
+// ═══════════════════════════════════════════════════════════════════════════════
+// `POST /v1/auth/change-password` is a security-sensitive, authenticated endpoint:
+// it verifies the caller's CURRENT password, re-hashes the new one, and bumps
+// `session_version` so every previously-issued token is stranded (full session
+// rotation on success). Yet this daily suite (real HTTP + real file SQLite) has NO
+// dedicated block for it — its only appearance is the happy-path 200 inside the
+// refresh AC5 case (which pins the refresh-side CONSUMPTION of the bump, not the
+// endpoint's own contract). The in-process `api/auth.test.ts` covers the status
+// codes in-memory, but PR CI never runs the daily suite AND — more importantly —
+// no test anywhere pins the load-bearing property that a FAILED attempt (wrong
+// `current_password`) leaves BOTH the stored password AND `session_version`
+// untouched. A regression that bumped `session_version` before / regardless of the
+// password check would let anyone holding a STOLEN access token strand the victim's
+// other sessions (a self-inflicted DoS on the legit user); one that skipped the
+// check would silently accept the change. Neither is caught by any existing case.
+//
+// Verified black-box (no DB reads): session_version un-bumped ⇔ a token minted
+// before the failed attempt still authenticates a protected route; password
+// unchanged ⇔ the old password still signs in.
+describe("DFX · Security — change-password failed attempt has no side effects (#419)", () => {
+  // Dedicated actors (this endpoint mutates the account's password + session
+  // version, so it must never reuse the shared alice/bob fixtures).
+
+  test("AC1 · authN + input bounds: no token → 401; weak new_password → 400 naming `new_password`; server recovers", async () => {
+    const noTok = await api("POST", "/v1/auth/change-password", {
+      body: { current_password: "Secret1234!", new_password: "Secret5678!" },
+    });
+    assert.equal(noTok.status, 401, "change-password without a token must be 401, never a 5xx");
+    assert.equal(noTok.body.error?.code, "UNAUTHORIZED");
+
+    const { token } = await registerUser("cp-bounds");
+
+    const weak = await api("POST", "/v1/auth/change-password", {
+      token,
+      body: { current_password: "Secret1234!", new_password: "short" },
+    });
+    assert.equal(weak.status, 400, "a weak new password must be rejected at the validation boundary, not stored");
+    assert.equal(weak.body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (weak.body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "new_password"),
+      "the rejection must name `new_password` (the strength bound fired, not an incidental 400)",
+    );
+
+    // Recoverability: the endpoint is unharmed — a subsequent VALID change still 200s.
+    const ok = await api("POST", "/v1/auth/change-password", {
+      token,
+      body: { current_password: "Secret1234!", new_password: "Secret5678!" },
+    });
+    assert.equal(ok.status, 200, "the endpoint must still succeed after rejecting a weak-password request (not wedged)");
+  });
+
+  test("AC2 · a WRONG current_password is a no-op: 400 WRONG_PASSWORD, password unchanged, session_version un-bumped", async () => {
+    const email = uniqueEmail("cp-wrong");
+    const { token } = await registerUser("cp-wrong");
+
+    // A token minted BEFORE the failed attempt — used to prove session_version is
+    // not bumped by a failure.
+    const { body: pre } = await api("POST", "/v1/auth/signin", { body: { email, password: "Secret1234!" } });
+    const preToken: string = pre.token;
+    const preOk = await api("GET", "/v1/user", { token: preToken });
+    assert.equal(preOk.status, 200, "the pre-attempt token authenticates before the failed change (baseline)");
+
+    const wrong = await api("POST", "/v1/auth/change-password", {
+      token,
+      body: { current_password: "not-the-current-password", new_password: "Secret5678!" },
+    });
+    assert.equal(wrong.status, 400, "a wrong current password must be a clean 400, never a 5xx or a silent success");
+    assert.equal(wrong.body.error?.code, "WRONG_PASSWORD");
+
+    // Password unchanged: the OLD password still signs in; the attempted NEW one does not.
+    const oldStill = await api("POST", "/v1/auth/signin", { body: { email, password: "Secret1234!" } });
+    assert.equal(oldStill.status, 200, "the old password must still work — a failed attempt must not change it");
+    const newRejected = await api("POST", "/v1/auth/signin", { body: { email, password: "Secret5678!" } });
+    assert.equal(newRejected.status, 401, "the attempted new password must NOT have taken effect");
+
+    // session_version un-bumped: the token minted before the failed attempt still authenticates.
+    // (If the bump fired on the failure path, this token would now be 401 — a stolen-token DoS.)
+    const preStill = await api("GET", "/v1/user", { token: preToken });
+    assert.equal(preStill.status, 200, "a failed change must NOT strand outstanding sessions (session_version un-bumped)");
+  });
+
+  test("AC3 · a SUCCESSFUL change is a full rotation: 200, old password rejected, new works, pre-change token revoked", async () => {
+    const email = uniqueEmail("cp-rotate");
+    const { token } = await registerUser("cp-rotate");
+
+    // A token minted BEFORE the change — must be revoked by the session_version bump.
+    const { body: pre } = await api("POST", "/v1/auth/signin", { body: { email, password: "Secret1234!" } });
+    const preToken: string = pre.token;
+    const preOk = await api("GET", "/v1/user", { token: preToken });
+    assert.equal(preOk.status, 200, "the pre-change token authenticates before the change (baseline)");
+
+    const changed = await api("POST", "/v1/auth/change-password", {
+      token,
+      body: { current_password: "Secret1234!", new_password: "Rotated9012!" },
+    });
+    assert.equal(changed.status, 200, "a correct current password must succeed");
+
+    // Password rotated: old rejected at signin, new works.
+    const oldNow = await api("POST", "/v1/auth/signin", { body: { email, password: "Secret1234!" } });
+    assert.equal(oldNow.status, 401, "the old password must be rejected after a successful change");
+    const newNow = await api("POST", "/v1/auth/signin", { body: { email, password: "Rotated9012!" } });
+    assert.equal(newNow.status, 200, "the new password must work after a successful change");
+
+    // Access revocation: the token minted before the change is now rejected (session_version bumped).
+    const preRevoked = await api("GET", "/v1/user", { token: preToken });
+    assert.equal(preRevoked.status, 401, "a successful change must strand tokens issued before it (session_version bump)");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for SECURITY / AVAILABILITY — the /v1/outlook route family (#411)
 //
 // Coverage-gap audit (live route surface vs this matrix): the entire `/v1/outlook`
