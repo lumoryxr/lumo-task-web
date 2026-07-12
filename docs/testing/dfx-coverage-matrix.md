@@ -707,3 +707,23 @@ here rather than leaving a silent hole.
   the code** (test + docs only, no production change). Mutation-tested: dropping the `session_version + 1` bump
   reddens **exactly** AC3 (AC1/AC2 stay green — proving AC3 is the load-bearing guard for the rotation invariant).
   dfx 172 → 175.
+
+- **2026-07-12 (#422 `GET /v1/storage/info` — auth-gated + stable-shaped, no over-disclosure)** —
+  A live route-surface diff against this matrix found the entire `/v1/storage` family (`routes/storage.ts`, the
+  single endpoint `GET /v1/storage/info`) had **zero coverage anywhere**: no daily-suite row, no in-process `api/`
+  test, no `@lumo/contracts` schema (its response shape is inlined in the handler), and no OpenAPI entry. The endpoint
+  returns **server-global** storage info — the server's **absolute DB filesystem path** + total DB file size
+  (`{ dbPath, dbDir, dbName, dbSize }`). It exists for the desktop "Data & Sync" settings tab (hidden on web builds,
+  #181) but is still mounted and reachable in the shared **cloud** multi-tenant deployment, where the only barrier
+  stopping an anonymous caller from reading that path/size is `app.use("/*", authMiddleware)`. Two load-bearing
+  properties, none previously pinned: the **authN guard** (missing/garbage token → 401, never a 5xx) and the **stable
+  contract with no over-disclosure** (a valid caller gets a well-formed `{ dbPath, dbDir, dbName, dbSize:number>=0 }`
+  that leaks no secret/token/password/credential-shaped field, and the info is intentionally server-global — a second
+  distinct tenant reads the **identical** `dbPath`, pinning that it never accidentally becomes a per-user data leak).
+  Closed with **4 cases** over real HTTP + real file SQLite: **AC1 authN** — no token → 401 `UNAUTHORIZED`, garbage
+  bearer → 401 (never 500); **AC2 stable shape + no leak** — authed → 200 JSON with the four documented fields
+  correctly typed (`dbSize` finite & ≥ 0) and zero secret-shaped keys; **AC2 server-global** — two distinct tenants
+  read the identical `dbPath`/`dbName` (a regression that folded caller data in, or degraded to 5xx, diverges them).
+  Handler verified **already correct** → **gap in the tests, not the code** (test + docs only, no production change).
+  Mutation-tested: dropping `app.use("/*", authMiddleware)` makes the anonymous/garbage calls return 200 and reddens
+  **exactly** AC1. Closes #422 (and its duplicate #421). dfx 175 → 179.

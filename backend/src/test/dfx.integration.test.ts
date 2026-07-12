@@ -4141,3 +4141,90 @@ describe("DFX · Security/Robustness — /v1/sync control endpoints auth-gated &
     assert.equal(after.body.error?.code, "NO_CLOUD_BASE");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY / INTEROPERABILITY — the /v1/storage route family (#422)
+//
+// Coverage-gap audit (live route surface vs this matrix): the entire `/v1/storage`
+// route family (`routes/storage.ts` — a single endpoint, `GET /v1/storage/info`)
+// had ZERO test coverage ANYWHERE — no daily-suite row, no in-process `api/` test,
+// no `@lumo/contracts` schema, and no entry in the hand-maintained OpenAPI spec
+// (its response shape is defined inline in the handler).
+//
+// The endpoint returns server-global storage info — `{ dbPath, dbDir, dbName,
+// dbSize }`, i.e. the server's ABSOLUTE DB filesystem path and total DB file size.
+// It exists for the desktop "Data & Sync" settings tab (hidden on web builds,
+// #181), but in the shared CLOUD multi-tenant deployment the route is still
+// mounted and reachable.
+//
+// Two load-bearing production properties, none previously pinned:
+//   • AuthN — the route sits behind `app.use("/*", authMiddleware)`, the ONLY
+//     barrier stopping an anonymous caller from reading the server's absolute
+//     filesystem path + total DB size. A missing/garbage token must be 401, never
+//     a 5xx (AC1). This is the security-relevant guard: drop the middleware and the
+//     path/size disclosure goes public.
+//   • Stable contract + no over-disclosure — a valid caller gets a well-formed
+//     `{ dbPath, dbDir, dbName, dbSize:number>=0 }`, the body leaks NO
+//     secret/token/password/credential-shaped field, and the info is intentionally
+//     SERVER-GLOBAL (a second distinct tenant reads the identical `dbPath`),
+//     pinning that the endpoint never accidentally becomes a per-user data leak or
+//     degrades to a 5xx (AC2).
+//
+// Handler verified already correct → gap in the tests, not the code (test + docs
+// only, no production change). Mutation-tested: dropping the auth middleware makes
+// the anonymous/garbage calls return 200 and reddens exactly AC1.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security/Interoperability — /v1/storage/info auth-gated & stable-shaped (#422)", () => {
+  let stOwner: { token: string; id: string };
+  let stOther: { token: string; id: string };
+
+  before(async () => {
+    stOwner = await registerUser("storage-owner");
+    stOther = await registerUser("storage-other");
+  });
+
+  test("AC1 · GET /v1/storage/info without a token → 401 UNAUTHORIZED", async () => {
+    const { status, body } = await api("GET", "/v1/storage/info");
+    assert.equal(status, 401, "/storage/info is behind authMiddleware — anon must not read the server DB path/size");
+    assert.equal(body.error?.code, "UNAUTHORIZED");
+  });
+
+  test("AC1 · GET /v1/storage/info with a garbage bearer token → 401 (never 500)", async () => {
+    for (const bad of ["not.a.real.jwt", "aaa.bbb.ccc"]) {
+      const { status, body } = await api("GET", "/v1/storage/info", { token: bad });
+      assert.equal(status, 401, `a malformed bearer ("${bad}") must be a clean 401, not a 5xx`);
+      assert.equal(body.error?.code, "UNAUTHORIZED");
+    }
+  });
+
+  test("AC2 · authed → 200 with a stable { dbPath, dbDir, dbName, dbSize } shape and no secret over-disclosure", async () => {
+    const { status, body, contentType } = await api("GET", "/v1/storage/info", { token: stOwner.token });
+    assert.equal(status, 200);
+    assert.ok(contentType.includes("application/json"), "storage info must be JSON");
+
+    // Documented shape — the four fields the desktop settings tab consumes.
+    assert.equal(typeof body.dbPath, "string", "dbPath is a string path");
+    assert.ok(body.dbPath.length > 0, "dbPath is non-empty");
+    assert.equal(typeof body.dbDir, "string", "dbDir is a string");
+    assert.equal(typeof body.dbName, "string", "dbName is a string");
+    assert.equal(typeof body.dbSize, "number", "dbSize is a number");
+    assert.ok(Number.isFinite(body.dbSize) && body.dbSize >= 0, "dbSize is a finite, nonnegative byte count");
+
+    // No over-disclosure: this endpoint must never grow a secret/credential field.
+    const leaky = Object.keys(body).filter((k) => /secret|token|password|credential|auth/i.test(k));
+    assert.deepEqual(leaky, [], `storage info must not expose any secret-shaped field (found: ${leaky.join(", ")})`);
+  });
+
+  test("AC2 · the info is server-global, not tenant-scoped — a second distinct user reads the identical dbPath", async () => {
+    // Pins the intended behavior: /storage/info is process/server info, not
+    // per-user. If a regression accidentally folded caller data into the response
+    // (or made it 5xx), the two tenants' dbPath would diverge / the call would fail.
+    const a = await api("GET", "/v1/storage/info", { token: stOwner.token });
+    const b = await api("GET", "/v1/storage/info", { token: stOther.token });
+    assert.equal(a.status, 200);
+    assert.equal(b.status, 200);
+    assert.equal(a.body.dbPath, b.body.dbPath, "storage info is server-global — every tenant sees the same DB path");
+    assert.equal(a.body.dbName, b.body.dbName, "dbName is server-global too");
+  });
+});
