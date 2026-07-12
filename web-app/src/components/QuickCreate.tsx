@@ -6,6 +6,7 @@ import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
+import { useProjectsStore } from "@/store/useProjectsStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { TagInput } from "@/components/TagInput";
 import { derivePlanTags } from "@/utils/planFilters";
@@ -50,6 +51,7 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   const allTasks = useTasksStore((s) => s.tasks);
   const tagSuggestions = useMemo(() => derivePlanTags(allTasks), [allTasks]);
   const people = usePeopleStore((s) => s.people);
+  const projects = useProjectsStore((s) => s.projects);
 
   const todayISO = toISODate(new Date());
   const tomorrowISO = toISODate(new Date(Date.now() + 86400000));
@@ -64,6 +66,9 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [recurrence, setRecurrence] = useState<TaskRecurrence>("none");
   const [tags, setTags] = useState<string[]>([]);
+  // Owning project — prefilled from the `projectId` prop (e.g. when opened from
+  // a project detail page) but user-selectable everywhere else (#211).
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectId ?? null);
   const [aiMode, setAiMode] = useState(false);
   const [aiText, setAiText] = useState("");
   const [aiParsing, setAiParsing] = useState(false);
@@ -125,7 +130,7 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
         assignee_ids: assigneeIds,
         recurrence,
         tags,
-        ...(projectId ? { project_id: projectId } : {}),
+        ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
       });
       onCreated?.();
     } finally {
@@ -413,6 +418,27 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
               suggestions={tagSuggestions}
             />
           </div>
+
+          {/* Project — single owning project (#211) */}
+          {projects.length > 0 && (
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
+                {t("project.select.label")}
+              </div>
+              <select
+                aria-label={t("project.select.label")}
+                value={selectedProjectId ?? ""}
+                onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                className="w-full text-sm rounded-md px-2.5 py-2 bg-transparent outline-none"
+                style={{ border: "1px solid var(--border-default)", color: "var(--text-primary)" }}
+              >
+                <option value="">{t("project.select.none")}</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.emoji ? `${p.emoji} ` : ""}{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Assignees — multi-select */}
           {people.length > 0 && (
