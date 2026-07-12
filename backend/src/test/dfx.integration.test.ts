@@ -3892,3 +3892,141 @@ describe("DFX · Security/Availability — /v1/outlook route family fail-closed 
     );
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for SECURITY / ROBUSTNESS — the /v1/sync CONTROL endpoints (#414)
+//
+// Coverage-gap audit (live route surface vs this matrix): the DFX daily suite
+// covers the sync DATA-plane (`POST /v1/sync/pull` + `/push`, #255) but the four
+// sync CONTROL endpoints had ZERO daily-suite presence:
+//   GET  /v1/sync/status  — binding status (auth-gated)
+//   POST /v1/sync/enable  — sign into cloud + bind (auth-gated, cloud-base-gated)
+//   POST /v1/sync/disable — clear binding (auth-gated)
+//   POST /v1/sync/now     — run one push-then-pull cycle (auth-gated)
+//
+// The load-bearing property with no test: `POST /v1/sync/enable` FAIL-CLOSES to
+// `400 NO_CLOUD_BASE` when `LUMO_CLOUD_API_BASE` is unset. On the shared CLOUD
+// deployment that env var is DELIBERATELY unset (the cloud backend never
+// self-syncs; only the desktop's Electron launcher injects it). That guard is
+// exactly what stops a tenant from making the shared server sign into an
+// arbitrary cloud and push its data out — an SSRF / credential-exfiltration
+// vector documented in `packages/contracts/src/sync.ts` + `routes/sync.ts`. A
+// regression removing that guard (or the `authMiddleware`) would open the hole
+// with no other test catching it. Mirrors the #411 `/v1/outlook` fail-closed +
+// auth-gated pattern.
+//
+// Hermetic: this block DELETES `LUMO_CLOUD_API_BASE` in its before() so the
+// fail-closed path is exercised deterministically (the daily ephemeral env and
+// every default self-host already leave it absent), and `/enable` short-circuits
+// on the env guard BEFORE any cloud sign-in / outbound fetch — zero network egress
+// in the passing state.
+//
+// Handlers verified already correct → gap in the tests, not the code (test + docs
+// only, no production change). Mutation-tested with perfect specificity: dropping
+// `app.use("/*", authMiddleware)` reddens exactly AC1; removing the `if (!cloudBase)`
+// NO_CLOUD_BASE guard reddens exactly AC2; removing the `NOT_ENABLED` throw in
+// `syncNow` reddens exactly AC3's `/now` case.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Security/Robustness — /v1/sync control endpoints auth-gated & cloud fail-closed (#414)", () => {
+  let syncOwner: { token: string; id: string };
+
+  before(async () => {
+    // Guarantee the cloud-deployment config (env var absent) regardless of the
+    // ambient environment, so AC2's fail-closed guard is exercised deterministically.
+    delete process.env.LUMO_CLOUD_API_BASE;
+    syncOwner = await registerUser("sync-ctl-owner");
+  });
+
+  test("AC1 · all four control endpoints without a token → 401 UNAUTHORIZED", async () => {
+    const cases: Array<[string, string, unknown?]> = [
+      ["GET", "/v1/sync/status"],
+      ["POST", "/v1/sync/enable", { email: "a@b.co", password: "x" }],
+      ["POST", "/v1/sync/disable"],
+      ["POST", "/v1/sync/now"],
+    ];
+    for (const [method, path, body] of cases) {
+      const res = await api(method, path, { body });
+      assert.equal(res.status, 401, `${method} ${path} is behind authMiddleware`);
+      assert.equal(res.body.error?.code, "UNAUTHORIZED");
+    }
+  });
+
+  test("AC1 · garbage bearer token → 401 (never 500)", async () => {
+    const cases: Array<[string, string, unknown?]> = [
+      ["GET", "/v1/sync/status"],
+      ["POST", "/v1/sync/enable", { email: "a@b.co", password: "x" }],
+      ["POST", "/v1/sync/disable"],
+      ["POST", "/v1/sync/now"],
+    ];
+    for (const [method, path, body] of cases) {
+      const res = await api(method, path, { body, token: "not.a.real.jwt" });
+      assert.equal(res.status, 401, `${method} ${path} with a malformed bearer must be a clean 401, not a 5xx`);
+      assert.equal(res.body.error?.code, "UNAUTHORIZED");
+    }
+  });
+
+  test("AC2 · authenticated /enable with valid creds but LUMO_CLOUD_API_BASE unset → 400 NO_CLOUD_BASE (fail-closed, no outbound sign-in)", async () => {
+    // The body is well-formed (passes SyncEnableRequestSchema) so the request
+    // reaches the cloud-base guard; with the env var absent the handler
+    // short-circuits to 400 NO_CLOUD_BASE BEFORE constructing a cloud client or
+    // signing in — the shared cloud backend can never be told to enable outbound
+    // sync. This is the SSRF / credential-exfiltration chokepoint.
+    const { status, body } = await api("POST", "/v1/sync/enable", {
+      token: syncOwner.token,
+      body: { email: "someone@example.com", password: "whatever-creds" },
+    });
+    assert.equal(status, 400, "an unconfigured build must fail closed with 400 NO_CLOUD_BASE, never attempt a cloud sign-in");
+    assert.equal(body.error?.code, "NO_CLOUD_BASE");
+  });
+
+  test("AC3 · a never-enabled user: /status → 200 {enabled:false} carrying no token; /now → 409 NOT_ENABLED; /disable → idempotent 200 {enabled:false}", async () => {
+    const fresh = await registerUser("sync-ctl-fresh");
+
+    // /status: not enabled, and the status view NEVER carries the cloud token.
+    const status = await api("GET", "/v1/sync/status", { token: fresh.token });
+    assert.equal(status.status, 200);
+    assert.equal(status.body.enabled, false, "a user who never enabled sync must read enabled:false");
+    assert.ok(
+      !("token" in status.body) && !("cloudToken" in status.body) && !("cloud_token" in status.body),
+      "the status response must never expose the cloud token (any casing)",
+    );
+
+    // /now: no active binding → 409 NOT_ENABLED (not a 5xx).
+    const now = await api("POST", "/v1/sync/now", { token: fresh.token });
+    assert.equal(now.status, 409, "running a cycle without an enabled binding must be a clean 409");
+    assert.equal(now.body.error?.code, "NOT_ENABLED");
+
+    // /disable: idempotent no-op for a never-bound user → 200 {enabled:false}.
+    const disable = await api("POST", "/v1/sync/disable", { token: fresh.token });
+    assert.equal(disable.status, 200, "disabling an already-disabled binding is an idempotent no-op");
+    assert.equal(disable.body.enabled, false);
+  });
+
+  test("AC4 · /enable robustness: malformed JSON → 400 INVALID_JSON; bad-shape body → 400 BAD_REQUEST; the server survives", async () => {
+    // Malformed JSON body → 400 INVALID_JSON (before schema validation).
+    const bad = await rawApi("POST", "/v1/sync/enable", "{not json", syncOwner.token);
+    assert.equal(bad.status, 400, "a corrupt JSON body must be a clean 400, not a 5xx");
+    assert.equal(bad.body.error?.code, "INVALID_JSON");
+
+    // Well-formed JSON but wrong shape (email fails .email()) → 400 BAD_REQUEST
+    // from the handler's safeParse (distinct from INVALID_JSON, and reached before
+    // the cloud-base guard).
+    const badShape = await api("POST", "/v1/sync/enable", {
+      token: syncOwner.token,
+      body: { email: "not-an-email", password: "x" },
+    });
+    assert.equal(badShape.status, 400, "a bad-shape enable body must be rejected with 400");
+    assert.equal(badShape.body.error?.code, "BAD_REQUEST");
+
+    // Recoverability: the server is unharmed — a subsequent well-formed request
+    // still returns its expected (fail-closed) 400 NO_CLOUD_BASE, proving the
+    // endpoint is alive and the earlier malformed inputs did not wedge it.
+    const after = await api("POST", "/v1/sync/enable", {
+      token: syncOwner.token,
+      body: { email: "someone@example.com", password: "whatever-creds" },
+    });
+    assert.equal(after.status, 400, "the endpoint must still respond after malformed input (not wedged)");
+    assert.equal(after.body.error?.code, "NO_CLOUD_BASE");
+  });
+});
