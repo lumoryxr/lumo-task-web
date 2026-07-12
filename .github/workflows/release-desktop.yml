@@ -1,18 +1,23 @@
-name: Release (Windows)
+name: Release (Desktop)
 
-# Manually triggered. Publishing the official Windows installer is GATED behind
-# two checks that must pass first:
+# Manually triggered. Publishing the official desktop installers (Windows + macOS)
+# is GATED behind three checks that must pass first:
 #
 #   1. tests          — unit / contract / standards / security (Linux, fast)
 #   2. smoke-windows  — launch the real Electron desktop app on windows-latest
 #                       and walk the basic functionality (the full electron.spec
 #                       walkthrough: boot + self-provisioned secrets + nav + task
 #                       CRUD + settings + habits + …)
+#   3. smoke-mac      — the same desktop smoke walkthrough on macos-latest (arm64)
 #
-# Only if BOTH gates are green does the `release` job package the NSIS installer
-# and create the GitHub Release. Set `dry_run: true` to run the entire pipeline
-# (tests → smoke → package + verify installer, uploaded as an artifact) WITHOUT
-# publishing — use it to validate a release candidate before shipping.
+# Then the mac installer is built on its native OS (build-mac → unsigned arm64
+# .dmg, uploaded as an artifact), and the `release` job on windows-latest
+# packages the NSIS installer + the self-hosted web package, pulls in the mac
+# .dmg artifact, and creates ONE GitHub Release carrying all of them. The macOS
+# native libsql binaries are correct because the dmg is built on a real macOS
+# runner. Set `dry_run: true` to run the whole pipeline (tests → smoke → package
+# + verify every artifact, uploaded to CI) WITHOUT publishing — use it to
+# validate a release candidate before shipping.
 on:
   workflow_dispatch:
     inputs:
@@ -125,11 +130,150 @@ jobs:
           path: web-app/playwright-report-electron-smoke/
           retention-days: 14
 
-  # ── Release — package + publish (only after both gates pass) ───────────────
+  # ── Gate 3 — macOS desktop smoke (launch + basic functionality) ────────────
+  # Same robust desktop smoke suite as smoke-windows, on the real macOS target
+  # (arm64). Proves the packaged app boots, self-provisions its secrets, serves
+  # /health, renders, and does CRUD against the embedded SQLite on macOS before
+  # a mac installer can be built/published.
+  smoke-mac:
+    name: macOS desktop smoke (launch + use)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build shared contracts (@lumo/contracts)
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+
+      - name: Install & build backend
+        working-directory: backend
+        run: |
+          npm ci --include=dev
+          npm run build
+
+      # Installs the Electron binary too (needed to launch the desktop app).
+      - name: Install & build frontend
+        working-directory: web-app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Playwright driver
+        working-directory: web-app
+        run: npx playwright install chromium
+
+      - name: Run Electron desktop smoke suite
+        working-directory: web-app
+        run: npx playwright test --config playwright.electron-smoke.config.ts
+        env:
+          # Run against the production build, not the dev server.
+          LUMO_USE_DIST: '1'
+          # Match the Windows smoke job: keep launch failures meaningful in CI.
+          ELECTRON_DISABLE_SANDBOX: '1'
+
+      - name: Upload Electron report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-report-mac-${{ github.run_id }}
+          path: web-app/playwright-report-electron-smoke/
+          retention-days: 14
+
+  # ── Mac build — package the unsigned arm64 .dmg on a native macOS runner ───
+  # Built on macos-latest so npm installs the darwin-arm64 libsql native binary
+  # (extraResources copies it into the app). Unsigned by design (identity: null
+  # in the electron-builder config + CSC_IDENTITY_AUTO_DISCOVERY=false): no Apple
+  # Developer cert required — users clear Gatekeeper via right-click → Open, the
+  # mac analogue of the Windows SmartScreen "run anyway". The dmg is uploaded as
+  # an artifact and attached to the Release by the `release` job below.
+  build-mac:
+    name: Build (macOS arm64)
+    runs-on: macos-latest
+    needs: [tests, smoke-mac]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build shared contracts (@lumo/contracts)
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci --include=dev
+
+      - name: Build backend bundle
+        working-directory: backend
+        run: npm run build
+
+      - name: Install frontend deps
+        working-directory: web-app
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: web-app
+        run: npm run build
+
+      # Same version input + validation as the Windows job, in bash/node.
+      - name: Set version in package.json
+        run: |
+          RAW="${{ github.event.inputs.version_label }}"
+          VER="$(echo "$RAW" | sed -E 's/^[vV]//' | xargs)"
+          if ! echo "$VER" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+].*)?$'; then
+            echo "Invalid version '$VER' (from input '$RAW'). Expected semver like 1.2.3 or v1.2.3." >&2
+            exit 1
+          fi
+          node -e "const f='web-app/package.json';const p=require('./'+f);p.version=process.argv[1];require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n');console.log('Package version set to '+p.version);" "$VER"
+
+      - name: Package macOS installer (dmg arm64, unsigned)
+        working-directory: web-app
+        run: npx electron-builder --mac --arm64 --publish never
+        env:
+          # Belt-and-suspenders with identity:null — never try to auto-sign.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Locate and verify dmg
+        id: dmg
+        run: |
+          FILE="$(find web-app/dist-electron -maxdepth 2 -name '*.dmg' | head -n1)"
+          if [ -z "$FILE" ]; then
+            echo "No .dmg produced under web-app/dist-electron" >&2
+            exit 1
+          fi
+          SIZE=$(stat -f%z "$FILE")
+          MB=$(( SIZE / 1048576 ))
+          if [ "$SIZE" -lt 20971520 ]; then
+            echo "dmg is suspiciously small (${MB} MB) - packaging likely incomplete" >&2
+            exit 1
+          fi
+          echo "dmg verified: $(basename "$FILE") (${MB} MB)"
+          echo "path=$FILE" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$FILE")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload dmg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumo-mac-installer-${{ github.run_id }}
+          path: ${{ steps.dmg.outputs.path }}
+          retention-days: 7
+          if-no-files-found: error
+
+  # ── Release — package Windows + publish BOTH installers (+ web pkg) ─────────
+  # Runs only after all three gates AND the mac build succeed. Builds the NSIS
+  # installer + self-hosted web package here on windows-latest, pulls in the mac
+  # .dmg artifact from build-mac, and publishes ONE GitHub Release with all of
+  # them.
   release:
-    name: Build & Release (Windows x64)
+    name: Build Windows + Publish Release
     runs-on: windows-latest
-    needs: [tests, smoke-windows]
+    needs: [tests, smoke-windows, smoke-mac, build-mac]
     timeout-minutes: 30
 
     steps:
@@ -273,7 +417,29 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      # ── Create GitHub Release & upload BOTH artifacts (skipped on dry runs) ─
+      # ── Pull in the macOS installer built on the native runner ─────────────
+      - name: Download macOS installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lumo-mac-installer-${{ github.run_id }}
+          path: mac-dist
+
+      - name: Locate macOS installer
+        id: macdmg
+        shell: pwsh
+        run: |
+          $file = Get-ChildItem -Path "mac-dist" -Filter "*.dmg" -Recurse |
+                  Select-Object -First 1
+          if (-not $file) {
+            Write-Error "macOS .dmg artifact missing under mac-dist"
+            exit 1
+          }
+          $mb = [math]::Round($file.Length / 1MB, 1)
+          Write-Host "macOS installer: $($file.Name) ($mb MB)"
+          "path=$($file.FullName)" | Out-File -Append $env:GITHUB_OUTPUT
+          "name=$($file.Name)"     | Out-File -Append $env:GITHUB_OUTPUT
+
+      # ── Create GitHub Release & upload ALL artifacts (skipped on dry runs) ──
       - name: Create GitHub Release
         if: ${{ github.event.inputs.dry_run != 'true' }}
         uses: softprops/action-gh-release@v2
@@ -283,25 +449,29 @@ jobs:
           draft:    false
           files: |
             ${{ steps.installer.outputs.path }}
+            ${{ steps.macdmg.outputs.path }}
             ${{ steps.webpkg.outputs.path }}
           body: |
-            ## Lumo Task for Windows (x64)
+            ## Lumo Task — 桌面版 & 网页版
 
-            两种安装方式，任选其一：
-
-            ### 🖥️ 桌面版（推荐日常使用）
+            ### 🪟 Windows 桌面版（推荐日常使用）
             下载 `${{ steps.installer.outputs.name }}` 双击安装即可。本地优先、可选云同步。
 
             > **提示**：首次运行 Windows 可能弹出 SmartScreen 安全提示，点击「更多信息」→「仍要运行」即可正常安装。
 
-            ### 🌐 网页版（本机 / 局域网自托管）
+            ### 🍎 macOS 桌面版（Apple Silicon / arm64）
+            下载 `${{ steps.macdmg.outputs.name }}`，打开后把 **Lumo Task** 拖进「应用程序」即可。
+
+            > **提示**：本安装包未做 Apple 签名，首次打开 macOS 会提示「无法打开」。在「访达」里**右键点击 App → 打开**，再确认一次即可正常使用（只需这一次）。适用于 2020 年后的 Apple 芯片 Mac。
+
+            ### 🌐 网页版（本机 / 局域网自托管，Windows）
             下载 `${{ steps.webpkg.outputs.name }}`，解压后双击 `start.bat` 即可——**免安装、免装 Node**。浏览器自动打开 `http://localhost:47291`；同一 Wi-Fi 的其他设备可用 `http://<本机IP>:47291` 访问同一份数据。数据存在本地 `data\lumo.db`。
 
             ---
             **构建信息**
             - Commit: [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
             - 版本标签: `${{ github.event.inputs.version_label || '(未设置)' }}`
-            - 门禁: 单元/契约/安全测试 + Windows 桌面冒烟（启动+基础功能）均已通过
+            - 门禁: 单元/契约/安全测试 + Windows & macOS 桌面冒烟（启动+基础功能）均已通过
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -309,6 +479,7 @@ jobs:
         if: ${{ github.event.inputs.dry_run == 'true' }}
         shell: bash
         run: |
-          echo "dry_run=true -> gates passed, both artifacts built & uploaded as CI artifacts, but NO GitHub Release was published."
-          echo "Installer:   ${{ steps.installer.outputs.name }}"
-          echo "Web package: ${{ steps.webpkg.outputs.name }}"
+          echo "dry_run=true -> gates passed, all artifacts built & uploaded as CI artifacts, but NO GitHub Release was published."
+          echo "Windows installer: ${{ steps.installer.outputs.name }}"
+          echo "macOS installer:   ${{ steps.macdmg.outputs.name }}"
+          echo "Web package:       ${{ steps.webpkg.outputs.name }}"

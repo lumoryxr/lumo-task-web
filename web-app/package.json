@@ -11,6 +11,7 @@
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "package:win": "electron-builder --win --x64",
+    "package:mac": "electron-builder --mac --arm64",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -126,6 +127,21 @@
       "installerIcon": null,
       "uninstallerIcon": null,
       "include": "build/installer.nsh"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "identity": null,
+      "category": "public.app-category.productivity"
+    },
+    "dmg": {
+      "writeUpdateInfo": false
     }
   }
 }
