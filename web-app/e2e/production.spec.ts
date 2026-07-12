@@ -319,7 +319,9 @@ test("AC-7 — Full task CRUD (create → list → complete → delete)", async 
   });
   expect(listRes.status()).toBe(200);
   const list = await listRes.json();
-  const ids = (Array.isArray(list) ? list : list.tasks ?? []).map((t: any) => t.id);
+  // GET /v1/tasks is keyset-paginated ({ items, nextCursor }); tolerate the
+  // legacy bare-array / { tasks } shapes too so this stays green across deploys.
+  const ids = (Array.isArray(list) ? list : list.items ?? list.tasks ?? []).map((t: any) => t.id);
   expect(ids).toContain(id);
 
   // COMPLETE
@@ -342,7 +344,7 @@ test("AC-7 — Full task CRUD (create → list → complete → delete)", async 
     timeout: 60_000,
   });
   const list2 = await list2Res.json();
-  const ids2 = (Array.isArray(list2) ? list2 : list2.tasks ?? []).map((t: any) => t.id);
+  const ids2 = (Array.isArray(list2) ? list2 : list2.items ?? list2.tasks ?? []).map((t: any) => t.id);
   expect(ids2).not.toContain(id);
 });
 
@@ -428,10 +430,10 @@ test("AC-11.1 — Mobile: bottom tab bar visible on Today @mobile", async ({ pag
   await seedAuthInLocalStorage(page, token, user);
   await page.goto("/#/today");
   await expect(page.getByText(/nothing planned yet/i)).toBeVisible({ timeout: 20_000 });
-  // Bottom nav typically uses a data attribute or fixed-bottom class
-  const bottomNav = page
-    .locator('[data-bottom-nav], nav.bottom-nav, [class*="bottom-nav"], [class*="BottomNav"]')
-    .first();
+  // The mobile tab bar renders as <nav aria-label="Tab bar"> (i18n nav.tabbar,
+  // "标签栏" in ZH) with an inline fixed-bottom style — target it by its
+  // accessible role+name rather than a class that the markup never had.
+  const bottomNav = page.getByRole("navigation", { name: /tab bar|标签栏/i });
   await expect(bottomNav).toBeVisible({ timeout: 10_000 });
 });
 
