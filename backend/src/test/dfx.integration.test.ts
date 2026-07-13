@@ -4228,3 +4228,74 @@ describe("DFX · Security/Interoperability — /v1/storage/info auth-gated & sta
     assert.equal(a.body.dbName, b.body.dbName, "dbName is server-global too");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS — `GET /v1/completed?date=` query param is format-bounded (#425)
+//
+// Coverage-gap audit (live route-surface diff vs the matrix): the completed route
+// has daily-suite presence for its OTHER concerns — cross-tenant reopen IDOR (#165)
+// and full-history keyset pagination (#202) — but the one `?date=` QUERY-param
+// validator was untested at EVERY layer. It is a DISTINCT validation path from all
+// the Zod body-field date anchors covered elsewhere (`due` #319, `countdowns.date`
+// #240, habit check-in `date` #267, …): a hand-rolled `httpError(c, 400,
+// "INVALID_DATE")` guarding a strict date-only regex (`^\d{4}-\d{2}-\d{2}$`,
+// routes/completed.ts:47) — NOT the `validate()` middleware, so its error envelope
+// (`INVALID_DATE`, not `VALIDATION_ERROR`) is its own. The param is the sole input
+// to the `DATE(completed_at, 'localtime') = :date` day filter; a regression
+// loosening the regex would push a junk string straight into that SQL — silently
+// yielding an empty/garbage day view with NO status-code change, invisible to every
+// existing case. The in-process `api/completed.test.ts` pins a valid `?date=` and a
+// malformed `?cursor=` but never a malformed `?date=`; the daily suite never
+// touched it at all — and PR CI never runs this suite.
+//
+// Gives the bound teeth without a wall-clock dependency: the two 400 cases pin the
+// regex (garbage + a plausible-but-wrong full-datetime shape), and the valid case
+// asserts the RESPONSE SHAPE the param selects — `?date=` → a bounded array (one
+// day), no-date → the `{ items, nextCursor }` keyset object — proving the param is
+// parsed and routes to the array branch, deterministically (no "today" math that
+// could straddle a localtime midnight boundary).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — GET /v1/completed?date= query param is format-bounded (#425)", () => {
+  let owner: { token: string; id: string };
+
+  before(async () => {
+    owner = await registerUser("completed-date-bound");
+  });
+
+  test("malformed `date` → 400 INVALID_DATE (never a 5xx / silent empty day)", async () => {
+    const { status, body } = await api("GET", "/v1/completed?date=someday", { token: owner.token });
+    assert.equal(status, 400, "a junk date must be a client error, not 5xx or a silent 200");
+    assert.equal(body.error?.code, "INVALID_DATE", "the completed date validator has its own envelope");
+  });
+
+  test("full-datetime `date` (a valid `scheduled_start` shape) → 400 — the date-only bound has teeth", async () => {
+    // `"2026-06-20T09:30"` is a valid wall-clock datetime elsewhere but NOT a valid
+    // `?date=`: the completed day filter is date-only, so the regex forbids a time
+    // component. Proves the bound rejects a plausible-but-wrong-shape value, not
+    // just obvious garbage.
+    const { status, body } = await api("GET", "/v1/completed?date=2026-06-20T09:30", { token: owner.token });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "INVALID_DATE", "a datetime where a date is required must still 400 INVALID_DATE");
+  });
+
+  test("valid `date` → 200 array (day view); no-date → 200 { items, nextCursor } — the param selects the shape", async () => {
+    // A valid past date is accepted and yields the bounded per-day ARRAY shape.
+    // 1999 is deterministically empty (every completion is server-stamped to the
+    // present), which also proves the DATE() filter actually runs — it doesn't
+    // dump the whole history.
+    const day = await api("GET", "/v1/completed?date=1999-01-01", { token: owner.token });
+    assert.equal(day.status, 200, "a well-formed date must be accepted");
+    assert.ok(Array.isArray(day.body), "the `?date=` path returns a bare array (one bounded day)");
+    assert.equal(day.body.length, 0, "no entries were completed in 1999 — proves the date filter scopes, not a match-all");
+
+    // The no-date path is a DIFFERENT shape: the keyset-paginated object. Asserting
+    // both in one test proves the `date` param is parsed and switches the branch
+    // (teeth: if the param were ignored, both calls would return the same shape).
+    const hist = await api("GET", "/v1/completed", { token: owner.token });
+    assert.equal(hist.status, 200);
+    assert.ok(!Array.isArray(hist.body), "the no-date path returns the { items, nextCursor } object, not an array");
+    assert.ok(Array.isArray(hist.body.items), "the full-history shape carries an `items` array");
+    assert.ok("nextCursor" in hist.body, "the full-history shape carries a `nextCursor` field");
+  });
+});
