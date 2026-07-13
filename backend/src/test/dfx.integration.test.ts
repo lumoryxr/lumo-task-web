@@ -3021,10 +3021,15 @@ describe("DFX · Scalability — completed full-history pagination is bounded & 
 // `projects` (DEFAULT 100 / MAX 500) are ALSO keyset-paginated { items, nextCursor }
 // via the shared cursor lib, and — like completed, unlike tasks — they CLAMP an
 // over-max `limit` (Math.min) rather than rejecting it. Both had zero daily-suite
-// scalability presence, so a regression that dropped their clamp (→ unbounded read)
-// or their cursor/envelope would slip past the tasks-only + completed-only cases.
-// These lock both contracts in over real HTTP + real SQLite. Handlers already
-// correct → gap in the tests, not the code (test + docs only, no production change).
+// scalability presence, so a regression that flipped their over-max contract to a
+// tasks-style 400, or broke their cursor/envelope, would slip past the tasks-only
+// + completed-only cases. These lock in the { items, nextCursor } envelope, the
+// 200-not-400 over-max *status* contract, cursor-walk completeness, and bad-cursor
+// rejection over real HTTP + real SQLite. (The clamp *value* itself is only fully
+// exercisable with > MAX_LIMIT rows — disproportionately heavy for a per-run
+// integration seed — so, like the /v1/completed sibling, the clamp's numeric
+// ceiling is pinned by the shared cursor lib's unit tests, not re-seeded here.)
+// Handlers already correct → gap in the tests, not the code (test + docs only).
 // ───────────────────────────────────────────────────────────────────────────────
 
 const PAGINATED_LIST_RESOURCES: Array<{
