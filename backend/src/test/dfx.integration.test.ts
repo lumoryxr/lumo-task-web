@@ -3015,6 +3015,115 @@ describe("DFX · Scalability — completed full-history pagination is bounded & 
   });
 });
 
+// ───────────────────────────────────────────────────────────────────────────────
+// Scalability gap: the two blocks above only exercise /v1/tasks (over-max → 400)
+// and /v1/completed (over-max → clamped). But `people` (DEFAULT 200 / MAX 500) and
+// `projects` (DEFAULT 100 / MAX 500) are ALSO keyset-paginated { items, nextCursor }
+// via the shared cursor lib, and — like completed, unlike tasks — they CLAMP an
+// over-max `limit` (Math.min) rather than rejecting it. Both had zero daily-suite
+// scalability presence, so a regression that flipped their over-max contract to a
+// tasks-style 400, or broke their cursor/envelope, would slip past the tasks-only
+// + completed-only cases. These lock in the { items, nextCursor } envelope, the
+// 200-not-400 over-max *status* contract, cursor-walk completeness, and bad-cursor
+// rejection over real HTTP + real SQLite. (The clamp *value* itself is only fully
+// exercisable with > MAX_LIMIT rows — disproportionately heavy for a per-run
+// integration seed — so, like the /v1/completed sibling, the clamp's numeric
+// ceiling is pinned by the shared cursor lib's unit tests, not re-seeded here.)
+// Handlers already correct → gap in the tests, not the code (test + docs only).
+// ───────────────────────────────────────────────────────────────────────────────
+
+const PAGINATED_LIST_RESOURCES: Array<{
+  name: string;
+  path: string;
+  defaultLimit: number;
+  create: (i: number) => Record<string, unknown>;
+}> = [
+  {
+    name: "people",
+    path: "/v1/people",
+    defaultLimit: 200,
+    create: (i) => ({ name: `Person ${String(i).padStart(3, "0")}`, initials: "PP", color: "#5bc8d4" }),
+  },
+  {
+    name: "projects",
+    path: "/v1/projects",
+    defaultLimit: 100,
+    create: (i) => ({ name: `Project ${String(i).padStart(3, "0")}`, color: "cyan" }),
+  },
+];
+
+for (const resource of PAGINATED_LIST_RESOURCES) {
+  describe(`DFX · Scalability — ${resource.name} list pagination is bounded & walk-complete`, () => {
+    let user: { token: string; id: string };
+    const TOTAL = 6; // > the small explicit limits below so paging is genuinely exercised
+
+    before(async () => {
+      user = await registerUser(`${resource.name}-scaler`);
+      for (let i = 0; i < TOTAL; i++) {
+        const { status } = await api("POST", resource.path, { token: user.token, body: resource.create(i) });
+        assert.equal(status, 201, `seed ${resource.name} ${i} should create`);
+      }
+    });
+
+    test("a no-limit list is the bounded { items, nextCursor } envelope (default page)", async () => {
+      const { status, body } = await api("GET", resource.path, { token: user.token });
+      assert.equal(status, 200);
+      assert.ok(Array.isArray(body.items), "response must be an { items, nextCursor } envelope");
+      // TOTAL < default page size, so everything fits on one page here.
+      assert.ok(
+        body.items.length <= resource.defaultLimit,
+        `default page must be ≤ ${resource.defaultLimit}, got ${body.items.length}`,
+      );
+      assert.equal(body.items.length, TOTAL, "all seeded rows fit in the single default page here");
+      assert.equal(body.nextCursor, null, "no further page when everything fits on the default page");
+    });
+
+    test("an explicit limit bounds the page and yields a nextCursor when more rows remain", async () => {
+      const { status, body } = await api("GET", `${resource.path}?limit=2`, { token: user.token });
+      assert.equal(status, 200);
+      assert.ok(Array.isArray(body.items), "response must be an { items, nextCursor } envelope");
+      assert.equal(body.items.length, 2, "page must be bounded to the requested limit");
+      assert.ok(body.nextCursor, "more than one page of data → nextCursor must be present");
+    });
+
+    test("an over-max limit is CLAMPED (≤ 500), not rejected with 400 — like completed, unlike tasks", async () => {
+      const { status, body } = await api("GET", `${resource.path}?limit=99999`, { token: user.token });
+      assert.equal(status, 200, `${resource.name} clamps an over-max limit; it must not 400 like /v1/tasks`);
+      assert.ok(Array.isArray(body.items), "response must still be the { items, nextCursor } envelope");
+      assert.ok(body.items.length <= 500, `page must stay bounded by MAX_LIMIT (500), got ${body.items.length}`);
+      // With only TOTAL (< 500) rows the clamped single page holds them all.
+      assert.equal(body.items.length, TOTAL, "all rows fit in one clamped page here");
+      assert.equal(body.nextCursor, null, "no further page when everything fits in one clamped page");
+    });
+
+    test("cursor paging walks every row exactly once — no dupes, no omissions", async () => {
+      const seen = new Set<string>();
+      let cursor: string | null = null;
+      let pages = 0;
+      do {
+        const url: string = cursor
+          ? `${resource.path}?limit=2&cursor=${encodeURIComponent(cursor)}`
+          : `${resource.path}?limit=2`;
+        const { status, body } = await api("GET", url, { token: user.token });
+        assert.equal(status, 200);
+        for (const item of body.items) {
+          assert.ok(!seen.has(item.id), `${resource.name} ${item.id} returned on more than one page`);
+          seen.add(item.id);
+        }
+        cursor = body.nextCursor;
+        pages++;
+        assert.ok(pages <= 10, "pagination did not terminate — possible cursor loop");
+      } while (cursor);
+      assert.equal(seen.size, TOTAL, `expected ${TOTAL} unique ${resource.name} across pages, got ${seen.size}`);
+    });
+
+    test("an unparseable cursor is rejected → 400 INVALID_CURSOR (no unbounded fallback read)", async () => {
+      const { status } = await api("GET", `${resource.path}?cursor=not-a-real-cursor`, { token: user.token });
+      assert.equal(status, 400, "a garbage cursor must be rejected, not silently ignored");
+    });
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Design for INTEROPERABILITY — stable wire contract
 // ═══════════════════════════════════════════════════════════════════════════════
