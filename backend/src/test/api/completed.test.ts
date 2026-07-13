@@ -57,6 +57,12 @@ describe("GET /v1/completed", () => {
     assert.equal(status, 400);
   });
 
+  test("400 → malformed date query param → INVALID_DATE", async () => {
+    const { status, body } = await req("GET", "/v1/completed?date=someday", { token: demoToken });
+    assert.equal(status, 400);
+    assert.equal(body.error?.code, "INVALID_DATE");
+  });
+
   test("401 → no token", async () => {
     const { status } = await req("GET", "/v1/completed");
     assert.equal(status, 401);
