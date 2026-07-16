@@ -432,12 +432,22 @@ export function TaskEditModal({ task, onClose }: Props) {
                 aria-label={t("project.select.label")}
                 value={projectId ?? ""}
                 onChange={(e) => setProjectId(e.target.value || null)}
-                className="w-full text-sm rounded-md px-2.5 py-2 bg-transparent outline-none"
-                style={{ border: "1px solid var(--border-default)", color: "var(--text-primary)" }}
+                className="w-full text-sm rounded-md px-2.5 py-2 outline-none"
+                style={{
+                  border: "1px solid var(--border-default)",
+                  color: "var(--text-primary)",
+                  background: "var(--bg-surface)",
+                  colorScheme: "dark",
+                  cursor: "pointer",
+                }}
               >
-                <option value="">{t("project.select.none")}</option>
+                <option value="" style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}>
+                  {t("project.select.none")}
+                </option>
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.emoji ? `${p.emoji} ` : ""}{p.name}</option>
+                  <option key={p.id} value={p.id} style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}>
+                    {p.emoji ? `${p.emoji} ` : ""}{p.name}
+                  </option>
                 ))}
               </select>
             </div>
