@@ -2640,6 +2640,159 @@ describe("DFX · Robustness — habit check-in `date` is format-bounded (#267)",
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Design for ROBUSTNESS — habit frequency-scheduling fields are range-bounded (#444)
+//
+// Coverage-gap audit (recurrence/streak engine). `habits` is present in this daily
+// suite only via tenant-isolation (#158), migrate id-collision (#276/#306), the
+// log-IDOR sweep (#165), and the check-in `date` format bound (#267) — none of
+// which touch the CREATE/UPDATE body's scheduling fields. `POST /v1/habits`
+// (`HabitBody`) and `PATCH /v1/habits/:id` (`HabitUpdateBody`, its partial) gate the
+// three inputs that DRIVE which days a habit fires and how its streak is computed:
+//
+//   • `frequencyDays`     — `z.array(z.number().int().min(0).max(6))`, the weekday
+//                           indices for a `days_of_week` habit.
+//   • `frequencyTimes`    — `z.number().int().min(1).max(7)`, the target count for a
+//                           `times_per_week` habit.
+//   • `frequencyInterval` — `z.number().int().min(2).max(30)`, the every-N-days step
+//                           for an `interval` habit (floor is 2, NOT 1 — an
+//                           `interval` of 1 is just `daily`, so 1 is the insidious
+//                           plausible-but-wrong near-miss).
+//
+// These Zod bounds are the ONLY guard on the scheduling inputs — there is no
+// downstream clamp — so a regression loosening any of them would persist a habit
+// that never fires (bad weekday index) or miscomputes its cadence/streak, surfacing
+// only in production past every existing daily case. Same class as the numeric
+// range-bound audits (`focus.duration` [1,1440] #405) and the format-bound family
+// (#176/#240/#264/#267). PATCH re-validates the partial body, so the bounds apply on
+// BOTH write paths; round-trips read back via the owner's `GET /v1/habits` list
+// (there is no GET /:id). Gives each bound teeth (a plausible-but-wrong value is
+// rejected, the offending field is named), proves the inclusive boundaries are
+// accepted (no off-by-one happy-path regression), and proves a rejected PATCH leaves
+// the stored row unmutated (no partial poison). Handler/contract already correct →
+// gap in the tests, not the code; test + docs only, no production change.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("DFX · Robustness — habit frequency-scheduling fields are range-bounded (#444)", () => {
+  let hf: { token: string; id: string };
+
+  before(async () => {
+    hf = await registerUser("habit-frequency");
+  });
+
+  test("over-range `frequencyDays` element (7) on POST /v1/habits → 400 naming frequencyDays, no habit written", async () => {
+    const before = await api("GET", "/v1/habits", { token: hf.token });
+    const beforeCount = (before.body as unknown[]).length;
+
+    const { status, body } = await api("POST", "/v1/habits", {
+      token: hf.token,
+      body: { title: "Gym", frequency: "days_of_week", frequencyDays: [1, 7] },
+    });
+    assert.equal(status, 400, "a weekday index of 7 must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) =>
+        f.path.startsWith("frequencyDays"),
+      ),
+      "the rejection must name the offending `frequencyDays` element (the 0..6 element bound fired, not an incidental 400)",
+    );
+
+    // No poison: the rejected create must not have persisted a habit.
+    const after = await api("GET", "/v1/habits", { token: hf.token });
+    assert.equal((after.body as unknown[]).length, beforeCount, "a rejected create must not persist a habit row");
+  });
+
+  test("over-range `frequencyTimes` (8) → 400 naming frequencyTimes; server recovers", async () => {
+    const { status, body } = await api("POST", "/v1/habits", {
+      token: hf.token,
+      body: { title: "Run", frequency: "times_per_week", frequencyTimes: 8 },
+    });
+    assert.equal(status, 400, "a weekly target above 7 must be rejected");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "frequencyTimes"),
+      "the rejection must name `frequencyTimes` (the 1..7 range bound fired)",
+    );
+
+    // Recoverability: the next in-range request still succeeds.
+    const ok = await api("POST", "/v1/habits", {
+      token: hf.token,
+      body: { title: "Run", frequency: "times_per_week", frequencyTimes: 3 },
+    });
+    assert.equal(ok.status, 201, "server survives the bad request; the next valid one works");
+  });
+
+  test("below-range `frequencyInterval` (1) → 400 naming frequencyInterval — the min(2) floor has teeth", async () => {
+    // An interval of 1 day is just a `daily` habit, so the schema floors the
+    // `interval` step at 2. `1` is the plausible-but-wrong near-miss that a
+    // loosened bound (`min(1)` or `z.number()`) would silently accept.
+    const { status, body } = await api("POST", "/v1/habits", {
+      token: hf.token,
+      body: { title: "Water plants", frequency: "interval", frequencyInterval: 1 },
+    });
+    assert.equal(status, 400, "an every-1-day interval must be rejected (that is just `daily`)");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "frequencyInterval"),
+      "the rejection must name `frequencyInterval` (the 2..30 range bound fired)",
+    );
+  });
+
+  test("valid habit at the inclusive boundaries (frequencyDays [0,6], frequencyTimes 7, frequencyInterval 30) round-trips via GET /v1/habits", async () => {
+    // Each scheduling field at its extreme legal value in a single habit proves
+    // the bounds are ceilings/floors, not off-by-one rejections.
+    const { status, body } = await api("POST", "/v1/habits", {
+      token: hf.token,
+      body: {
+        title: "Boundary habit",
+        frequency: "days_of_week",
+        frequencyDays: [0, 6],
+        frequencyTimes: 7,
+        frequencyInterval: 30,
+      },
+    });
+    assert.equal(status, 201, "extreme-but-legal scheduling values must be accepted");
+    assert.deepEqual(body.frequencyDays, [0, 6], "the create response must echo the stored weekday indices");
+    assert.equal(body.frequencyInterval, 30, "the inclusive cap (30) must be accepted, not an off-by-one");
+
+    // The scheduling inputs must survive storage and be readable back.
+    const list = await api("GET", "/v1/habits", { token: hf.token });
+    assert.equal(list.status, 200);
+    const found = (list.body as Array<{ id: string; frequencyDays?: number[]; frequencyTimes?: number; frequencyInterval?: number }>)
+      .find((h) => h.id === body.id);
+    assert.ok(found, "a subsequent read must reflect the persisted habit");
+    assert.deepEqual(found?.frequencyDays, [0, 6], "weekday indices must round-trip intact");
+    assert.equal(found?.frequencyTimes, 7, "the weekly target must round-trip intact");
+    assert.equal(found?.frequencyInterval, 30, "the interval step must round-trip intact");
+  });
+
+  test("over-range PATCH `frequencyInterval` (99) → 400 and the stored habit is unmutated (no partial poison)", async () => {
+    // Seed a valid interval habit, then attempt an out-of-range PATCH.
+    const seed = await api("POST", "/v1/habits", {
+      token: hf.token,
+      body: { title: "Deep clean", frequency: "interval", frequencyInterval: 14 },
+    });
+    assert.equal(seed.status, 201);
+    const id = seed.body.id;
+
+    const { status, body } = await api("PATCH", `/v1/habits/${id}`, {
+      token: hf.token,
+      body: { frequencyInterval: 99 },
+    });
+    assert.equal(status, 400, "a PATCH above the 30-day cap must be a client error, not 5xx");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "frequencyInterval"),
+      "the PATCH rejection must name `frequencyInterval`",
+    );
+
+    // No poison: the rejected PATCH must leave the stored interval intact.
+    const list = await api("GET", "/v1/habits", { token: hf.token });
+    const found = (list.body as Array<{ id: string; frequencyInterval?: number }>).find((h) => h.id === id);
+    assert.equal(found?.frequencyInterval, 14, "a rejected PATCH must leave the stored interval unmutated");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Design for ROBUSTNESS — `people` avatar fields are format/length-bounded (#279)
 //
 // Coverage-gap audit: the `people` resource is present in this daily suite only
