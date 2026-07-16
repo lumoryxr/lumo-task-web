@@ -419,7 +419,7 @@ jobs:
 
       # ── Pull in the macOS installer built on the native runner ─────────────
       - name: Download macOS installer artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: lumo-mac-installer-${{ github.run_id }}
           path: mac-dist
