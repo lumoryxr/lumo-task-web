@@ -145,17 +145,25 @@ describe("QuickCreate", () => {
 
   // ── Project selector (#211) ──────────────────────────────────────────────
 
-  function getProjectSelect() {
-    return screen.getByRole("combobox", { name: "project.select.label" }) as HTMLSelectElement;
+  // The project picker is a custom dropdown (not a native <select>): its
+  // trigger is a button (aria-label persists), and options are role="option"
+  // buttons rendered in a portal once the menu is open.
+  function getProjectTrigger() {
+    return screen.getByRole("button", { name: "project.select.label" });
+  }
+
+  function pickProject(optionName: string) {
+    fireEvent.click(getProjectTrigger());
+    fireEvent.click(screen.getByRole("option", { name: optionName }));
   }
 
   it("shows the project selector only when projects exist", () => {
     setup();
-    expect(screen.queryByRole("combobox", { name: "project.select.label" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "project.select.label" })).toBeNull();
 
     mockProjects = [{ id: "prj_a", name: "Alpha" }];
     setup();
-    expect(getProjectSelect()).toBeTruthy();
+    expect(getProjectTrigger()).toBeTruthy();
   });
 
   it("files the task under the project picked in the selector", async () => {
@@ -165,7 +173,7 @@ describe("QuickCreate", () => {
     ];
     setup();
     fireEvent.change(getTitleInput(), { target: { value: "Picked task" } });
-    fireEvent.change(getProjectSelect(), { target: { value: "prj_b" } });
+    pickProject("Beta");
     fireEvent.click(getCreateBtn());
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
@@ -178,10 +186,10 @@ describe("QuickCreate", () => {
       { id: "prj_b", name: "Beta" },
     ];
     setup({ projectId: "prj_a" });
-    expect(getProjectSelect().value).toBe("prj_a");
+    expect(getProjectTrigger().textContent).toContain("Alpha");
 
     fireEvent.change(getTitleInput(), { target: { value: "Moved task" } });
-    fireEvent.change(getProjectSelect(), { target: { value: "prj_b" } });
+    pickProject("Beta");
     fireEvent.click(getCreateBtn());
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
@@ -192,7 +200,7 @@ describe("QuickCreate", () => {
     mockProjects = [{ id: "prj_a", name: "Alpha" }];
     setup({ projectId: "prj_a" });
     fireEvent.change(getTitleInput(), { target: { value: "Unfiled task" } });
-    fireEvent.change(getProjectSelect(), { target: { value: "" } });
+    pickProject("project.select.none");
     fireEvent.click(getCreateBtn());
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
