@@ -120,10 +120,12 @@ function ProjectSelectMenu({
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[48]" onClick={onClose} />
+      {/* Above the host modal (QuickCreate z-150, TaskEditModal z-200) so the
+          menu is never clipped behind the dialog it opens from. */}
+      <div className="fixed inset-0 z-[209]" onClick={onClose} />
       <div
         role="listbox"
-        className="fixed z-[49] rounded-xl overflow-y-auto py-1"
+        className="fixed z-[210] rounded-xl overflow-y-auto py-1"
         style={{
           left: anchor.left,
           width: anchor.width,
