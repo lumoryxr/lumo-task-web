@@ -456,6 +456,19 @@ export const api = {
     await req<{ ok: true }>("POST", "/auth/change-password", input);
   },
 
+  // Request a reset link. The backend responds identically whether or not the
+  // email is registered, so this resolves the same way for any input (no
+  // account-enumeration signal for the UI to leak).
+  async forgotPassword(email: string): Promise<void> {
+    await req<{ ok: true }>("POST", "/auth/forgot-password", { email });
+  },
+
+  // Complete a reset with the token from the emailed link. Throws an ApiError
+  // with code INVALID_RESET_TOKEN when the link is bad/expired/used.
+  async resetPassword(input: { token: string; new_password: string }): Promise<void> {
+    await req<{ ok: true }>("POST", "/auth/reset-password", input);
+  },
+
   async signOut(): Promise<User> {
     // Send the refresh token so the server can revoke it (best-effort).
     const refreshToken = getRefreshToken() ?? undefined;

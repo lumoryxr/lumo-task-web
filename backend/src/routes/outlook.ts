@@ -15,6 +15,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
+import { log } from "../lib/logger.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
 import type { Variables } from "../env.js";
 
@@ -102,7 +103,7 @@ app.get("/calendar", outlookRateLimit, async (c) => {
     return c.json({ events: data.value ?? [] });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[outlook]", msg);
+    log("error", { requestId: c.get("requestId"), route: "GET /v1/outlook/calendar", msg });
     return httpError(c, 502, "OUTLOOK_FETCH_FAILED", msg);
   }
 });

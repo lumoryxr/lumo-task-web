@@ -33,6 +33,10 @@ interface AuthState {
   signInWithProvider: (provider: "google" | "apple" | "github") => Promise<void>;
   register: (input: { email: string; password: string; confirm: string; nickname?: string }) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /** Request a password-reset link (enumeration-safe — resolves for any email). */
+  forgotPassword: (email: string) => Promise<void>;
+  /** Complete a password reset with the token from the emailed link. */
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
   /** GDPR/CCPA export — returns the caller's full data bundle for download. */
   exportData: () => Promise<DataExportWire>;
   /** Irreversibly delete the account, then drop to a clean signed-out state. */
@@ -119,6 +123,18 @@ export const useAuthStore = create<AuthState>()(
           get().forceSignOut();
           throw e;
         }
+      },
+
+      async forgotPassword(email) {
+        // Passthrough — the page owns presentation. Resolves identically for any
+        // email (the backend never reveals whether an account exists).
+        await api.forgotPassword(email);
+      },
+
+      async resetPassword(token, newPassword) {
+        // Passthrough — the page owns presentation (inline invalid-token message
+        // vs. toast). No local session to update; the user re-logs in after.
+        await api.resetPassword({ token, new_password: newPassword });
       },
 
       async exportData() {

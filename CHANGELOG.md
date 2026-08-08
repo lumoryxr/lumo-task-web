@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat: Production-grade structured logging — leveled logger (`debug`/`info`/`warn`/`error`) with `LUMO_LOG_LEVEL` config, a consistent base envelope (`service`/`env`/`version`) on every JSON line, and mandatory secret redaction of credential-like fields. Audit log now flows through the same seam (`category: "audit"`); route error paths log structured + `requestId`-correlated instead of ad-hoc `console.error`. Docs: `docs/ops/logging.md`
+- feat: Password reset flow — `POST /v1/auth/forgot-password` (enumeration-safe) + `POST /v1/auth/reset-password` (short-lived single-use token; resets password, bumps session version, revokes refresh tokens). New `/forgot-password` and `/reset-password` web pages; login page "Forgot password" wired. Provider-agnostic `sendEmail()` lib (Resend + dev transport) behind `LUMO_EMAIL_*` env
 - feat: Account data export (GDPR/CCPA) — `GET /v1/user/export` returns a secret-free JSON bundle of all user-scoped data; surfaced in Account → Data & privacy as a download. Contract-first (`DataExportWire`)
 - feat: Account deletion (right to erasure) — `DELETE /v1/user` cascades across every user-scoped table; surfaced in Account → Danger zone behind an email-typing confirmation. Contract-first (`DeleteAccountResponse`)
 - feat: Bilingual Privacy Policy and Terms of Service pages at `/legal/privacy` and `/legal/terms`, linked from the registration consent line and the marketing footer (content pending legal review)
