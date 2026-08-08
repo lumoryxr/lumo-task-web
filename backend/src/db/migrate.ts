@@ -187,6 +187,25 @@ export async function runMigrations() {
   // Prune long-expired refresh tokens (keep the table from growing unbounded).
   await execRaw("DELETE FROM refresh_tokens WHERE expires_at < datetime('now', '-7 days')");
 
+  // Password reset tokens: short-lived, single-use. Like refresh tokens, only the
+  // SHA-256 hash of the opaque token is stored, so a DB leak cannot be replayed.
+  // `used_at` marks a consumed token; presenting it again is rejected.
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      used_at    TEXT
+    )
+  `);
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_password_reset_hash ON password_reset_tokens(token_hash)");
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON password_reset_tokens(expires_at)");
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id)");
+  // Prune expired/old reset tokens (they are only valid for minutes).
+  await execRaw("DELETE FROM password_reset_tokens WHERE expires_at < datetime('now', '-1 days')");
+
   // Migrate: add recurrence column
   const taskColsV2 = await query<{ name: string }>("PRAGMA table_info(tasks)");
   if (!taskColsV2.some((c) => c.name === "recurrence")) {

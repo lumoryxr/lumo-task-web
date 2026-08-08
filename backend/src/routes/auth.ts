@@ -4,8 +4,10 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
 import { signToken } from "../lib/jwt.js";
-import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from "../lib/refreshToken.js";
+import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken, revokeAllForUser } from "../lib/refreshToken.js";
 import { hashPassword, verifyPassword, dummyVerify } from "../lib/password.js";
+import { issueResetToken, consumeResetToken } from "../lib/passwordReset.js";
+import { sendEmail } from "../lib/email.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
@@ -54,6 +56,20 @@ const ChangePasswordBody = z.object({
 const RefreshBody = z.object({
   refreshToken: z.string().min(1).max(512),
 });
+
+const ForgotPasswordBody = z.object({
+  email: z.string().email().max(255),
+});
+
+const ResetPasswordBody = z.object({
+  token: z.string().min(1).max(512),
+  new_password: strongPassword,
+});
+
+/** Absolute base URL of the web app, used to build the reset link in emails. */
+function appBaseUrl(): string {
+  return (process.env.LUMO_APP_BASE_URL || "https://lumo-task-web.vercel.app").replace(/\/+$/, "");
+}
 
 function clientIp(c: Context<{ Variables: Variables }>): string {
   return getClientIp(c);
@@ -182,6 +198,64 @@ app.post("/refresh", authRateLimit, validate("json", RefreshBody), async (c) => 
   const token = await signToken(rotated.userId, rotated.sessionVersion);
   audit("auth.refresh.ok", { userId: rotated.userId, ip: clientIp(c) });
   return c.json({ token, refreshToken: rotated.token });
+});
+
+// Request a password reset link. ALWAYS returns 200 with the same body whether
+// or not the email is registered — the response must never reveal which emails
+// have accounts (enumeration). If the user exists, a single-use, short-lived
+// token is minted and emailed as a reset link; delivery failures are logged but
+// do not change the response.
+app.post("/forgot-password", authRateLimit, validate("json", ForgotPasswordBody), async (c) => {
+  const { email } = c.req.valid("json");
+  const user = await queryOne<Pick<UserRow, "id" | "name">>(
+    "SELECT id, name FROM users WHERE email = :email",
+    { email },
+  );
+
+  if (user) {
+    const rawToken = await issueResetToken(user.id);
+    const link = `${appBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
+    await sendEmail({
+      to: email,
+      subject: "Reset your Lumo password",
+      text:
+        `Hi ${user.name},\n\n` +
+        `We received a request to reset your Lumo password. ` +
+        `Open the link below to choose a new one. It expires in 30 minutes and can be used once.\n\n` +
+        `${link}\n\n` +
+        `If you didn't request this, you can safely ignore this email — your password won't change.`,
+    });
+    audit("auth.password_reset.request", { userId: user.id, ip: clientIp(c) });
+  } else {
+    // Log the miss for monitoring, but respond identically to the hit case.
+    audit("auth.password_reset.request_unknown", { email, ip: clientIp(c) });
+  }
+
+  return c.json({ ok: true });
+});
+
+// Complete a password reset with a token from the emailed link. On success the
+// password is replaced, `session_version` is bumped (invalidating every existing
+// access token), and all refresh tokens are revoked — so a reset also logs the
+// account out everywhere, which is the safe behavior for a recovery flow.
+app.post("/reset-password", authRateLimit, validate("json", ResetPasswordBody), async (c) => {
+  const { token, new_password } = c.req.valid("json");
+
+  const userId = await consumeResetToken(token);
+  if (!userId) {
+    audit("auth.password_reset.fail", { ip: clientIp(c) });
+    return httpError(c, 400, "INVALID_RESET_TOKEN", "This reset link is invalid or has expired. Request a new one.");
+  }
+
+  const new_hash = await hashPassword(new_password);
+  await execute(
+    "UPDATE users SET password_hash = :hash, session_version = session_version + 1 WHERE id = :id",
+    { hash: new_hash, id: userId },
+  );
+  await revokeAllForUser(userId);
+  audit("auth.password_reset.ok", { userId, ip: clientIp(c) });
+
+  return c.json({ ok: true });
 });
 
 app.post("/signout", authMiddleware, async (c) => {

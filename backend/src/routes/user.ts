@@ -29,6 +29,7 @@ const USER_SCOPED_TABLES = [
   "templates",
   "projects",
   "refresh_tokens",
+  "password_reset_tokens",
   "sync_client_state",
 ] as const;
 

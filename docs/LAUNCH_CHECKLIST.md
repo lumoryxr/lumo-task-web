@@ -34,19 +34,21 @@ about **operating a product for real people**, not code quality.
   server-backed account system. Reconcile the copy (or scope the claim to the desktop
   app) before launch, and add a cookie/localStorage notice if analytics are added.
 
-### Account usability (depends on email infrastructure)
-- **[todo] Email infrastructure.** No transactional email exists (no Resend/Postmark/
-  SES). This is the prerequisite for the two items below. Pick a provider, add the
-  API key as a backend secret, and add a small `sendEmail()` lib.
-- **[todo] Email verification.** `POST /v1/auth/register` issues a session
+### Account usability
+- **[partial] Email infrastructure.** A provider-agnostic `sendEmail()` lib now
+  exists (`backend/src/lib/email.ts`) with a Resend HTTP transport and a dev/no-op
+  transport. ⚠️ **Action required to actually send mail in production:** set
+  `LUMO_EMAIL_PROVIDER=resend`, `LUMO_RESEND_API_KEY`, and `LUMO_EMAIL_FROM` (see
+  `backend/.env.example`). Until then, production logs a loud error and sends nothing.
+- **[done] Password reset ("forgot password").** `POST /v1/auth/forgot-password`
+  (enumeration-safe) + `POST /v1/auth/reset-password` with a short-lived, single-use,
+  rate-limited token; frontend `/forgot-password` and `/reset-password` pages, and the
+  login page's "Forgot password" is now wired. Sending real emails needs the provider
+  config above.
+- **[todo] Email verification.** `POST /v1/auth/register` still issues a session
   immediately with no confirmation, so any typo'd/fake email becomes a live account.
-  Add a verification token table + `/v1/auth/verify-email` and gate sensitive actions
-  on a verified flag.
-- **[todo] Password reset ("forgot password").** There is no recovery path today — a
-  locked-out user is stuck. Add `/v1/auth/forgot-password` + `/v1/auth/reset-password`
-  with a short-lived, single-use, rate-limited token.
-  > Design note: the login page already honestly disables "Forgot password" with a
-  > *Coming soon* tooltip, so wiring it is a drop-in, not a UI change.
+  Add a verification token table + `/v1/auth/verify-email` (reuses the new email lib)
+  and gate sensitive actions on a verified flag.
 
 ### Production traps
 - **[done] Frontend API-base fallback.** A production build without `VITE_API_BASE`

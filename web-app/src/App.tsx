@@ -30,6 +30,12 @@ const RegisterPage = lazy(() =>
 const AccountPage = lazy(() =>
   import("@/pages/AccountPage").then((m) => ({ default: m.AccountPage }))
 );
+const ForgotPasswordPage = lazy(() =>
+  import("@/pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage }))
+);
+const ResetPasswordPage = lazy(() =>
+  import("@/pages/ResetPasswordPage").then((m) => ({ default: m.ResetPasswordPage }))
+);
 const PrivacyPage = lazy(() =>
   import("@/pages/legal/PrivacyPage").then((m) => ({ default: m.PrivacyPage }))
 );
@@ -161,6 +167,8 @@ export default function App() {
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/legal/privacy" element={<PrivacyPage />} />
       <Route path="/legal/terms" element={<TermsPage />} />
 
