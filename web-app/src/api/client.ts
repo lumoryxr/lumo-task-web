@@ -392,6 +392,7 @@ const LOCAL_USER: User = {
   email: "",
   initials: "YO",
   local: true,
+  emailVerified: true,
   plan: "free",
   stats: { tasks: 0, pomodoros: 0, syncOK: false },
 };
@@ -467,6 +468,17 @@ export const api = {
   // with code INVALID_RESET_TOKEN when the link is bad/expired/used.
   async resetPassword(input: { token: string; new_password: string }): Promise<void> {
     await req<{ ok: true }>("POST", "/auth/reset-password", input);
+  },
+
+  // Confirm an email with the token from the verification link. Throws an
+  // ApiError with code INVALID_VERIFICATION_TOKEN when the link is bad/expired.
+  async verifyEmail(token: string): Promise<void> {
+    await req<{ ok: true }>("POST", "/auth/verify-email", { token });
+  },
+
+  // Re-send the verification email for the signed-in user (no-op if verified).
+  async resendVerification(): Promise<void> {
+    await req<{ ok: true }>("POST", "/auth/resend-verification");
   },
 
   async signOut(): Promise<User> {

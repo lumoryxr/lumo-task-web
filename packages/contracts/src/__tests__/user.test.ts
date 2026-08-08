@@ -13,6 +13,7 @@ describe("UserProfileWireSchema", () => {
     name: "Ada",
     initials: "AL",
     local: false,
+    emailVerified: true,
     plan: "free",
     renewsAt: null,
     stats: { tasks: 3, pomodoros: 12, syncOK: true },

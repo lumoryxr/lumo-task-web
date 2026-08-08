@@ -38,6 +38,7 @@ describe("POST /v1/auth/forgot-password", () => {
 
   test("200 and an email with a reset link for a known address", async () => {
     const u = await newUserWithToken("forgot");
+    drainOutbox(); // discard the registration verification email
     const { status, body } = await req("POST", "/v1/auth/forgot-password", {
       body: { email: u.email },
     });
@@ -67,6 +68,7 @@ describe("POST /v1/auth/reset-password", () => {
 
   test("400 on a weak new password (still validated)", async () => {
     const u = await newUserWithToken("weak");
+    drainOutbox(); // discard the registration verification email
     await req("POST", "/v1/auth/forgot-password", { body: { email: u.email } });
     const token = tokenFromOutbox();
     const { status, body } = await req("POST", "/v1/auth/reset-password", {
@@ -78,6 +80,7 @@ describe("POST /v1/auth/reset-password", () => {
 
   test("full flow: resets the password, kills old sessions, token is single-use", async () => {
     const u = await newUserWithToken("reset");
+    drainOutbox(); // discard the registration verification email
     const oldToken = u.token; // access token from registration
     const newPassword = "FreshPass123";
 

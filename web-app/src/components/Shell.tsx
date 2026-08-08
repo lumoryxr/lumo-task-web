@@ -5,6 +5,7 @@ import { Topbar } from "@/components/Topbar";
 import { QuickCreate } from "@/components/QuickCreate";
 import { CommandPalette } from "@/components/CommandPalette";
 import { FloatingPet } from "@/components/FloatingPet";
+import { VerifyEmailBanner } from "@/components/VerifyEmailBanner";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -82,6 +83,7 @@ export function Shell() {
               onOpenSearch={openSearch}
             />
           )}
+          {!isFocus && <VerifyEmailBanner />}
           <div
             className="relative flex-1 min-h-0 scroll-y"
             style={{ paddingBottom: isMobile && !isFocus ? "calc(64px + env(safe-area-inset-bottom))" : 0 }}

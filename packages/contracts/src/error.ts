@@ -32,6 +32,7 @@ export const ERROR_CODES = {
   INVALID_CREDENTIALS: { status: 401, about: "Email not found or password mismatch" },
   INVALID_REFRESH_TOKEN: { status: 401, about: "Refresh token is unknown, expired, rotated, or revoked" },
   INVALID_RESET_TOKEN: { status: 400, about: "Password reset token is unknown, expired, or already used" },
+  INVALID_VERIFICATION_TOKEN: { status: 400, about: "Email verification token is unknown, expired, or already used" },
   CLOUD_AUTH_FAILED: { status: 401, about: "Cloud sign-in was rejected" },
   // 404 — not found
   NOT_FOUND: { status: 404, about: "Requested resource does not exist" },

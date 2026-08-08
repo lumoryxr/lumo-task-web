@@ -22,6 +22,8 @@ export const UserProfileWireSchema = z.object({
   initials: z.string(),
   /** True for a local-only (Electron, no cloud account) user. */
   local: z.boolean(),
+  /** Whether the account's email address has been confirmed. */
+  emailVerified: z.boolean(),
   plan: z.string(),
   renewsAt: z.string().nullable(),
   stats: z.object({

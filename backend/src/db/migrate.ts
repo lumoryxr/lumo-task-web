@@ -206,6 +206,31 @@ export async function runMigrations() {
   // Prune expired/old reset tokens (they are only valid for minutes).
   await execRaw("DELETE FROM password_reset_tokens WHERE expires_at < datetime('now', '-1 days')");
 
+  // Email verification: a boolean on users + a single-use token table (same
+  // hash-only-at-rest scheme as reset tokens). Verification is SOFT — a new
+  // account is usable immediately, the flag just drives a "verify your email"
+  // nudge. Existing accounts predate the feature, so on first add they are
+  // backfilled to verified (1) — only NEW signups (inserted with 0) must confirm.
+  const userColsEV = await query<{ name: string }>("PRAGMA table_info(users)");
+  if (!userColsEV.some((c) => c.name === "email_verified")) {
+    await execRaw("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0");
+    await execRaw("UPDATE users SET email_verified = 1");
+  }
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      used_at    TEXT
+    )
+  `);
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_email_verify_hash ON email_verification_tokens(token_hash)");
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_email_verify_expires ON email_verification_tokens(expires_at)");
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_email_verify_user ON email_verification_tokens(user_id)");
+  await execRaw("DELETE FROM email_verification_tokens WHERE expires_at < datetime('now', '-7 days')");
+
   // Migrate: add recurrence column
   const taskColsV2 = await query<{ name: string }>("PRAGMA table_info(tasks)");
   if (!taskColsV2.some((c) => c.name === "recurrence")) {

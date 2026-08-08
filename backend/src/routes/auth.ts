@@ -7,6 +7,7 @@ import { signToken } from "../lib/jwt.js";
 import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken, revokeAllForUser } from "../lib/refreshToken.js";
 import { hashPassword, verifyPassword, dummyVerify } from "../lib/password.js";
 import { issueResetToken, consumeResetToken } from "../lib/passwordReset.js";
+import { issueVerificationToken, consumeVerificationToken } from "../lib/emailVerification.js";
 import { sendEmail } from "../lib/email.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
@@ -66,9 +67,33 @@ const ResetPasswordBody = z.object({
   new_password: strongPassword,
 });
 
-/** Absolute base URL of the web app, used to build the reset link in emails. */
+const VerifyEmailBody = z.object({
+  token: z.string().min(1).max(512),
+});
+
+/** Absolute base URL of the web app, used to build links in emails. */
 function appBaseUrl(): string {
   return (process.env.LUMO_APP_BASE_URL || "https://lumo-task-web.vercel.app").replace(/\/+$/, "");
+}
+
+/**
+ * Issue a fresh verification token and email the confirmation link. Best-effort:
+ * a delivery failure is logged by the email lib but never blocks the caller
+ * (registration must still succeed if email is down).
+ */
+async function sendVerificationEmail(userId: string, email: string, name: string): Promise<void> {
+  const rawToken = await issueVerificationToken(userId);
+  const link = `${appBaseUrl()}/verify-email?token=${encodeURIComponent(rawToken)}`;
+  await sendEmail({
+    to: email,
+    subject: "Verify your Lumo email",
+    text:
+      `Hi ${name},\n\n` +
+      `Welcome to Lumo! Please confirm your email address by opening the link below. ` +
+      `It expires in 24 hours.\n\n` +
+      `${link}\n\n` +
+      `If you didn't create a Lumo account, you can safely ignore this email.`,
+  });
 }
 
 function clientIp(c: Context<{ Variables: Variables }>): string {
@@ -105,11 +130,16 @@ app.post("/register", authRateLimit, validate("json", RegisterBody), async (c) =
   const refreshToken = await issueRefreshToken(id, 0);
   audit("auth.register", { userId: id, email, ip: clientIp(c) });
 
+  // Send the email-verification link. Non-blocking: registration succeeds even
+  // if email delivery is down (verification is a soft nudge, not a gate).
+  await sendVerificationEmail(id, email, name);
+  audit("auth.verify_email.sent", { userId: id, ip: clientIp(c) });
+
   return c.json({
     token,
     refreshToken,
     user: {
-      id, email, name, initials, local: false, plan: "free", renewsAt: null,
+      id, email, name, initials, local: false, emailVerified: false, plan: "free", renewsAt: null,
       stats: { tasks: 0, pomodoros: 0, syncOK: syncOk() },
     },
   }, 201);
@@ -152,6 +182,7 @@ app.post("/signin", authRateLimit, validate("json", SigninBody), async (c) => {
       name: user.name,
       initials: user.initials,
       local: Boolean(user.local),
+      emailVerified: Boolean(user.email_verified),
       plan: user.plan ?? "free",
       renewsAt: user.renews_at ?? null,
       stats: { tasks: stats?.task_count ?? 0, pomodoros: stats?.pomo_count ?? 0, syncOK: syncOk() },
@@ -255,6 +286,36 @@ app.post("/reset-password", authRateLimit, validate("json", ResetPasswordBody), 
   await revokeAllForUser(userId);
   audit("auth.password_reset.ok", { userId, ip: clientIp(c) });
 
+  return c.json({ ok: true });
+});
+
+// Confirm an email address with the token from the verification link. Public
+// (the user may not be signed in on the device they open the link with) and
+// rate-limited. Idempotent-ish: a valid token flips the flag once; reusing it
+// (now consumed) returns the invalid-token error.
+app.post("/verify-email", authRateLimit, validate("json", VerifyEmailBody), async (c) => {
+  const { token } = c.req.valid("json");
+  const userId = await consumeVerificationToken(token);
+  if (!userId) {
+    audit("auth.verify_email.fail", { ip: clientIp(c) });
+    return httpError(c, 400, "INVALID_VERIFICATION_TOKEN", "This verification link is invalid or has expired. Request a new one.");
+  }
+  await execute("UPDATE users SET email_verified = 1 WHERE id = :id", { id: userId });
+  audit("auth.verify_email.ok", { userId, ip: clientIp(c) });
+  return c.json({ ok: true });
+});
+
+// Re-send the verification email for the signed-in user. No-op (still 200) when
+// the account is already verified, so the response never depends on state in a
+// way a caller could probe.
+app.post("/resend-verification", authRateLimit, authMiddleware, async (c) => {
+  const userId = c.get("userId") as string;
+  const user = await queryOne<UserRow>("SELECT * FROM users WHERE id = :id", { id: userId });
+  if (!user) return httpError(c, 404, "NOT_FOUND", "Not found");
+  if (!user.email_verified) {
+    await sendVerificationEmail(user.id, user.email, user.name);
+    audit("auth.verify_email.resend", { userId, ip: clientIp(c) });
+  }
   return c.json({ ok: true });
 });
 

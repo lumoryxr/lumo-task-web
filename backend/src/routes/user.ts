@@ -31,6 +31,7 @@ const USER_SCOPED_TABLES = [
   "projects",
   "refresh_tokens",
   "password_reset_tokens",
+  "email_verification_tokens",
   "sync_client_state",
 ] as const;
 
@@ -53,6 +54,7 @@ app.get("/", authMiddleware, async (c) => {
       name: user.name,
       initials: user.initials,
       local: Boolean(user.local),
+      emailVerified: Boolean(user.email_verified),
       plan: user.plan ?? "free",
       renewsAt: user.renews_at ?? null,
       stats: {

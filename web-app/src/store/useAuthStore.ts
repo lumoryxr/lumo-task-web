@@ -21,6 +21,7 @@ const LOCAL_USER: User = {
   email: "",
   initials: "YO",
   local: true,
+  emailVerified: true,
   plan: "free",
   stats: { tasks: 0, pomodoros: 0, syncOK: false },
 };
@@ -37,6 +38,12 @@ interface AuthState {
   forgotPassword: (email: string) => Promise<void>;
   /** Complete a password reset with the token from the emailed link. */
   resetPassword: (token: string, newPassword: string) => Promise<void>;
+  /** Confirm the account email with the token from the verification link. */
+  verifyEmail: (token: string) => Promise<void>;
+  /** Re-send the verification email for the signed-in user. */
+  resendVerification: () => Promise<void>;
+  /** Re-fetch the signed-in user (e.g. to pick up a freshly-verified email). */
+  refreshUser: () => Promise<void>;
   /** GDPR/CCPA export — returns the caller's full data bundle for download. */
   exportData: () => Promise<DataExportWire>;
   /** Irreversibly delete the account, then drop to a clean signed-out state. */
@@ -135,6 +142,26 @@ export const useAuthStore = create<AuthState>()(
         // Passthrough — the page owns presentation (inline invalid-token message
         // vs. toast). No local session to update; the user re-logs in after.
         await api.resetPassword({ token, new_password: newPassword });
+      },
+
+      async verifyEmail(token) {
+        // Passthrough — the page owns presentation. On success the caller
+        // refreshes the user so the "verify your email" banner clears.
+        await api.verifyEmail(token);
+      },
+
+      async resendVerification() {
+        await api.resendVerification();
+      },
+
+      async refreshUser() {
+        if (get().user.local) return;
+        try {
+          const user = await api.getUser();
+          set({ user });
+        } catch {
+          // Best-effort — a failed refresh shouldn't disrupt the current view.
+        }
       },
 
       async exportData() {

@@ -808,6 +808,9 @@
           "local": {
             "type": "boolean"
           },
+          "emailVerified": {
+            "type": "boolean"
+          },
           "plan": {
             "type": "string"
           },
@@ -841,6 +844,7 @@
           "name",
           "initials",
           "local",
+          "emailVerified",
           "plan",
           "renewsAt",
           "stats"

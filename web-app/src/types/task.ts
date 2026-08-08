@@ -83,6 +83,8 @@ export interface User {
   initials: string;
   /** Whether the account is local-only (no cloud sync). */
   local: boolean;
+  /** Whether the account's email address has been confirmed. */
+  emailVerified?: boolean;
   /** Subscription tier. */
   plan?: "free" | "pro";
   /** Renewal date for paid plans. */

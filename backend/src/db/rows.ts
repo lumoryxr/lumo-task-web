@@ -11,6 +11,7 @@ export interface UserRow {
   renews_at: string | null;
   created_at: string;
   session_version: number;
+  email_verified: number;
 }
 
 export interface TaskRow {
