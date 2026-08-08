@@ -11,6 +11,11 @@ import {
   PersonUpdateBodySchema,
 } from "./person.js";
 import { ApiErrorSchema } from "./error.js";
+import {
+  UserProfileWireSchema,
+  DataExportWireSchema,
+  DeleteAccountResponseSchema,
+} from "./user.js";
 import { LocalizedStringSchema, LongLocalizedStringSchema } from "./primitives.js";
 
 /**
@@ -116,5 +121,14 @@ export function personComponentSchemas(): Record<string, OpenApiSchema> {
 export function errorComponentSchemas(): Record<string, OpenApiSchema> {
   return {
     ApiError: zodToOpenApi(ApiErrorSchema),
+  };
+}
+
+/** Component schemas generated from the User contract. */
+export function userComponentSchemas(): Record<string, OpenApiSchema> {
+  return {
+    User: zodToOpenApi(UserProfileWireSchema),
+    DataExport: zodToOpenApi(DataExportWireSchema),
+    DeleteAccountResponse: zodToOpenApi(DeleteAccountResponseSchema),
   };
 }

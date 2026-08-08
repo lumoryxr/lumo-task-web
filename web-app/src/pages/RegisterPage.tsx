@@ -112,7 +112,28 @@ export function RegisterPage() {
                 <span className="rounded-[1px]" style={{ width: 8, height: 8, background: "var(--accent-primary)" }} />
               )}
             </button>
-            <span>{t("auth.terms")}</span>
+            <span>
+              {t("auth.terms")}{" "}
+              <a
+                href="/legal/terms"
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-text-primary"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {t("legal.terms.link")}
+              </a>
+              {" · "}
+              <a
+                href="/legal/privacy"
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-text-primary"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {t("legal.privacy.link")}
+              </a>
+            </span>
           </label>
 
           <button

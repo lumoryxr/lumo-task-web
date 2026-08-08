@@ -10,6 +10,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "@/api/client";
 import type { User } from "@/types/task";
+import type { DataExportWire } from "@lumo/contracts";
 import { presentError, detailOf } from "@/lib/presentError";
 import { useAIStore } from "@/store/useAIStore";
 import { useAppStore } from "@/store/useAppStore";
@@ -32,6 +33,10 @@ interface AuthState {
   signInWithProvider: (provider: "google" | "apple" | "github") => Promise<void>;
   register: (input: { email: string; password: string; confirm: string; nickname?: string }) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /** GDPR/CCPA export — returns the caller's full data bundle for download. */
+  exportData: () => Promise<DataExportWire>;
+  /** Irreversibly delete the account, then drop to a clean signed-out state. */
+  deleteAccount: () => Promise<void>;
   signOut: () => Promise<void>;
   /** Force-logout without an API call — used when the server returns 401 (session expired). */
   forceSignOut: () => void;
@@ -114,6 +119,22 @@ export const useAuthStore = create<AuthState>()(
           get().forceSignOut();
           throw e;
         }
+      },
+
+      async exportData() {
+        // Read-through to the API. The page owns presentation (busy state +
+        // success/error toast) and the file download.
+        return api.exportData();
+      },
+
+      async deleteAccount() {
+        // Wipe all user-specific client state BEFORE and after the call, the
+        // same way signOut does, so nothing survives the erasure locally.
+        useAIStore.getState().closeChat();
+        useAIStore.getState().clearHistory();
+        useAIStore.persist.clearStorage();
+        await api.deleteAccount();
+        set({ user: LOCAL_USER, loading: false, error: null });
       },
 
       async signOut() {

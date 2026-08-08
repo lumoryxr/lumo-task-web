@@ -14,9 +14,11 @@ export * from "./error.js";
 export * from "./ai.js";
 export * from "./calendar.js";
 export * from "./sync.js";
+export * from "./user.js";
 export {
   zodToOpenApi,
   taskComponentSchemas,
   personComponentSchemas,
   errorComponentSchemas,
+  userComponentSchemas,
 } from "./openapi.js";
