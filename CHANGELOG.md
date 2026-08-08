@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- feat: Account data export (GDPR/CCPA) — `GET /v1/user/export` returns a secret-free JSON bundle of all user-scoped data; surfaced in Account → Data & privacy as a download. Contract-first (`DataExportWire`)
+- feat: Account deletion (right to erasure) — `DELETE /v1/user` cascades across every user-scoped table; surfaced in Account → Danger zone behind an email-typing confirmation. Contract-first (`DeleteAccountResponse`)
+- feat: Bilingual Privacy Policy and Terms of Service pages at `/legal/privacy` and `/legal/terms`, linked from the registration consent line and the marketing footer (content pending legal review)
+- docs: `docs/LAUNCH_CHECKLIST.md` (P0/P1/P2 public-beta readiness) and `docs/GO_TO_MARKET.md` (promotion plan)
 - feat: Server-side task keyword search — `GET /v1/tasks?q=` filters by title/description (both locales), case-insensitive, LIKE-wildcard-escaped, contract-first (`TaskListQuerySchema`); `api.listTasks(q?)` on the web client
 - ci: GitLab CI/CD migrated from GitHub Actions (`.gitlab-ci.yml`) — 13-job gate, tag Release, manual Windows packaging; `.gitlab/` issue/MR templates, root `CODEOWNERS`, `docs/ENGINEERING_PROCESS.md`
 - feat: Habit check-in dialog + daily check-in badge (PR #126)
@@ -29,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced CLAUDE.md with multi-role collaboration guidelines
 
 ### Fixed
+- fix: Production frontend no longer silently falls back to `localhost:47291` when `VITE_API_BASE` is unset — it logs a loud error and falls back to same-origin `/v1`
+- fix: Dead landing-page footer links (Privacy, Terms, Contact, Documentation, Changelog) now point to real destinations
 - Removed hardcoded Windows-specific paths from .claude/settings.json
 
 ---
