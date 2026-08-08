@@ -21,6 +21,7 @@ import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
 import { httpError } from "../lib/errors.js";
+import { log } from "../lib/logger.js";
 import { dbMode } from "../db/client.js";
 import {
   SyncPullRequestSchema,
@@ -80,7 +81,7 @@ app.post("/enable", syncRateLimit, async (c) => {
       }
       return httpError(c, 502, "CLOUD_UNREACHABLE", "Cloud request failed");
     }
-    console.error("[sync/enable] failed:", err instanceof Error ? err.message : err);
+    log("error", { requestId: c.get("requestId"), route: "POST /v1/sync/enable", msg: err instanceof Error ? err.message : String(err) });
     return httpError(c, 500, "SYNC_FAILED", "Sync enable failed");
   }
 });
@@ -103,7 +104,7 @@ app.post("/now", syncRateLimit, async (c) => {
     if (err instanceof CloudError) {
       return httpError(c, 502, "CLOUD_UNREACHABLE", "Cloud request failed");
     }
-    console.error("[sync/now] failed:", err instanceof Error ? err.message : err);
+    log("error", { requestId: c.get("requestId"), route: "POST /v1/sync/now", msg: err instanceof Error ? err.message : String(err) });
     return httpError(c, 500, "SYNC_FAILED", "Sync cycle failed");
   }
 });
@@ -151,7 +152,7 @@ app.post("/push", syncRateLimit, async (c) => {
     if (code === "INVALID_ROW") {
       return httpError(c, 400, "INVALID_ROW", "A pushed row failed schema validation");
     }
-    console.error("[sync/push] failed:", err instanceof Error ? err.message : err);
+    log("error", { requestId: c.get("requestId"), route: "POST /v1/sync/push", msg: err instanceof Error ? err.message : String(err) });
     return httpError(c, 500, "SYNC_FAILED", "Sync push failed");
   }
 });

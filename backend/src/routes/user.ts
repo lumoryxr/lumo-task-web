@@ -3,6 +3,7 @@ import { query, queryOne, batch } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import type { Variables } from "../env.js";
 import { httpError } from "../lib/errors.js";
+import { log } from "../lib/logger.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
 import type { UserRow } from "../db/rows.js";
 import { dbMode } from "../db/client.js";
@@ -62,7 +63,7 @@ app.get("/", authMiddleware, async (c) => {
     };
     return c.json(profile);
   } catch (err) {
-    console.error("[user] GET /:", err instanceof Error ? err.message : err);
+    log("error", { requestId: c.get("requestId"), route: "GET /v1/user", msg: err instanceof Error ? err.message : String(err) });
     return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
   }
 });
@@ -139,7 +140,7 @@ app.get("/export", authMiddleware, exportLimit, async (c) => {
 
     return c.json(bundle);
   } catch (err) {
-    console.error("[user] GET /export:", err instanceof Error ? err.message : err);
+    log("error", { requestId: c.get("requestId"), route: "GET /v1/user/export", msg: err instanceof Error ? err.message : String(err) });
     return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
   }
 });
@@ -169,7 +170,7 @@ app.delete("/", authMiddleware, deleteLimit, async (c) => {
 
     return c.json({ ok: true } as const);
   } catch (err) {
-    console.error("[user] DELETE /:", err instanceof Error ? err.message : err);
+    log("error", { requestId: c.get("requestId"), route: "DELETE /v1/user", msg: err instanceof Error ? err.message : String(err) });
     return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
   }
 });

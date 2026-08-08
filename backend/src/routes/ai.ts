@@ -5,6 +5,7 @@ import { BreakdownRequestSchema } from "@lumo/contracts";
 import { query, queryOne, execute, batch } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
+import { log } from "../lib/logger.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
 import { hlcNow } from "../lib/hlc.js";
 import { decryptSecret } from "../lib/crypto.js";
@@ -196,7 +197,7 @@ Return ONLY a JSON array, no markdown:
         return c.json({ suggestions });
       }
     } catch (err: any) {
-      console.error("[ai/classify] LLM failed, falling back to heuristic:", err?.message);
+      log("warn", { requestId: c.get("requestId"), route: "POST /v1/ai/classify", fallback: "heuristic", msg: err?.message ?? String(err) });
     }
   }
 
@@ -210,7 +211,7 @@ Return ONLY a JSON array, no markdown:
 
   return c.json({ suggestions });
   } catch (err: any) {
-    console.error("[ai/classify] unexpected error:", err?.message);
+    log("error", { requestId: c.get("requestId"), route: "POST /v1/ai/classify", msg: err?.message ?? String(err) });
     return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
   }
 });
@@ -273,7 +274,7 @@ Choose the single most critical task to work on RIGHT NOW. Return ONLY valid JSO
         });
       }
     } catch (err: any) {
-      console.error("[ai/recommend] LLM failed, falling back to SQL sort:", err?.message);
+      log("warn", { requestId: c.get("requestId"), route: "POST /v1/ai/recommend", fallback: "sql-sort", msg: err?.message ?? String(err) });
     }
   }
 
@@ -291,7 +292,7 @@ Choose the single most critical task to work on RIGHT NOW. Return ONLY valid JSO
     },
   });
   } catch (err: any) {
-    console.error("[ai/recommend] unexpected error:", err?.message);
+    log("error", { requestId: c.get("requestId"), route: "POST /v1/ai/recommend", msg: err?.message ?? String(err) });
     return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
   }
 });
@@ -343,7 +344,7 @@ Input: "${text}"`;
     }
     return c.json({ title: text.trim(), quadrant: "unclassified", due: null, duration: null, confidence: 0 });
   } catch (err: any) {
-    console.error("[ai/parse] error:", err?.message);
+    log("warn", { requestId: c.get("requestId"), route: "POST /v1/ai/parse", fallback: "raw-title", msg: err?.message ?? String(err) });
     return c.json({ title: text.trim(), quadrant: "unclassified", due: null, duration: null, confidence: 0 });
   }
 });
@@ -695,11 +696,11 @@ Return ONLY a JSON array of strings, no markdown, no explanation:
 
       return c.json({ subtasks, cloudLimitReached: false });
     } catch (err: any) {
-      console.error("[ai/breakdown] LLM error:", err?.message);
+      log("warn", { requestId: c.get("requestId"), route: "POST /v1/ai/breakdown", stage: "llm", msg: err?.message ?? String(err) });
       return httpError(c, 502, "AI_UNAVAILABLE", "AI service unavailable. Please try again.");
     }
   } catch (err: any) {
-    console.error("[ai/breakdown] error:", err?.message);
+    log("error", { requestId: c.get("requestId"), route: "POST /v1/ai/breakdown", msg: err?.message ?? String(err) });
     return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
   }
 });
@@ -728,7 +729,7 @@ app.post("/chat", chatRateLimit, validate("json", ChatBody), async (c) => {
         return c.json({ reply: intent.reply, mood: "happy", fallback: false, toolsUsed: intent.toolsUsed });
       }
     } catch (err: any) {
-      console.error("[intent] error:", err?.message);
+      log("warn", { requestId: c.get("requestId"), route: "POST /v1/ai/chat", stage: "intent", msg: err?.message ?? String(err) });
     }
     const reply = fallbackReply({ q1Count: context?.q1Count, locale, userName: context?.userName, userMessage: lastUserMsg });
     return c.json({ reply, mood: inferMood(reply, context?.q1Count ?? 0), fallback: true, toolsUsed: [] });
@@ -798,7 +799,7 @@ app.post("/chat", chatRateLimit, validate("json", ChatBody), async (c) => {
       toolsUsed,
     });
   } catch (err: any) {
-    console.error("[ai/chat] LLM error:", err?.message ?? err);
+    log("warn", { requestId: c.get("requestId"), route: "POST /v1/ai/chat", stage: "llm", msg: err?.message ?? String(err) });
     return httpError(c, 502, "AI_UNAVAILABLE", "AI service unavailable. Please try again.");
   }
 });

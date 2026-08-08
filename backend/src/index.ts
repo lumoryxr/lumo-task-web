@@ -3,6 +3,7 @@ import { runMigrations } from "./db/migrate.js";
 import { app } from "./app.js";
 import { validateStartupSecrets } from "./lib/secret-policy.js";
 import { mountWebStatic } from "./lib/webStatic.js";
+import { log } from "./lib/logger.js";
 
 // Render/Heroku/most PaaS inject the bind port via PORT; LUMO_PORT is the local override.
 const port = parseInt(process.env.PORT ?? process.env.LUMO_PORT ?? "47291");
@@ -36,7 +37,7 @@ try {
 if (webRoot) {
   try {
     mountWebStatic(app, webRoot);
-    console.log(`Serving web app from ${webRoot}`);
+    log("info", { msg: "serving web app", webRoot });
   } catch (err) {
     console.error(`Refusing to start: web root "${webRoot}" is unusable: ${(err as Error).message}`);
     process.exit(1);
@@ -46,7 +47,7 @@ if (webRoot) {
 // Run migrations before accepting requests (the backend seeds no accounts).
 runMigrations()
   .then(() => {
-    console.log(`Lumo backend starting on ${hostname ?? "0.0.0.0"}:${port}`);
+    log("info", { msg: "backend started", host: hostname ?? "0.0.0.0", port });
     serve({ fetch: app.fetch, port, hostname });
     // NOTE: the desktop sync cadence is driven by the RENDERER (`useSyncEngine`),
     // not a backend timer. A backend loop advanced the pull cursor without the

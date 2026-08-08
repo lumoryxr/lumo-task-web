@@ -5,6 +5,7 @@ import { PersonCreateBodySchema, PersonUpdateBodySchema, type PersonWire } from 
 import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
+import { log } from "../lib/logger.js";
 import { hlcNow } from "../lib/hlc.js";
 import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
 import type { Variables } from "../env.js";
@@ -73,7 +74,7 @@ app.get("/", async (c) => {
 
     return c.json({ items: page.map(rowToPerson), nextCursor });
   } catch (err) {
-    console.error("[people] GET /:", err instanceof Error ? err.message : err);
+    log("error", { requestId: c.get("requestId"), route: "GET /v1/people", msg: err instanceof Error ? err.message : String(err) });
     return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
   }
 });
@@ -124,7 +125,7 @@ app.patch("/:id", validate("json", PersonUpdateBodySchema), async (c) => {
     const row = await queryOne<PersonRow>("SELECT * FROM people WHERE id = :id AND deleted_at IS NULL", { id: personId });
     return c.json(rowToPerson(row!));
   } catch (err) {
-    console.error("[people] PATCH /:id:", err instanceof Error ? err.message : err);
+    log("error", { requestId: c.get("requestId"), route: "PATCH /v1/people/:id", msg: err instanceof Error ? err.message : String(err) });
     return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
   }
 });
@@ -161,7 +162,7 @@ app.delete("/:id", async (c) => {
 
     return new Response(null, { status: 204 });
   } catch (err) {
-    console.error("[people] DELETE /:id:", err instanceof Error ? err.message : err);
+    log("error", { requestId: c.get("requestId"), route: "DELETE /v1/people/:id", msg: err instanceof Error ? err.message : String(err) });
     return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
   }
 });
