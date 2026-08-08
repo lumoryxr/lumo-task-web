@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import { swaggerUI } from "@hono/swagger-ui";
-import { taskComponentSchemas, personComponentSchemas, errorComponentSchemas } from "@lumo/contracts";
+import {
+  taskComponentSchemas,
+  personComponentSchemas,
+  errorComponentSchemas,
+  userComponentSchemas,
+} from "@lumo/contracts";
 
 const app = new Hono();
 
@@ -32,26 +37,9 @@ const spec = {
       // Person / PersonCreateBody / PersonUpdateBody are generated from the
       // @lumo/contracts Zod schemas (Contract-First — edit the contract, not here).
       ...personComponentSchemas(),
-      User: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          email: { type: "string" },
-          name: { type: "string" },
-          initials: { type: "string" },
-          local: { type: "boolean" },
-          plan: { type: "string", enum: ["free", "pro"] },
-          renewsAt: { type: "string", nullable: true },
-          stats: {
-            type: "object",
-            properties: {
-              tasks: { type: "integer" },
-              pomodoros: { type: "integer" },
-              syncOK: { type: "boolean" },
-            },
-          },
-        },
-      },
+      // User / DataExport / DeleteAccountResponse are generated from the
+      // @lumo/contracts Zod schemas (Contract-First — edit the contract, not here).
+      ...userComponentSchemas(),
       Settings: {
         type: "object",
         properties: {

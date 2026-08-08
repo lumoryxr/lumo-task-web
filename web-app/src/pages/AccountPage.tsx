@@ -1,8 +1,26 @@
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { IconArrowRight, IconCheck } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { DogEvolutionBadge } from "@/components/DogEvolutionBadge";
+import { useModalA11y } from "@/hooks/useModalA11y";
+import { toast } from "@/store/useToastStore";
+import { presentError } from "@/lib/presentError";
+
+/** Serialize `data` and trigger a client-side file download. */
+function downloadJson(filename: string, data: unknown) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 /**
  * /account — signed-in user profile + plan + usage + security + danger zone.
@@ -17,6 +35,24 @@ export function AccountPage() {
   const user = useAuthStore((s) => s.user);
   const isSignedIn = useAuthStore(selectIsSignedIn);
   const signOut = useAuthStore((s) => s.signOut);
+  const exportData = useAuthStore((s) => s.exportData);
+  const [exporting, setExporting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  async function handleExport() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const bundle = await exportData();
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadJson(`lumo-export-${stamp}.json`, bundle);
+      toast.success(t("account.export.success"));
+    } catch (e) {
+      presentError(e, "account.export.err");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   if (!isSignedIn) {
     return (
@@ -186,7 +222,170 @@ export function AccountPage() {
           </button>
         </Row>
       </Group>
+
+      {/* Data & privacy */}
+      <Group title={t("account.data")}>
+        <Row label={t("account.export")} helper={t("account.export.desc")}>
+          <button
+            className="btn btn-secondary"
+            onClick={handleExport}
+            disabled={exporting}
+            aria-busy={exporting}
+          >
+            {exporting ? t("account.export.busy") : t("account.export.btn")}
+          </button>
+        </Row>
+      </Group>
+
+      {/* Danger zone */}
+      <Group title={t("account.danger")} danger>
+        <Row label={t("account.delete")} helper={t("account.delete.desc")}>
+          <button
+            className="btn btn-secondary"
+            style={{ color: "var(--status-urgent)", borderColor: "rgba(255,107,107,0.4)" }}
+            onClick={() => setDeleteOpen(true)}
+          >
+            {t("account.delete.btn")}
+          </button>
+        </Row>
+      </Group>
+
+      <DeleteAccountDialog
+        open={deleteOpen}
+        expectedEmail={user.email}
+        onCancel={() => setDeleteOpen(false)}
+        onDeleted={() => {
+          setDeleteOpen(false);
+          toast.success(t("account.delete.success"));
+          navigate("/today");
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * Irreversible account-deletion confirmation. Requires the user to type their
+ * own email before the destructive action unlocks — a deliberate friction gate
+ * so a misclick can never erase an account.
+ */
+function DeleteAccountDialog({
+  open,
+  expectedEmail,
+  onCancel,
+  onDeleted,
+}: {
+  open: boolean;
+  expectedEmail: string;
+  onCancel: () => void;
+  onDeleted: () => void;
+}) {
+  const t = useT();
+  const deleteAccount = useAuthStore((s) => s.deleteAccount);
+  const [confirmText, setConfirmText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const close = () => {
+    if (busy) return;
+    setConfirmText("");
+    onCancel();
+  };
+  const dialogRef = useModalA11y<HTMLDivElement>(close, open);
+
+  if (!open) return null;
+
+  const matches = confirmText.trim().toLowerCase() === expectedEmail.trim().toLowerCase();
+
+  async function handleDelete() {
+    if (!matches || busy) return;
+    setBusy(true);
+    try {
+      await deleteAccount();
+      setConfirmText("");
+      onDeleted();
+    } catch (e) {
+      presentError(e, "account.delete.err");
+      setBusy(false);
+    }
+  }
+
+  return createPortal(
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", padding: 16,
+      }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={t("account.delete.modal.title")}
+        ref={dialogRef}
+        tabIndex={-1}
+        style={{
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border-default)",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-lifted)",
+          width: 420, maxWidth: "calc(100vw - 32px)",
+        }}
+      >
+        <div style={{ padding: "20px 20px 16px" }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--status-urgent)" }}>
+            {t("account.delete.modal.title")}
+          </h2>
+          <p style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.5, color: "var(--text-secondary)" }}>
+            {t("account.delete.modal.body")}
+          </p>
+          <label
+            htmlFor="delete-confirm-email"
+            style={{ display: "block", margin: "16px 0 6px", fontSize: 12, color: "var(--text-muted)" }}
+          >
+            {t("account.delete.modal.prompt")}
+          </label>
+          <input
+            id="delete-confirm-email"
+            type="email"
+            autoComplete="off"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder={expectedEmail}
+            disabled={busy}
+            className="input"
+            style={{ width: "100%" }}
+          />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "0 20px 20px" }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={close}
+            disabled={busy}
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={!matches || busy}
+            aria-busy={busy}
+            style={{
+              padding: "8px 20px", borderRadius: "var(--radius-md)",
+              border: "1px solid rgba(255,107,107,0.4)",
+              background: matches && !busy ? "rgba(255,107,107,0.12)" : "var(--bg-deep)",
+              color: matches && !busy ? "var(--status-urgent)" : "var(--text-faint)",
+              fontSize: 13, fontWeight: 600,
+              cursor: matches && !busy ? "pointer" : "not-allowed",
+            }}
+          >
+            {busy ? t("account.delete.modal.busy") : t("account.delete.modal.cta")}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -1,7 +1,12 @@
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { taskComponentSchemas, personComponentSchemas, errorComponentSchemas } from "../openapi.js";
+import {
+  taskComponentSchemas,
+  personComponentSchemas,
+  errorComponentSchemas,
+  userComponentSchemas,
+} from "../openapi.js";
 
 /**
  * Emits the contract-generated portion of the OpenAPI document.
@@ -26,6 +31,7 @@ const doc = {
       ...taskComponentSchemas(),
       ...personComponentSchemas(),
       ...errorComponentSchemas(),
+      ...userComponentSchemas(),
     },
   },
 };

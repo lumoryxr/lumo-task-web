@@ -214,7 +214,21 @@
               ]
             }
           },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "project_id": {
+            "type": "string",
+            "nullable": true
+          },
           "scheduled_start": {
+            "type": "string",
+            "nullable": true
+          },
+          "remind_at": {
             "type": "string",
             "nullable": true
           },
@@ -244,6 +258,7 @@
           "recurrence",
           "subtasks",
           "scheduled_start",
+          "remind_at",
           "created_at",
           "updated_at"
         ]
@@ -251,6 +266,9 @@
       "TaskCreateBody": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string"
+          },
           "title": {
             "type": "object",
             "properties": {
@@ -418,7 +436,21 @@
               ]
             }
           },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "project_id": {
+            "type": "string",
+            "nullable": true
+          },
           "scheduled_start": {
+            "type": "string",
+            "nullable": true
+          },
+          "remind_at": {
             "type": "string",
             "nullable": true
           }
@@ -430,6 +462,9 @@
       "TaskUpdateBody": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string"
+          },
           "title": {
             "type": "object",
             "properties": {
@@ -597,7 +632,21 @@
               ]
             }
           },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "project_id": {
+            "type": "string",
+            "nullable": true
+          },
           "scheduled_start": {
+            "type": "string",
+            "nullable": true
+          },
+          "remind_at": {
             "type": "string",
             "nullable": true
           }
@@ -656,6 +705,9 @@
       "PersonCreateBody": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -679,6 +731,9 @@
       "PersonUpdateBody": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -705,6 +760,24 @@
               },
               "message": {
                 "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "message"
+                  ]
+                }
               }
             },
             "required": [
@@ -715,6 +788,170 @@
         },
         "required": [
           "error"
+        ]
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "initials": {
+            "type": "string"
+          },
+          "local": {
+            "type": "boolean"
+          },
+          "plan": {
+            "type": "string"
+          },
+          "renewsAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "tasks": {
+                "type": "number"
+              },
+              "pomodoros": {
+                "type": "number"
+              },
+              "syncOK": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "tasks",
+              "pomodoros",
+              "syncOK"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "initials",
+          "local",
+          "plan",
+          "renewsAt",
+          "stats"
+        ]
+      },
+      "DataExport": {
+        "type": "object",
+        "properties": {
+          "format_version": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "exported_at": {
+            "type": "string"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "initials": {
+                "type": "string"
+              },
+              "plan": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "name",
+              "initials",
+              "plan",
+              "created_at"
+            ]
+          },
+          "settings": {
+            "nullable": true
+          },
+          "tasks": {
+            "type": "array",
+            "items": {}
+          },
+          "completed": {
+            "type": "array",
+            "items": {}
+          },
+          "people": {
+            "type": "array",
+            "items": {}
+          },
+          "habits": {
+            "type": "array",
+            "items": {}
+          },
+          "habit_logs": {
+            "type": "array",
+            "items": {}
+          },
+          "countdowns": {
+            "type": "array",
+            "items": {}
+          },
+          "projects": {
+            "type": "array",
+            "items": {}
+          },
+          "templates": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "format_version",
+          "exported_at",
+          "user",
+          "settings",
+          "tasks",
+          "completed",
+          "people",
+          "habits",
+          "habit_logs",
+          "countdowns",
+          "projects",
+          "templates"
+        ]
+      },
+      "DeleteAccountResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "ok"
         ]
       }
     }

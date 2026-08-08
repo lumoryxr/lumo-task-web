@@ -3,13 +3,15 @@
  *
  * Base URL is resolved once at startup:
  *  - Electron: port from Electron IPC (injected by main.cjs)
- *  - Dev/web:  VITE_API_BASE env var, or http://localhost:47291/v1
+ *  - Web:      VITE_API_BASE env var. In a production build without it, we log a
+ *              loud error and fall back to same-origin "/v1" (never localhost).
+ *  - Dev:      VITE_API_BASE, or http://localhost:47291/v1
  *
  * JWT token is stored in localStorage and attached to every request.
  */
 
 import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, ProjectTemplate, Template, TemplatePayload, ProjectTemplatePayload, User } from "@/types/task";
-import type { SyncStatusResponse, SyncCycleResponse } from "@lumo/contracts";
+import type { SyncStatusResponse, SyncCycleResponse, DataExportWire } from "@lumo/contracts";
 import { ApiError } from "@/api/ApiError";
 
 // ── Base URL ─────────────────────────────────────────────────────────────────
@@ -22,7 +24,23 @@ async function getBase(): Promise<string> {
     const port = await window.electronAPI.getApiPort();
     resolvedBase = `http://127.0.0.1:${port}/v1`;
   } else {
-    resolvedBase = ((import.meta as any).env?.VITE_API_BASE as string | undefined) ?? "http://localhost:47291/v1";
+    const env = (import.meta as any).env ?? {};
+    const configured = env.VITE_API_BASE as string | undefined;
+    if (configured) {
+      resolvedBase = configured;
+    } else if (env.PROD) {
+      // A production bundle shipped without VITE_API_BASE must NOT silently point
+      // at localhost — every user's app would look broken with no clue why. Fail
+      // loudly and fall back to same-origin `/v1` (correct when the API is served
+      // behind the same host), which is far less wrong than a dev localhost port.
+      console.error(
+        "[lumo] VITE_API_BASE was not set at build time. Falling back to same-origin '/v1'. " +
+          "Set VITE_API_BASE to your backend URL in the production build to fix this."
+      );
+      resolvedBase = "/v1";
+    } else {
+      resolvedBase = "http://localhost:47291/v1";
+    }
   }
   return resolvedBase;
 }
@@ -383,6 +401,22 @@ const LOCAL_USER: User = {
 export const api = {
   async getUser(): Promise<User> {
     return req<User>("GET", "/user");
+  },
+
+  /** GDPR/CCPA "download my data" — the full account export bundle (no secrets). */
+  async exportData(): Promise<DataExportWire> {
+    return req<DataExportWire>("GET", "/user/export");
+  },
+
+  /**
+   * Irreversibly delete the signed-in account and every row it owns. On success
+   * the server has erased the user, so the local tokens are now dead — clear
+   * them so the client drops to a clean signed-out state.
+   */
+  async deleteAccount(): Promise<void> {
+    await req<{ ok: true }>("DELETE", "/user");
+    clearToken();
+    clearRefreshToken();
   },
 
   async signIn(input: { email: string; password: string }): Promise<User> {
