@@ -428,8 +428,38 @@ export const api = {
     return res.user;
   },
 
-  async signInWithProvider(_provider: "google" | "apple" | "github"): Promise<User> {
-    throw new Error("OAuth providers are not yet supported in local mode.");
+  /**
+   * Whether GitHub login is enabled on this backend. Env-gated: the server only
+   * reports `true` once its GitHub OAuth credentials are provisioned, so the
+   * frontend can hide the button in a not-yet-configured production build.
+   */
+  async getGithubConfig(): Promise<{ githubEnabled: boolean }> {
+    return req<{ githubEnabled: boolean }>("GET", "/auth/github/config");
+  },
+
+  /**
+   * Absolute URL of the backend's GitHub authorize entrypoint. The login page
+   * navigates the whole window here (not fetch) so the browser follows the 302
+   * to GitHub — an XHR could not complete the cross-origin auth redirect.
+   */
+  async githubStartUrl(): Promise<string> {
+    return `${await getBase()}/auth/github/start`;
+  },
+
+  /**
+   * Trade the one-time handoff `code` from the OAuth callback for a Lumo session.
+   * Stores the returned tokens and resolves with the signed-in user. Single-use:
+   * the backend rejects a replayed code.
+   */
+  async exchangeGithubCode(code: string): Promise<User> {
+    const res = await req<{ token: string; refreshToken?: string; user: User }>(
+      "POST",
+      "/auth/github/exchange",
+      { code },
+    );
+    setToken(res.token);
+    if (res.refreshToken) setRefreshToken(res.refreshToken);
+    return res.user;
   },
 
   /**

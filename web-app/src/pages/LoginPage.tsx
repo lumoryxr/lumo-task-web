@@ -1,17 +1,20 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { AuthShell } from "@/components/AuthShell";
 import { OAuthButton } from "@/components/OAuthButton";
 import { LegalModal } from "@/components/LegalModal";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
+import { api } from "@/api/client";
+import { toast } from "@/store/useToastStore";
 import { presentError, fieldErrorsOf } from "@/lib/presentError";
 import { Spinner } from "@/components/Spinner";
 import type { LegalDocKey } from "@/pages/legal/content";
 
 /**
- * /login — email + password + 3 OAuth providers + "continue without
- * account" escape hatch (Lumo is local-first; sign-in is optional).
+ * /login — username + password, plus a single GitHub OAuth button that is
+ * rendered only when the backend reports GitHub login enabled (#15). Sign-in
+ * is mandatory (#14): there is no "continue without an account" escape hatch.
  */
 export function LoginPage() {
   const t = useT();
@@ -21,6 +24,43 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [legalDoc, setLegalDoc] = useState<LegalDocKey | null>(null);
+  // GitHub login is env-gated on the backend: only render its button once the
+  // server reports it enabled. `null` = still unknown (hide until we know), so a
+  // not-yet-configured production never flashes a button that would 501.
+  const [githubEnabled, setGithubEnabled] = useState<boolean | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
+  const [searchParams] = useSearchParams();
+  const oauthErrorShown = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getGithubConfig()
+      .then((cfg) => { if (active) setGithubEnabled(cfg.githubEnabled); })
+      .catch(() => { if (active) setGithubEnabled(false); });
+    return () => { active = false; };
+  }, []);
+
+  // A failed GitHub sign-in redirects back here as /login?error=oauth. Surface
+  // it once (ref-guarded so a re-render can't re-toast the same failure).
+  useEffect(() => {
+    if (searchParams.get("error") === "oauth" && !oauthErrorShown.current) {
+      oauthErrorShown.current = true;
+      toast.error(t("auth.oauth.err"));
+    }
+  }, [searchParams, t]);
+
+  async function startGithub() {
+    setRedirecting(true);
+    try {
+      // Full-page navigation so the browser follows the 302 to GitHub (an XHR
+      // cannot complete the cross-origin auth redirect).
+      window.location.href = await api.githubStartUrl();
+    } catch (err) {
+      setRedirecting(false);
+      presentError(err, "error.auth.signin");
+    }
+  }
 
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
@@ -80,13 +120,19 @@ export function LoginPage() {
           </button>
         </div>
 
-        <Divider label={t("auth.or")} />
-
-        <div className="flex flex-col gap-2">
-          <OAuthButton provider="google" label={t("auth.google")} comingSoon />
-          <OAuthButton provider="apple" label={t("auth.apple")} comingSoon />
-          <OAuthButton provider="github" label={t("auth.github")} comingSoon />
-        </div>
+        {githubEnabled && (
+          <>
+            <Divider label={t("auth.or")} />
+            <div className="flex flex-col gap-2">
+              <OAuthButton
+                provider="github"
+                label={t("auth.github")}
+                onClick={startGithub}
+                disabled={redirecting}
+              />
+            </div>
+          </>
+        )}
 
         <div className="mt-[18px] flex justify-center gap-3.5 text-xs text-text-secondary">
           <button

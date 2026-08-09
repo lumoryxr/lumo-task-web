@@ -17,6 +17,8 @@ export interface UserRow {
   created_at: string;
   session_version: number;
   email_verified: number;
+  /** GitHub identity id (numeric, stored as text). NULL until linked (#15). */
+  github_user_id: string | null;
 }
 
 export interface TaskRow {

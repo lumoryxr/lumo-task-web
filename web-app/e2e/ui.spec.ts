@@ -614,7 +614,7 @@ test("TC11 – Onboarding: step counter advances correctly 1→2→3", async ({ 
 // TC12–TC18  Auth pages
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("TC12 – Login: username, password, submit, and OAuth buttons visible", async ({ page }) => {
+test("TC12 – Login: username, password, submit visible; Google/Apple removed (#15)", async ({ page }) => {
   await skipOnboarding(page);
   await page.goto("/#/login");
   await expect(page.locator('input[autocomplete="username"]')).toBeVisible();
@@ -622,7 +622,10 @@ test("TC12 – Login: username, password, submit, and OAuth buttons visible", as
   const submitBtn = page.locator('button[type="submit"]');
   await expect(submitBtn).toBeVisible();
   await expect(submitBtn).toBeEnabled();
-  await expect(page.getByText(/continue with google/i)).toBeVisible();
+  // Google/Apple stubs were removed (#15); GitHub is the only provider and is
+  // env-gated (hidden unless the backend has GitHub credentials configured).
+  await expect(page.getByText(/continue with google/i)).toHaveCount(0);
+  await expect(page.getByText(/continue with apple/i)).toHaveCount(0);
 });
 
 test("TC13 – Login: 'Create account' navigates to /register", async ({ page }) => {

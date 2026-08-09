@@ -24,6 +24,7 @@ export const PUBLIC_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/verify-email",
+  "/oauth/github",
   "/legal/privacy",
   "/legal/terms",
 ] as const;

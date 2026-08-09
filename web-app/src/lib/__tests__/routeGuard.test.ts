@@ -38,6 +38,13 @@ describe("guardRedirect — mandatory-login gate", () => {
     expect(guardRedirect("/legal/privacy", SIGNED_OUT)).toBeNull();
   });
 
+  it("REGRESSION: the GitHub OAuth landing route is public (the user is not yet signed in)", () => {
+    // The callback lands here signed-out to exchange its one-time code; bouncing
+    // it to /login would abort the sign-in before it completes.
+    expect(isPublicPath("/oauth/github")).toBe(true);
+    expect(guardRedirect("/oauth/github", SIGNED_OUT)).toBeNull();
+  });
+
   it("lets a signed-in user through to protected routes", () => {
     expect(guardRedirect("/today", SIGNED_IN)).toBeNull();
     expect(guardRedirect("/account", SIGNED_IN)).toBeNull();
