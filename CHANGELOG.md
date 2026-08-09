@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced CLAUDE.md with multi-role collaboration guidelines
 
 ### Fixed
+- test: Migrated the backend integration suite (`integration.test.ts`), the daily DFX regression suite (`dfx.integration.test.ts`), and all Playwright/Electron e2e specs to the username-first auth contract (#17) — register/signin now use `{ username, password }`, the profile asserts `username` + `email: null`, the register e2e flow drives the new one-time recovery-code gate, and the `#387` robustness ACs were rewritten to pin the username validation bounds (charset / length / reserved / min) instead of the removed email-shape + `name`-length bounds. Fixes RED CI on the integration + e2e jobs
 - fix: Production frontend no longer silently falls back to `localhost:47291` when `VITE_API_BASE` is unset — it logs a loud error and falls back to same-origin `/v1`
 - fix: Dead landing-page footer links (Privacy, Terms, Contact, Documentation, Changelog) now point to real destinations
 - Removed hardcoded Windows-specific paths from .claude/settings.json

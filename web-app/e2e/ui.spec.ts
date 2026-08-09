@@ -99,10 +99,12 @@ async function skipOnboardingAndSignIn(page: Page) {
 
 const MOCK_USER = {
   id: "u1",
+  username: "alex",
   email: "alex@stride.studio",
   name: "Alex",
   initials: "AL",
   local: false,
+  emailVerified: true,
   plan: "free",
   stats: { tasks: 5, pomodoros: 3, syncOK: false },
 };
@@ -350,10 +352,12 @@ async function mockAPIWithData(page: Page) {
       });
     }
     if (method === "POST" && url.includes("/v1/auth/register")) {
+      // Username-first register returns the one-time recovery code, which the
+      // RegisterPage surfaces via the RecoveryCodeCard gate before routing on.
       return route.fulfill({
         status: 201,
         contentType: "application/json",
-        body: JSON.stringify({ token: "mock-token", user: MOCK_USER }),
+        body: JSON.stringify({ token: "mock-token", recoveryCode: "MOCK-RECOVERY-CODE-1234", user: MOCK_USER }),
       });
     }
 
@@ -610,10 +614,10 @@ test("TC11 – Onboarding: step counter advances correctly 1→2→3", async ({ 
 // TC12–TC18  Auth pages
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("TC12 – Login: email, password, submit, and OAuth buttons visible", async ({ page }) => {
+test("TC12 – Login: username, password, submit, and OAuth buttons visible", async ({ page }) => {
   await skipOnboarding(page);
   await page.goto("/#/login");
-  await expect(page.locator('input[type="email"]')).toBeVisible();
+  await expect(page.locator('input[autocomplete="username"]')).toBeVisible();
   await expect(page.locator('input[type="password"]')).toBeVisible();
   const submitBtn = page.locator('button[type="submit"]');
   await expect(submitBtn).toBeVisible();
@@ -632,12 +636,11 @@ test("TC13 – Login: 'Create account' navigates to /register", async ({ page })
   await expect(page).toHaveURL(/register/);
 });
 
-test("TC14 – Register: email, two password fields, nickname, and submit present", async ({ page }) => {
+test("TC14 – Register: username, two password fields, and submit present", async ({ page }) => {
   await skipOnboarding(page);
   await page.goto("/#/register");
-  await expect(page.locator('input[type="email"]')).toBeVisible();
+  await expect(page.locator('input[autocomplete="username"]')).toBeVisible();
   await expect(page.locator('input[type="password"]')).toHaveCount(2);
-  await expect(page.locator('input[type="text"]')).toBeVisible();
   await expect(page.locator('button[type="submit"]')).toBeVisible();
 });
 
@@ -645,7 +648,7 @@ test("TC15 – Register: mismatched passwords shows validation error", async ({ 
   await skipOnboarding(page);
   await mockAPIWithData(page);
   await page.goto("/#/register");
-  await page.locator('input[type="email"]').fill("test@example.com");
+  await page.locator('input[autocomplete="username"]').fill("testuser");
   await page.locator('input[type="password"]').first().fill("Password!123");
   await page.locator('input[type="password"]').nth(1).fill("Different!456");
   await page.locator('button[type="submit"]').click();
@@ -654,24 +657,30 @@ test("TC15 – Register: mismatched passwords shows validation error", async ({ 
   ).toBeVisible({ timeout: 10_000 });
 });
 
-test("TC16 – Register: successful mock submit navigates to app shell", async ({ page }) => {
+test("TC16 – Register: successful mock submit → recovery-code gate → app shell", async ({ page }) => {
   await skipOnboarding(page);
   await mockAPIWithData(page);
   await page.goto("/#/register");
-  await page.locator('input[type="email"]').fill("newuser@lumo.test");
+  await page.locator('input[autocomplete="username"]').fill("newuser");
   await page.locator('input[type="password"]').first().fill("NewPass!123");
   await page.locator('input[type="password"]').nth(1).fill("NewPass!123");
   const tos = page.locator('input[type="checkbox"]');
   if (await tos.count() > 0) await tos.first().check();
   await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/#\/(today|matrix)/, { timeout: 10_000 });
+
+  // Post-register: the one-time recovery-code gate is shown before routing on.
+  await expect(page.getByTestId("recovery-code")).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: "I've saved my recovery code" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page).toHaveURL(/#\/today/, { timeout: 10_000 });
 });
 
 test("TC17 – Login: successful mock submit navigates to Today", async ({ page }) => {
   await skipOnboarding(page);
   await mockAPIWithData(page);
   await page.goto("/#/login");
-  await page.locator('input[type="email"]').fill("alex@stride.studio");
+  await page.locator('input[autocomplete="username"]').fill("alex");
   await page.locator('input[type="password"]').fill("Password!123");
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/#\/(today|matrix)/, { timeout: 10_000 });

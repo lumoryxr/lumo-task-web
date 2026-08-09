@@ -59,6 +59,8 @@ test.describe("Electron app", () => {
 
   // Records whether the app showed onboarding before auth was injected.
   let onboardingShownOnFreshStart = false;
+  // The username the fixture registered with — asserted on the account page below.
+  let registeredUsername = "";
 
   test.beforeAll(async () => {
     // Scrub the secrets the desktop app must provision itself. In a real
@@ -101,19 +103,21 @@ test.describe("Electron app", () => {
       .isVisible({ timeout: 8_000 })
       .catch(() => false);
 
-    // Register a unique user directly via the embedded backend.
-    const email = `electron-e2e-${Date.now()}@lumo.test`;
+    // Register a unique user directly via the embedded backend. Auth is
+    // username-first (commit 1945fba): the body is { username, password }.
+    const username = `electron-e2e-${Date.now()}`;
+    registeredUsername = username;
     const authData = await page.evaluate(
-      async ({ email, port }: { email: string; port: number }) => {
+      async ({ username, port }: { username: string; port: number }) => {
         const r = await fetch(`http://127.0.0.1:${port}/v1/auth/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password: "E2eTest!23", name: "E2E Tester" }),
+          body: JSON.stringify({ username, password: "E2eTest!23" }),
         });
         if (!r.ok) return null;
         return r.json() as Promise<{ token: string; user: object }>;
       },
-      { email, port: backendPort }
+      { username, port: backendPort }
     );
 
     if (!authData) throw new Error(`Registration failed on port ${backendPort}`);
@@ -541,10 +545,12 @@ test.describe("Electron app", () => {
   // Account
   // ─────────────────────────────────────────────────────────────────────────
 
-  test("ACC01 – Account page shows signed-in user's email", async () => {
+  test("ACC01 – Account page shows the signed-in user's username", async () => {
     await goto(page, "/account");
     await expect(page.getByText("Account").first()).toBeVisible({ timeout: 8_000 });
-    await expect(page.getByText(/lumo\.test/i)).toBeVisible({ timeout: 5_000 });
+    // Username-first: the account has no email until /bind-email, so the identity
+    // shown is the registered username (which the app also uses as the name).
+    await expect(page.getByText(registeredUsername).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("ACC02 – Account page has a 'Sign out' button", async () => {

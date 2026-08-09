@@ -2,9 +2,14 @@
  * Production site validation suite.
  *
  * Targets the LIVE deployed frontend and backend (no mocks, no dev server).
- * Each test creates its own ephemeral account `qa-bot-<rand>@lumo-test.example`
- * so reruns don't collide. Suite caps register operations to stay below the
- * backend's 10/IP/minute auth rate limit.
+ * Each test creates its own ephemeral account with a unique `qabot<rand>`
+ * username (auth is username-first as of commit 1945fba) so reruns don't
+ * collide. Suite caps register operations to stay below the backend's
+ * 10/IP/minute auth rate limit.
+ *
+ * NOTE: this suite is NOT part of `make ci` — it runs manually against the live
+ * deployment. It assumes the deployed backend serves the username-first contract
+ * ({ username, password }); run it only after the auth migration has deployed.
  *
  * Coverage map (see docs/qa/prod-site-validation-2026-06-23.md):
  *   AC-1   Site availability
@@ -31,18 +36,17 @@ const FRONTEND_BASE =
 const API_BASE =
   process.env.PROD_API_BASE ?? "https://lumo-task-backend-1c3x.onrender.com";
 
-const TEST_EMAIL_DOMAIN = "lumo-test.example";
-
 function randomId(): string {
   return Math.random().toString(36).slice(2, 14);
 }
 
 function makeAccount() {
   const id = randomId();
+  // Username-first: [A-Za-z0-9_-], 3–32 chars. A "qabot" prefix + base36 id is
+  // always in-charset and never reserved / separator-bounded.
   return {
-    email: `qa-bot-${id}@${TEST_EMAIL_DOMAIN}`,
+    username: `qabot${id}`,
     password: "QaBotPass!2026",
-    name: `QA Bot ${id.slice(0, 4)}`,
   };
 }
 
@@ -67,10 +71,10 @@ async function registerViaApi(api: APIRequestContext, account = makeAccount()) {
       data: account,
       timeout: 60_000,
     });
-    expect(res.status(), `register ${account.email}`).toBe(201);
+    expect(res.status(), `register ${account.username}`).toBe(201);
     const body = await res.json();
     expect(body.token).toBeTruthy();
-    expect(body.user?.email).toBe(account.email);
+    expect(body.user?.username).toBe(account.username);
     return { account, token: body.token as string, user: body.user };
   });
 }
@@ -215,14 +219,15 @@ test("AC-3.2 — Selecting 中文 updates UI text to Chinese", async ({ page }) 
 // AC-4  Auth (real backend)
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("AC-4.1 — POST /v1/auth/register with fresh email → 201", async ({ request }) => {
+test("AC-4.1 — POST /v1/auth/register with a fresh username → 201", async ({ request }) => {
   const account = makeAccount();
   const { user } = await registerViaApi(request, account);
-  expect(user.email).toBe(account.email);
+  expect(user.username).toBe(account.username);
+  expect(user.email).toBeNull();
   expect(user.plan).toBe("free");
 });
 
-test("AC-4.2 — Duplicate register returns 409 EMAIL_TAKEN", async ({ request }) => {
+test("AC-4.2 — Duplicate register returns 409 USERNAME_TAKEN", async ({ request }) => {
   const account = makeAccount();
   await registerViaApi(request, account);
 
@@ -235,7 +240,7 @@ test("AC-4.2 — Duplicate register returns 409 EMAIL_TAKEN", async ({ request }
   expect(second.status()).toBe(409);
   const body = await second.json();
   const code = body?.error?.code ?? body?.code;
-  expect(String(code)).toMatch(/EMAIL_TAKEN/i);
+  expect(String(code)).toMatch(/USERNAME_TAKEN/i);
 });
 
 test("AC-4.4 — Register via API then sign-in via API succeeds", async ({ request }) => {
@@ -243,7 +248,7 @@ test("AC-4.4 — Register via API then sign-in via API succeeds", async ({ reque
 
   const signin = await throttleAuth(() =>
     request.post(`${API_BASE}/v1/auth/signin`, {
-      data: { email: account.email, password: account.password },
+      data: { username: account.username, password: account.password },
       timeout: 60_000,
     })
   );

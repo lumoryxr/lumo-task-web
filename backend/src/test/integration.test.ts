@@ -126,34 +126,35 @@ describe("Health check", () => {
 describe("Auth lifecycle", () => {
   test("register alice → 201, returns token + user", async () => {
     const { status, body } = await api("POST", "/v1/auth/register", {
-      body: { email: "alice@lumo.test", password: "Secret1234!", name: "Alice" },
+      body: { username: "alice", password: "Secret1234!" },
     });
     assert.equal(status, 201);
     assert.ok(body.token, "token missing");
-    assert.equal(body.user.email, "alice@lumo.test");
-    assert.equal(body.user.name, "Alice");
+    assert.equal(body.user.username, "alice");
+    assert.equal(body.user.email, null);
+    assert.equal(body.user.name, "alice");
     assert.equal(body.user.plan, "free");
     aliceToken = body.token;
     aliceId = body.user.id;
   });
 
-  test("duplicate email → 409", async () => {
+  test("duplicate username → 409", async () => {
     const { status } = await api("POST", "/v1/auth/register", {
-      body: { email: "alice@lumo.test", password: "Other1234!", name: "Alice2" },
+      body: { username: "alice", password: "Other1234!" },
     });
     assert.equal(status, 409);
   });
 
-  test("register with invalid email → 400", async () => {
+  test("register with invalid username → 400", async () => {
     const { status } = await api("POST", "/v1/auth/register", {
-      body: { email: "not-an-email", password: "password", name: "X" },
+      body: { username: "ab", password: "Secret1234!" },
     });
     assert.equal(status, 400);
   });
 
   test("sign in with correct credentials → 200, new token", async () => {
     const { status, body } = await api("POST", "/v1/auth/signin", {
-      body: { email: "alice@lumo.test", password: "Secret1234!" },
+      body: { username: "alice", password: "Secret1234!" },
     });
     assert.equal(status, 200);
     assert.ok(body.token);
@@ -162,7 +163,7 @@ describe("Auth lifecycle", () => {
 
   test("sign in with wrong password → 401", async () => {
     const { status } = await api("POST", "/v1/auth/signin", {
-      body: { email: "alice@lumo.test", password: "WrongPass!" },
+      body: { username: "alice", password: "WrongPass!" },
     });
     assert.equal(status, 401);
   });
@@ -171,7 +172,8 @@ describe("Auth lifecycle", () => {
     const { status, body } = await api("GET", "/v1/user", { token: aliceToken });
     assert.equal(status, 200);
     assert.equal(body.id, aliceId);
-    assert.equal(body.email, "alice@lumo.test");
+    assert.equal(body.username, "alice");
+    assert.equal(body.email, null);
     assert.ok(!("password_hash" in body), "password_hash must not be exposed");
     assert.ok(!("hasApiKey" in body) || typeof body.hasApiKey === "boolean", "hasApiKey should be boolean if present");
   });
@@ -189,13 +191,13 @@ describe("Auth lifecycle", () => {
     assert.equal(status, 200);
 
     const { status: s } = await api("POST", "/v1/auth/signin", {
-      body: { email: "alice@lumo.test", password: "Secret1234!" },
+      body: { username: "alice", password: "Secret1234!" },
     });
     assert.equal(s, 401, "old password should be rejected");
 
     // Restore for subsequent tests
     const { body: rb } = await api("POST", "/v1/auth/signin", {
-      body: { email: "alice@lumo.test", password: "NewSecret99!" },
+      body: { username: "alice", password: "NewSecret99!" },
     });
     aliceToken = rb.token;
   });
@@ -204,7 +206,7 @@ describe("Auth lifecycle", () => {
     // Sign in with a SEPARATE session to test sign-out without revoking aliceToken,
     // which is needed by subsequent test suites.
     const { body: rb } = await api("POST", "/v1/auth/signin", {
-      body: { email: "alice@lumo.test", password: "NewSecret99!" },
+      body: { username: "alice", password: "NewSecret99!" },
     });
     const tempToken = rb.token;
 
@@ -694,7 +696,7 @@ describe("Multi-user data isolation", () => {
   before(async () => {
     // Register bob
     const { body } = await api("POST", "/v1/auth/register", {
-      body: { email: "bob@lumo.test", password: "BobSecret99!", name: "Bob" },
+      body: { username: "bob", password: "BobSecret99!" },
     });
     bobToken = body.token;
 
@@ -808,7 +810,7 @@ describe("Multi-user data isolation", () => {
 describe("AI tools · list_tasks over the paginated envelope", () => {
   test("executeTool(list_tasks) unwraps { items } and returns the user's tasks", async () => {
     const { body: reg } = await api("POST", "/v1/auth/register", {
-      body: { email: `ai-pg-${Date.now()}@test.local`, password: "password123", name: "AI Pg" },
+      body: { username: `aipg${Date.now()}`, password: "password123" },
     });
     const token = reg.token as string;
     await api("POST", "/v1/tasks", { token, body: { title: { en: "AI sees me" }, quadrant: "Q1" } });
@@ -825,7 +827,7 @@ describe("AI tools · list_tasks over the paginated envelope", () => {
   // budget, so the plan is sized to the time actually free.
   test("generate_today_plan subtracts calendar-busy hours from the budget", async () => {
     const { body: reg } = await api("POST", "/v1/auth/register", {
-      body: { email: `ai-cal-${Date.now()}@test.local`, password: "password123", name: "AI Cal" },
+      body: { username: `aical${Date.now()}`, password: "password123" },
     });
     const token = reg.token as string;
     // Three Q1 tasks at 60 min each.
@@ -848,7 +850,7 @@ describe("AI tools · list_tasks over the paginated envelope", () => {
 
   test("generate_today_plan plans nothing when the calendar fully books the day", async () => {
     const { body: reg } = await api("POST", "/v1/auth/register", {
-      body: { email: `ai-full-${Date.now()}@test.local`, password: "password123", name: "AI Full" },
+      body: { username: `aifull${Date.now()}`, password: "password123" },
     });
     const token = reg.token as string;
     await api("POST", "/v1/tasks", { token, body: { title: { en: "Blocked out" }, quadrant: "Q1", duration: 60 } });

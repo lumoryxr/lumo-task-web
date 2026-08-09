@@ -6,17 +6,25 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
-import { nanoid } from "nanoid";
+import { nanoid, customAlphabet } from "nanoid";
 
 const BACKEND = "http://localhost:47292";
 
+// Auth is username-first (commit 1945fba): registration/sign-in take
+// { username, password }. Usernames are [A-Za-z0-9_-], 3–32 chars — generate a
+// safe, collision-free one from a lowercase-alphanumeric alphabet.
+const uid = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
+function uniqueUsername(prefix: string): string {
+  return `${prefix}${uid()}`;
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-async function registerUser(email: string, password: string, name: string) {
+async function registerUser(username: string, password: string) {
   const res = await fetch(`${BACKEND}/v1/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, name }),
+    body: JSON.stringify({ username, password }),
   });
   if (!res.ok) throw new Error(`Register failed: ${res.status} ${await res.text()}`);
   return res.json() as Promise<{ token: string; user: object }>;
@@ -60,25 +68,29 @@ async function loginAs(page: Page, token: string, user: object) {
 // ── 1. Auth flow ──────────────────────────────────────────────────────────────
 
 test.describe("Auth — real API", () => {
-  test("register via UI → redirects to app", async ({ page }) => {
+  test("register via UI → recovery-code gate → redirects to app", async ({ page }) => {
     await setOnboarded(page);
-    const email = `test-${nanoid(6)}@lumo.test`;
+    const username = uniqueUsername("uiuser");
     await page.goto("/#/register");
 
-    // Fields are wrapped <label> → use type selectors which are more reliable
-    await page.locator('input[type="email"]').fill(email);
+    // Username-first form: fill the username input + password + confirm.
+    await page.locator('input[autocomplete="username"]').fill(username);
     await page.locator('input[type="password"]').first().fill("Integration!23");
     await page.locator('input[type="password"]').nth(1).fill("Integration!23"); // confirm
-    // nickname is optional, skip it
-    await page.getByRole("button", { name: /create|register|sign up/i }).click();
+    await page.getByRole("button", { name: /create account/i }).click();
 
-    await expect(page).toHaveURL(/#\/(today|matrix)/, { timeout: 15_000 });
+    // Post-register: the one-time recovery-code gate is shown before routing on.
+    await expect(page.getByTestId("recovery-code")).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: "I've saved my recovery code" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await expect(page).toHaveURL(/#\/today/, { timeout: 15_000 });
   });
 
   test("wrong password shows error", async ({ page }) => {
     await setOnboarded(page);
     await page.goto("/#/login");
-    await page.locator('input[type="email"]').fill("nobody@lumo.test");
+    await page.locator('input[autocomplete="username"]').fill("nobody");
     await page.locator('input[type="password"]').fill("WrongPassword!1");
     await page.getByRole("button", { name: /sign in|log in/i }).click();
     // Toast stack uses aria-live="assertive"; error toasts persist for 6 s
@@ -95,8 +107,7 @@ test.describe("Tasks — real API", () => {
   let user: object;
 
   test.beforeAll(async () => {
-    const email = `tasks-${nanoid(6)}@lumo.test`;
-    const data = await registerUser(email, "Integration!23", "Task Tester");
+    const data = await registerUser(uniqueUsername("tasks"), "Integration!23");
     token = data.token;
     user = data.user;
   });
@@ -166,8 +177,7 @@ test.describe("Settings — real API", () => {
   let user: object;
 
   test.beforeAll(async () => {
-    const email = `settings-${nanoid(6)}@lumo.test`;
-    const data = await registerUser(email, "Integration!23", "Settings Tester");
+    const data = await registerUser(uniqueUsername("settings"), "Integration!23");
     token = data.token;
     user = data.user;
   });
@@ -187,8 +197,7 @@ test.describe("Focus — real API", () => {
   let user: object;
 
   test.beforeAll(async () => {
-    const email = `focus-${nanoid(6)}@lumo.test`;
-    const data = await registerUser(email, "Integration!23", "Focus Tester");
+    const data = await registerUser(uniqueUsername("focus"), "Integration!23");
     token = data.token;
     user = data.user;
   });

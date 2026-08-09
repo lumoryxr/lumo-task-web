@@ -35,7 +35,8 @@ const APP_DIR = path.resolve(__dirname, "..");
 
 // Shared across the two launches in this serial suite.
 const userDataDir = path.join(os.tmpdir(), `lumo-e2e-persist-${process.pid}`);
-const creds = { email: `persist-${Date.now()}@lumo.test`, password: "E2eTest!23" };
+// Auth is username-first (commit 1945fba): register/signin take { username, password }.
+const creds = { username: `persist${Date.now()}`, password: "E2eTest!23" };
 const taskTitle = `persist-task-${Date.now()}`;
 
 /** Launch the desktop app against the shared temp userData dir (scrubbed secrets). */
@@ -80,12 +81,12 @@ test.describe.serial("Electron desktop persistence (restart)", () => {
     const { app, page, port } = await launch();
     try {
       const outcome = await page.evaluate(
-        async ({ port, email, password, title }: { port: number; email: string; password: string; title: string }) => {
+        async ({ port, username, password, title }: { port: number; username: string; password: string; title: string }) => {
           const base = `http://127.0.0.1:${port}/v1`;
           const reg = await fetch(`${base}/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password, name: "Persist" }),
+            body: JSON.stringify({ username, password }),
           });
           if (!reg.ok) return { step: "register", status: reg.status };
           const { token } = (await reg.json()) as { token: string };
@@ -109,13 +110,13 @@ test.describe.serial("Electron desktop persistence (restart)", () => {
     const { app, page, port } = await launch();
     try {
       const outcome = await page.evaluate(
-        async ({ port, email, password, title }: { port: number; email: string; password: string; title: string }) => {
+        async ({ port, username, password, title }: { port: number; username: string; password: string; title: string }) => {
           const base = `http://127.0.0.1:${port}/v1`;
           // Same credentials must still authenticate — the user row persisted.
           const signin = await fetch(`${base}/auth/signin`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify({ username, password }),
           });
           if (!signin.ok) return { step: "signin", status: signin.status, found: false };
           const { token } = (await signin.json()) as { token: string };
