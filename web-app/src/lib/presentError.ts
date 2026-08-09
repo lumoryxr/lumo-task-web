@@ -21,9 +21,20 @@ export function presentError(err: unknown, titleKey = "error.unknown"): void {
   toast.error(t(titleKey), detailOf(err));
 }
 
-/** Extract the most specific human-readable detail from a thrown value. */
+/** Extract the most specific human-readable detail from a thrown value.
+ *
+ * Prefers a LOCALIZED message keyed on the backend error `code`
+ * (`error.code.<CODE>`) when one is defined — so users see a standard message
+ * in their language (e.g. "该用户名已被占用") instead of the raw English server
+ * string. Falls back to the backend's own message, then the JS error message. */
 export function detailOf(err: unknown): string {
   if (err instanceof ApiError) {
+    if (err.code) {
+      const key = `error.code.${err.code}`;
+      const localized = t(key);
+      // `t` returns the key unchanged when it isn't defined — only use a real hit.
+      if (localized !== key) return localized;
+    }
     // A complete message already names the field(s) for validation failures.
     return err.message;
   }

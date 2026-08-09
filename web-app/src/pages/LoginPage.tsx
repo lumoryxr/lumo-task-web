@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { api } from "@/api/client";
 import { toast } from "@/store/useToastStore";
 import { presentError, fieldErrorsFor } from "@/lib/presentError";
+import { validateSignin } from "@/lib/authValidation";
 import { Spinner } from "@/components/Spinner";
 import type { LegalDocKey } from "@/pages/legal/content";
 
@@ -64,6 +65,13 @@ export function LoginPage() {
 
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
+    const clientErrors = validateSignin({ username, password });
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(
+        Object.fromEntries(Object.entries(clientErrors).map(([field, key]) => [field, t(key)])),
+      );
+      return;
+    }
     setFieldErrors({});
     try {
       await signIn(username, password);

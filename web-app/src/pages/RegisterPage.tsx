@@ -6,6 +6,8 @@ import { RecoveryCodeCard } from "@/components/RecoveryCodeCard";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
 import { presentError, fieldErrorsFor } from "@/lib/presentError";
+import { validateRegister } from "@/lib/authValidation";
+import { ApiError } from "@/api/ApiError";
 import { Spinner } from "@/components/Spinner";
 import type { LegalDocKey } from "@/pages/legal/content";
 
@@ -31,6 +33,16 @@ export function RegisterPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!agreed) return;
+    // Validate client-side FIRST — instant, localized, inline feedback under the
+    // offending field (mirrors the backend rules), instead of a round-trip that
+    // returns a raw English string (or, on a skewed backend, nothing).
+    const clientErrors = validateRegister({ username, password, confirm });
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(
+        Object.fromEntries(Object.entries(clientErrors).map(([field, key]) => [field, t(key)])),
+      );
+      return;
+    }
     setFieldErrors({});
     try {
       const code = await register({ username, password, confirm });
@@ -40,11 +52,13 @@ export function RegisterPage() {
       if (code) setRecoveryCode(code);
       else navigate("/today");
     } catch (err) {
-      // Only field errors for inputs THIS form renders count as handled inline;
-      // anything else (incl. a validation error for a field the form doesn't
-      // show, like a stale backend still requiring `email`) surfaces via toast,
-      // so a failed submit is never a silent no-op.
+      // Server-side failure. Render field errors this form shows inline; map a
+      // taken-username conflict to the username field; anything else surfaces as
+      // a localized toast (never a silent no-op).
       const fe = fieldErrorsFor(err, ["username", "password", "confirm"]);
+      if (err instanceof ApiError && err.code === "USERNAME_TAKEN") {
+        fe.username = t("error.code.USERNAME_TAKEN");
+      }
       if (Object.keys(fe).length > 0) setFieldErrors(fe);
       else presentError(err, "error.auth.register");
     }
