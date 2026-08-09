@@ -585,6 +585,7 @@ export async function runMigrations() {
   await execRaw(`
     CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_created ON tasks(user_id, completed, created_at) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_quadrant ON tasks(user_id, completed, quadrant) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_tasks_user_project ON tasks(user_id, project_id) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_completed_user_completedat ON completed_entries(user_id, completed_at) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_people_user_created ON people(user_id, created_at) WHERE deleted_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_habits_user_created ON habits(user_id, created_at) WHERE deleted_at IS NULL;
@@ -807,6 +808,17 @@ export async function runMigrations() {
   `);
   await execRaw("CREATE INDEX IF NOT EXISTS idx_oauth_handoffs_created ON oauth_handoffs(created_at)");
   await execRaw("DELETE FROM oauth_handoffs WHERE created_at < datetime('now', '-1 days')");
+
+  // Global monthly counter for the shared Lumo Cloud AI key. Guards the account
+  // owner's provider bill: without an aggregate ceiling, a burst of signups runs
+  // straight against the shared LUMO_AI_KEY (only per-user 100/mo caps existed).
+  // One row per YYYY-MM month; incremented atomically alongside per-user usage.
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS ai_cloud_global (
+      month TEXT PRIMARY KEY,
+      used  INTEGER NOT NULL DEFAULT 0
+    )
+  `);
 }
 
 // When run directly as a script

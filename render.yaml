@@ -55,6 +55,13 @@ services:
         sync: false            # verified sender, e.g. "Lumo <no-reply@yourdomain.com>"
       - key: LUMO_RESEND_API_KEY
         sync: false            # https://resend.com API key (when provider=resend)
+      # ── Lumo Cloud AI (optional — the shared "100 free calls/mo" key). ──────
+      # Unset → cloud AI is off (users bring their own key). When set, ALSO set a
+      # global monthly cap so a burst of signups can't run your provider bill up.
+      - key: LUMO_AI_KEY
+        sync: false            # shared server-side AI key (Anthropic)
+      - key: LUMO_AI_CLOUD_GLOBAL_CAP
+        sync: false            # aggregate calls/month across all users; unset = no global cap
       # ── GitHub OAuth (optional — the "Sign in with GitHub" button). ─────────
       # All three unset → the button is hidden (getGithubConfig reports disabled);
       # the app stays fully usable via username/password. Set all three to enable.

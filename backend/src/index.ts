@@ -75,7 +75,23 @@ log("info", { msg: "database configured", mode: dbMode() });
 runMigrations()
   .then(() => {
     log("info", { msg: "backend started", host: hostname ?? "0.0.0.0", port });
-    serve({ fetch: app.fetch, port, hostname });
+    const server = serve({ fetch: app.fetch, port, hostname });
+
+    // Graceful shutdown: on a platform stop signal (e.g. Render redeploy), stop
+    // accepting new connections and let in-flight requests drain before exit,
+    // instead of dropping them mid-flight. A short hard-deadline guarantees the
+    // process still exits if a connection hangs.
+    let shuttingDown = false;
+    const shutdown = (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      log("info", { msg: "shutting down", signal });
+      const deadline = setTimeout(() => process.exit(0), 10_000);
+      deadline.unref();
+      server.close(() => process.exit(0));
+    };
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
     // NOTE: the desktop sync cadence is driven by the RENDERER (`useSyncEngine`),
     // not a backend timer. A backend loop advanced the pull cursor without the
     // renderer knowing, so pulled cloud rows sat in SQLite and never appeared in

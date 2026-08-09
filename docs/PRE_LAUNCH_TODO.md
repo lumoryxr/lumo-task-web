@@ -5,6 +5,28 @@
 >
 > 图例:🔴 收费硬阻断 · 🟠 上线前必须 · 🟡 规模化/收费相关 · 🟢 清理/打磨 · ✅ 已达标(无需返工)
 
+## 进度 / Progress（滚动更新）
+
+**已完成(已进 PR):**
+- 🔴 §一.1 收费体系 → 简化为「免费 + GitHub 捐赠」;移除 Pro/Coming-soon 桩,落地页定价改为 Support 卡,Account 页加安全外链(`rel=noopener noreferrer` + 常量 URL)。
+- 🔴 §一.3 邮件 → Resend 已配置;新增 boot 断言(`email-policy.ts`):provider 设了但凭据不全就拒绝启动,并修复 `email.ts` 大小写不一致导致的静默丢邮件路径。
+- 🔴 §一.4 法律 → 隐私/条款按最佳实践定稿(免费+捐赠+beta 模型、命名子处理方 Render/Turso/Resend/GitHub、GDPR 权利),删除草稿横幅与占位联系方式。
+- 🔴 §一.2 持久化 → web 版已接 Turso(用户完成)。
+- 🟡 §四.1 AI 云配额非原子自增 → 改为单条原子 SQL(含月度滚动)。
+- 🟡 §四.2 共享 AI key 无花费上限 → 新增全局月度计数表 `ai_cloud_global` + `LUMO_AI_CLOUD_GLOBAL_CAP` 上限。
+- 🟡 §五.2 无优雅关闭 → 加 SIGTERM/SIGINT 排空 + 硬超时兜底。
+- 🟡 §三.8 `tasks.project_id` 缺索引 → 已加 `idx_tasks_user_project`。
+- 🟡 §三.9 FK-by-convention → `oauth_handoffs` 补入 `USER_SCOPED_TABLES`,并加 standards 守卫测试(含 `user_id` 的表必须在删除级联清单)。
+
+**修订(审计不精确处):**
+- §三.6 删「死列」`settings.ai_api_key/base_url/model` → **不删**:GDPR 导出仍读取它们(`user.ts:111`),删除会破坏导出,风险大于收益。
+- §三.1 `projects.content` 大小 → 写入边界**已有 `.max(1MB)`**,无需再加护栏(对象存储/子表化仍是可选的进一步优化)。
+
+**待决策/待基础设施(需要你):**
+- 🟠🟡 §三.2 tags→关联表、§三.5 assignees、§三.4 习惯打卡同步、§三.1 图片外置 —— 关系型迁移,建议逐个独立 PR;需你确认路线图(见对话中的多选问题)。
+- 🟠 §二.5 Sentry(需 DSN)、§二.6 Outlook per-user OAuth(需 Azure 应用)、§五.1 限流器共享存储(需 Redis/Upstash,规模化前)。
+
+
 ---
 
 ## 一、🔴 收费硬阻断(没有这些就无法/不应收钱)

@@ -24,6 +24,19 @@ const classifyRateLimit = createRateLimiter<{ Variables: Variables }>(20, 60_000
 
 const CLOUD_FREE_LIMIT = 100;
 
+/**
+ * Optional aggregate monthly ceiling on the SHARED Lumo Cloud key
+ * (LUMO_AI_KEY), across all users. Unset/≤0 → no global cap (per-user limits
+ * still apply). This is the cost guard that stops a burst of signups from
+ * running unbounded against the owner's provider bill.
+ */
+function cloudGlobalCap(): number | null {
+  const raw = (process.env.LUMO_AI_CLOUD_GLOBAL_CAP ?? "").trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+}
+
 interface ProviderResult {
   apiKey: string | null;
   llmConfig: LLMConfig | null;
@@ -67,6 +80,18 @@ async function getProviderConfig(userId: string): Promise<ProviderResult> {
     return { apiKey: null, llmConfig: null, usingCloud: true, limitReached: true };
   }
 
+  // Aggregate cost guard on the shared cloud key, checked after the per-user gate.
+  const globalCap = cloudGlobalCap();
+  if (globalCap !== null) {
+    const g = await queryOne<any>(
+      "SELECT used FROM ai_cloud_global WHERE month = :m",
+      { m: currentMonth }
+    );
+    if ((g?.used ?? 0) >= globalCap) {
+      return { apiKey: null, llmConfig: null, usingCloud: true, limitReached: true };
+    }
+  }
+
   return {
     apiKey: cloudKey,
     llmConfig: { provider: "claude", apiKey: cloudKey, baseUrl: null, model: "claude-haiku-4-5-20251001" },
@@ -75,17 +100,30 @@ async function getProviderConfig(userId: string): Promise<ProviderResult> {
   };
 }
 
-async function incrementCloudUsage(userId: string) {
+/**
+ * Atomically record one cloud AI call: bump the per-user monthly counter (with
+ * month rollover) AND the global counter, in a single transaction. The previous
+ * read-modify-write let concurrent requests both read the same `used` and write
+ * `used+1`, undercounting and letting a user slip past the free limit — a
+ * revenue-integrity bug once quotas back a paid tier. Doing it in one atomic
+ * SQL statement each removes the race.
+ */
+export async function incrementCloudUsage(userId: string) {
   const currentMonth = new Date().toISOString().slice(0, 7);
-  const s = await queryOne<any>(
-    "SELECT ai_cloud_used, ai_cloud_month FROM settings WHERE user_id = :uid",
-    { uid: userId }
-  );
-  const used = (s?.ai_cloud_month ?? "") === currentMonth ? (s?.ai_cloud_used ?? 0) : 0;
-  await execute(
-    "UPDATE settings SET ai_cloud_used = :used, ai_cloud_month = :month WHERE user_id = :uid",
-    { used: used + 1, month: currentMonth, uid: userId }
-  );
+  await batch([
+    {
+      sql: `UPDATE settings
+              SET ai_cloud_used = CASE WHEN ai_cloud_month = :month THEN ai_cloud_used + 1 ELSE 1 END,
+                  ai_cloud_month = :month
+            WHERE user_id = :uid`,
+      args: { month: currentMonth, uid: userId },
+    },
+    {
+      sql: `INSERT INTO ai_cloud_global (month, used) VALUES (:month, 1)
+            ON CONFLICT(month) DO UPDATE SET used = used + 1`,
+      args: { month: currentMonth },
+    },
+  ]);
 }
 
 function heuristicQuadrant(task: any, today: string): { q: string; confidence: number } {
