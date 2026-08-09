@@ -1,5 +1,8 @@
 dist/
-node_modules/
+# No trailing slash: also ignores a stray `node_modules` symlink (a dangling
+# absolute-path symlink was once committed because `node_modules/` matches
+# directories only, not symlinks, and broke clean Render/CI checkouts).
+node_modules
 *.db
 *.db-shm
 *.db-wal

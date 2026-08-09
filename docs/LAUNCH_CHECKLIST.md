@@ -61,6 +61,13 @@ about **operating a product for real people**, not code quality.
   Documentation/Changelog now point to real destinations.
 - **[done] OAuth buttons.** Google/Apple/GitHub buttons are already honestly disabled
   (*Coming soon*) — verify they stay disabled until real OAuth lands, or remove them.
+- **[done] Deploy gated in CI.** A `render-deploy-check` job reproduces the exact Render
+  backend build and boot-smoke-tests the bundle (`/health` + register) on every push, so
+  a broken build or non-booting bundle fails the gate instead of Render. Two dangling
+  `node_modules` symlinks that had been committed (breaking clean checkouts) were removed,
+  and `render.yaml` now sets `autoDeploy` + documents the feature env vars (`LUMO_APP_BASE_URL`,
+  `LUMO_EMAIL_*`, `LUMO_GITHUB_*`) operators must configure for reset/verification email and
+  GitHub login to work in production.
 
 ### Data safety
 - **[todo] Move off free-tier hosting for anything with real users.** `render.yaml`
