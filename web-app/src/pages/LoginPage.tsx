@@ -7,7 +7,7 @@ import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
 import { api } from "@/api/client";
 import { toast } from "@/store/useToastStore";
-import { presentError, fieldErrorsOf } from "@/lib/presentError";
+import { presentError, fieldErrorsFor } from "@/lib/presentError";
 import { Spinner } from "@/components/Spinner";
 import type { LegalDocKey } from "@/pages/legal/content";
 
@@ -69,9 +69,10 @@ export function LoginPage() {
       await signIn(username, password);
       navigate("/today");
     } catch (err) {
-      // Validation failures get inline messages under the offending input;
-      // everything else (e.g. wrong credentials) surfaces via the unified toast.
-      const fe = fieldErrorsOf(err);
+      // Only field errors for inputs THIS form renders count as handled inline;
+      // everything else (wrong credentials, or a validation error for a field
+      // the form doesn't show) surfaces via the unified toast — never silent.
+      const fe = fieldErrorsFor(err, ["username", "password"]);
       if (Object.keys(fe).length > 0) setFieldErrors(fe);
       else presentError(err, "error.auth.signin");
     }

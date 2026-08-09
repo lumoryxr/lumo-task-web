@@ -170,6 +170,22 @@ describe("LoginPage", () => {
     expect(screen.queryByText("auth.localonly")).not.toBeInTheDocument();
   });
 
+  it("REGRESSION: a validation error for a field this form does NOT render surfaces a toast, never a silent no-op", async () => {
+    mockSignIn.mockRejectedValueOnce(
+      new ApiError("email: Invalid", {
+        code: "VALIDATION_ERROR",
+        status: 400,
+        fields: [{ path: "email", message: "Invalid" }],
+      }),
+    );
+    setup();
+    fireEvent.click(getSubmitBtn());
+    await waitFor(() => expect(mockSignIn).toHaveBeenCalled());
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
   it("shows a toast when redirected back with ?error=oauth (failed GitHub sign-in)", () => {
     routerH.search = "error=oauth";
     setup();

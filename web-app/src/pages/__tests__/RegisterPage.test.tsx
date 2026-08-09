@@ -188,9 +188,56 @@ describe("RegisterPage", () => {
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
+  it("renders an inline message under confirm when the passwords don't match", async () => {
+    // api.register surfaces a mismatch as a VALIDATION_ERROR with path "confirm",
+    // so the form renders it inline under the confirm field rather than toasting.
+    mockRegister.mockRejectedValueOnce(
+      new ApiError("Passwords don't match.", {
+        code: "VALIDATION_ERROR",
+        status: 400,
+        fields: [{ path: "confirm", message: "Passwords don't match." }],
+      }),
+    );
+    setup();
+    fireEvent.click(getSubmitBtn());
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Passwords don't match.");
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
   it("has no 'continue without an account' escape hatch (login is mandatory)", () => {
     setup();
     expect(screen.queryByText("auth.localonly")).not.toBeInTheDocument();
+  });
+
+  it("REGRESSION: a validation error for a field this form does NOT render surfaces a toast, never a silent no-op", async () => {
+    // Reproduces the "click create account → no response, no navigation" bug: a
+    // stale/mismatched backend rejects with a validation error whose path is a
+    // field the username-first form doesn't show (e.g. `email`). Before the fix
+    // this set unrendered state and the submit looked dead. Now it must toast.
+    mockRegister.mockRejectedValueOnce(
+      new ApiError("email: Required", {
+        code: "VALIDATION_ERROR",
+        status: 400,
+        fields: [{ path: "email", message: "Required" }],
+      }),
+    );
+    setup();
+    fireEvent.click(getSubmitBtn());
+    await waitFor(() => expect(mockRegister).toHaveBeenCalled());
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    // No inline alert (the field isn't rendered) and no navigation — but the
+    // user DID get feedback via the toast.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("navigates to /today even if the server returns no recovery code (never hangs)", async () => {
+    mockRegister.mockResolvedValueOnce(undefined);
+    setup();
+    fireEvent.click(getSubmitBtn());
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/today"));
+    expect(screen.queryByTestId("recovery-code")).not.toBeInTheDocument();
   });
 
   it("opens the Terms consent link in a modal (not a new tab)", () => {

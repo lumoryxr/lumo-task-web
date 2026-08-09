@@ -5,7 +5,7 @@ import { LegalModal } from "@/components/LegalModal";
 import { RecoveryCodeCard } from "@/components/RecoveryCodeCard";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
-import { presentError, fieldErrorsOf } from "@/lib/presentError";
+import { presentError, fieldErrorsFor } from "@/lib/presentError";
 import { Spinner } from "@/components/Spinner";
 import type { LegalDocKey } from "@/pages/legal/content";
 
@@ -34,11 +34,17 @@ export function RegisterPage() {
     setFieldErrors({});
     try {
       const code = await register({ username, password, confirm });
-      setRecoveryCode(code);
+      // The account is created and signed in at this point. Normally we gate on
+      // saving the one-time recovery code; if the server didn't return one
+      // (unexpected — e.g. a stale backend), route on rather than hang silently.
+      if (code) setRecoveryCode(code);
+      else navigate("/today");
     } catch (err) {
-      // Validation failures (e.g. weak password, taken username, mismatched
-      // confirm) get inline messages; anything else surfaces via toast.
-      const fe = fieldErrorsOf(err);
+      // Only field errors for inputs THIS form renders count as handled inline;
+      // anything else (incl. a validation error for a field the form doesn't
+      // show, like a stale backend still requiring `email`) surfaces via toast,
+      // so a failed submit is never a silent no-op.
+      const fe = fieldErrorsFor(err, ["username", "password", "confirm"]);
       if (Object.keys(fe).length > 0) setFieldErrors(fe);
       else presentError(err, "error.auth.register");
     }
