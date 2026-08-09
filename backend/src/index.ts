@@ -2,6 +2,8 @@ import { serve } from "@hono/node-server";
 import { runMigrations } from "./db/migrate.js";
 import { app } from "./app.js";
 import { validateStartupSecrets } from "./lib/secret-policy.js";
+import { assertStartupDbConfig } from "./db/dbConfig.js";
+import { dbMode } from "./db/client.js";
 import { mountWebStatic } from "./lib/webStatic.js";
 import { log } from "./lib/logger.js";
 
@@ -31,6 +33,17 @@ try {
   process.exit(1);
 }
 
+// Fail FAST on a misconfigured database (the #1 cloud-deploy footgun): a partial
+// or malformed Turso config would otherwise throw a cryptic error mid-migration,
+// which on Render looks only like a generic "deploy failed" / health-check
+// timeout. Catch it here with an actionable, secret-free message.
+try {
+  assertStartupDbConfig();
+} catch (err) {
+  console.error(`Refusing to start: ${(err as Error).message}`);
+  process.exit(1);
+}
+
 // Mount SPA hosting before serving (after routes are registered in app.ts, so
 // the static `/*` middleware never shadows the API). Fails fast if the packaged
 // web root is missing its index.html.
@@ -45,6 +58,9 @@ if (webRoot) {
 }
 
 // Run migrations before accepting requests (the backend seeds no accounts).
+// Log the resolved DB mode up front so a deploy log immediately shows whether
+// the instance is talking to cloud Turso, a local file, or an embedded replica.
+log("info", { msg: "database configured", mode: dbMode() });
 runMigrations()
   .then(() => {
     log("info", { msg: "backend started", host: hostname ?? "0.0.0.0", port });
@@ -57,6 +73,13 @@ runMigrations()
     // (/v1/sync/pull|push + /enable|/now|/status).
   })
   .catch((err) => {
-    console.error("Startup failed:", err);
+    // Migrations run the first real DB round-trip, so a connection/auth problem
+    // (e.g. wrong TURSO_AUTH_TOKEN, unreachable Turso) lands here. Name the mode
+    // so the deploy log points at the right knob instead of a bare stack trace.
+    console.error(
+      `Startup failed while running migrations (db mode: ${dbMode()}). ` +
+        `If mode is "cloud", check TURSO_DATABASE_URL/TURSO_AUTH_TOKEN reachability. Error:`,
+      err,
+    );
     process.exit(1);
   });

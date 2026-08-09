@@ -18,8 +18,11 @@ services:
     # persistent disk is a PAID feature. To keep data across deploys for free, store
     # it in Turso (free hosted libsql/SQLite) by setting the two TURSO_* vars below.
     # Without them the backend falls back to file:local.db, which WILL be wiped.
+    # Set BOTH or NEITHER: a URL without a token (or a token without a URL, or a
+    # "file:"/scheme-less URL) now makes the backend REFUSE TO START with a clear
+    # message (db/dbConfig.ts) instead of failing cryptically during migration.
     # Setup: sign up at https://turso.tech → `turso db create lumo-task` →
-    #        `turso db show --url lumo-task`  → TURSO_DATABASE_URL
+    #        `turso db show --url lumo-task`  → TURSO_DATABASE_URL (libsql://…)
     #        `turso db tokens create lumo-task` → TURSO_AUTH_TOKEN
     envVars:
       - key: NODE_ENV
