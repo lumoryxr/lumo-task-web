@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { LoginPage } from "../LoginPage";
 
@@ -9,7 +9,20 @@ vi.mock("@/components/AuthShell", () => ({
 }));
 
 vi.mock("@/components/OAuthButton", () => ({
-  OAuthButton: () => null,
+  OAuthButton: ({ label, onClick, disabled }: { label: string; onClick?: () => void; disabled?: boolean }) => (
+    <button onClick={onClick} disabled={disabled}>
+      {label}
+    </button>
+  ),
+}));
+
+const mockGetGithubConfig = vi.fn();
+const mockGithubStartUrl = vi.fn();
+vi.mock("@/api/client", () => ({
+  api: {
+    getGithubConfig: (...a: unknown[]) => mockGetGithubConfig(...a),
+    githubStartUrl: (...a: unknown[]) => mockGithubStartUrl(...a),
+  },
 }));
 
 vi.mock("@/i18n/useT", () => ({
@@ -37,9 +50,14 @@ vi.mock("@/store/useAuthStore", () => ({
   useAuthStore: () => ({ signIn: mockSignIn, loading: mockLoading }),
 }));
 
+const routerH = vi.hoisted(() => ({ search: "" }));
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
-  return { ...actual, useNavigate: () => mockNavigate };
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+    useSearchParams: () => [new URLSearchParams(routerH.search), vi.fn()],
+  };
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -65,8 +83,13 @@ function getSubmitBtn() {
 describe("LoginPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    routerH.search = "";
     mockSignIn.mockResolvedValue(undefined);
     mockLoading = false;
+    // GitHub login defaults to DISABLED so the button stays hidden for the
+    // credential-flow tests; the OAuth-specific tests override this.
+    mockGetGithubConfig.mockResolvedValue({ githubEnabled: false });
+    mockGithubStartUrl.mockResolvedValue("http://api.test/v1/auth/github/start");
   });
 
   it("renders username and password fields", () => {
@@ -147,6 +170,12 @@ describe("LoginPage", () => {
     expect(screen.queryByText("auth.localonly")).not.toBeInTheDocument();
   });
 
+  it("shows a toast when redirected back with ?error=oauth (failed GitHub sign-in)", () => {
+    routerH.search = "error=oauth";
+    setup();
+    expect(mockToastError).toHaveBeenCalledWith("auth.oauth.err");
+  });
+
   it("opens the Terms modal from the legal footer link", () => {
     setup();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -160,5 +189,37 @@ describe("LoginPage", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "legal.modal.close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  describe("GitHub login button (env-gated)", () => {
+    // Setting window.location.href throws "navigation not implemented" in jsdom,
+    // so swap it for a writable plain object we can assert against.
+    const realLocation = window.location;
+    beforeEach(() => {
+      Object.defineProperty(window, "location", { configurable: true, writable: true, value: { href: "" } });
+    });
+    afterEach(() => {
+      Object.defineProperty(window, "location", { configurable: true, writable: true, value: realLocation });
+    });
+
+    it("hides the GitHub button (and 'or' divider) when the server reports it disabled", async () => {
+      mockGetGithubConfig.mockResolvedValue({ githubEnabled: false });
+      setup();
+      // Let the mount config fetch resolve, then assert the button never appears.
+      await waitFor(() => expect(mockGetGithubConfig).toHaveBeenCalled());
+      expect(screen.queryByRole("button", { name: "auth.github" })).not.toBeInTheDocument();
+      expect(screen.queryByText("auth.or")).not.toBeInTheDocument();
+    });
+
+    it("shows the GitHub button when enabled and full-page-redirects to /start on click", async () => {
+      mockGetGithubConfig.mockResolvedValue({ githubEnabled: true });
+      setup();
+      const btn = await screen.findByRole("button", { name: "auth.github" });
+      fireEvent.click(btn);
+      await waitFor(() => expect(mockGithubStartUrl).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(window.location.href).toBe("http://api.test/v1/auth/github/start"),
+      );
+    });
   });
 });

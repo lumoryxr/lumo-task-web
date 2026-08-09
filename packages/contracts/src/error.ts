@@ -39,10 +39,13 @@ export const ERROR_CODES = {
   NOT_FOUND: { status: 404, about: "Requested resource does not exist" },
   // 413 — payload too large
   PAYLOAD_TOO_LARGE: { status: 413, about: "Request body exceeded the size limit" },
+  // 400 — OAuth (GitHub, #15)
+  OAUTH_STATE_INVALID: { status: 400, about: "OAuth callback `state` was unknown, expired, or already consumed (CSRF guard)" },
   // 409 — conflict
   EMAIL_TAKEN: { status: 409, about: "Email is already registered" },
   USERNAME_TAKEN: { status: 409, about: "Username is already registered" },
   NOT_ENABLED: { status: 409, about: "Operation requires a feature that is not enabled" },
+  GITHUB_ALREADY_LINKED: { status: 409, about: "That GitHub identity is already bound to a different account" },
   // 500 — server
   INTERNAL_ERROR: { status: 500, about: "Unspecified server fault" },
   SYNC_FAILED: { status: 500, about: "A sync operation failed server-side" },
@@ -52,6 +55,9 @@ export const ERROR_CODES = {
   CLOUD_UNREACHABLE: { status: 502, about: "Cloud request failed to reach the server" },
   OUTLOOK_FETCH_FAILED: { status: 502, about: "Outlook Graph API fetch failed" },
   OUTLOOK_NOT_CONFIGURED: { status: 503, about: "Outlook server credentials are not configured" },
+  OAUTH_EXCHANGE_FAILED: { status: 502, about: "GitHub OAuth token exchange or user fetch failed upstream" },
+  // 501 — not implemented / not configured
+  OAUTH_NOT_CONFIGURED: { status: 501, about: "GitHub OAuth is not configured on this server (env credentials unset)" },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

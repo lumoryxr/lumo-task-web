@@ -40,6 +40,9 @@ const ResetPasswordPage = lazy(() =>
 const VerifyEmailPage = lazy(() =>
   import("@/pages/VerifyEmailPage").then((m) => ({ default: m.VerifyEmailPage }))
 );
+const OAuthGithubPage = lazy(() =>
+  import("@/pages/OAuthGithubPage").then((m) => ({ default: m.OAuthGithubPage }))
+);
 const PrivacyPage = lazy(() =>
   import("@/pages/legal/PrivacyPage").then((m) => ({ default: m.PrivacyPage }))
 );
@@ -170,6 +173,7 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/oauth/github" element={<OAuthGithubPage />} />
       <Route path="/legal/privacy" element={<PrivacyPage />} />
       <Route path="/legal/terms" element={<TermsPage />} />
 

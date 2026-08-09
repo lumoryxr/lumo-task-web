@@ -32,7 +32,8 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   signIn: (username: string, password: string) => Promise<void>;
-  signInWithProvider: (provider: "google" | "apple" | "github") => Promise<void>;
+  /** Complete a GitHub OAuth login by exchanging the one-time handoff code for a session. */
+  completeGithubLogin: (code: string) => Promise<void>;
   /** Register a username-only account; resolves with the one-time recovery code. */
   register: (input: { username: string; password: string; confirm: string }) => Promise<string>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
@@ -82,15 +83,15 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      async signInWithProvider(provider) {
+      async completeGithubLogin(code) {
         set({ loading: true, error: null });
         try {
-          const user = await api.signInWithProvider(provider);
+          const user = await api.exchangeGithubCode(code);
           set({ user, loading: false });
         } catch (e) {
-          // No form fields involved — surface directly through the unified path.
+          // The landing page owns navigation (→ /login on failure); record the
+          // detail and rethrow so it can react.
           set({ loading: false, error: detailOf(e) });
-          presentError(e, "error.auth.signin");
           throw e;
         }
       },

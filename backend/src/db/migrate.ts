@@ -740,6 +740,52 @@ export async function runMigrations() {
     )
   `);
   await execRaw("CREATE INDEX IF NOT EXISTS idx_recovery_codes_user ON recovery_codes(user_id)");
+
+  // ── GitHub OAuth login (#15) ─────────────────────────────────────────────────
+  // A GitHub identity maps to exactly one Lumo account. Only `github_user_id`
+  // (GitHub's stable numeric id, as text) is persisted — never a GitHub access
+  // token, which is used transiently to fetch the profile and then discarded.
+  // The partial-unique index enforces one-account-per-identity while leaving
+  // NULLs (accounts with no GitHub link) unconstrained. Idempotent.
+  const ghUserCols = await query<{ name: string }>("PRAGMA table_info(users)");
+  if (!ghUserCols.some((c) => c.name === "github_user_id")) {
+    await execRaw("ALTER TABLE users ADD COLUMN github_user_id TEXT");
+  }
+  await execRaw(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_github_user_id ON users(github_user_id) WHERE github_user_id IS NOT NULL",
+  );
+
+  // Short-lived, single-use CSRF `state` store for the authorize→callback round
+  // trip. A state is minted at /github/start and consumed exactly once at
+  // /github/callback (validated + marked used); anything unknown/expired/used is
+  // rejected. Pruned on each boot. Idempotent.
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS oauth_states (
+      state      TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      used_at    TEXT
+    )
+  `);
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_oauth_states_created ON oauth_states(created_at)");
+  // States are only valid for minutes; drop anything older than a day.
+  await execRaw("DELETE FROM oauth_states WHERE created_at < datetime('now', '-1 days')");
+
+  // One-time session-handoff store: the callback mints a random `code` that maps
+  // to freshly-issued Lumo tokens, and the SPA exchanges that code (once) for the
+  // session — so tokens are NEVER placed in a redirect URL/history. Single-use +
+  // short-lived. Pruned on each boot. Idempotent.
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS oauth_handoffs (
+      code          TEXT PRIMARY KEY,
+      user_id       TEXT NOT NULL,
+      token         TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
+      created_at    TEXT NOT NULL,
+      used_at       TEXT
+    )
+  `);
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_oauth_handoffs_created ON oauth_handoffs(created_at)");
+  await execRaw("DELETE FROM oauth_handoffs WHERE created_at < datetime('now', '-1 days')");
 }
 
 // When run directly as a script

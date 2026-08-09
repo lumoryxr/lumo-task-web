@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { cors } from "hono/cors";
 import authRoutes from "./routes/auth.js";
+import oauthGithubRoutes from "./routes/oauthGithub.js";
 import userRoutes from "./routes/user.js";
 import tasksRoutes from "./routes/tasks.js";
 import peopleRoutes from "./routes/people.js";
@@ -85,6 +86,7 @@ app.use(
 app.use("/*", bodySizeLimit);
 
 const v1 = new Hono();
+v1.route("/auth/github", oauthGithubRoutes);
 v1.route("/auth", authRoutes);
 v1.route("/user", userRoutes);
 v1.route("/tasks", tasksRoutes);
