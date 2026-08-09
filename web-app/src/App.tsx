@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Shell } from "@/components/Shell";
 import { RouteFallback } from "@/components/RouteFallback";
+import { guardRedirect } from "@/lib/routeGuard";
 
 // Route-level code splitting: each page ships as its own chunk, loaded on
 // demand, so the initial bundle no longer carries every screen's code. Pages
@@ -148,17 +149,13 @@ export default function App() {
   useNotificationScheduler();
   useSyncEngine();
 
-  const authPaths = ["/login", "/register", "/onboarding"];
-  const isAuthPath = authPaths.includes(location.pathname);
-
-  // First-run gate: new users must complete onboarding first.
-  if (!onboarded && location.pathname !== "/onboarding") {
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  // Auth gate: onboarded users must be signed in to reach the shell.
-  if (onboarded && !isSignedIn && !isAuthPath) {
-    return <Navigate to="/login" replace />;
+  // Access policy (onboarding gate + mandatory-login gate). Login is required:
+  // there is no "continue without an account" path. Public routes (auth,
+  // password recovery, email verification, legal) stay reachable signed-out —
+  // see `guardRedirect`.
+  const redirect = guardRedirect(location.pathname, { onboarded, isSignedIn });
+  if (redirect) {
+    return <Navigate to={redirect} replace />;
   }
 
   return (

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- feat: Mandatory login (#14) — signing in is now required to use the app; the "返回"/"continue without an account" escape hatches were removed from the auth screens (the shared `AuthShell` back button now renders only when a caller supplies an explicit destination). The route guard was extracted to a unit-tested policy (`guardRedirect`) that keeps the public routes — sign-in, registration, **password recovery, email verification, and the legal pages** — reachable while signed out. Local-first is unchanged: the desktop app still stores your data locally; you simply sign into a local account for user isolation
+
+### Fixed
+- security: `POST /v1/auth/bind-email` now invalidates any outstanding email-verification tokens when the bound email changes — a stale link from a previously-bound address can no longer flip `email_verified` on for a newly-bound, unconfirmed email (verification tokens carry only the userId, not the target address)
+- fix: the `/verify-email` page's CTAs (and the removed back button) no longer dead-end at `/today` for a signed-out visitor — they route to sign-in under the mandatory-login guard
+- chore: removed dead `makeInitials()` from the auth route (superseded by username-derived initials)
+
 ### Added
 - feat: Username-first auth (#17) + password recovery (#16) — registration now collects only `username` + `password` (no email); `POST /v1/auth/signin` authenticates by username (case-insensitive). Email is optional and bound AFTER registration via `POST /v1/auth/bind-email` (goes through the existing verification flow; the "verify your email" banner only shows once an email is bound-but-unverified). Every account gets a one-time **recovery code** (`LUMO-XXXX-XXXX-XXXX-XXXX`, Crockford base32, stored hashed, shown once at registration) that resets a password offline via `POST /v1/auth/recovery/reset`; `POST /v1/auth/recovery-code/regenerate` rotates it. Two recovery channels surfaced from one "forgot password" entry (email link + recovery code). Contract-first: `username` added to the user profile, `email` made nullable, new `USERNAME_TAKEN` (409) + `INVALID_RECOVERY_CODE` (400) error codes. DB: `users.username`/`username_lower` (partial-unique), `email` made genuinely nullable via a guarded table-rebuild with backfill, new single-use `recovery_codes` table
 - feat: Email verification (soft) — registration issues a single-use token and emails a confirmation link; accounts start unverified (`emailVerified` on the profile), a dismissable "verify your email" banner nudges the user, and `POST /v1/auth/verify-email` + `POST /v1/auth/resend-verification` + `/verify-email` page complete the flow. Non-blocking; reuses the `sendEmail()` provider layer. New `INVALID_VERIFICATION_TOKEN` error code

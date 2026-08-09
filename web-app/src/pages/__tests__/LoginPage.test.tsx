@@ -142,6 +142,11 @@ describe("LoginPage", () => {
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
+  it("has no 'continue without an account' escape hatch (login is mandatory)", () => {
+    setup();
+    expect(screen.queryByText("auth.localonly")).not.toBeInTheDocument();
+  });
+
   it("opens the Terms modal from the legal footer link", () => {
     setup();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

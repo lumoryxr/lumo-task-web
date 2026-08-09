@@ -148,10 +148,6 @@ export function RegisterPage() {
           <button type="button" className="hover:text-text-primary transition-colors" onClick={() => navigate("/login")}>
             {t("auth.tologin")}
           </button>
-          <span className="text-text-faint">·</span>
-          <button type="button" className="hover:text-text-primary transition-colors" onClick={() => navigate("/today")}>
-            {t("auth.localonly")}
-          </button>
         </div>
 
         <LegalModal docKey={legalDoc} onClose={() => setLegalDoc(null)} />
