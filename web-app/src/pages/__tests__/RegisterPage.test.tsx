@@ -58,6 +58,15 @@ function getConfirmInput() {
   return screen.getByLabelText("auth.confirm") as HTMLInputElement;
 }
 
+/** Fill the form with values that pass client-side validation, so a submit
+ *  reaches the (mocked) server. Tests exercising the server paths must call this
+ *  first now that the form validates locally before calling register(). */
+function fillValid({ username = "alex", password = "pass1234", confirm = "pass1234" } = {}) {
+  fireEvent.change(getUsernameInput(), { target: { value: username } });
+  fireEvent.change(getPasswordInput(), { target: { value: password } });
+  fireEvent.change(getConfirmInput(), { target: { value: confirm } });
+}
+
 function getSubmitBtn() {
   return screen.getByRole("button", { name: /auth\.register\.btn|…/ });
 }
@@ -125,9 +134,7 @@ describe("RegisterPage", () => {
 
   it("calls register with the typed values on submit", async () => {
     setup();
-    fireEvent.change(getUsernameInput(), { target: { value: "alex" } });
-    fireEvent.change(getPasswordInput(), { target: { value: "pass1234" } });
-    fireEvent.change(getConfirmInput(), { target: { value: "pass1234" } });
+    fillValid({ username: "alex", password: "pass1234", confirm: "pass1234" });
     fireEvent.click(getSubmitBtn());
     await waitFor(() =>
       expect(mockRegister).toHaveBeenCalledWith({
@@ -140,6 +147,7 @@ describe("RegisterPage", () => {
 
   it("shows the one-time recovery code and only navigates after the save gate", async () => {
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     // The recovery code is presented; navigation is deferred until acknowledged.
     await screen.findByTestId("recovery-code");
@@ -156,8 +164,9 @@ describe("RegisterPage", () => {
   });
 
   it("does not navigate when register throws", async () => {
-    mockRegister.mockRejectedValueOnce(new Error("Email already taken"));
+    mockRegister.mockRejectedValueOnce(new Error("boom"));
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     await waitFor(() => expect(mockRegister).toHaveBeenCalled());
     expect(mockNavigate).not.toHaveBeenCalled();
@@ -166,6 +175,7 @@ describe("RegisterPage", () => {
   it("shows no inline error for a non-validation failure — it surfaces via toast", async () => {
     mockRegister.mockRejectedValueOnce(new Error("Server error"));
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     await waitFor(() => expect(mockRegister).toHaveBeenCalled());
     // A plain error carries no field detail → no inline box; routes to toast.
@@ -173,7 +183,7 @@ describe("RegisterPage", () => {
     await waitFor(() => expect(mockToastError).toHaveBeenCalled());
   });
 
-  it("renders an inline message under the field for a validation failure", async () => {
+  it("renders an inline message under the field for a server validation failure", async () => {
     mockRegister.mockRejectedValueOnce(
       new ApiError("password: must include a number", {
         code: "VALIDATION_ERROR",
@@ -182,27 +192,52 @@ describe("RegisterPage", () => {
       }),
     );
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("must include a number");
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
-  it("renders an inline message under confirm when the passwords don't match", async () => {
-    // api.register surfaces a mismatch as a VALIDATION_ERROR with path "confirm",
-    // so the form renders it inline under the confirm field rather than toasting.
+  // ── Client-side validation (instant, localized, inline — no server round-trip) ──
+
+  it("blocks submit with a localized inline error when the username is empty", () => {
+    setup();
+    // Leave username empty; fill valid password so only username fails.
+    fireEvent.change(getPasswordInput(), { target: { value: "pass1234" } });
+    fireEvent.change(getConfirmInput(), { target: { value: "pass1234" } });
+    fireEvent.click(getSubmitBtn());
+    expect(screen.getByRole("alert")).toHaveTextContent("auth.err.usernameRequired");
+    expect(mockRegister).not.toHaveBeenCalled();
+  });
+
+  it("blocks submit with a localized inline error for a too-short password", () => {
+    setup();
+    fillValid({ password: "ab1", confirm: "ab1" });
+    fireEvent.click(getSubmitBtn());
+    expect(screen.getByRole("alert")).toHaveTextContent("auth.err.passwordShort");
+    expect(mockRegister).not.toHaveBeenCalled();
+  });
+
+  it("blocks submit with a localized inline error when the passwords don't match", () => {
+    setup();
+    fillValid({ password: "pass1234", confirm: "different1" });
+    fireEvent.click(getSubmitBtn());
+    expect(screen.getByRole("alert")).toHaveTextContent("auth.err.confirmMismatch");
+    expect(mockRegister).not.toHaveBeenCalled();
+  });
+
+  it("maps a taken-username conflict to a localized inline message under the username field", async () => {
     mockRegister.mockRejectedValueOnce(
-      new ApiError("Passwords don't match.", {
-        code: "VALIDATION_ERROR",
-        status: 400,
-        fields: [{ path: "confirm", message: "Passwords don't match." }],
-      }),
+      new ApiError("Username already taken", { code: "USERNAME_TAKEN", status: 409 }),
     );
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Passwords don't match.");
+    expect(alert).toHaveTextContent("error.code.USERNAME_TAKEN");
     expect(mockToastError).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("has no 'continue without an account' escape hatch (login is mandatory)", () => {
@@ -210,11 +245,10 @@ describe("RegisterPage", () => {
     expect(screen.queryByText("auth.localonly")).not.toBeInTheDocument();
   });
 
-  it("REGRESSION: a validation error for a field this form does NOT render surfaces a toast, never a silent no-op", async () => {
-    // Reproduces the "click create account → no response, no navigation" bug: a
-    // stale/mismatched backend rejects with a validation error whose path is a
-    // field the username-first form doesn't show (e.g. `email`). Before the fix
-    // this set unrendered state and the submit looked dead. Now it must toast.
+  it("REGRESSION: a server validation error for a field this form does NOT render surfaces a toast, never a silent no-op", async () => {
+    // A stale/mismatched backend rejects with a validation error whose path is a
+    // field the username-first form doesn't show (e.g. `email`). It must toast,
+    // never set unrendered state and look dead.
     mockRegister.mockRejectedValueOnce(
       new ApiError("email: Required", {
         code: "VALIDATION_ERROR",
@@ -223,11 +257,10 @@ describe("RegisterPage", () => {
       }),
     );
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     await waitFor(() => expect(mockRegister).toHaveBeenCalled());
     await waitFor(() => expect(mockToastError).toHaveBeenCalled());
-    // No inline alert (the field isn't rendered) and no navigation — but the
-    // user DID get feedback via the toast.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(mockNavigate).not.toHaveBeenCalled();
   });
@@ -235,6 +268,7 @@ describe("RegisterPage", () => {
   it("navigates to /today even if the server returns no recovery code (never hangs)", async () => {
     mockRegister.mockResolvedValueOnce(undefined);
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/today"));
     expect(screen.queryByTestId("recovery-code")).not.toBeInTheDocument();

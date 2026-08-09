@@ -78,6 +78,13 @@ function getSubmitBtn() {
   return screen.getByRole("button", { name: /auth\.login\.btn|…/ });
 }
 
+/** Fill both fields so submit passes client-side presence validation and
+ *  reaches the (mocked) signIn. Required now that the form validates locally. */
+function fillValid({ username = "alex", password = "secret123" } = {}) {
+  fireEvent.change(getUsernameInput(), { target: { value: username } });
+  fireEvent.change(getPasswordInput(), { target: { value: password } });
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("LoginPage", () => {
@@ -126,6 +133,7 @@ describe("LoginPage", () => {
 
   it("navigates to /today on successful sign-in", async () => {
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/today"));
   });
@@ -133,14 +141,23 @@ describe("LoginPage", () => {
   it("does not navigate when signIn throws", async () => {
     mockSignIn.mockRejectedValueOnce(new Error("Invalid credentials"));
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     await waitFor(() => expect(mockSignIn).toHaveBeenCalled());
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
+  it("blocks submit with a localized inline error when fields are empty", () => {
+    setup();
+    fireEvent.click(getSubmitBtn());
+    expect(screen.getByText("auth.err.usernameRequired")).toBeInTheDocument();
+    expect(mockSignIn).not.toHaveBeenCalled();
+  });
+
   it("shows no inline error for a non-validation failure — it surfaces via toast", async () => {
     mockSignIn.mockRejectedValueOnce(new Error("Bad password"));
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     await waitFor(() => expect(mockSignIn).toHaveBeenCalled());
     // A plain error (e.g. wrong credentials) carries no field detail → no inline
@@ -158,6 +175,7 @@ describe("LoginPage", () => {
       }),
     );
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Required");
@@ -179,6 +197,7 @@ describe("LoginPage", () => {
       }),
     );
     setup();
+    fillValid();
     fireEvent.click(getSubmitBtn());
     await waitFor(() => expect(mockSignIn).toHaveBeenCalled());
     await waitFor(() => expect(mockToastError).toHaveBeenCalled());
