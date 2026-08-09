@@ -1,4 +1,4 @@
-import { query, execute, execRaw } from "./client.js";
+import { query, execute, execRaw, batch } from "./client.js";
 
 // The backend NEVER seeds any account, in any environment. There is no default
 // or demo user: real users register via POST /v1/auth/register, and test
@@ -100,8 +100,13 @@ export async function runMigrations() {
   const hasOldCol = taskCols.some((c) => c.name === "assignee_id");
   const hasNewCol = taskCols.some((c) => c.name === "assignee_ids");
   if (hasOldCol && !hasNewCol) {
-    await execRaw("ALTER TABLE tasks ADD COLUMN assignee_ids TEXT NOT NULL DEFAULT '[]'");
-    await execRaw("UPDATE tasks SET assignee_ids = json_array(assignee_id) WHERE assignee_id IS NOT NULL AND assignee_id != ''");
+    // Atomic: add the column and backfill it together, so a crash between the
+    // two can't leave the column present-but-unbackfilled (the guard would then
+    // skip the backfill on every later boot).
+    await batch([
+      "ALTER TABLE tasks ADD COLUMN assignee_ids TEXT NOT NULL DEFAULT '[]'",
+      "UPDATE tasks SET assignee_ids = json_array(assignee_id) WHERE assignee_id IS NOT NULL AND assignee_id != ''",
+    ]);
   } else if (!hasNewCol) {
     await execRaw("ALTER TABLE tasks ADD COLUMN assignee_ids TEXT NOT NULL DEFAULT '[]'");
   }
@@ -126,10 +131,15 @@ export async function runMigrations() {
   // Migrate: add AI config columns to settings
   const settingsCols = await query<{ name: string }>("PRAGMA table_info(settings)");
   if (!settingsCols.some((c) => c.name === "ai_provider")) {
-    await execRaw("ALTER TABLE settings ADD COLUMN ai_provider TEXT NOT NULL DEFAULT 'openai'");
-    await execRaw("ALTER TABLE settings ADD COLUMN ai_api_key TEXT");
-    await execRaw("ALTER TABLE settings ADD COLUMN ai_base_url TEXT");
-    await execRaw("ALTER TABLE settings ADD COLUMN ai_model TEXT");
+    // One atomic batch so a crash between ADDs can't half-apply the block and
+    // leave the guard column present while the rest are missing (which would
+    // make the guard skip the remainder forever → "no such column" at runtime).
+    await batch([
+      "ALTER TABLE settings ADD COLUMN ai_provider TEXT NOT NULL DEFAULT 'openai'",
+      "ALTER TABLE settings ADD COLUMN ai_api_key TEXT",
+      "ALTER TABLE settings ADD COLUMN ai_base_url TEXT",
+      "ALTER TABLE settings ADD COLUMN ai_model TEXT",
+    ]);
   }
 
   // Migrate: per-provider AI configs
@@ -335,22 +345,29 @@ export async function runMigrations() {
   // Migrate: cloud AI usage tracking
   const settingsColsV2 = await query<{ name: string }>("PRAGMA table_info(settings)");
   if (!settingsColsV2.some((c) => c.name === "ai_cloud_used")) {
-    await execRaw("ALTER TABLE settings ADD COLUMN ai_cloud_used INTEGER NOT NULL DEFAULT 0");
-    await execRaw("ALTER TABLE settings ADD COLUMN ai_cloud_month TEXT NOT NULL DEFAULT ''");
+    // Atomic: both columns land together or neither (see the ai_provider block).
+    await batch([
+      "ALTER TABLE settings ADD COLUMN ai_cloud_used INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE settings ADD COLUMN ai_cloud_month TEXT NOT NULL DEFAULT ''",
+    ]);
   }
 
   // Migrate: remote sync credentials per user
   const settingsColsV3 = await query<{ name: string }>("PRAGMA table_info(settings)");
   if (!settingsColsV3.some((c) => c.name === "remote_url")) {
-    await execRaw("ALTER TABLE settings ADD COLUMN remote_url TEXT");
-    await execRaw("ALTER TABLE settings ADD COLUMN remote_token TEXT");
+    await batch([
+      "ALTER TABLE settings ADD COLUMN remote_url TEXT",
+      "ALTER TABLE settings ADD COLUMN remote_token TEXT",
+    ]);
   }
 
   // Migrate: scheduled notification times
   const settingsColsV4 = await query<{ name: string }>("PRAGMA table_info(settings)");
   if (!settingsColsV4.some((c) => c.name === "morning_reminder_time")) {
-    await execRaw("ALTER TABLE settings ADD COLUMN morning_reminder_time TEXT NOT NULL DEFAULT '09:00'");
-    await execRaw("ALTER TABLE settings ADD COLUMN evening_reminder_time TEXT NOT NULL DEFAULT '18:00'");
+    await batch([
+      "ALTER TABLE settings ADD COLUMN morning_reminder_time TEXT NOT NULL DEFAULT '09:00'",
+      "ALTER TABLE settings ADD COLUMN evening_reminder_time TEXT NOT NULL DEFAULT '18:00'",
+    ]);
   }
   if (!settingsColsV4.some((c) => c.name === "due_alerts_enabled")) {
     await execRaw("ALTER TABLE settings ADD COLUMN due_alerts_enabled INTEGER NOT NULL DEFAULT 1");
@@ -679,8 +696,16 @@ export async function runMigrations() {
     // tables keep pointing at the renamed table.
     const emailCol = uCols.find((c) => c.name === "email");
     if (emailCol && emailCol.notnull === 1) {
-      await execRaw(`
-        CREATE TABLE users_new (
+      // Table rebuild (SQLite can't relax a NOT NULL in place). Run the whole
+      // create→copy→drop→rename as ONE atomic batch (BEGIN…COMMIT) so a crash
+      // mid-rebuild rolls back completely instead of leaving an orphaned
+      // `users_new` while the guard above stays true — which previously bricked
+      // every subsequent boot with "table users_new already exists". The leading
+      // DROP … IF EXISTS also self-heals any orphan left by the old, non-atomic
+      // code so already-broken deployments recover on the next boot.
+      await batch([
+        "DROP TABLE IF EXISTS users_new",
+        `CREATE TABLE users_new (
           id TEXT PRIMARY KEY,
           email TEXT UNIQUE,
           password_hash TEXT NOT NULL,
@@ -696,10 +721,8 @@ export async function runMigrations() {
           session_version INTEGER NOT NULL DEFAULT 0,
           username TEXT,
           username_lower TEXT
-        )
-      `);
-      await execRaw(`
-        INSERT INTO users_new
+        )`,
+        `INSERT INTO users_new
           (id, email, password_hash, name, initials, local, plan, renews_at, created_at,
            calendar_feed_token_hash, calendar_feed_token_enc, email_verified, session_version,
            username, username_lower)
@@ -707,15 +730,13 @@ export async function runMigrations() {
            id, email, password_hash, name, initials, local, plan, renews_at, created_at,
            calendar_feed_token_hash, calendar_feed_token_enc, email_verified, session_version,
            username, username_lower
-        FROM users
-      `);
-      await execRaw("DROP TABLE users");
-      await execRaw("ALTER TABLE users_new RENAME TO users");
-      // The rebuild dropped the calendar-feed unique index with the old table;
-      // recreate it now so it exists within this same boot (not just next boot).
-      await execRaw(
+        FROM users`,
+        "DROP TABLE users",
+        "ALTER TABLE users_new RENAME TO users",
+        // The rebuild dropped the calendar-feed unique index with the old table;
+        // recreate it inside the same transaction so it exists within this boot.
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_feed_token_hash ON users(calendar_feed_token_hash) WHERE calendar_feed_token_hash IS NOT NULL",
-      );
+      ]);
     }
 
     // (a·2) Partial-unique index on the case-insensitive handle. Created after the
