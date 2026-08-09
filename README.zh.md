@@ -6,13 +6,13 @@
 
 [![CI](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml)
 [![Release](https://github.com/lumoryxr/lumo-task-web/actions/workflows/release-desktop.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/releases)
-[![Demo](https://img.shields.io/badge/demo-live-brightgreen?logo=vercel)](https://lumo-task-web.vercel.app)
+[![Demo](https://img.shields.io/badge/demo-live-brightgreen?logo=render)](https://lumo-task-frontend.onrender.com)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![AI-Coded](https://img.shields.io/badge/coded%20by-AI%20only-blueviolet?logo=anthropic)](https://claude.ai)
 
 **[English](README.md) | [中文](README.zh.md)**
 
-[在线 Demo](https://lumo-task-web.vercel.app) · [发布版本](https://github.com/lumoryxr/lumo-task-web/releases) · [贡献指南](.github/CONTRIBUTING.md)
+[在线 Demo](https://lumo-task-frontend.onrender.com) · [发布版本](https://github.com/lumoryxr/lumo-task-web/releases) · [贡献指南](.github/CONTRIBUTING.md)
 
 </div>
 
@@ -58,7 +58,7 @@ Lumo Task 是一款全栈任务管理应用，以艾森豪威尔矩阵、番茄�
 | 校验 | Zod |
 | 测试 | Vitest + React Testing Library、Node `--test`、Playwright |
 | 桌面端 | Electron |
-| 托管 | Vercel（前端）、Render（后端） |
+| 托管 | Render（前端 + 后端） |
 | CI/CD | GitHub Actions |
 
 ---
@@ -153,22 +153,23 @@ lumo-task-web/
 
 ## 部署
 
-Lumo Task 使用 **Vercel（前端）+ Render（后端）** 的免费方案。
+Lumo Task 使用 **Render（前端 + 后端）** 的免费方案，前后端统一在同一个
+`render.yaml` 蓝图中定义。
 
 | 服务 | 平台 | 配置文件 |
 |------|------|----------|
-| 前端 SPA | Vercel | `vercel.json` |
-| 后端 API | Render | `render.yaml` |
+| 前端 SPA | Render（静态站点） | `render.yaml` |
+| 后端 API | Render（Web 服务） | `render.yaml` |
 
 **环境变量：**
 
 ```bash
-# Vercel（前端）
+# Render（前端静态站点）
 VITE_API_BASE=https://your-backend.onrender.com/v1
 
-# Render（后端）
+# Render（后端 Web 服务）
 LUMO_JWT_SECRET=<生成一个随机密钥>
-LUMO_ALLOWED_ORIGINS=.vercel.app
+LUMO_ALLOWED_ORIGINS=https://your-frontend.onrender.com
 NODE_VERSION=22
 ```
 
@@ -186,7 +187,7 @@ NODE_VERSION=22
       └── npm audit 安全扫描
 
 合并到 main
- ├── Vercel 自动部署前端（生产环境）
+ ├── Render 自动部署前端（生产环境）
  ├── Render 自动部署后端（生产环境）
  └── GitHub Actions 打包 Windows 安装包 → GitHub Releases
 ```

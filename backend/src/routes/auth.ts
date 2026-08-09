@@ -101,7 +101,7 @@ const VerifyEmailBody = z.object({
 
 /** Absolute base URL of the web app, used to build links in emails. */
 function appBaseUrl(): string {
-  return (process.env.LUMO_APP_BASE_URL || "https://lumo-task-web.vercel.app").replace(/\/+$/, "");
+  return (process.env.LUMO_APP_BASE_URL || "https://lumo-task-frontend.onrender.com").replace(/\/+$/, "");
 }
 
 /**

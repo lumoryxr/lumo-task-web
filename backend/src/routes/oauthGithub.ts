@@ -53,7 +53,7 @@ function clientIp(c: Context<{ Variables: Variables }>): string {
 
 /** Absolute base URL of the web app — the SPA the callback redirects back to. */
 function appBaseUrl(): string {
-  return (process.env.LUMO_APP_BASE_URL || "https://lumo-task-web.vercel.app").replace(/\/+$/, "");
+  return (process.env.LUMO_APP_BASE_URL || "https://lumo-task-frontend.onrender.com").replace(/\/+$/, "");
 }
 
 function initialsFromUsername(username: string): string {

@@ -1,8 +1,0 @@
-{
-  "installCommand": "cd packages/contracts && npm ci && npm run build && cd ../../web-app && npm ci",
-  "buildCommand": "cd web-app && npm run build",
-  "outputDirectory": "web-app/dist",
-  "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
-  ]
-}

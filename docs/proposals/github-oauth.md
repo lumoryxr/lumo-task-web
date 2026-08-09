@@ -77,7 +77,7 @@
 ## 9. 需要你（运营方）提供 —— 可并行准备
 
 1. **创建一个 GitHub OAuth App**（Settings → Developer settings → OAuth Apps）：
-   - Homepage URL：生产站点（如 `https://lumo-task-web.vercel.app`）。
+   - Homepage URL：生产站点（如 `https://lumo-task-frontend.onrender.com`）。
    - **Authorization callback URL**：`{后端域名}/v1/auth/github/callback`
      （生产后端 `https://lumo-task-backend-1c3x.onrender.com/v1/auth/github/callback`；
      本地/预览各自再加一条，GitHub OAuth App 可多回调或用多个 App）。

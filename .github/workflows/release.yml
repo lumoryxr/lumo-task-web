@@ -51,10 +51,10 @@ jobs:
             ## Installation
 
             ### Web App
-            The web app is automatically deployed to Vercel on release.
+            The web app is automatically deployed to Render on release.
 
             ### Backend
-            The backend is automatically deployed to Vercel/Render on release.
+            The backend is automatically deployed to Render on release.
 
             ### Changelog
             ${{ steps.release_notes.outputs.notes }}
@@ -71,11 +71,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to Vercel (web-app)
+      - name: Deploy to Render (web-app)
         run: |
           echo "Frontend deployment would be triggered here"
-          echo "This can be automated via Vercel GitHub integration"
-          # Command: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
+          echo "This can be automated via Render's GitHub integration (auto-deploy on push)"
+          # Or trigger manually: curl -X POST "$RENDER_FRONTEND_DEPLOY_HOOK"
 
   deploy-backend:
     runs-on: ubuntu-latest
@@ -83,11 +83,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to Vercel/Render (backend)
+      - name: Deploy to Render (backend)
         run: |
           echo "Backend deployment would be triggered here"
-          echo "This can be automated via Vercel/Render GitHub integration"
-          # Command: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }} backend/
+          echo "This can be automated via Render's GitHub integration (auto-deploy on push)"
+          # Or trigger manually: curl -X POST "$RENDER_BACKEND_DEPLOY_HOOK"
 
   post-release:
     runs-on: ubuntu-latest
