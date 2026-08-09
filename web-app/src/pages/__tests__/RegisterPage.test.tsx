@@ -188,6 +188,11 @@ describe("RegisterPage", () => {
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
+  it("has no 'continue without an account' escape hatch (login is mandatory)", () => {
+    setup();
+    expect(screen.queryByText("auth.localonly")).not.toBeInTheDocument();
+  });
+
   it("opens the Terms consent link in a modal (not a new tab)", () => {
     setup();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

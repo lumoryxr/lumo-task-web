@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { useT } from "@/i18n/useT";
 import { IconArrowLeft, LumoGlyph } from "@/components/icons";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -21,7 +20,6 @@ export function AuthShell({
   onBack?: () => void;
 }) {
   const t = useT();
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   return (
@@ -31,15 +29,19 @@ export function AuthShell({
     >
       <div className="lumo-pulse" />
 
-      {/* Back button — floats above both panels */}
-      <button
-        onClick={() => (onBack ? onBack() : navigate("/today"))}
-        className="absolute top-[18px] left-[18px] z-[5] inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors"
-        style={{ height: 32, padding: "0 12px 0 8px", fontSize: 12 }}
-      >
-        <IconArrowLeft size={14} />
-        {t("auth.back")}
-      </button>
+      {/* Back button — only rendered when a caller supplies an explicit
+          destination. Login is mandatory and the auth screen is the entry
+          point, so there is no default "back" to fall through to. */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="absolute top-[18px] left-[18px] z-[5] inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors"
+          style={{ height: 32, padding: "0 12px 0 8px", fontSize: 12 }}
+        >
+          <IconArrowLeft size={14} />
+          {t("auth.back")}
+        </button>
+      )}
 
       {/* Windows title-bar controls — only rendered in Electron */}
       <div className="absolute top-0 right-0 z-[5]">

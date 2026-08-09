@@ -128,14 +128,6 @@ function clientIp(c: Context<{ Variables: Variables }>): string {
   return getClientIp(c);
 }
 
-function makeInitials(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 // A username is a single token (no spaces), so derive a 1–2 char avatar label
 // from its first alphanumerics rather than word-splitting.
 function initialsFromUsername(username: string) {
@@ -258,6 +250,11 @@ app.post("/bind-email", authRateLimit, authMiddleware, validate("json", BindEmai
     "UPDATE users SET email = :email, email_verified = 0 WHERE id = :id",
     { email, id: userId },
   );
+  // Invalidate any outstanding verification tokens issued for a PREVIOUS email.
+  // Tokens are not email-scoped (they only carry the userId), so without this a
+  // stale link from an earlier address would flip `email_verified` on for the
+  // newly-bound, unconfirmed email.
+  await execute("DELETE FROM email_verification_tokens WHERE user_id = :id", { id: userId });
   audit("auth.bind_email", { userId, ip: clientIp(c) });
 
   // Best-effort verification email — binding succeeds even if delivery is down.

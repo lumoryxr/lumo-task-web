@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AuthShell } from "@/components/AuthShell";
 import { useT } from "@/i18n/useT";
-import { useAuthStore } from "@/store/useAuthStore";
+import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { ApiError } from "@/api/ApiError";
 import { presentError } from "@/lib/presentError";
 import { Spinner } from "@/components/Spinner";
@@ -24,6 +24,11 @@ export function VerifyEmailPage() {
   const token = params.get("token") ?? "";
   const verifyEmail = useAuthStore((s) => s.verifyEmail);
   const refreshUser = useAuthStore((s) => s.refreshUser);
+  const isSignedIn = useAuthStore(selectIsSignedIn);
+  // The link may be opened on a device with no session. Since login is
+  // mandatory, send an unauthenticated visitor to /login (reachable) rather
+  // than /today (which the route guard would bounce straight to /login).
+  const home = isSignedIn ? "/today" : "/login";
 
   const [state, setState] = useState<"loading" | "success" | "invalid">(token ? "loading" : "invalid");
   const ran = useRef(false);
@@ -46,7 +51,7 @@ export function VerifyEmailPage() {
   }, [token, verifyEmail, refreshUser]);
 
   return (
-    <AuthShell onBack={() => navigate("/today")}>
+    <AuthShell>
       {state === "loading" && (
         <div className="flex flex-col items-center gap-3 text-center">
           <Spinner size={22} />
@@ -64,7 +69,7 @@ export function VerifyEmailPage() {
           </div>
           <div className="text-[15px] font-semibold text-text-primary">{t("auth.verify.success.title")}</div>
           <div className="text-[12.5px] text-text-secondary">{t("auth.verify.success.body")}</div>
-          <button type="button" className="btn btn-primary mt-1" onClick={() => navigate("/today")}>
+          <button type="button" className="btn btn-primary mt-1" onClick={() => navigate(home)}>
             {t("auth.verify.success.cta")}
           </button>
         </div>
@@ -74,7 +79,7 @@ export function VerifyEmailPage() {
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="text-[15px] font-semibold text-text-primary">{t("auth.verify.invalid.title")}</div>
           <div className="text-[12.5px] text-text-secondary leading-relaxed">{t("auth.verify.invalid.body")}</div>
-          <button type="button" className="btn btn-secondary mt-1" onClick={() => navigate("/today")}>
+          <button type="button" className="btn btn-secondary mt-1" onClick={() => navigate(home)}>
             {t("auth.verify.invalid.cta")}
           </button>
         </div>

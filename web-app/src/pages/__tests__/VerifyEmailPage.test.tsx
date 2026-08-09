@@ -14,8 +14,14 @@ vi.mock("@/lib/presentError", () => ({ presentError: (...a: unknown[]) => mockPr
 const mockVerify = vi.fn();
 const mockRefresh = vi.fn();
 vi.mock("@/store/useAuthStore", () => ({
-  useAuthStore: (sel: (s: { verifyEmail: typeof mockVerify; refreshUser: typeof mockRefresh }) => unknown) =>
-    sel({ verifyEmail: mockVerify, refreshUser: mockRefresh }),
+  useAuthStore: (
+    sel: (s: {
+      verifyEmail: typeof mockVerify;
+      refreshUser: typeof mockRefresh;
+      user: { local: boolean; id: string };
+    }) => unknown,
+  ) => sel({ verifyEmail: mockVerify, refreshUser: mockRefresh, user: { local: false, id: "u_1" } }),
+  selectIsSignedIn: (s: { user: { local: boolean; id: string } }) => !s.user.local && s.user.id !== "local",
 }));
 
 const h = vi.hoisted(() => ({ search: "token=evt_123" }));
