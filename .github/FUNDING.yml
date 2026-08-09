@@ -1,0 +1,5 @@
+# Enables the "Sponsor" button on the GitHub repository so people can support
+# the project. Fill in the handles/links you actually use; unset entries are
+# ignored by GitHub.
+github: [lumoryxr]
+# custom: ["https://your-donate-link.example"]

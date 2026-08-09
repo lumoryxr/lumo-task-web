@@ -90,6 +90,19 @@ describe("AccountPage — data & danger zone", () => {
     expect(screen.getByRole("button", { name: "account.delete.btn" })).toBeInTheDocument();
   });
 
+  it("shows a secure GitHub support/donate link and no purchasable-tier stub", () => {
+    render(<AccountPage />);
+    const link = screen.getByRole("link", { name: /account\.support\.cta/ });
+    // Points at GitHub, opens in a new tab, and is hardened against reverse-tabnabbing.
+    expect(link).toHaveAttribute("href", "https://github.com/lumoryxr/lumo-task-web");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+    expect(link).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
+    // The old "Coming soon" upgrade stub is gone.
+    expect(screen.queryByText(/Coming soon/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Upgrade for unlimited/i)).not.toBeInTheDocument();
+  });
+
   it("exports data and shows a success toast", async () => {
     mockExportData.mockResolvedValue({ format_version: 1, user: USER, tasks: [] });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});

@@ -3,6 +3,7 @@ import { runMigrations } from "./db/migrate.js";
 import { app } from "./app.js";
 import { validateStartupSecrets } from "./lib/secret-policy.js";
 import { assertStartupDbConfig } from "./db/dbConfig.js";
+import { assertStartupEmailConfig } from "./lib/email-policy.js";
 import { dbMode } from "./db/client.js";
 import { mountWebStatic } from "./lib/webStatic.js";
 import { log } from "./lib/logger.js";
@@ -39,6 +40,16 @@ try {
 // timeout. Catch it here with an actionable, secret-free message.
 try {
   assertStartupDbConfig();
+} catch (err) {
+  console.error(`Refusing to start: ${(err as Error).message}`);
+  process.exit(1);
+}
+
+// Fail FAST on a half-configured email provider (opt-in only): if a provider is
+// set, its credentials must be complete, or password-reset/verification emails
+// would be silently dropped. No provider set → no-op, unchanged.
+try {
+  assertStartupEmailConfig();
 } catch (err) {
   console.error(`Refusing to start: ${(err as Error).message}`);
   process.exit(1);

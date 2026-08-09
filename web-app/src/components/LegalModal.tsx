@@ -87,20 +87,7 @@ export function LegalModal({
 
         {/* Scrollable body */}
         <div style={{ overflowY: "auto", padding: "16px 20px 20px" }}>
-          {/* Draft banner — this is a starting template, not legal advice. */}
-          <div
-            className="rounded-lg border text-text-secondary"
-            style={{
-              padding: "10px 12px", fontSize: 12, lineHeight: 1.5,
-              borderColor: "var(--border-default)", background: "var(--bg-deep)",
-            }}
-          >
-            {zh
-              ? "说明：本文为起草模板，公开上线前需经法律顾问审阅，并补全公司主体名称、联系邮箱与所在司法辖区。"
-              : "Note: this is a starting template. Before public launch, have it reviewed by legal counsel and fill in your company entity, contact email, and governing jurisdiction."}
-          </div>
-
-          <p style={{ margin: "14px 0 0", fontSize: 13.5, lineHeight: 1.6, color: "var(--text-secondary)" }}>
+          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: "var(--text-secondary)" }}>
             {pick(doc.intro)}
           </p>
 

@@ -23,7 +23,7 @@ describe("LegalModal", () => {
     render(<LegalModal docKey="terms" onClose={() => {}} />);
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-label", "Terms of Service");
-    expect(screen.getByText(/Acceptance of terms/)).toBeInTheDocument();
+    expect(screen.getByText(/Acceptable use/)).toBeInTheDocument();
   });
 
   it("renders the Privacy document when docKey='privacy'", () => {
@@ -32,9 +32,12 @@ describe("LegalModal", () => {
     expect(screen.getByText(/Data we collect/)).toBeInTheDocument();
   });
 
-  it("shows the draft/pending-review banner", () => {
+  it("does NOT show a draft/template banner (legal content is finalized)", () => {
     render(<LegalModal docKey="terms" onClose={() => {}} />);
-    expect(screen.getByText(/starting template/i)).toBeInTheDocument();
+    expect(screen.queryByText(/starting template/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/counsel-reviewed language before launch/i)).not.toBeInTheDocument();
+    // A real, finalized section is present instead.
+    expect(screen.getByText(/Limitation of liability/)).toBeInTheDocument();
   });
 
   it("calls onClose when the close (X) button is clicked", () => {

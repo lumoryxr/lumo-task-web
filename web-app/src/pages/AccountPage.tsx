@@ -10,6 +10,7 @@ import { toast } from "@/store/useToastStore";
 import { presentError } from "@/lib/presentError";
 import { ApiError } from "@/api/ApiError";
 import { RecoveryCodeCard } from "@/components/RecoveryCodeCard";
+import { DONATE_URL } from "@/config/app";
 
 /** Serialize `data` and trigger a client-side file download. */
 function downloadJson(filename: string, data: unknown) {
@@ -191,27 +192,24 @@ export function AccountPage() {
         </div>
       </Group>
 
-      {/* Plan */}
-      <Group title={t("account.plan")}>
-        <Row
-          label={t("account.plan")}
-          helper={
-            user.plan === "pro"
-              ? `${t("account.renews")} · ${user.renewsAt ?? "—"}`
-              : "Upgrade for unlimited sync and Lumo Pro."
-          }
-        >
-          <span
-            className="inline-flex items-center rounded-md px-3 py-1.5 text-[12px] font-medium"
+      {/* Support — Lumo is free; this is a voluntary donation link, not a paid tier. */}
+      <Group title={t("account.support")}>
+        <Row label={t("account.support")} helper={t("account.support.desc")}>
+          <a
+            href={DONATE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors"
             style={{
-              color: "var(--text-faint)",
-              background: "var(--bg-deep)",
-              border: "1px solid var(--border-faint)",
-              letterSpacing: "0.03em",
+              color: "var(--accent-primary)",
+              background: "var(--accent-fog)",
+              border: "1px solid var(--accent-edge)",
+              letterSpacing: "0.02em",
             }}
           >
-            Coming soon
-          </span>
+            {t("account.support.cta")}
+            <IconArrowRight size={12} style={{ transform: "rotate(-45deg)" }} />
+          </a>
         </Row>
       </Group>
 
