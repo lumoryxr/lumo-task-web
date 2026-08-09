@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthShell } from "@/components/AuthShell";
+import { LegalModal } from "@/components/LegalModal";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
 import { presentError, fieldErrorsOf } from "@/lib/presentError";
 import { Spinner } from "@/components/Spinner";
+import type { LegalDocKey } from "@/pages/legal/content";
 
 /**
  * /register — email + password + confirm + optional nickname + ToS.
@@ -21,6 +23,7 @@ export function RegisterPage() {
   const [nickname, setNickname] = useState("");
   const [agreed, setAgreed] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [legalDoc, setLegalDoc] = useState<LegalDocKey | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -114,25 +117,21 @@ export function RegisterPage() {
             </button>
             <span>
               {t("auth.terms")}{" "}
-              <a
-                href="/legal/terms"
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
                 className="underline hover:text-text-primary"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setLegalDoc("terms"); }}
               >
                 {t("legal.terms.link")}
-              </a>
+              </button>
               {" · "}
-              <a
-                href="/legal/privacy"
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
                 className="underline hover:text-text-primary"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setLegalDoc("privacy"); }}
               >
                 {t("legal.privacy.link")}
-              </a>
+              </button>
             </span>
           </label>
 
@@ -156,6 +155,8 @@ export function RegisterPage() {
             {t("auth.localonly")}
           </button>
         </div>
+
+        <LegalModal docKey={legalDoc} onClose={() => setLegalDoc(null)} />
       </form>
     </AuthShell>
   );

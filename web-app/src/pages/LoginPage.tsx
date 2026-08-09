@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthShell } from "@/components/AuthShell";
 import { OAuthButton } from "@/components/OAuthButton";
+import { LegalModal } from "@/components/LegalModal";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
 import { presentError, fieldErrorsOf } from "@/lib/presentError";
 import { Spinner } from "@/components/Spinner";
+import type { LegalDocKey } from "@/pages/legal/content";
 
 /**
  * /login — email + password + 3 OAuth providers + "continue without
@@ -18,6 +20,7 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [legalDoc, setLegalDoc] = useState<LegalDocKey | null>(null);
 
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
@@ -111,6 +114,26 @@ export function LoginPage() {
           </button>
         </div>
 
+        {/* Legal — opens the policy in a modal without leaving the auth screen. */}
+        <div className="mt-3 flex justify-center gap-2 text-[11px] text-text-faint">
+          <button
+            type="button"
+            className="hover:text-text-secondary transition-colors"
+            onClick={() => setLegalDoc("terms")}
+          >
+            {t("legal.terms.link")}
+          </button>
+          <span>·</span>
+          <button
+            type="button"
+            className="hover:text-text-secondary transition-colors"
+            onClick={() => setLegalDoc("privacy")}
+          >
+            {t("legal.privacy.link")}
+          </button>
+        </div>
+
+        <LegalModal docKey={legalDoc} onClose={() => setLegalDoc(null)} />
       </form>
     </AuthShell>
   );

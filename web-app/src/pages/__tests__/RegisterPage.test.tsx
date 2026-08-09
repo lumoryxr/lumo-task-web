@@ -13,6 +13,11 @@ vi.mock("@/i18n/useT", () => ({
   t: (key: string) => key,
 }));
 
+// LegalModal (rendered by RegisterPage) reads locale from the app store.
+vi.mock("@/store/useAppStore", () => ({
+  useAppStore: (sel: (s: { locale: string }) => unknown) => sel({ locale: "en" }),
+}));
+
 const mockToastError = vi.fn();
 vi.mock("@/store/useToastStore", () => ({
   toast: { error: (...a: unknown[]) => mockToastError(...a) },
@@ -164,5 +169,19 @@ describe("RegisterPage", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("must include a number");
     expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("opens the Terms consent link in a modal (not a new tab)", () => {
+    setup();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "legal.terms.link" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("opening the legal modal does not toggle the terms-agreed checkbox", () => {
+    setup();
+    // agreed starts true → submit enabled. Opening the modal must not flip it.
+    fireEvent.click(screen.getByRole("button", { name: "legal.privacy.link" }));
+    expect(getSubmitBtn()).not.toBeDisabled();
   });
 });

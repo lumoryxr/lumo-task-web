@@ -17,6 +17,11 @@ vi.mock("@/i18n/useT", () => ({
   t: (key: string) => key,
 }));
 
+// LegalModal (rendered by LoginPage) reads locale from the app store.
+vi.mock("@/store/useAppStore", () => ({
+  useAppStore: (sel: (s: { locale: string }) => unknown) => sel({ locale: "en" }),
+}));
+
 const mockToastError = vi.fn();
 vi.mock("@/store/useToastStore", () => ({
   toast: { error: (...a: unknown[]) => mockToastError(...a) },
@@ -133,5 +138,20 @@ describe("LoginPage", () => {
     expect(alert).toHaveTextContent("Invalid email");
     // Validation detail goes inline, NOT to the toast.
     expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("opens the Terms modal from the legal footer link", () => {
+    setup();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "legal.terms.link" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("opens the Privacy modal and closes it via the close button", () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "legal.privacy.link" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "legal.modal.close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
