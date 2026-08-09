@@ -45,10 +45,13 @@ about **operating a product for real people**, not code quality.
   rate-limited token; frontend `/forgot-password` and `/reset-password` pages, and the
   login page's "Forgot password" is now wired. Sending real emails needs the provider
   config above.
-- **[todo] Email verification.** `POST /v1/auth/register` still issues a session
-  immediately with no confirmation, so any typo'd/fake email becomes a live account.
-  Add a verification token table + `/v1/auth/verify-email` (reuses the new email lib)
-  and gate sensitive actions on a verified flag.
+- **[done] Email verification (soft).** Registration now issues a single-use
+  verification token and emails a confirmation link; the account starts
+  unverified (`emailVerified` on the profile), a dismissable "verify your email"
+  banner nudges the user, and `/verify-email` + `/resend-verification` complete
+  the flow. It is intentionally **non-blocking** (usable while unverified). Needs
+  the same `LUMO_EMAIL_*` provider config as password reset to actually send mail.
+  Future: gate specific sensitive actions on the verified flag if desired.
 
 ### Production traps
 - **[done] Frontend API-base fallback.** A production build without `VITE_API_BASE`

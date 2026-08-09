@@ -64,7 +64,7 @@ describe("API client — 401 session-expired handling", () => {
 
     const { api } = await import("../client");
     try {
-      await api.signIn({ email: "a@b.com", password: "wrong" });
+      await api.signIn({ username: "someone", password: "wrong" });
     } catch { /* expected */ }
 
     expect(dispatched).toHaveLength(0);

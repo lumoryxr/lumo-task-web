@@ -25,6 +25,7 @@ export const ERROR_CODES = {
   INVALID_ROW: { status: 400, about: "A pushed sync row failed schema validation" },
   MISSING_PARAMS: { status: 400, about: "A required query parameter was absent" },
   WRONG_PASSWORD: { status: 400, about: "Supplied current password was incorrect" },
+  INVALID_RECOVERY_CODE: { status: 400, about: "Recovery code is unknown, malformed, or already used" },
   INVALID_PROJECT: { status: 400, about: "Referenced project does not exist or is not owned by the caller" },
   NO_CLOUD_BASE: { status: 400, about: "Cloud API base URL is not configured" },
   // 401 — auth
@@ -32,6 +33,7 @@ export const ERROR_CODES = {
   INVALID_CREDENTIALS: { status: 401, about: "Email not found or password mismatch" },
   INVALID_REFRESH_TOKEN: { status: 401, about: "Refresh token is unknown, expired, rotated, or revoked" },
   INVALID_RESET_TOKEN: { status: 400, about: "Password reset token is unknown, expired, or already used" },
+  INVALID_VERIFICATION_TOKEN: { status: 400, about: "Email verification token is unknown, expired, or already used" },
   CLOUD_AUTH_FAILED: { status: 401, about: "Cloud sign-in was rejected" },
   // 404 — not found
   NOT_FOUND: { status: 404, about: "Requested resource does not exist" },
@@ -39,6 +41,7 @@ export const ERROR_CODES = {
   PAYLOAD_TOO_LARGE: { status: 413, about: "Request body exceeded the size limit" },
   // 409 — conflict
   EMAIL_TAKEN: { status: 409, about: "Email is already registered" },
+  USERNAME_TAKEN: { status: 409, about: "Username is already registered" },
   NOT_ENABLED: { status: 409, about: "Operation requires a feature that is not enabled" },
   // 500 — server
   INTERNAL_ERROR: { status: 500, about: "Unspecified server fault" },

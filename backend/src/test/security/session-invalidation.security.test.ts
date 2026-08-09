@@ -29,7 +29,7 @@ describe("password change → session invalidation", () => {
 
     // Signing in with the new password issues a working token.
     const signin = await req("POST", "/v1/auth/signin", {
-      body: { email: u.email, password: "NewStrong123" },
+      body: { username: u.username, password: "NewStrong123" },
     });
     assert.equal(signin.status, 200);
     assert.equal((await req("GET", "/v1/user", { token: signin.body.token })).status, 200);

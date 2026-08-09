@@ -389,9 +389,11 @@ function adaptPerson(raw: any): Person {
 const LOCAL_USER: User = {
   id: "local",
   name: "You",
-  email: "",
+  username: "",
+  email: null,
   initials: "YO",
   local: true,
+  emailVerified: true,
   plan: "free",
   stats: { tasks: 0, pomodoros: 0, syncOK: false },
 };
@@ -419,7 +421,7 @@ export const api = {
     clearRefreshToken();
   },
 
-  async signIn(input: { email: string; password: string }): Promise<User> {
+  async signIn(input: { username: string; password: string }): Promise<User> {
     const res = await req<{ token: string; refreshToken?: string; user: User }>("POST", "/auth/signin", input);
     setToken(res.token);
     if (res.refreshToken) setRefreshToken(res.refreshToken);
@@ -430,21 +432,48 @@ export const api = {
     throw new Error("OAuth providers are not yet supported in local mode.");
   },
 
+  /**
+   * Register a username-only account. Returns the signed-in user AND the one-time
+   * recovery code — the plaintext is shown exactly once and never re-fetchable.
+   */
   async register(input: {
-    email: string;
+    username: string;
     password: string;
     confirm: string;
-    nickname?: string;
-  }): Promise<User> {
+  }): Promise<{ user: User; recoveryCode: string }> {
     if (input.password !== input.confirm) throw new Error("Passwords don't match.");
-    const res = await req<{ token: string; refreshToken?: string; user: User }>("POST", "/auth/register", {
-      email: input.email,
-      password: input.password,
-      name: input.nickname?.trim() || input.email.split("@")[0],
-    });
+    const res = await req<{ token: string; refreshToken?: string; user: User; recoveryCode: string }>(
+      "POST",
+      "/auth/register",
+      { username: input.username, password: input.password },
+    );
     setToken(res.token);
     if (res.refreshToken) setRefreshToken(res.refreshToken);
-    return res.user;
+    return { user: res.user, recoveryCode: res.recoveryCode };
+  },
+
+  /**
+   * Bind (or change) the signed-in account's email. The email is set unverified
+   * and a verification link is emailed; usage is never blocked. Throws an
+   * ApiError with code EMAIL_TAKEN when another account already owns it.
+   */
+  async bindEmail(email: string): Promise<{ email: string; emailVerified: boolean }> {
+    return req<{ ok: true; email: string; emailVerified: boolean }>("POST", "/auth/bind-email", { email });
+  },
+
+  /**
+   * Reset a password with a recovery code — the offline fallback. Throws an
+   * ApiError with code INVALID_RECOVERY_CODE when the (username, code) pair is
+   * wrong or the code was already used.
+   */
+  async recoveryReset(input: { username: string; code: string; new_password: string }): Promise<void> {
+    await req<{ ok: true }>("POST", "/auth/recovery/reset", input);
+  },
+
+  /** Regenerate the signed-in account's recovery code — returns the new plaintext once. */
+  async regenerateRecoveryCode(): Promise<string> {
+    const res = await req<{ recoveryCode: string }>("POST", "/auth/recovery-code/regenerate");
+    return res.recoveryCode;
   },
 
   // Change the signed-in user's password. The server verifies `current_password`
@@ -467,6 +496,17 @@ export const api = {
   // with code INVALID_RESET_TOKEN when the link is bad/expired/used.
   async resetPassword(input: { token: string; new_password: string }): Promise<void> {
     await req<{ ok: true }>("POST", "/auth/reset-password", input);
+  },
+
+  // Confirm an email with the token from the verification link. Throws an
+  // ApiError with code INVALID_VERIFICATION_TOKEN when the link is bad/expired.
+  async verifyEmail(token: string): Promise<void> {
+    await req<{ ok: true }>("POST", "/auth/verify-email", { token });
+  },
+
+  // Re-send the verification email for the signed-in user (no-op if verified).
+  async resendVerification(): Promise<void> {
+    await req<{ ok: true }>("POST", "/auth/resend-verification");
   },
 
   async signOut(): Promise<User> {

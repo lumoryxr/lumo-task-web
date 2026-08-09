@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthShell } from "@/components/AuthShell";
 import { OAuthButton } from "@/components/OAuthButton";
+import { LegalModal } from "@/components/LegalModal";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
 import { presentError, fieldErrorsOf } from "@/lib/presentError";
 import { Spinner } from "@/components/Spinner";
+import type { LegalDocKey } from "@/pages/legal/content";
 
 /**
  * /login — email + password + 3 OAuth providers + "continue without
@@ -15,15 +17,16 @@ export function LoginPage() {
   const t = useT();
   const navigate = useNavigate();
   const { signIn, loading } = useAuthStore();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [legalDoc, setLegalDoc] = useState<LegalDocKey | null>(null);
 
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
     setFieldErrors({});
     try {
-      await signIn(email, password);
+      await signIn(username, password);
       navigate("/today");
     } catch (err) {
       // Validation failures get inline messages under the offending input;
@@ -45,14 +48,14 @@ export function LoginPage() {
         </div>
 
         <div className="mt-[22px] flex flex-col gap-3">
-          <Field label={t("auth.email")} error={fieldErrors.email}>
+          <Field label={t("auth.username")} error={fieldErrors.username}>
             <input
               className="input"
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              autoComplete="username"
+              placeholder={t("auth.username.ph")}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
             />
           </Field>
           <Field label={t("auth.password")} error={fieldErrors.password}>
@@ -111,6 +114,26 @@ export function LoginPage() {
           </button>
         </div>
 
+        {/* Legal — opens the policy in a modal without leaving the auth screen. */}
+        <div className="mt-3 flex justify-center gap-2 text-[11px] text-text-faint">
+          <button
+            type="button"
+            className="hover:text-text-secondary transition-colors"
+            onClick={() => setLegalDoc("terms")}
+          >
+            {t("legal.terms.link")}
+          </button>
+          <span>·</span>
+          <button
+            type="button"
+            className="hover:text-text-secondary transition-colors"
+            onClick={() => setLegalDoc("privacy")}
+          >
+            {t("legal.privacy.link")}
+          </button>
+        </div>
+
+        <LegalModal docKey={legalDoc} onClose={() => setLegalDoc(null)} />
       </form>
     </AuthShell>
   );

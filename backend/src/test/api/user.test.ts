@@ -121,7 +121,7 @@ describe("DELETE /v1/user", () => {
 
     // Sign-in with the same credentials no longer resolves an account.
     const signin = await req("POST", "/v1/auth/signin", {
-      body: { email: u.email, password: "password123" },
+      body: { username: u.username, password: "password123" },
     });
     assert.equal(signin.status, 401);
   });

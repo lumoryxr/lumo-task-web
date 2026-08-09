@@ -103,15 +103,31 @@ async function rawApi(
   return { status: res.status, body, contentType };
 }
 
-function uniqueEmail(tag: string): string {
-  // Deterministic-but-unique per test; no Math.random / Date needed for uniqueness
-  // because each registers exactly once.
-  return `dfx-${tag}@lumo.test`;
+function uniqueUsername(tag: string): string {
+  // Deterministic per tag (same tag → same username) so a later signin can
+  // reconstruct the exact name registerUser used. The auth contract is now
+  // username-first, so we derive a VALID username from the test's tag:
+  //   • sanitize to the [A-Za-z0-9_-] charset,
+  //   • never start/end with a separator,
+  //   • keep 3–32 chars (long tags are truncated with a deterministic hash
+  //     suffix so distinct long tags stay distinct),
+  //   • pad if a tag sanitizes to < 3 chars.
+  // No Math.random / Date needed: each tag registers exactly once per run.
+  let u = tag.replace(/[^A-Za-z0-9_-]/g, "");
+  if (u.length > 32) {
+    let h = 0;
+    for (let i = 0; i < tag.length; i++) h = (h * 31 + tag.charCodeAt(i)) >>> 0;
+    const suffix = h.toString(36).slice(0, 6);
+    u = `${u.slice(0, 32 - suffix.length - 1)}-${suffix}`;
+  }
+  u = u.replace(/^[-_]+/, "").replace(/[-_]+$/, "");
+  if (u.length < 3) u = `${u}usr`.slice(0, 3);
+  return u;
 }
 
 async function registerUser(tag: string): Promise<{ token: string; id: string }> {
   const { status, body } = await api("POST", "/v1/auth/register", {
-    body: { email: uniqueEmail(tag), password: "Secret1234!", name: tag },
+    body: { username: uniqueUsername(tag), password: "Secret1234!" },
   });
   assert.equal(status, 201, `register ${tag} should succeed`);
   return { token: body.token, id: body.user.id };
@@ -173,7 +189,7 @@ describe("DFX · Security — authentication & authorization", () => {
 
   test("weak password is rejected at registration → 4xx (not stored)", async () => {
     const { status } = await api("POST", "/v1/auth/register", {
-      body: { email: uniqueEmail("weak"), password: "short", name: "Weak" },
+      body: { username: uniqueUsername("weak"), password: "short" },
     });
     assert.ok(status >= 400 && status < 500, `weak password should be 4xx, got ${status}`);
   });
@@ -1214,8 +1230,9 @@ describe("DFX · Security — GET /v1/user profile + stats aggregate tenant scop
   test("AC2 · profile identity — the row is loaded from the JWT owner, not another tenant", async () => {
     const { status, body } = await api("GET", "/v1/user", { token: owner.token });
     assert.equal(status, 200);
-    assert.equal(body.email, "dfx-profile-owner@lumo.test", "email must be the token-owner's");
-    assert.equal(body.name, "profile-owner", "name must be the token-owner's");
+    assert.equal(body.username, "profile-owner", "username must be the token-owner's");
+    assert.equal(body.email, null, "email is unbound (null) until /bind-email");
+    assert.equal(body.name, "profile-owner", "name must be the token-owner's (defaults to the username)");
     assert.equal(body.id, owner.id, "id must be the token-owner's");
   });
 
@@ -3881,7 +3898,7 @@ describe("DFX · Security — auth/refresh rotation, single-use & reuse-detectio
   test("AC1 · rotation & single-use — valid refresh → 200 with a working new access token + a rotated refresh token; the old token is now dead", async () => {
     await registerUser("refresh-rotate"); // create the account; signin below yields a known token pair
     const { status: sIn, body: creds } = await api("POST", "/v1/auth/signin", {
-      body: { email: uniqueEmail("refresh-rotate"), password: "Secret1234!" },
+      body: { username: uniqueUsername("refresh-rotate"), password: "Secret1234!" },
     });
     assert.equal(sIn, 200, "signin should return a fresh token pair");
     const rt1: string = creds.refreshToken;
@@ -3910,7 +3927,7 @@ describe("DFX · Security — auth/refresh rotation, single-use & reuse-detectio
     // test's final assertion is what reddens on that mutation (perfect specificity).
     await registerUser("refresh-theft");
     const { body: creds } = await api("POST", "/v1/auth/signin", {
-      body: { email: uniqueEmail("refresh-theft"), password: "Secret1234!" },
+      body: { username: uniqueUsername("refresh-theft"), password: "Secret1234!" },
     });
     const rt1: string = creds.refreshToken;
 
@@ -3942,7 +3959,7 @@ describe("DFX · Security — auth/refresh rotation, single-use & reuse-detectio
     // token still refreshes afterward.
     await registerUser("refresh-recover");
     const { body: creds } = await api("POST", "/v1/auth/signin", {
-      body: { email: uniqueEmail("refresh-recover"), password: "Secret1234!" },
+      body: { username: uniqueUsername("refresh-recover"), password: "Secret1234!" },
     });
     const ok = await api("POST", "/v1/auth/refresh", { body: { refreshToken: creds.refreshToken } });
     assert.equal(ok.status, 200, "the server stays healthy after rejecting malformed refresh requests");
@@ -3951,7 +3968,7 @@ describe("DFX · Security — auth/refresh rotation, single-use & reuse-detectio
   test("AC4 · revocation on sign-out — a refresh token sent to /signout can no longer refresh", async () => {
     await registerUser("refresh-signout");
     const { body: creds } = await api("POST", "/v1/auth/signin", {
-      body: { email: uniqueEmail("refresh-signout"), password: "Secret1234!" },
+      body: { username: uniqueUsername("refresh-signout"), password: "Secret1234!" },
     });
     const rt: string = creds.refreshToken;
 
@@ -3967,7 +3984,7 @@ describe("DFX · Security — auth/refresh rotation, single-use & reuse-detectio
     // change bumps session_version, so a refresh token issued before it is stale.
     await registerUser("refresh-pwchange");
     const { body: creds } = await api("POST", "/v1/auth/signin", {
-      body: { email: uniqueEmail("refresh-pwchange"), password: "Secret1234!" },
+      body: { username: uniqueUsername("refresh-pwchange"), password: "Secret1234!" },
     });
     const staleRt: string = creds.refreshToken;
 
@@ -3987,83 +4004,103 @@ describe("DFX · Security — auth/refresh rotation, single-use & reuse-detectio
 // ═══════════════════════════════════════════════════════════════════════════════
 // `POST /v1/auth/register` and `POST /v1/auth/signin` are the app's TWO public,
 // unauthenticated, highest-traffic endpoints, yet the daily suite exercised them
-// only as the `registerUser` fixture helper — the sole input case was the single
-// "weak password rejected at registration" security assertion. Their validation
-// boundary otherwise had NO daily coverage: `register` never had its `email`
-// shape / `name` length bounds pinned, and `signin` had ZERO validation coverage
-// at all.
+// only as the `registerUser` fixture helper. Auth is now USERNAME-first
+// (commit 1945fba): `register`/`signin` take `{ username, password }` — there is
+// no `email` or `name` at the auth boundary anymore (email is bound later via
+// `POST /v1/auth/bind-email`; `name` defaults to the username).
 //
 // Each body is gated by a Zod schema (`RegisterBody` / `SigninBody`, routes/auth.ts)
 // that runs via `validate("json", …)` BEFORE the handler touches the users table
-// or spends any bcrypt time — so these caps are the only barrier stopping a
-// malformed row (bad-shape email, blank/oversized display name) from reaching
-// storage. A regression loosening any of them would surface only as corrupt data
-// / a 5xx in prod, past every existing case. `register`: `email` is
-// `z.string().email().max(255)`, `name` is `z.string().min(1).max(100)`.
-// `signin`: `email` is `z.string().email()`.
+// or spends any bcrypt time. `register.username` is
+// `z.string().min(3).max(32).regex([A-Za-z0-9_-])`, may not start/end with a
+// separator, and rejects a reserved-word blacklist (admin|root|lumo|support|system)
+// — all surfaced as VALIDATION_ERROR. `signin.username` is `z.string().min(1).max(32)`.
+// These caps are the only barrier stopping a malformed/oversized/reserved username
+// from reaching storage; a regression loosening any of them would surface only as
+// corrupt data / a 5xx in prod, past every existing case.
 //
 // NOTE — this pins the pre-auth VALIDATION layer only (malformed shape → 400),
 // which is orthogonal to the signin account-enumeration/timing policy (the
-// deliberately-uniform 401 for a VALID-but-unknown email, an open Jalen decision):
-// a malformed email is rejected at the shape gate before the credential path ever
-// runs, so it is a clean 400, never the 401 that enumeration concerns are about.
+// deliberately-uniform 401 for a VALID-but-unknown username): a malformed username
+// is rejected at the shape gate before the credential path ever runs, so it is a
+// clean 400, never the 401 that enumeration concerns are about.
 describe("DFX · Robustness — auth register/signin input bounds (#387)", () => {
-  test("AC1 · register with a malformed `email` → 400 VALIDATION_ERROR naming `email`; a valid register still 201 (recoverability)", async () => {
+  test("AC1 · register with a malformed `username` (bad chars) → 400 VALIDATION_ERROR naming `username`; a valid register still 201 (recoverability)", async () => {
     const bad = await api("POST", "/v1/auth/register", {
-      body: { email: "not-an-email", password: "Secret1234!", name: "Shape" },
+      body: { username: "bad name!", password: "Secret1234!" },
     });
-    assert.equal(bad.status, 400, "a bad-shape email must be a client error, not a 5xx or a stored row");
+    assert.equal(bad.status, 400, "a bad-charset username must be a client error, not a 5xx or a stored row");
     assert.equal(bad.body.error?.code, "VALIDATION_ERROR");
     assert.ok(
-      (bad.body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "email"),
-      "the rejection must name `email` (the .email() shape bound fired, not an incidental 400)",
+      (bad.body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "username"),
+      "the rejection must name `username` (the charset regex fired, not an incidental 400)",
     );
 
-    // Recoverability + proof it was the email shape (not a dead endpoint): a
+    // Too short: below the min(3) lower bound → also 400 naming `username`.
+    const tooShort = await api("POST", "/v1/auth/register", {
+      body: { username: "ab", password: "Secret1234!" },
+    });
+    assert.equal(tooShort.status, 400, "a 2-char username is below min(3) and must be rejected");
+    assert.ok(
+      (tooShort.body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "username"),
+      "the too-short rejection must name `username`",
+    );
+
+    // Reserved word → 400 naming `username` (the blacklist refinement fired).
+    const reserved = await api("POST", "/v1/auth/register", {
+      body: { username: "admin", password: "Secret1234!" },
+    });
+    assert.equal(reserved.status, 400, "a reserved username must be rejected, not claimable");
+    assert.ok(
+      (reserved.body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "username"),
+      "the reserved-word rejection must name `username`",
+    );
+
+    // Recoverability + proof it was the username shape (not a dead endpoint): a
     // well-formed registration right after still succeeds → 201 with a token.
     const good = await api("POST", "/v1/auth/register", {
-      body: { email: uniqueEmail("authbounds-ok"), password: "Secret1234!", name: "Valid" },
+      body: { username: uniqueUsername("authbounds-ok"), password: "Secret1234!" },
     });
     assert.equal(good.status, 201, "a well-formed register after a rejected one must still succeed");
     assert.ok(typeof good.body.token === "string" && good.body.token.length > 0, "a successful register returns a token");
   });
 
-  test("AC2 · register with an over-length `name` (> 100) → 400 VALIDATION_ERROR naming `name`", async () => {
+  test("AC2 · register with an over-length `username` (> 32) → 400 VALIDATION_ERROR naming `username`", async () => {
     const { status, body } = await api("POST", "/v1/auth/register", {
-      body: { email: uniqueEmail("authbounds-longname"), password: "Secret1234!", name: "x".repeat(101) },
+      body: { username: "u".repeat(33), password: "Secret1234!" },
     });
-    assert.equal(status, 400, "an over-length display name must be rejected, not stored");
+    assert.equal(status, 400, "an over-length username must be rejected, not stored");
     assert.equal(body.error?.code, "VALIDATION_ERROR");
     assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "name"),
-      "the rejection must name `name` (the max(100) bound fired)",
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "username"),
+      "the rejection must name `username` (the max(32) bound fired)",
     );
   });
 
-  test("AC3 · register with an empty `name` (`\"\"`) → 400 VALIDATION_ERROR naming `name` — the min(1) lower bound", async () => {
-    const { status, body } = await api("POST", "/v1/auth/register", {
-      body: { email: uniqueEmail("authbounds-blankname"), password: "Secret1234!", name: "" },
-    });
-    assert.equal(status, 400, "a blank display name must be rejected, not stored");
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-    assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "name"),
-      "a blank name must name `name` (the min(1) bound fired, distinct from the max(100) cap)",
-    );
-  });
-
-  test("AC4 · signin with a malformed `email` → 400 VALIDATION_ERROR naming `email` (validation before the credential/enumeration path, not a 401)", async () => {
+  test("AC3 · signin with a missing `username` → 400 VALIDATION_ERROR naming `username`", async () => {
     const { status, body } = await api("POST", "/v1/auth/signin", {
-      body: { email: "not-an-email", password: "whatever" },
+      body: { password: "whatever" },
     });
-    // 400 (shape gate), NOT 401: the malformed email is rejected before the
-    // no-user credential path runs, so this is orthogonal to the uniform-401
-    // enumeration policy for valid-but-unknown emails.
-    assert.equal(status, 400, "a malformed signin email is a validation error (400), never the credential-path 401");
+    assert.equal(status, 400, "a missing signin username is a validation error (400), never the credential-path 401");
     assert.equal(body.error?.code, "VALIDATION_ERROR");
     assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "email"),
-      "the rejection must name `email` (signin's own .email() shape bound fired)",
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "username"),
+      "the rejection must name `username` (signin's own min(1) bound fired)",
+    );
+  });
+
+  test("AC4 · signin with a blank `username` (`\"\"`) → 400 VALIDATION_ERROR naming `username` (validation before the credential/enumeration path, not a 401)", async () => {
+    const { status, body } = await api("POST", "/v1/auth/signin", {
+      body: { username: "", password: "whatever" },
+    });
+    // 400 (shape gate), NOT 401: the blank username is rejected before the
+    // no-user credential path runs, so this is orthogonal to the uniform-401
+    // enumeration policy for valid-but-unknown usernames.
+    assert.equal(status, 400, "a blank signin username is a validation error (400), never the credential-path 401");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+    assert.ok(
+      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "username"),
+      "the rejection must name `username` (signin's own min(1) bound fired)",
     );
   });
 });
@@ -4122,12 +4159,12 @@ describe("DFX · Security — change-password failed attempt has no side effects
   });
 
   test("AC2 · a WRONG current_password is a no-op: 400 WRONG_PASSWORD, password unchanged, session_version un-bumped", async () => {
-    const email = uniqueEmail("cp-wrong");
+    const username = uniqueUsername("cp-wrong");
     const { token } = await registerUser("cp-wrong");
 
     // A token minted BEFORE the failed attempt — used to prove session_version is
     // not bumped by a failure.
-    const { body: pre } = await api("POST", "/v1/auth/signin", { body: { email, password: "Secret1234!" } });
+    const { body: pre } = await api("POST", "/v1/auth/signin", { body: { username, password: "Secret1234!" } });
     const preToken: string = pre.token;
     const preOk = await api("GET", "/v1/user", { token: preToken });
     assert.equal(preOk.status, 200, "the pre-attempt token authenticates before the failed change (baseline)");
@@ -4140,9 +4177,9 @@ describe("DFX · Security — change-password failed attempt has no side effects
     assert.equal(wrong.body.error?.code, "WRONG_PASSWORD");
 
     // Password unchanged: the OLD password still signs in; the attempted NEW one does not.
-    const oldStill = await api("POST", "/v1/auth/signin", { body: { email, password: "Secret1234!" } });
+    const oldStill = await api("POST", "/v1/auth/signin", { body: { username, password: "Secret1234!" } });
     assert.equal(oldStill.status, 200, "the old password must still work — a failed attempt must not change it");
-    const newRejected = await api("POST", "/v1/auth/signin", { body: { email, password: "Secret5678!" } });
+    const newRejected = await api("POST", "/v1/auth/signin", { body: { username, password: "Secret5678!" } });
     assert.equal(newRejected.status, 401, "the attempted new password must NOT have taken effect");
 
     // session_version un-bumped: the token minted before the failed attempt still authenticates.
@@ -4152,11 +4189,11 @@ describe("DFX · Security — change-password failed attempt has no side effects
   });
 
   test("AC3 · a SUCCESSFUL change is a full rotation: 200, old password rejected, new works, pre-change token revoked", async () => {
-    const email = uniqueEmail("cp-rotate");
+    const username = uniqueUsername("cp-rotate");
     const { token } = await registerUser("cp-rotate");
 
     // A token minted BEFORE the change — must be revoked by the session_version bump.
-    const { body: pre } = await api("POST", "/v1/auth/signin", { body: { email, password: "Secret1234!" } });
+    const { body: pre } = await api("POST", "/v1/auth/signin", { body: { username, password: "Secret1234!" } });
     const preToken: string = pre.token;
     const preOk = await api("GET", "/v1/user", { token: preToken });
     assert.equal(preOk.status, 200, "the pre-change token authenticates before the change (baseline)");
@@ -4168,9 +4205,9 @@ describe("DFX · Security — change-password failed attempt has no side effects
     assert.equal(changed.status, 200, "a correct current password must succeed");
 
     // Password rotated: old rejected at signin, new works.
-    const oldNow = await api("POST", "/v1/auth/signin", { body: { email, password: "Secret1234!" } });
+    const oldNow = await api("POST", "/v1/auth/signin", { body: { username, password: "Secret1234!" } });
     assert.equal(oldNow.status, 401, "the old password must be rejected after a successful change");
-    const newNow = await api("POST", "/v1/auth/signin", { body: { email, password: "Rotated9012!" } });
+    const newNow = await api("POST", "/v1/auth/signin", { body: { username, password: "Rotated9012!" } });
     assert.equal(newNow.status, 200, "the new password must work after a successful change");
 
     // Access revocation: the token minted before the change is now rejected (session_version bumped).

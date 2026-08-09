@@ -32,14 +32,20 @@ vi.mock("@/lib/presentError", () => ({
   presentError: (...a: unknown[]) => mockPresentError(...a),
 }));
 
+import { ApiError } from "@/api/ApiError";
+
 const mockExportData = vi.fn();
 const mockDeleteAccount = vi.fn();
 const mockSignOut = vi.fn();
+const mockBindEmail = vi.fn();
+const mockRegenerate = vi.fn();
 
 const USER = {
   id: "u_1",
   name: "Ada Lovelace",
-  email: "ada@example.com",
+  username: "ada",
+  email: "ada@example.com" as string | null,
+  emailVerified: true,
   initials: "AL",
   local: false,
   plan: "free",
@@ -52,6 +58,8 @@ function state() {
     signOut: mockSignOut,
     exportData: mockExportData,
     deleteAccount: mockDeleteAccount,
+    bindEmail: mockBindEmail,
+    regenerateRecoveryCode: mockRegenerate,
   };
 }
 
@@ -141,5 +149,39 @@ describe("AccountPage — data & danger zone", () => {
     fireEvent.click(screen.getByRole("button", { name: "account.delete.modal.cta" }));
     await waitFor(() => expect(mockPresentError).toHaveBeenCalledWith(expect.any(Error), "account.delete.err"));
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("AccountPage — email binding", () => {
+  it("binds an email through the dialog and shows a success toast", async () => {
+    mockBindEmail.mockResolvedValue(undefined);
+    render(<AccountPage />);
+    // USER has an email → the control reads "change".
+    fireEvent.click(screen.getByRole("button", { name: "account.email.change" }));
+    fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "new@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "account.email.modal.submit" }));
+    await waitFor(() => expect(mockBindEmail).toHaveBeenCalledWith("new@example.com"));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("account.email.success"));
+  });
+
+  it("shows an inline EMAIL_TAKEN message without a success toast", async () => {
+    mockBindEmail.mockRejectedValueOnce(new ApiError("taken", { code: "EMAIL_TAKEN", status: 409 }));
+    render(<AccountPage />);
+    fireEvent.click(screen.getByRole("button", { name: "account.email.change" }));
+    fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "dupe@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "account.email.modal.submit" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("account.email.taken");
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("AccountPage — recovery code", () => {
+  it("regenerates the recovery code and shows it once in a modal", async () => {
+    mockRegenerate.mockResolvedValue("LUMO-ABCD-EFGH-JKMN-PQRS");
+    render(<AccountPage />);
+    fireEvent.click(screen.getByRole("button", { name: "account.recovery.regen" }));
+    await waitFor(() => expect(mockRegenerate).toHaveBeenCalledTimes(1));
+    expect(await screen.findByTestId("recovery-code")).toHaveTextContent("LUMO-ABCD-EFGH-JKMN-PQRS");
   });
 });

@@ -2,7 +2,12 @@
 
 export interface UserRow {
   id: string;
-  email: string;
+  /** Unique login handle; canonical form. Backfilled for legacy email accounts. */
+  username: string | null;
+  /** Lowercased `username` — the uniqueness key (case-insensitive). */
+  username_lower: string | null;
+  /** Optional, bound after registration. NULL for username-only accounts. */
+  email: string | null;
   password_hash: string;
   name: string;
   initials: string;
@@ -11,6 +16,7 @@ export interface UserRow {
   renews_at: string | null;
   created_at: string;
   session_version: number;
+  email_verified: number;
 }
 
 export interface TaskRow {

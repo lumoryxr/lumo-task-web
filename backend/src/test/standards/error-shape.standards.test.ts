@@ -47,9 +47,9 @@ describe("Standards · error envelope", () => {
   }
 
   test("409 duplicate register → ApiError envelope", async () => {
-    const { email } = await newUserWithToken("dup");
+    const { username } = await newUserWithToken("dup");
     const { status, body } = await req("POST", "/v1/auth/register", {
-      body: { email, password: "password123", name: "Dup" },
+      body: { username, password: "password123" },
     });
     assert.equal(status, 409);
     assert.ok(ApiErrorSchema.safeParse(body).success, `409 body must match ApiError: ${JSON.stringify(body)}`);

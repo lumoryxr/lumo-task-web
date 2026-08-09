@@ -89,18 +89,19 @@ test.describe("Electron desktop smoke", () => {
     // Exercises the real write/read path through the bundled backend + SQLite:
     // the migrations ran (tables exist), a row is inserted and read back. This
     // is the basic-functionality guarantee beyond just /health.
-    const email = `smoke-${Date.now()}@lumo.test`;
+    // Auth is username-first (commit 1945fba): register with { username, password }.
+    const username = `smoke${Date.now()}`;
     const title = `smoke-task-${Date.now()}`;
 
     const result = await page.evaluate(
-      async ({ port, email, title }: { port: number; email: string; title: string }) => {
+      async ({ port, username, title }: { port: number; username: string; title: string }) => {
         const base = `http://127.0.0.1:${port}/v1`;
         const json = (r: Response) => r.json();
 
         const reg = await fetch(`${base}/auth/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password: "E2eTest!23", name: "Smoke" }),
+          body: JSON.stringify({ username, password: "E2eTest!23" }),
         });
         if (!reg.ok) return { step: "register", status: reg.status };
         const { token } = (await json(reg)) as { token: string };
@@ -119,7 +120,7 @@ test.describe("Electron desktop smoke", () => {
         const { items } = (await json(list)) as { items: Array<{ title: { en: string } }> };
         return { step: "ok", found: items.some((t) => t.title?.en === title) };
       },
-      { port: backendPort, email, title }
+      { port: backendPort, username, title }
     );
 
     expect(result.step, `failed at step "${result.step}" (status ${result.status ?? "-"})`).toBe("ok");

@@ -1,41 +1,58 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthShell } from "@/components/AuthShell";
+import { LegalModal } from "@/components/LegalModal";
+import { RecoveryCodeCard } from "@/components/RecoveryCodeCard";
 import { useT } from "@/i18n/useT";
 import { useAuthStore } from "@/store/useAuthStore";
 import { presentError, fieldErrorsOf } from "@/lib/presentError";
 import { Spinner } from "@/components/Spinner";
+import type { LegalDocKey } from "@/pages/legal/content";
 
 /**
- * /register — email + password + confirm + optional nickname + ToS.
+ * /register — username + password + confirm + ToS (username-first, #17).
  *
- * On success: stores user via auth store, routes to /today.
+ * On success we surface the one-time recovery code (copy/download + an "I've
+ * saved it" gate) BEFORE routing on; the account is already created and signed
+ * in at that point.
  */
 export function RegisterPage() {
   const t = useT();
   const navigate = useNavigate();
   const { register, loading } = useAuthStore();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [nickname, setNickname] = useState("");
   const [agreed, setAgreed] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [legalDoc, setLegalDoc] = useState<LegalDocKey | null>(null);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!agreed) return;
     setFieldErrors({});
     try {
-      await register({ email, password, confirm, nickname });
-      navigate("/today");
+      const code = await register({ username, password, confirm });
+      setRecoveryCode(code);
     } catch (err) {
-      // Validation failures (e.g. password too weak, mismatched confirm) get
-      // inline messages under the right input; anything else surfaces via toast.
+      // Validation failures (e.g. weak password, taken username, mismatched
+      // confirm) get inline messages; anything else surfaces via toast.
       const fe = fieldErrorsOf(err);
       if (Object.keys(fe).length > 0) setFieldErrors(fe);
       else presentError(err, "error.auth.register");
     }
+  }
+
+  // Post-registration: gate on saving the one-time recovery code before routing.
+  if (recoveryCode) {
+    return (
+      <AuthShell>
+        <div className="fade-in">
+          <RecoveryCodeCard code={recoveryCode} onContinue={() => navigate("/today")} />
+        </div>
+      </AuthShell>
+    );
   }
 
   return (
@@ -49,14 +66,14 @@ export function RegisterPage() {
         </div>
 
         <div className="mt-5 flex flex-col gap-3">
-          <Field label={t("auth.email")} error={fieldErrors.email}>
+          <Field label={t("auth.username")} error={fieldErrors.username} help={t("auth.username.help")}>
             <input
               className="input"
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              autoComplete="username"
+              placeholder={t("auth.username.ph")}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
             />
           </Field>
           <Field label={t("auth.password")} error={fieldErrors.password}>
@@ -79,22 +96,6 @@ export function RegisterPage() {
               onChange={(e) => setConfirm(e.target.value)}
             />
           </Field>
-          <Field
-            label={
-              <>
-                {t("auth.nick")}{" "}
-                <span className="text-text-faint">· {t("auth.nick.opt")}</span>
-              </>
-            }
-          >
-            <input
-              className="input"
-              type="text"
-              placeholder="Alex"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-            />
-          </Field>
 
           <label className="flex items-start gap-2.5 mt-1 text-[12px] text-text-secondary leading-relaxed">
             <button
@@ -114,25 +115,21 @@ export function RegisterPage() {
             </button>
             <span>
               {t("auth.terms")}{" "}
-              <a
-                href="/legal/terms"
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
                 className="underline hover:text-text-primary"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setLegalDoc("terms"); }}
               >
                 {t("legal.terms.link")}
-              </a>
+              </button>
               {" · "}
-              <a
-                href="/legal/privacy"
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
                 className="underline hover:text-text-primary"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setLegalDoc("privacy"); }}
               >
                 {t("legal.privacy.link")}
-              </a>
+              </button>
             </span>
           </label>
 
@@ -156,6 +153,8 @@ export function RegisterPage() {
             {t("auth.localonly")}
           </button>
         </div>
+
+        <LegalModal docKey={legalDoc} onClose={() => setLegalDoc(null)} />
       </form>
     </AuthShell>
   );
@@ -164,10 +163,12 @@ export function RegisterPage() {
 function Field({
   label,
   error,
+  help,
   children,
 }: {
   label: React.ReactNode;
   error?: string;
+  help?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -179,11 +180,13 @@ function Field({
         {label}
       </span>
       {children}
-      {error && (
+      {error ? (
         <span role="alert" className="block text-[11px] mt-1" style={{ color: "var(--status-urgent)" }}>
           {error}
         </span>
-      )}
+      ) : help ? (
+        <span className="block text-[11px] mt-1 text-text-faint">{help}</span>
+      ) : null}
     </label>
   );
 }

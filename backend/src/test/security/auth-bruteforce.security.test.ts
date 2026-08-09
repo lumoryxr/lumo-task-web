@@ -30,7 +30,7 @@ describe("Security · login brute-force · XFF spoofing", () => {
     const statuses: number[] = [];
     for (let i = 0; i < 13; i++) {
       const res = await req("POST", "/v1/auth/signin", {
-        body: { email: "spoof-probe@test.local", password: "nope" },
+        body: { username: "spoofprobe", password: "nope" },
         // attacker changes the LEFT entry on every request; the trusted peer is constant
         headers: { "x-forwarded-for": `10.0.0.${i}, ${realPeer}` },
       });
@@ -44,11 +44,11 @@ describe("Security · login brute-force · XFF spoofing", () => {
 
   test("distinct real peers get independent buckets (no false throttling)", async () => {
     const a = await req("POST", "/v1/auth/signin", {
-      body: { email: "x@test.local", password: "nope" },
+      body: { username: "probex", password: "nope" },
       headers: { "x-forwarded-for": `1.1.1.1, 198.51.100.10` },
     });
     const b = await req("POST", "/v1/auth/signin", {
-      body: { email: "x@test.local", password: "nope" },
+      body: { username: "probex", password: "nope" },
       headers: { "x-forwarded-for": `1.1.1.1, 198.51.100.11` },
     });
     assert.notEqual(a.status, 429);
@@ -62,7 +62,7 @@ describe("Security · login timing · account enumeration", () => {
     const headers = { "x-forwarded-for": "192.0.2.200" };
     const t0 = process.hrtime.bigint();
     const res = await req("POST", "/v1/auth/signin", {
-      body: { email: `ghost-${Date.now()}@nowhere.test`, password: "whatever123" },
+      body: { username: `ghost${Date.now()}`, password: "whatever123" },
       headers,
     });
     const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;

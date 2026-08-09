@@ -13,6 +13,11 @@ vi.mock("@/i18n/useT", () => ({
   t: (key: string) => key,
 }));
 
+// LegalModal (rendered by RegisterPage) reads locale from the app store.
+vi.mock("@/store/useAppStore", () => ({
+  useAppStore: (sel: (s: { locale: string }) => unknown) => sel({ locale: "en" }),
+}));
+
 const mockToastError = vi.fn();
 vi.mock("@/store/useToastStore", () => ({
   toast: { error: (...a: unknown[]) => mockToastError(...a) },
@@ -39,8 +44,10 @@ function setup() {
   render(<RegisterPage />);
 }
 
-function getEmailInput() {
-  return screen.getByLabelText("auth.email") as HTMLInputElement;
+function getUsernameInput() {
+  // The username Field carries help text, so the wrapping <label> text isn't an
+  // exact match — query by its placeholder instead.
+  return screen.getByPlaceholderText("auth.username.ph") as HTMLInputElement;
 }
 
 function getPasswordInput() {
@@ -65,19 +72,25 @@ function getAgreedToggle() {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
+const RECOVERY_CODE = "LUMO-ABCD-EFGH-JKMN-PQRS";
+
 describe("RegisterPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRegister.mockResolvedValue(undefined);
+    // register resolves with the one-time recovery code.
+    mockRegister.mockResolvedValue(RECOVERY_CODE);
     mockLoading = false;
   });
 
-  it("renders email, password, confirm, and nickname fields", () => {
+  it("renders username, password, and confirm fields (no email field)", () => {
     setup();
-    expect(getEmailInput()).toBeInTheDocument();
+    const u = getUsernameInput();
+    expect(u).toBeInTheDocument();
+    expect(u).toHaveAttribute("autocomplete", "username");
     expect(getPasswordInput()).toBeInTheDocument();
     expect(getConfirmInput()).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Alex")).toBeInTheDocument();
+    // The email field is gone in the username-first flow.
+    expect(screen.queryByLabelText("auth.email")).not.toBeInTheDocument();
   });
 
   it("renders the create-account button", () => {
@@ -112,25 +125,34 @@ describe("RegisterPage", () => {
 
   it("calls register with the typed values on submit", async () => {
     setup();
-    fireEvent.change(getEmailInput(), { target: { value: "new@example.com" } });
+    fireEvent.change(getUsernameInput(), { target: { value: "alex" } });
     fireEvent.change(getPasswordInput(), { target: { value: "pass1234" } });
     fireEvent.change(getConfirmInput(), { target: { value: "pass1234" } });
-    fireEvent.change(screen.getByPlaceholderText("Alex"), { target: { value: "Alex" } });
     fireEvent.click(getSubmitBtn());
     await waitFor(() =>
       expect(mockRegister).toHaveBeenCalledWith({
-        email: "new@example.com",
+        username: "alex",
         password: "pass1234",
         confirm: "pass1234",
-        nickname: "Alex",
       }),
     );
   });
 
-  it("navigates to /today on successful registration", async () => {
+  it("shows the one-time recovery code and only navigates after the save gate", async () => {
     setup();
     fireEvent.click(getSubmitBtn());
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/today"));
+    // The recovery code is presented; navigation is deferred until acknowledged.
+    await screen.findByTestId("recovery-code");
+    expect(screen.getByTestId("recovery-code")).toHaveTextContent(RECOVERY_CODE);
+    expect(mockNavigate).not.toHaveBeenCalled();
+
+    // The Continue button is gated on the "I've saved it" checkbox.
+    const cont = screen.getByRole("button", { name: "auth.register.recovery.continue" });
+    expect(cont).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "auth.register.recovery.saved" }));
+    expect(cont).not.toBeDisabled();
+    fireEvent.click(cont);
+    expect(mockNavigate).toHaveBeenCalledWith("/today");
   });
 
   it("does not navigate when register throws", async () => {
@@ -164,5 +186,19 @@ describe("RegisterPage", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("must include a number");
     expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("opens the Terms consent link in a modal (not a new tab)", () => {
+    setup();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "legal.terms.link" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("opening the legal modal does not toggle the terms-agreed checkbox", () => {
+    setup();
+    // agreed starts true → submit enabled. Opening the modal must not flip it.
+    fireEvent.click(screen.getByRole("button", { name: "legal.privacy.link" }));
+    expect(getSubmitBtn()).not.toBeDisabled();
   });
 });

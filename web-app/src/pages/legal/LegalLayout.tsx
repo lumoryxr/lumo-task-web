@@ -1,13 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { IconArrowRight } from "@/components/icons";
+import type { LegalSection } from "./content";
 
-/** A single policy section, authored in both locales. */
-export interface LegalSection {
-  heading: { en: string; zh: string };
-  /** One or more paragraphs. */
-  body: { en: string[]; zh: string[] };
-}
+// Re-exported so existing importers of `LegalSection` from this module keep working.
+export type { LegalSection } from "./content";
 
 /**
  * Shared full-screen layout for the standalone legal pages (Privacy, Terms).

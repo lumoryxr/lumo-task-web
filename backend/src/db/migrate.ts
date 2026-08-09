@@ -206,6 +206,31 @@ export async function runMigrations() {
   // Prune expired/old reset tokens (they are only valid for minutes).
   await execRaw("DELETE FROM password_reset_tokens WHERE expires_at < datetime('now', '-1 days')");
 
+  // Email verification: a boolean on users + a single-use token table (same
+  // hash-only-at-rest scheme as reset tokens). Verification is SOFT — a new
+  // account is usable immediately, the flag just drives a "verify your email"
+  // nudge. Existing accounts predate the feature, so on first add they are
+  // backfilled to verified (1) — only NEW signups (inserted with 0) must confirm.
+  const userColsEV = await query<{ name: string }>("PRAGMA table_info(users)");
+  if (!userColsEV.some((c) => c.name === "email_verified")) {
+    await execRaw("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0");
+    await execRaw("UPDATE users SET email_verified = 1");
+  }
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      used_at    TEXT
+    )
+  `);
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_email_verify_hash ON email_verification_tokens(token_hash)");
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_email_verify_expires ON email_verification_tokens(expires_at)");
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_email_verify_user ON email_verification_tokens(user_id)");
+  await execRaw("DELETE FROM email_verification_tokens WHERE expires_at < datetime('now', '-7 days')");
+
   // Migrate: add recurrence column
   const taskColsV2 = await query<{ name: string }>("PRAGMA table_info(tasks)");
   if (!taskColsV2.some((c) => c.name === "recurrence")) {
@@ -596,6 +621,125 @@ export async function runMigrations() {
       last_error     TEXT
     )
   `);
+
+  // ── Username-first auth (#17) + recovery codes (#16) ─────────────────────────
+  // The login identity moves from email to a unique, case-insensitive username;
+  // email becomes OPTIONAL (bound after registration, used only for recovery +
+  // notifications). Recovery codes are the universal offline password-reset
+  // fallback, stored hashed and single-use.
+  //
+  // Three parts, each idempotent:
+  //   (a) add username / username_lower columns + a partial-unique index;
+  //   (b) backfill legacy (email-only) accounts with a username derived from the
+  //       email local-part, de-duplicating collisions with a numeric suffix;
+  //   (c) a GUARDED table-rebuild that drops the NOT NULL on `email` (SQLite can't
+  //       ALTER a NOT NULL away) — runs ONCE, only while the live schema still has
+  //       email NOT NULL, and preserves every existing column + row.
+  {
+    const uCols = await query<{ name: string; notnull: number }>("PRAGMA table_info(users)");
+    if (!uCols.some((c) => c.name === "username")) {
+      await execRaw("ALTER TABLE users ADD COLUMN username TEXT");
+    }
+    if (!uCols.some((c) => c.name === "username_lower")) {
+      await execRaw("ALTER TABLE users ADD COLUMN username_lower TEXT");
+    }
+
+    // (b) Backfill legacy accounts. New signups always insert a username, so this
+    // only ever touches pre-#17 rows; on a fresh DB it is a no-op.
+    const needing = await query<{ id: string; email: string | null }>(
+      "SELECT id, email FROM users WHERE username_lower IS NULL",
+    );
+    if (needing.length > 0) {
+      const takenRows = await query<{ username_lower: string }>(
+        "SELECT username_lower FROM users WHERE username_lower IS NOT NULL",
+      );
+      const taken = new Set(takenRows.map((r) => r.username_lower));
+      for (const u of needing) {
+        let base = (u.email ?? "user").split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
+        base = base.replace(/^[-_]+/, "").replace(/[-_]+$/, "");
+        if (base.length < 3) base = `user${base}`;
+        base = base.slice(0, 32).replace(/[-_]+$/, "") || "user";
+        let candidate = base;
+        let n = 1;
+        while (taken.has(candidate)) {
+          const suffix = String(n++);
+          candidate = (base.slice(0, 32 - suffix.length) + suffix);
+        }
+        taken.add(candidate);
+        await execute(
+          "UPDATE users SET username = :u, username_lower = :ul WHERE id = :id",
+          { u: candidate, ul: candidate, id: u.id },
+        );
+      }
+    }
+
+    // (c) Guarded rebuild — only while `email` is still NOT NULL. Foreign keys are
+    // OFF (the codebase never enables PRAGMA foreign_keys), so dropping/renaming
+    // the referenced `users` table is safe; the FK-by-convention columns on other
+    // tables keep pointing at the renamed table.
+    const emailCol = uCols.find((c) => c.name === "email");
+    if (emailCol && emailCol.notnull === 1) {
+      await execRaw(`
+        CREATE TABLE users_new (
+          id TEXT PRIMARY KEY,
+          email TEXT UNIQUE,
+          password_hash TEXT NOT NULL,
+          name TEXT NOT NULL,
+          initials TEXT NOT NULL,
+          local INTEGER NOT NULL DEFAULT 0,
+          plan TEXT DEFAULT 'free',
+          renews_at TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          calendar_feed_token_hash TEXT,
+          calendar_feed_token_enc TEXT,
+          email_verified INTEGER NOT NULL DEFAULT 0,
+          session_version INTEGER NOT NULL DEFAULT 0,
+          username TEXT,
+          username_lower TEXT
+        )
+      `);
+      await execRaw(`
+        INSERT INTO users_new
+          (id, email, password_hash, name, initials, local, plan, renews_at, created_at,
+           calendar_feed_token_hash, calendar_feed_token_enc, email_verified, session_version,
+           username, username_lower)
+        SELECT
+           id, email, password_hash, name, initials, local, plan, renews_at, created_at,
+           calendar_feed_token_hash, calendar_feed_token_enc, email_verified, session_version,
+           username, username_lower
+        FROM users
+      `);
+      await execRaw("DROP TABLE users");
+      await execRaw("ALTER TABLE users_new RENAME TO users");
+      // The rebuild dropped the calendar-feed unique index with the old table;
+      // recreate it now so it exists within this same boot (not just next boot).
+      await execRaw(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_feed_token_hash ON users(calendar_feed_token_hash) WHERE calendar_feed_token_hash IS NOT NULL",
+      );
+    }
+
+    // (a·2) Partial-unique index on the case-insensitive handle. Created after the
+    // backfill + rebuild so it never trips on transient duplicates.
+    await execRaw(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users(username_lower) WHERE username_lower IS NOT NULL",
+    );
+  }
+
+  // Recovery codes: one active, single-use offline password-recovery code per
+  // user. Stored HASHED only (same argon2/bcrypt scheme as password_hash), issued
+  // once at registration and regenerable from the account page (regenerate
+  // replaces the active one). `used_at` marks a consumed code; regeneration
+  // simply deletes the prior row so at most one active code exists per user.
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS recovery_codes (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL,
+      code_hash  TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      used_at    TEXT
+    )
+  `);
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_recovery_codes_user ON recovery_codes(user_id)");
 }
 
 // When run directly as a script
