@@ -6,6 +6,7 @@ services:
     rootDir: backend
     region: singapore          # closest to CN users; change to ohio/oregon as needed
     plan: free                 # free tier: spins down after 15 min idle, ephemeral disk
+    autoDeploy: true           # redeploy on every push to the connected branch (avoid version skew)
     # @lumo/contracts is a file: dependency whose built dist/ is gitignored, so it
     # must be built before the backend's tsc can resolve its types on a clean checkout.
     buildCommand: npm --prefix ../packages/contracts ci --include=dev && npm --prefix ../packages/contracts run build && npm ci --include=dev && npm run build
@@ -35,11 +36,37 @@ services:
         sync: false            # libsql://lumo-task-<org>.turso.io  (REQUIRED for persistence)
       - key: TURSO_AUTH_TOKEN
         sync: false            # from: turso db tokens create lumo-task
+      # Public base URL of THIS backend. Used to build the links emailed for
+      # password reset (/reset-password?token=…) and email verification
+      # (/verify-email?token=…), and as the default GitHub OAuth callback origin.
+      # Unset → links fall back to localhost and won't work in production.
+      - key: LUMO_APP_BASE_URL
+        sync: false            # e.g. https://lumo-task-backend.onrender.com
+      # ── Transactional email (password reset + email verification). ──────────
+      # Without these the backend still boots and queues mail to an in-memory
+      # dev outbox (nothing is actually sent) — so recovery/verification emails
+      # silently never arrive in production. Set them to send real mail.
+      - key: LUMO_EMAIL_PROVIDER
+        sync: false            # "resend" to enable real delivery (else dev outbox only)
+      - key: LUMO_EMAIL_FROM
+        sync: false            # verified sender, e.g. "Lumo <no-reply@yourdomain.com>"
+      - key: LUMO_RESEND_API_KEY
+        sync: false            # https://resend.com API key (when provider=resend)
+      # ── GitHub OAuth (optional — the "Sign in with GitHub" button). ─────────
+      # All three unset → the button is hidden (getGithubConfig reports disabled);
+      # the app stays fully usable via username/password. Set all three to enable.
+      - key: LUMO_GITHUB_CLIENT_ID
+        sync: false
+      - key: LUMO_GITHUB_CLIENT_SECRET
+        sync: false
+      - key: LUMO_GITHUB_CALLBACK_URL
+        sync: false            # e.g. https://lumo-task-backend.onrender.com/v1/auth/github/callback
 
   # ── Frontend (static SPA, served from Render's CDN — free, never sleeps) ─────
   - type: web
     name: lumo-task-frontend
     runtime: static
+    autoDeploy: true           # redeploy on every push to the connected branch
     # contracts/dist is committed, but rebuild it first so the SPA build always
     # links against fresh contract types (web-app depends on @lumo/contracts via
     # a file: path).
@@ -48,8 +75,13 @@ services:
     envVars:
       - key: ELECTRON_SKIP_BINARY_DOWNLOAD
         value: "1"             # web-app has electron as a devDep; skip the binary download on build
+      # REQUIRED. VITE_* vars are inlined at BUILD time, so this must be set
+      # before the build runs — changing it later needs a fresh deploy, not just
+      # a restart. Unset → the SPA calls a wrong/relative API base and every
+      # request 404s. Must be the backend origin + /v1 and must match the
+      # backend's LUMO_ALLOWED_ORIGINS (CORS) for the reverse direction.
       - key: VITE_API_BASE
-        sync: false            # set to the backend URL + /v1, e.g. https://lumo-task-backend.onrender.com/v1
+        sync: false            # e.g. https://lumo-task-backend.onrender.com/v1
     # SPA fallback: serve real files first, route everything else to index.html.
     routes:
       - type: rewrite

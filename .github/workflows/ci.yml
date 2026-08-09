@@ -385,12 +385,78 @@ jobs:
       - name: Audit backend deps
         run: cd backend && npm ci && npm audit --audit-level=high
 
-  # ── 8. Aggregate gate ─────────────────────────────────────────────────────
+  # ── 10. Render deploy check (build + boot exactly as Render does) ───────────
+  #    Reproduces the production deploy on every push so a broken build or a
+  #    non-booting bundle is caught in CI, not on Render. Runs the SAME backend
+  #    buildCommand as render.yaml, then boot-smoke-tests the emitted bundle:
+  #    start it, poll /health, and register a user — the real deploy contract.
+  render-deploy-check:
+    name: Render Deploy Check (backend build + boot)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Match render.yaml's NODE_VERSION ("22") and backend engines (>=22.5.0).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      # Mirror render.yaml `buildCommand` for the backend service verbatim:
+      #   npm --prefix ../packages/contracts ci --include=dev
+      #   && npm --prefix ../packages/contracts run build
+      #   && npm ci --include=dev && npm run build
+      # (run from `backend/`, which is the service's rootDir on Render).
+      - name: Build backend the Render way (contracts → backend bundle)
+        working-directory: backend
+        run: |
+          npm --prefix ../packages/contracts ci --include=dev
+          npm --prefix ../packages/contracts run build
+          npm ci --include=dev
+          npm run build
+          test -f dist/bundle.cjs || { echo "::error::dist/bundle.cjs was not produced"; exit 1; }
+
+      # Boot the exact artifact Render runs (`node dist/bundle.cjs`) with
+      # production env + generated secrets, then prove the deploy contract:
+      # the health check Render polls (/health) answers, and the API works.
+      - name: Boot-smoke the production bundle (/health + register)
+        working-directory: backend
+        env:
+          NODE_ENV: production
+          PORT: "47399"
+          LUMO_DB_PATH: /tmp/render-smoke.db
+        run: |
+          export LUMO_JWT_SECRET="$(openssl rand -hex 48)"
+          export LUMO_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+          rm -f /tmp/render-smoke.db
+          node dist/bundle.cjs > /tmp/boot.log 2>&1 &
+          BOOT_PID=$!
+          # Poll the health check Render uses (healthCheckPath: /health).
+          ok=""
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 5 http://127.0.0.1:47399/health > /dev/null 2>&1; then ok=1; break; fi
+            # Fail fast if the process died during startup.
+            kill -0 "$BOOT_PID" 2>/dev/null || { echo "::error::bundle exited before serving"; cat /tmp/boot.log; exit 1; }
+            sleep 0.5
+          done
+          if [ -z "$ok" ]; then echo "::error::/health never became ready"; cat /tmp/boot.log; kill "$BOOT_PID" 2>/dev/null; exit 1; fi
+          echo "health: $(curl -fsS --max-time 5 http://127.0.0.1:47399/health)"
+          # Exercise a real endpoint end to end (migrations ran, routing works).
+          code=$(curl -s --max-time 10 -o /tmp/reg.json -w '%{http_code}' -X POST \
+            http://127.0.0.1:47399/v1/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"ci_smoke","password":"pass1234"}')
+          kill "$BOOT_PID" 2>/dev/null || true
+          if [ "$code" != "201" ]; then
+            echo "::error::register smoke expected 201, got $code"; cat /tmp/reg.json; cat /tmp/boot.log; exit 1
+          fi
+          echo "register smoke: HTTP $code ✓"
+
+  # ── 11. Aggregate gate ─────────────────────────────────────────────────────
   #    Branch protection watches only this job.
   ci:
     name: CI
     if: always()
-    needs: [typecheck, lint, build, backend-typecheck, backend-build, backend-test, backend-security, backend-standards, contracts-test, backend-integration, frontend-test, ui-test, security]
+    needs: [typecheck, lint, build, backend-typecheck, backend-build, backend-test, backend-security, backend-standards, contracts-test, backend-integration, frontend-test, ui-test, security, render-deploy-check]
     runs-on: ubuntu-latest
     steps:
       - name: All checks passed
