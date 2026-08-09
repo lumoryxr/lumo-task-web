@@ -8,6 +8,7 @@ import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken, revokeAllFor
 import { hashPassword, verifyPassword, dummyVerify } from "../lib/password.js";
 import { issueResetToken, consumeResetToken } from "../lib/passwordReset.js";
 import { issueVerificationToken, consumeVerificationToken } from "../lib/emailVerification.js";
+import { issueRecoveryCode, verifyAndConsumeRecoveryCode } from "../lib/recoveryCode.js";
 import { sendEmail } from "../lib/email.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
@@ -38,15 +39,42 @@ const strongPassword = z
     message: "Password must include at least one letter and one number",
   });
 
+// Usernames the platform reserves for its own use — never claimable.
+const RESERVED_USERNAMES = new Set(["admin", "root", "lumo", "support", "system"]);
+
+// Username rules: 3–32 chars from [A-Za-z0-9_-], not starting/ending with a
+// separator, and not a reserved word. All violations surface as VALIDATION_ERROR
+// via the inline zod validator (so the frontend gets a per-field message).
+const usernameField = z
+  .string()
+  .min(3, "Username must be at least 3 characters")
+  .max(32, "Username must be at most 32 characters")
+  .regex(/^[A-Za-z0-9_-]+$/, "Username may only use letters, numbers, hyphens and underscores")
+  .refine((u) => !/^[-_]/.test(u) && !/[-_]$/.test(u), {
+    message: "Username can't start or end with a hyphen or underscore",
+  })
+  .refine((u) => !RESERVED_USERNAMES.has(u.toLowerCase()), {
+    message: "That username is reserved",
+  });
+
 const RegisterBody = z.object({
-  email: z.string().email().max(255),
+  username: usernameField,
   password: strongPassword,
-  name: z.string().min(1).max(100),
 });
 
 const SigninBody = z.object({
-  email: z.string().email(),
+  username: z.string().min(1).max(32),
   password: z.string(),
+});
+
+const BindEmailBody = z.object({
+  email: z.string().email().max(255),
+});
+
+const RecoveryResetBody = z.object({
+  username: z.string().min(1).max(32),
+  code: z.string().min(1).max(64),
+  new_password: strongPassword,
 });
 
 const ChangePasswordBody = z.object({
@@ -108,57 +136,76 @@ function makeInitials(name: string) {
     .join("");
 }
 
-app.post("/register", authRateLimit, validate("json", RegisterBody), async (c) => {
-  const { email, password, name } = c.req.valid("json");
+// A username is a single token (no spaces), so derive a 1–2 char avatar label
+// from its first alphanumerics rather than word-splitting.
+function initialsFromUsername(username: string) {
+  const compact = username.replace(/[^A-Za-z0-9]/g, "");
+  return (compact.slice(0, 2) || username.slice(0, 2) || "U").toUpperCase();
+}
 
-  const existing = await queryOne("SELECT id FROM users WHERE email = :email", { email });
-  if (existing) return httpError(c, 409, "EMAIL_TAKEN", "Email already registered");
+app.post("/register", authRateLimit, validate("json", RegisterBody), async (c) => {
+  const { username, password } = c.req.valid("json");
+  const usernameLower = username.toLowerCase();
+
+  const existing = await queryOne(
+    "SELECT id FROM users WHERE username_lower = :ul",
+    { ul: usernameLower },
+  );
+  if (existing) return httpError(c, 409, "USERNAME_TAKEN", "Username already taken");
 
   const id = "u_" + nanoid(10);
   const password_hash = await hashPassword(password);
-  const initials = makeInitials(name);
+  // Username-only registration: the display name defaults to the username and
+  // there is no email yet (bound later via /bind-email).
+  const name = username;
+  const initials = initialsFromUsername(username);
   const now = new Date().toISOString();
 
   await execute(`
-    INSERT INTO users (id, email, password_hash, name, initials, local, plan, created_at)
-    VALUES (:id, :email, :password_hash, :name, :initials, 0, 'free', :now)
-  `, { id, email, password_hash, name, initials, now });
+    INSERT INTO users (id, email, username, username_lower, password_hash, name, initials, local, plan, email_verified, created_at)
+    VALUES (:id, NULL, :username, :username_lower, :password_hash, :name, :initials, 0, 'free', 0, :now)
+  `, { id, username, username_lower: usernameLower, password_hash, name, initials, now });
 
   await execute("INSERT INTO settings (user_id) VALUES (:user_id)", { user_id: id });
 
   const token = await signToken(id, 0);
   const refreshToken = await issueRefreshToken(id, 0);
-  audit("auth.register", { userId: id, email, ip: clientIp(c) });
-
-  // Send the email-verification link. Non-blocking: registration succeeds even
-  // if email delivery is down (verification is a soft nudge, not a gate).
-  await sendVerificationEmail(id, email, name);
-  audit("auth.verify_email.sent", { userId: id, ip: clientIp(c) });
+  // Issue the one-time recovery code (the universal offline reset fallback).
+  // Its plaintext is returned ONCE here and never logged.
+  const recoveryCode = await issueRecoveryCode(id);
+  audit("auth.register", { userId: id, username, ip: clientIp(c) });
+  audit("auth.recovery_code.issued", { userId: id, ip: clientIp(c) });
 
   return c.json({
     token,
     refreshToken,
+    recoveryCode,
     user: {
-      id, email, name, initials, local: false, emailVerified: false, plan: "free", renewsAt: null,
+      id, username, email: null, name, initials, local: false, emailVerified: false,
+      plan: "free", renewsAt: null,
       stats: { tasks: 0, pomodoros: 0, syncOK: syncOk() },
     },
   }, 201);
 });
 
 app.post("/signin", authRateLimit, validate("json", SigninBody), async (c) => {
-  const { email, password } = c.req.valid("json");
+  const { username, password } = c.req.valid("json");
+  const usernameLower = username.toLowerCase();
 
-  const user = await queryOne<UserRow>("SELECT * FROM users WHERE email = :email", { email });
+  const user = await queryOne<UserRow>(
+    "SELECT * FROM users WHERE username_lower = :ul",
+    { ul: usernameLower },
+  );
   if (!user) {
-    // Spend equivalent bcrypt time so latency can't enumerate registered emails.
+    // Spend equivalent bcrypt time so latency can't enumerate registered users.
     await dummyVerify(password);
-    audit("auth.signin.fail", { email, ip: clientIp(c), reason: "no_user" });
+    audit("auth.signin.fail", { username, ip: clientIp(c), reason: "no_user" });
     return httpError(c, 401, "INVALID_CREDENTIALS", "Invalid credentials");
   }
 
   const ok = await verifyPassword(password, user.password_hash);
   if (!ok) {
-    audit("auth.signin.fail", { email, ip: clientIp(c), reason: "bad_password" });
+    audit("auth.signin.fail", { username, ip: clientIp(c), reason: "bad_password" });
     return httpError(c, 401, "INVALID_CREDENTIALS", "Invalid credentials");
   }
   audit("auth.signin.ok", { userId: user.id, ip: clientIp(c) });
@@ -178,7 +225,8 @@ app.post("/signin", authRateLimit, validate("json", SigninBody), async (c) => {
     refreshToken,
     user: {
       id: user.id,
-      email: user.email,
+      username: user.username ?? "",
+      email: user.email ?? null,
       name: user.name,
       initials: user.initials,
       local: Boolean(user.local),
@@ -188,6 +236,71 @@ app.post("/signin", authRateLimit, validate("json", SigninBody), async (c) => {
       stats: { tasks: stats?.task_count ?? 0, pomodoros: stats?.pomo_count ?? 0, syncOK: syncOk() },
     },
   });
+});
+
+// Bind (or change) the signed-in account's email. The email is set UNVERIFIED
+// and a verification link is sent via the existing flow — an unverified/absent
+// email never blocks usage. EMAIL_TAKEN (409) if another account already owns it.
+app.post("/bind-email", authRateLimit, authMiddleware, validate("json", BindEmailBody), async (c) => {
+  const userId = c.get("userId") as string;
+  const { email } = c.req.valid("json");
+
+  const user = await queryOne<UserRow>("SELECT * FROM users WHERE id = :id", { id: userId });
+  if (!user) return httpError(c, 404, "NOT_FOUND", "Not found");
+
+  const clash = await queryOne<{ id: string }>(
+    "SELECT id FROM users WHERE email = :email AND id != :id",
+    { email, id: userId },
+  );
+  if (clash) return httpError(c, 409, "EMAIL_TAKEN", "Email already registered");
+
+  await execute(
+    "UPDATE users SET email = :email, email_verified = 0 WHERE id = :id",
+    { email, id: userId },
+  );
+  audit("auth.bind_email", { userId, ip: clientIp(c) });
+
+  // Best-effort verification email — binding succeeds even if delivery is down.
+  await sendVerificationEmail(userId, email, user.name);
+  audit("auth.verify_email.sent", { userId, ip: clientIp(c) });
+
+  return c.json({ ok: true, email, emailVerified: false });
+});
+
+// Reset a password with a recovery code (the offline fallback, always available).
+// Public + rate-limited. Verifies and single-use-consumes the code, then rotates
+// the password exactly like /reset-password (bump session_version + revoke all
+// refresh tokens). Wrong/used/again → INVALID_RECOVERY_CODE (constant-time,
+// non-enumerable — the same error whether the username or the code is at fault).
+app.post("/recovery/reset", authRateLimit, validate("json", RecoveryResetBody), async (c) => {
+  const { username, code, new_password } = c.req.valid("json");
+
+  const userId = await verifyAndConsumeRecoveryCode(username, code);
+  if (!userId) {
+    audit("auth.recovery_reset.fail", { ip: clientIp(c) });
+    return httpError(c, 400, "INVALID_RECOVERY_CODE", "That recovery code is invalid or has already been used.");
+  }
+
+  const new_hash = await hashPassword(new_password);
+  await execute(
+    "UPDATE users SET password_hash = :hash, session_version = session_version + 1 WHERE id = :id",
+    { hash: new_hash, id: userId },
+  );
+  await revokeAllForUser(userId);
+  audit("auth.recovery_reset.ok", { userId, ip: clientIp(c) });
+
+  return c.json({ ok: true });
+});
+
+// Regenerate the signed-in account's recovery code — invalidates the previous
+// one and returns the new plaintext exactly once. Never returned by any GET.
+app.post("/recovery-code/regenerate", authRateLimit, authMiddleware, async (c) => {
+  const userId = c.get("userId") as string;
+  const user = await queryOne<{ id: string }>("SELECT id FROM users WHERE id = :id", { id: userId });
+  if (!user) return httpError(c, 404, "NOT_FOUND", "Not found");
+  const recoveryCode = await issueRecoveryCode(userId);
+  audit("auth.recovery_code.regenerated", { userId, ip: clientIp(c) });
+  return c.json({ recoveryCode });
 });
 
 app.post("/change-password", authRateLimit, authMiddleware, validate("json", ChangePasswordBody), async (c) => {
@@ -312,7 +425,9 @@ app.post("/resend-verification", authRateLimit, authMiddleware, async (c) => {
   const userId = c.get("userId") as string;
   const user = await queryOne<UserRow>("SELECT * FROM users WHERE id = :id", { id: userId });
   if (!user) return httpError(c, 404, "NOT_FOUND", "Not found");
-  if (!user.email_verified) {
+  // No-op (still 200) when already verified OR when no email is bound — the
+  // response never depends on state in a way a caller could probe.
+  if (user.email && !user.email_verified) {
     await sendVerificationEmail(user.id, user.email, user.name);
     audit("auth.verify_email.resend", { userId, ip: clientIp(c) });
   }

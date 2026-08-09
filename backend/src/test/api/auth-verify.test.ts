@@ -6,7 +6,7 @@
  */
 import { test, describe, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { req, setupDb, uniqueEmail } from "../helpers/index.js";
+import { req, setupDb, uniqueEmail, uniqueUsername } from "../helpers/index.js";
 import { drainOutbox } from "../../lib/email.js";
 
 before(async () => {
@@ -17,15 +17,22 @@ beforeEach(() => {
   drainOutbox();
 });
 
-/** Register a fresh user; returns the response body + the emailed verify token. */
+/**
+ * Register a fresh username-only user, then bind an email (which triggers the
+ * verification flow). Returns the register body + the emailed verify token.
+ */
 async function registerAndGetToken(prefix = "verify") {
+  const username = uniqueUsername(prefix);
   const email = uniqueEmail(prefix);
   const { status, body } = await req("POST", "/v1/auth/register", {
-    body: { email, password: "password123", name: prefix },
+    body: { username, password: "password123" },
   });
   assert.equal(status, 201);
+  drainOutbox(); // registration itself sends no email
+  const bind = await req("POST", "/v1/auth/bind-email", { token: body.token, body: { email } });
+  assert.equal(bind.status, 200);
   const mails = drainOutbox();
-  assert.equal(mails.length, 1, "registration should send exactly one verification email");
+  assert.equal(mails.length, 1, "binding an email should send exactly one verification email");
   assert.equal(mails[0].to, email);
   const m = mails[0].text.match(/verify-email\?token=([^\s]+)/);
   assert.ok(m, "verification link with token not found");
@@ -33,7 +40,7 @@ async function registerAndGetToken(prefix = "verify") {
 }
 
 describe("registration → verification email", () => {
-  test("new account is unverified and gets a verification email", async () => {
+  test("new account is unverified and gets a verification email once an email is bound", async () => {
     const r = await registerAndGetToken("newacct");
     assert.equal(r.body.user.emailVerified, false);
 

@@ -17,7 +17,7 @@ export function LoginPage() {
   const t = useT();
   const navigate = useNavigate();
   const { signIn, loading } = useAuthStore();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [legalDoc, setLegalDoc] = useState<LegalDocKey | null>(null);
@@ -26,7 +26,7 @@ export function LoginPage() {
     e?.preventDefault();
     setFieldErrors({});
     try {
-      await signIn(email, password);
+      await signIn(username, password);
       navigate("/today");
     } catch (err) {
       // Validation failures get inline messages under the offending input;
@@ -48,14 +48,14 @@ export function LoginPage() {
         </div>
 
         <div className="mt-[22px] flex flex-col gap-3">
-          <Field label={t("auth.email")} error={fieldErrors.email}>
+          <Field label={t("auth.username")} error={fieldErrors.username}>
             <input
               className="input"
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              autoComplete="username"
+              placeholder={t("auth.username.ph")}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
             />
           </Field>
           <Field label={t("auth.password")} error={fieldErrors.password}>

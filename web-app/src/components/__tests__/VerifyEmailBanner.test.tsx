@@ -13,12 +13,16 @@ const mockPresentError = vi.fn();
 vi.mock("@/lib/presentError", () => ({ presentError: (...a: unknown[]) => mockPresentError(...a) }));
 
 const mockResend = vi.fn();
-const h = vi.hoisted(() => ({ signedIn: true, emailVerified: false as boolean | undefined }));
+const h = vi.hoisted(() => ({
+  signedIn: true,
+  emailVerified: false as boolean | undefined,
+  email: "ada@example.com" as string | null,
+}));
 vi.mock("@/store/useAuthStore", () => ({
   selectIsSignedIn: () => h.signedIn,
   useAuthStore: (sel: (s: any) => unknown) =>
     sel({
-      user: { email: "ada@example.com", emailVerified: h.emailVerified },
+      user: { email: h.email, emailVerified: h.emailVerified },
       resendVerification: mockResend,
     }),
 }));
@@ -27,6 +31,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.signedIn = true;
   h.emailVerified = false;
+  h.email = "ada@example.com";
   try { sessionStorage.clear(); } catch { /* ignore */ }
 });
 
@@ -48,6 +53,12 @@ describe("VerifyEmailBanner", () => {
 
   it("renders nothing when signed out", () => {
     h.signedIn = false;
+    const { container } = render(<VerifyEmailBanner />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders nothing for a username-only account with no email bound", () => {
+    h.email = null;
     const { container } = render(<VerifyEmailBanner />);
     expect(container).toBeEmptyDOMElement();
   });

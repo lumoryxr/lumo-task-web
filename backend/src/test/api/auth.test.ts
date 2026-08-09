@@ -6,7 +6,7 @@
  */
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
-import { req, setupDb, ensureDemoUser, DEMO_EMAIL, DEMO_PASSWORD } from "../helpers/index.js";
+import { req, setupDb, ensureDemoUser, DEMO_USERNAME, DEMO_PASSWORD, uniqueUsername } from "../helpers/index.js";
 
 before(async () => {
   await setupDb();
@@ -14,46 +14,68 @@ before(async () => {
 });
 
 describe("POST /v1/auth/register", () => {
-  test("201 → token + user object on valid input", async () => {
+  test("201 → token + user + one-time recovery code on valid input", async () => {
     const { status, body } = await req("POST", "/v1/auth/register", {
-      body: { email: "newuser@example.com", password: "password123", name: "New User" },
+      body: { username: "newuser", password: "password123" },
     });
     assert.equal(status, 201);
     assert.ok(body.token, "token missing");
-    assert.equal(body.user.email, "newuser@example.com");
+    assert.equal(body.user.username, "newuser");
+    assert.equal(body.user.email, null, "a fresh account has no email bound");
     assert.equal(body.user.plan, "free");
     assert.ok(body.user.initials, "initials missing");
+    // The recovery code is surfaced exactly once, in the register response.
+    assert.match(body.recoveryCode, /^LUMO-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/);
   });
 
-  test("409 → duplicate email — error body has { code, message }", async () => {
+  test("409 → duplicate username (case-insensitive) — error body has { code, message }", async () => {
     const { status, body } = await req("POST", "/v1/auth/register", {
-      body: { email: "newuser@example.com", password: "password123", name: "New User" },
+      body: { username: "NewUser", password: "password123" },
     });
     assert.equal(status, 409);
-    assert.equal(typeof body.error, "object", "error should be an object");
-    assert.ok(body.error.code, "error.code missing");
+    assert.equal(body.error.code, "USERNAME_TAKEN");
     assert.ok(body.error.message, "error.message missing");
   });
 
-  test("400 → invalid email format", async () => {
-    const { status } = await req("POST", "/v1/auth/register", {
-      body: { email: "not-an-email", password: "password123", name: "User" },
+  test("400 → invalid username (illegal char)", async () => {
+    const { status, body } = await req("POST", "/v1/auth/register", {
+      body: { username: "bad name!", password: "password123" },
     });
     assert.equal(status, 400);
-    // Note: Zod validator returns its own format; httpError format applies to
-    // business-logic errors (409, 401) not to schema validation failures.
+    assert.equal(body.error.code, "VALIDATION_ERROR");
+  });
+
+  test("400 → username starting with a separator", async () => {
+    const { status } = await req("POST", "/v1/auth/register", {
+      body: { username: "_leading", password: "password123" },
+    });
+    assert.equal(status, 400);
+  });
+
+  test("400 → reserved username", async () => {
+    const { status } = await req("POST", "/v1/auth/register", {
+      body: { username: "admin", password: "password123" },
+    });
+    assert.equal(status, 400);
+  });
+
+  test("400 → username too short", async () => {
+    const { status } = await req("POST", "/v1/auth/register", {
+      body: { username: "ab", password: "password123" },
+    });
+    assert.equal(status, 400);
   });
 
   test("400 → password shorter than 8 characters", async () => {
     const { status } = await req("POST", "/v1/auth/register", {
-      body: { email: "short@example.com", password: "abc", name: "User" },
+      body: { username: uniqueUsername("short"), password: "abc" },
     });
     assert.equal(status, 400);
   });
 
   test("400 → missing required fields", async () => {
     const { status } = await req("POST", "/v1/auth/register", {
-      body: { email: "missing@example.com" },
+      body: { username: uniqueUsername("missing") },
     });
     assert.equal(status, 400);
   });
@@ -62,17 +84,24 @@ describe("POST /v1/auth/register", () => {
 describe("POST /v1/auth/signin", () => {
   test("200 → token + stats for demo credentials", async () => {
     const { status, body } = await req("POST", "/v1/auth/signin", {
-      body: { email: DEMO_EMAIL, password: DEMO_PASSWORD },
+      body: { username: DEMO_USERNAME, password: DEMO_PASSWORD },
     });
     assert.equal(status, 200);
     assert.ok(body.token, "token missing");
-    assert.equal(body.user.email, DEMO_EMAIL);
+    assert.equal(body.user.username, DEMO_USERNAME);
     assert.ok("stats" in body.user, "stats missing");
+  });
+
+  test("200 → username lookup is case-insensitive", async () => {
+    const { status } = await req("POST", "/v1/auth/signin", {
+      body: { username: DEMO_USERNAME.toUpperCase(), password: DEMO_PASSWORD },
+    });
+    assert.equal(status, 200);
   });
 
   test("401 → wrong password — error body has { code, message }", async () => {
     const { status, body } = await req("POST", "/v1/auth/signin", {
-      body: { email: DEMO_EMAIL, password: "wrongpassword" },
+      body: { username: DEMO_USERNAME, password: "wrongpassword" },
     });
     assert.equal(status, 401);
     assert.equal(typeof body.error, "object");
@@ -80,16 +109,16 @@ describe("POST /v1/auth/signin", () => {
     assert.ok(body.error.message);
   });
 
-  test("401 → unknown email", async () => {
+  test("401 → unknown username", async () => {
     const { status } = await req("POST", "/v1/auth/signin", {
-      body: { email: "ghost@example.com", password: "password123" },
+      body: { username: "ghostuser", password: "password123" },
     });
     assert.equal(status, 401);
   });
 
   test("400 → missing password field", async () => {
     const { status } = await req("POST", "/v1/auth/signin", {
-      body: { email: DEMO_EMAIL },
+      body: { username: DEMO_USERNAME },
     });
     assert.equal(status, 400);
   });
@@ -98,13 +127,14 @@ describe("POST /v1/auth/signin", () => {
 describe("POST /v1/auth/change-password", () => {
   // Dedicated account so demo credentials stay intact for other suites.
   let cpToken = "";
+  const cpUser = uniqueUsername("cptest");
 
   before(async () => {
     await req("POST", "/v1/auth/register", {
-      body: { email: "cptest@example.com", password: "oldpass123", name: "CP Test" },
+      body: { username: cpUser, password: "oldpass123" },
     });
     const { body } = await req("POST", "/v1/auth/signin", {
-      body: { email: "cptest@example.com", password: "oldpass123" },
+      body: { username: cpUser, password: "oldpass123" },
     });
     cpToken = body.token;
   });
@@ -117,19 +147,19 @@ describe("POST /v1/auth/change-password", () => {
     assert.equal(status, 200);
 
     const { status: s401 } = await req("POST", "/v1/auth/signin", {
-      body: { email: "cptest@example.com", password: "oldpass123" },
+      body: { username: cpUser, password: "oldpass123" },
     });
     assert.equal(s401, 401, "old password should be rejected");
 
     const { status: s200 } = await req("POST", "/v1/auth/signin", {
-      body: { email: "cptest@example.com", password: "newpass456" },
+      body: { username: cpUser, password: "newpass456" },
     });
     assert.equal(s200, 200, "new password should work");
   });
 
   test("400 → wrong current password", async () => {
     const { body } = await req("POST", "/v1/auth/signin", {
-      body: { email: "cptest@example.com", password: "newpass456" },
+      body: { username: cpUser, password: "newpass456" },
     });
     const { status } = await req("POST", "/v1/auth/change-password", {
       token: body.token,
@@ -140,7 +170,7 @@ describe("POST /v1/auth/change-password", () => {
 
   test("400 → new password shorter than 8 chars", async () => {
     const { body: signinBody } = await req("POST", "/v1/auth/signin", {
-      body: { email: "cptest@example.com", password: "newpass456" },
+      body: { username: cpUser, password: "newpass456" },
     });
     const { status } = await req("POST", "/v1/auth/change-password", {
       token: signinBody.token,
@@ -161,7 +191,7 @@ describe("POST /v1/auth/signout", () => {
   test("200 → { ok: true } with valid token", async () => {
     // Fresh throwaway token so we never revoke a token another suite relies on.
     const { body: signinBody } = await req("POST", "/v1/auth/signin", {
-      body: { email: DEMO_EMAIL, password: DEMO_PASSWORD },
+      body: { username: DEMO_USERNAME, password: DEMO_PASSWORD },
     });
     const throwawayToken = signinBody.token;
     const { status, body } = await req("POST", "/v1/auth/signout", { token: throwawayToken });

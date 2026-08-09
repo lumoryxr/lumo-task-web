@@ -9,6 +9,7 @@ import {
 describe("UserProfileWireSchema", () => {
   const valid = {
     id: "u_1",
+    username: "ada",
     email: "ada@example.com",
     name: "Ada",
     initials: "AL",
@@ -21,6 +22,15 @@ describe("UserProfileWireSchema", () => {
 
   test("parses a full profile", () => {
     assert.equal(UserProfileWireSchema.safeParse(valid).success, true);
+  });
+
+  test("allows a null email (username-only account)", () => {
+    assert.equal(UserProfileWireSchema.safeParse({ ...valid, email: null }).success, true);
+  });
+
+  test("rejects a row missing username", () => {
+    const { username, ...noUsername } = valid;
+    assert.equal(UserProfileWireSchema.safeParse(noUsername).success, false);
   });
 
   test("allows a non-null renewsAt", () => {
@@ -42,6 +52,7 @@ describe("DataExportWireSchema", () => {
     exported_at: "2026-08-08T00:00:00.000Z",
     user: {
       id: "u_1",
+      username: "ada",
       email: "ada@example.com",
       name: "Ada",
       initials: "AL",

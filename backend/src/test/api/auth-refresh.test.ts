@@ -4,17 +4,17 @@
  */
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
-import { req, setupDb, uniqueEmail } from "../helpers/index.js";
+import { req, setupDb, uniqueUsername } from "../helpers/index.js";
 
 const PW = "password123";
 
-async function registerFresh(): Promise<{ token: string; refreshToken: string; email: string }> {
-  const email = uniqueEmail("refresh");
+async function registerFresh(): Promise<{ token: string; refreshToken: string; username: string }> {
+  const username = uniqueUsername("refresh");
   const { status, body } = await req("POST", "/v1/auth/register", {
-    body: { email, password: PW, name: "Refresh User" },
+    body: { username, password: PW },
   });
   assert.equal(status, 201, "register should succeed");
-  return { token: body.token, refreshToken: body.refreshToken, email };
+  return { token: body.token, refreshToken: body.refreshToken, username };
 }
 
 before(async () => {
@@ -23,11 +23,11 @@ before(async () => {
 
 describe("POST /v1/auth/refresh", () => {
   test("register and signin both return a refresh token", async () => {
-    const { refreshToken, email } = await registerFresh();
+    const { refreshToken, username } = await registerFresh();
     assert.equal(typeof refreshToken, "string");
     assert.ok(refreshToken.length > 0);
 
-    const { body: signin } = await req("POST", "/v1/auth/signin", { body: { email, password: PW } });
+    const { body: signin } = await req("POST", "/v1/auth/signin", { body: { username, password: PW } });
     assert.equal(typeof signin.refreshToken, "string");
     assert.ok(signin.refreshToken.length > 0);
   });

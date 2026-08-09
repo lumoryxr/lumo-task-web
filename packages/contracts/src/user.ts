@@ -17,7 +17,13 @@ import { z } from "zod";
 
 export const UserProfileWireSchema = z.object({
   id: z.string(),
-  email: z.string(),
+  /** Unique, case-insensitive login handle. Chosen at registration. */
+  username: z.string(),
+  /**
+   * Optional email, bound AFTER registration and used only for recovery +
+   * notifications. `null` for a username-only account that has not bound one.
+   */
+  email: z.string().nullable(),
   name: z.string(),
   initials: z.string(),
   /** True for a local-only (Electron, no cloud account) user. */
@@ -49,7 +55,8 @@ const ExportRowSchema = z.record(z.string(), z.unknown());
 
 export const ExportUserIdentitySchema = z.object({
   id: z.string(),
-  email: z.string(),
+  username: z.string(),
+  email: z.string().nullable(),
   name: z.string(),
   initials: z.string(),
   plan: z.string(),

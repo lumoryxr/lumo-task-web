@@ -796,8 +796,12 @@
           "id": {
             "type": "string"
           },
-          "email": {
+          "username": {
             "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
           },
           "name": {
             "type": "string"
@@ -840,6 +844,7 @@
         },
         "required": [
           "id",
+          "username",
           "email",
           "name",
           "initials",
@@ -868,8 +873,12 @@
               "id": {
                 "type": "string"
               },
-              "email": {
+              "username": {
                 "type": "string"
+              },
+              "email": {
+                "type": "string",
+                "nullable": true
               },
               "name": {
                 "type": "string"
@@ -886,6 +895,7 @@
             },
             "required": [
               "id",
+              "username",
               "email",
               "name",
               "initials",

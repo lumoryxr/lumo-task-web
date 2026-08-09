@@ -7,7 +7,7 @@
  */
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
-import { req, setupDb, signInDemo, DEMO_EMAIL, DEMO_PASSWORD, assertNoSecrets } from "../helpers/index.js";
+import { req, setupDb, signInDemo, DEMO_USERNAME, DEMO_PASSWORD, assertNoSecrets } from "../helpers/index.js";
 
 const PLANTED_KEY = "sk-test-SUPER-SECRET-pl4nted-key-do-not-leak-0xDEADBEEF";
 
@@ -47,14 +47,17 @@ describe("Security · secrets · AI provider keys", () => {
 describe("Security · secrets · password hashes", () => {
   test("register response carries no password_hash", async () => {
     const { body } = await req("POST", "/v1/auth/register", {
-      body: { email: "secrets-reg@example.com", password: "password123", name: "Secret Reg" },
+      body: { username: "secretsreg", password: "password123" },
     });
-    assertNoSecrets(body, ["password123"]);
+    // The recovery code is a one-time secret returned by design; exclude it from
+    // the leak scan (it is the plaintext, shown once, never persisted in clear).
+    const { recoveryCode, ...rest } = body;
+    assertNoSecrets(rest, ["password123"]);
   });
 
   test("signin response carries no password_hash", async () => {
     const { body } = await req("POST", "/v1/auth/signin", {
-      body: { email: DEMO_EMAIL, password: DEMO_PASSWORD },
+      body: { username: DEMO_USERNAME, password: DEMO_PASSWORD },
     });
     assertNoSecrets(body, [DEMO_PASSWORD]);
   });

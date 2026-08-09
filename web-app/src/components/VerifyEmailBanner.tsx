@@ -27,8 +27,9 @@ export function VerifyEmailBanner() {
   });
   const [sending, setSending] = useState(false);
 
-  // Only nudge a signed-in, explicitly-unverified account.
-  if (!isSignedIn || user.emailVerified !== false || dismissed) return null;
+  // Only nudge a signed-in account that has an email BOUND but not yet verified.
+  // A username-only account (no email) is never nudged — email is optional.
+  if (!isSignedIn || !user.email || user.emailVerified !== false || dismissed) return null;
 
   function dismiss() {
     try {

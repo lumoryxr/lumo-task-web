@@ -78,7 +78,13 @@ export interface CompletedEntry {
 export interface User {
   id: string;
   name: string;
-  email: string;
+  /** Unique, case-insensitive login handle chosen at registration. */
+  username?: string;
+  /**
+   * Optional email, bound after registration. `null`/empty when the account is
+   * username-only (no email yet). Never blocks usage.
+   */
+  email: string | null;
   /** Initials for avatar. */
   initials: string;
   /** Whether the account is local-only (no cloud sync). */

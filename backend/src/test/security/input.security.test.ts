@@ -68,7 +68,7 @@ describe("Security · input · schema validation rejects abuse (400)", () => {
 
   test("overlong password on register → 400", async () => {
     const { status } = await req("POST", "/v1/auth/register", {
-      body: { email: "overlong@example.com", password: "a".repeat(500), name: "X" },
+      body: { username: "overlong", password: "a".repeat(500) },
     });
     assert.equal(status, 400);
   });

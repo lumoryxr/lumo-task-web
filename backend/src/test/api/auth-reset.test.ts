@@ -95,13 +95,13 @@ describe("POST /v1/auth/reset-password", () => {
 
     // New password works.
     const signinNew = await req("POST", "/v1/auth/signin", {
-      body: { email: u.email, password: newPassword },
+      body: { username: u.username, password: newPassword },
     });
     assert.equal(signinNew.status, 200);
 
     // Old password no longer works.
     const signinOld = await req("POST", "/v1/auth/signin", {
-      body: { email: u.email, password: "password123" },
+      body: { username: u.username, password: "password123" },
     });
     assert.equal(signinOld.status, 401);
 

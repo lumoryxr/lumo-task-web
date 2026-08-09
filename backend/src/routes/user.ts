@@ -32,6 +32,7 @@ const USER_SCOPED_TABLES = [
   "refresh_tokens",
   "password_reset_tokens",
   "email_verification_tokens",
+  "recovery_codes",
   "sync_client_state",
 ] as const;
 
@@ -50,7 +51,8 @@ app.get("/", authMiddleware, async (c) => {
 
     const profile: UserProfileWire = {
       id: user.id,
-      email: user.email,
+      username: user.username ?? "",
+      email: user.email ?? null,
       name: user.name,
       initials: user.initials,
       local: Boolean(user.local),
@@ -123,7 +125,8 @@ app.get("/export", authMiddleware, exportLimit, async (c) => {
       exported_at: new Date().toISOString(),
       user: {
         id: user.id,
-        email: user.email,
+        username: user.username ?? "",
+        email: user.email ?? null,
         name: user.name,
         initials: user.initials,
         plan: user.plan ?? "free",

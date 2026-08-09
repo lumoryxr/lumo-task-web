@@ -48,8 +48,8 @@ function setup() {
   render(<LoginPage />);
 }
 
-function getEmailInput() {
-  return screen.getByLabelText("auth.email") as HTMLInputElement;
+function getUsernameInput() {
+  return screen.getByLabelText("auth.username") as HTMLInputElement;
 }
 
 function getPasswordInput() {
@@ -69,9 +69,11 @@ describe("LoginPage", () => {
     mockLoading = false;
   });
 
-  it("renders email and password fields", () => {
+  it("renders username and password fields", () => {
     setup();
-    expect(getEmailInput()).toBeInTheDocument();
+    const u = getUsernameInput();
+    expect(u).toBeInTheDocument();
+    expect(u).toHaveAttribute("autocomplete", "username");
     expect(getPasswordInput()).toBeInTheDocument();
   });
 
@@ -91,11 +93,11 @@ describe("LoginPage", () => {
 
   it("calls signIn with the typed credentials on submit", async () => {
     setup();
-    fireEvent.change(getEmailInput(), { target: { value: "user@example.com" } });
+    fireEvent.change(getUsernameInput(), { target: { value: "alex" } });
     fireEvent.change(getPasswordInput(), { target: { value: "secret123" } });
     fireEvent.click(getSubmitBtn());
     await waitFor(() =>
-      expect(mockSignIn).toHaveBeenCalledWith("user@example.com", "secret123"),
+      expect(mockSignIn).toHaveBeenCalledWith("alex", "secret123"),
     );
   });
 
@@ -126,16 +128,16 @@ describe("LoginPage", () => {
 
   it("renders an inline message under the field for a validation failure", async () => {
     mockSignIn.mockRejectedValueOnce(
-      new ApiError("email: Invalid email", {
+      new ApiError("username: Required", {
         code: "VALIDATION_ERROR",
         status: 400,
-        fields: [{ path: "email", message: "Invalid email" }],
+        fields: [{ path: "username", message: "Required" }],
       }),
     );
     setup();
     fireEvent.click(getSubmitBtn());
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Invalid email");
+    expect(alert).toHaveTextContent("Required");
     // Validation detail goes inline, NOT to the toast.
     expect(mockToastError).not.toHaveBeenCalled();
   });

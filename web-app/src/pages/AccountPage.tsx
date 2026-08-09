@@ -8,6 +8,8 @@ import { DogEvolutionBadge } from "@/components/DogEvolutionBadge";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { toast } from "@/store/useToastStore";
 import { presentError } from "@/lib/presentError";
+import { ApiError } from "@/api/ApiError";
+import { RecoveryCodeCard } from "@/components/RecoveryCodeCard";
 
 /** Serialize `data` and trigger a client-side file download. */
 function downloadJson(filename: string, data: unknown) {
@@ -38,6 +40,8 @@ export function AccountPage() {
   const exportData = useAuthStore((s) => s.exportData);
   const [exporting, setExporting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
 
   async function handleExport() {
     if (exporting) return;
@@ -139,7 +143,9 @@ export function AccountPage() {
             <div className="text-[18px] font-semibold text-text-primary leading-tight" style={{ letterSpacing: "-0.01em" }}>
               {user.name}
             </div>
-            <div className="text-[13px] text-text-secondary mt-1">{user.email}</div>
+            <div className="text-[13px] text-text-secondary mt-1">
+              {user.email ? user.email : `@${user.username ?? ""}`}
+            </div>
             <div className="mt-2 flex items-center gap-2">
               <span
                 className="inline-flex items-center gap-1.5 rounded-full"
@@ -211,6 +217,24 @@ export function AccountPage() {
 
       {/* Security */}
       <Group title={t("account.security")}>
+        <Row label={t("account.email.label")} helper={t("account.email.desc")}>
+          <div className="flex items-center gap-2.5">
+            {user.email ? (
+              <>
+                <span className="text-[12.5px] text-text-secondary">{user.email}</span>
+                <EmailStatePill verified={user.emailVerified !== false} />
+              </>
+            ) : (
+              <span className="text-[12px] text-text-muted">{t("account.email.none")}</span>
+            )}
+            <button className="btn btn-secondary" onClick={() => setEmailOpen(true)}>
+              {user.email ? t("account.email.change") : t("account.email.bind")}
+            </button>
+          </div>
+        </Row>
+        <Row label={t("account.recovery")} helper={t("account.recovery.desc")}>
+          <RegenerateRecoveryButton onCode={setRecoveryCode} />
+        </Row>
         <Row label={t("account.changePass")}>
           <button className="btn btn-secondary" onClick={() => navigate("/account/change-password")}>
             {t("account.changePass")}
@@ -252,7 +276,7 @@ export function AccountPage() {
 
       <DeleteAccountDialog
         open={deleteOpen}
-        expectedEmail={user.email}
+        expectedValue={user.email || user.username || ""}
         onCancel={() => setDeleteOpen(false)}
         onDeleted={() => {
           setDeleteOpen(false);
@@ -260,7 +284,66 @@ export function AccountPage() {
           navigate("/today");
         }}
       />
+
+      <EmailDialog
+        open={emailOpen}
+        hasEmail={Boolean(user.email)}
+        onCancel={() => setEmailOpen(false)}
+        onBound={() => {
+          setEmailOpen(false);
+          toast.success(t("account.email.success"));
+        }}
+      />
+
+      <RecoveryModal code={recoveryCode} onClose={() => setRecoveryCode(null)} />
     </div>
+  );
+}
+
+/** Small verified/unverified pill for a bound email. */
+function EmailStatePill({ verified }: { verified: boolean }) {
+  const t = useT();
+  return (
+    <span
+      className="inline-flex items-center rounded-full"
+      style={{
+        padding: "2px 8px",
+        fontSize: 10.5,
+        fontWeight: 600,
+        letterSpacing: "0.04em",
+        color: verified ? "var(--status-success)" : "var(--text-muted)",
+        background: "var(--bg-deep)",
+        border: "1px solid var(--border-faint)",
+      }}
+    >
+      {verified ? t("account.email.verified") : t("account.email.unverified")}
+    </span>
+  );
+}
+
+/** Regenerate button — surfaces the new one-time code to the parent for display. */
+function RegenerateRecoveryButton({ onCode }: { onCode: (code: string) => void }) {
+  const t = useT();
+  const regenerate = useAuthStore((s) => s.regenerateRecoveryCode);
+  const [busy, setBusy] = useState(false);
+
+  async function run() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const code = await regenerate();
+      onCode(code);
+    } catch (e) {
+      presentError(e, "account.recovery.err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button className="btn btn-secondary" onClick={run} disabled={busy} aria-busy={busy}>
+      {busy ? t("account.recovery.busy") : t("account.recovery.regen")}
+    </button>
   );
 }
 
@@ -271,12 +354,13 @@ export function AccountPage() {
  */
 function DeleteAccountDialog({
   open,
-  expectedEmail,
+  expectedValue,
   onCancel,
   onDeleted,
 }: {
   open: boolean;
-  expectedEmail: string;
+  /** The email (if bound) or username the user must retype to confirm erasure. */
+  expectedValue: string;
   onCancel: () => void;
   onDeleted: () => void;
 }) {
@@ -293,7 +377,7 @@ function DeleteAccountDialog({
 
   if (!open) return null;
 
-  const matches = confirmText.trim().toLowerCase() === expectedEmail.trim().toLowerCase();
+  const matches = confirmText.trim().toLowerCase() === expectedValue.trim().toLowerCase();
 
   async function handleDelete() {
     if (!matches || busy) return;
@@ -346,11 +430,11 @@ function DeleteAccountDialog({
           </label>
           <input
             id="delete-confirm-email"
-            type="email"
+            type="text"
             autoComplete="off"
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
-            placeholder={expectedEmail}
+            placeholder={expectedValue}
             disabled={busy}
             className="input"
             style={{ width: "100%" }}
@@ -383,6 +467,173 @@ function DeleteAccountDialog({
             {busy ? t("account.delete.modal.busy") : t("account.delete.modal.cta")}
           </button>
         </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/**
+ * Bind (or change) the account email. Sets it unverified and sends a
+ * verification link; usage is never blocked. Surfaces EMAIL_TAKEN inline.
+ */
+function EmailDialog({
+  open,
+  hasEmail,
+  onCancel,
+  onBound,
+}: {
+  open: boolean;
+  hasEmail: boolean;
+  onCancel: () => void;
+  onBound: () => void;
+}) {
+  const t = useT();
+  const bindEmail = useAuthStore((s) => s.bindEmail);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const close = () => {
+    if (busy) return;
+    setEmail("");
+    setError(null);
+    onCancel();
+  };
+  const dialogRef = useModalA11y<HTMLFormElement>(close, open);
+
+  if (!open) return null;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await bindEmail(email.trim());
+      setEmail("");
+      onBound();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "EMAIL_TAKEN") {
+        setError(t("account.email.taken"));
+      } else if (err instanceof ApiError && err.fields?.length) {
+        setError(err.fields[0].message);
+      } else {
+        presentError(err, "account.email.err");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return createPortal(
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", padding: 16,
+      }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}
+    >
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-label={hasEmail ? t("account.email.modal.changeTitle") : t("account.email.modal.bindTitle")}
+        ref={dialogRef}
+        tabIndex={-1}
+        onSubmit={submit}
+        style={{
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border-default)",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-lifted)",
+          width: 420, maxWidth: "calc(100vw - 32px)",
+        }}
+      >
+        <div style={{ padding: "20px 20px 16px" }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
+            {hasEmail ? t("account.email.modal.changeTitle") : t("account.email.modal.bindTitle")}
+          </h2>
+          <p style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.5, color: "var(--text-secondary)" }}>
+            {t("account.email.modal.body")}
+          </p>
+          <label
+            htmlFor="bind-email-input"
+            style={{ display: "block", margin: "16px 0 6px", fontSize: 12, color: "var(--text-muted)" }}
+          >
+            {t("account.email.modal.prompt")}
+          </label>
+          <input
+            id="bind-email-input"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            disabled={busy}
+            className="input"
+            style={{ width: "100%" }}
+          />
+          {error && (
+            <span role="alert" className="block text-[11px] mt-2" style={{ color: "var(--status-urgent)" }}>
+              {error}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "0 20px 20px" }}>
+          <button type="button" className="btn btn-secondary" onClick={close} disabled={busy}>
+            {t("common.cancel")}
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={!email.trim() || busy}
+            aria-busy={busy}
+          >
+            {busy ? t("account.email.modal.busy") : t("account.email.modal.submit")}
+          </button>
+        </div>
+      </form>
+    </div>,
+    document.body,
+  );
+}
+
+/** Shows a freshly-regenerated recovery code once, in a dismissable modal. */
+function RecoveryModal({ code, onClose }: { code: string | null; onClose: () => void }) {
+  const t = useT();
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose, code != null);
+
+  if (code == null) return null;
+
+  return createPortal(
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", padding: 16,
+      }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("account.recovery.modal.title")}
+        ref={dialogRef}
+        tabIndex={-1}
+        style={{
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border-default)",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-lifted)",
+          width: 420, maxWidth: "calc(100vw - 32px)",
+          padding: 20,
+        }}
+      >
+        <RecoveryCodeCard code={code} />
+        <button type="button" className="btn btn-primary btn-lg w-full justify-center mt-4" onClick={onClose}>
+          {t("auth.register.recovery.saved")}
+        </button>
       </div>
     </div>,
     document.body,
