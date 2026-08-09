@@ -45,3 +45,19 @@ export function fieldErrorsOf(err: unknown): Record<string, string> {
   }
   return out;
 }
+
+/**
+ * Like {@link fieldErrorsOf}, but restricted to the field paths a form actually
+ * renders. This is what a submit handler should branch on: a validation error
+ * for a path the form does NOT show (e.g. a stale backend still validating a
+ * removed `email` field) must fall through to a toast, never be silently
+ * swallowed into unrendered state — otherwise the submit looks like a no-op.
+ */
+export function fieldErrorsFor(err: unknown, fields: readonly string[]): Record<string, string> {
+  const all = fieldErrorsOf(err);
+  const out: Record<string, string> = {};
+  for (const f of fields) {
+    if (all[f]) out[f] = all[f];
+  }
+  return out;
+}

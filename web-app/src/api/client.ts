@@ -471,7 +471,15 @@ export const api = {
     password: string;
     confirm: string;
   }): Promise<{ user: User; recoveryCode: string }> {
-    if (input.password !== input.confirm) throw new Error("Passwords don't match.");
+    if (input.password !== input.confirm) {
+      // Shape this like a backend validation failure so the form can render it
+      // inline under the confirm field (RegisterPage whitelists "confirm"),
+      // rather than surfacing a generic toast for a per-field problem.
+      throw new ApiError("Passwords don't match.", {
+        code: "VALIDATION_ERROR",
+        fields: [{ path: "confirm", message: "Passwords don't match." }],
+      });
+    }
     const res = await req<{ token: string; refreshToken?: string; user: User; recoveryCode: string }>(
       "POST",
       "/auth/register",
