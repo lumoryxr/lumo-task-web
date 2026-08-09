@@ -686,10 +686,14 @@ test("TC17 – Login: successful mock submit navigates to Today", async ({ page 
   await expect(page).toHaveURL(/#\/(today|matrix)/, { timeout: 10_000 });
 });
 
-test("TC18 – Login: 'Continue without an account' link is visible", async ({ page }) => {
+test("TC18 – Login is mandatory: no 'continue without an account' escape hatch", async ({ page }) => {
   await skipOnboarding(page);
   await page.goto("/#/login");
-  await expect(page.getByText(/continue without/i).first()).toBeVisible({ timeout: 8_000 });
+  // The escape hatch was removed (#14) — login is required to use the app.
+  await expect(page.getByText(/continue without/i)).toHaveCount(0);
+  // A protected route bounces a signed-out (but onboarded) visitor to /login.
+  await page.goto("/#/today");
+  await expect(page).toHaveURL(/#\/login/, { timeout: 8_000 });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
