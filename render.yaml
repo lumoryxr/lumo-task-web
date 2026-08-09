@@ -40,8 +40,9 @@ services:
   - type: web
     name: lumo-task-frontend
     runtime: static
-    # contracts/dist is committed, but rebuild it first to match the Vercel build
-    # (web-app depends on @lumo/contracts via a file: path).
+    # contracts/dist is committed, but rebuild it first so the SPA build always
+    # links against fresh contract types (web-app depends on @lumo/contracts via
+    # a file: path).
     buildCommand: cd packages/contracts && npm ci && npm run build && cd ../../web-app && npm ci && npm run build
     staticPublishPath: web-app/dist
     envVars:

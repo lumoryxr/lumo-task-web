@@ -52,7 +52,7 @@ Use the following template when creating a new ADR:
 - [ADR-007: Testing Strategy](ADR-007-testing-strategy.md) - Unit vs Integration vs E2E testing approach
 
 ### DevOps & Deployment
-- [ADR-008: Deployment Platform Choice](ADR-008-deployment-choice.md) - Why Vercel/Render and deployment strategy
+- [ADR-008: Deployment Platform Choice](ADR-008-deployment-choice.md) - Why Render and deployment strategy
 - [ADR-009: Monitoring and Logging](ADR-009-monitoring-logging.md) - How to monitor and log in production
 
 ## How to Add a New ADR

@@ -13,6 +13,5 @@
 
 # CI / deployment config — extra careful here
 /.github/           @Jam-Lin
-/vercel.json        @Jam-Lin
 /render.yaml        @Jam-Lin
 /Makefile           @Jam-Lin

@@ -175,8 +175,8 @@ lumo-task-web/
 | Component | Technology |
 |-----------|-----------|
 | CI/CD | GitHub Actions |
-| API Deployment | Vercel / Render |
-| Frontend Deployment | Vercel |
+| API Deployment | Render (web service) |
+| Frontend Deployment | Render (static site) |
 | Secrets Management | GitHub Actions secrets |
 | Monitoring | Application logs (stdout/stderr) |
 | Code Quality | TypeScript, ESLint, Prettier |
@@ -399,17 +399,17 @@ Local machine
 
 #### Frontend
 ```
-Vercel (CDN + Edge functions)
+Render (static site + CDN)
   ├─ Static assets (JS, CSS, images)
-  └─ Redirects to API on vercel.com/api/*
+  └─ SPA fallback: rewrites all routes to index.html
 ```
 
 #### Backend
 ```
-Vercel / Render (Node.js serverless or container)
+Render (Node.js web service / container)
   ├─ Hono REST API
-  ├─ PostgreSQL database
-  └─ Environment variables from GitHub Actions secrets
+  ├─ SQLite database (Turso libsql for persistence)
+  └─ Environment variables from the Render dashboard / render.yaml
 ```
 
 #### Deployment Flow
@@ -419,7 +419,7 @@ git push to main
 GitHub Actions CI pipeline
   ├─ Run tests & type checks
   ├─ Build artifacts
-  └─ On success: Deploy to Vercel/Render
+  └─ On success: Render auto-deploys frontend + backend
 ```
 
 ---

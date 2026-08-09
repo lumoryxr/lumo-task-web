@@ -6,13 +6,13 @@
 
 [![CI](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml)
 [![Release](https://github.com/lumoryxr/lumo-task-web/actions/workflows/release-desktop.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/releases)
-[![Demo](https://img.shields.io/badge/demo-live-brightgreen?logo=vercel)](https://lumo-task-web.vercel.app)
+[![Demo](https://img.shields.io/badge/demo-live-brightgreen?logo=render)](https://lumo-task-frontend.onrender.com)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![AI-Coded](https://img.shields.io/badge/coded%20by-AI%20only-blueviolet?logo=anthropic)](https://claude.ai)
 
 **[English](README.md) | [中文](README.zh.md)**
 
-[Live Demo](https://lumo-task-web.vercel.app) · [Releases](https://github.com/lumoryxr/lumo-task-web/releases) · [Contributing](.github/CONTRIBUTING.md)
+[Live Demo](https://lumo-task-frontend.onrender.com) · [Releases](https://github.com/lumoryxr/lumo-task-web/releases) · [Contributing](.github/CONTRIBUTING.md)
 
 </div>
 
@@ -58,7 +58,7 @@ Lumo Task is a full-stack task management app built around the Eisenhower Matrix
 | Validation | Zod |
 | Testing | Vitest + React Testing Library, Node `--test`, Playwright |
 | Desktop | Electron |
-| Hosting | Vercel (frontend), Render (backend) |
+| Hosting | Render (frontend + backend) |
 | CI/CD | GitHub Actions |
 
 ---
@@ -169,22 +169,23 @@ lumo-task-web/
 
 ## Deploy
 
-Lumo Task uses **Vercel (frontend) + Render (backend)** on free tiers.
+Lumo Task uses **Render (frontend + backend)** on free tiers. Both services are
+defined in a single `render.yaml` blueprint.
 
 | Service | Platform | Config |
 |---------|----------|--------|
-| Frontend SPA | Vercel | `vercel.json` |
-| Backend API | Render | `render.yaml` |
+| Frontend SPA | Render (static site) | `render.yaml` |
+| Backend API | Render (web service) | `render.yaml` |
 
 **Environment variables:**
 
 ```bash
-# Vercel (frontend)
+# Render (frontend static site)
 VITE_API_BASE=https://your-backend.onrender.com/v1
 
-# Render (backend)
+# Render (backend web service)
 LUMO_JWT_SECRET=<generate a random secret>
-LUMO_ALLOWED_ORIGINS=.vercel.app
+LUMO_ALLOWED_ORIGINS=https://your-frontend.onrender.com
 NODE_VERSION=22
 ```
 
@@ -202,7 +203,7 @@ Pull Request
       └── npm audit security scan
 
 Merge to main
- ├── Vercel auto-deploys frontend (production)
+ ├── Render auto-deploys frontend (production)
  ├── Render auto-deploys backend (production)
  └── GitHub Actions packages Windows installer → GitHub Releases
 ```
