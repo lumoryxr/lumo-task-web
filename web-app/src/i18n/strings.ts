@@ -1014,6 +1014,10 @@ export const STRINGS: Record<Locale, Dict> = {
     "detail.scheduledAt": "Scheduled",
 
     "settings.integrations": "Integrations",
+    "settings.about": "About & Support",
+    "settings.about.reportBug": "Report a bug or send feedback",
+    "settings.about.reportBug.helper": "Hit a bug or have an idea? Open an issue on GitHub — we read every one.",
+    "settings.about.reportBug.action": "Open GitHub",
     "calendar.feed.title": "Calendar subscription",
     "calendar.feed.hint": "Subscribe in Google, Apple, or Outlook Calendar to see your due tasks and countdowns.",
     "calendar.feed.loading": "Loading…",
@@ -2082,6 +2086,10 @@ export const STRINGS: Record<Locale, Dict> = {
     "detail.scheduledAt": "排期时间",
 
     "settings.integrations": "集成",
+    "settings.about": "关于与支持",
+    "settings.about.reportBug": "反馈问题或建议",
+    "settings.about.reportBug.helper": "遇到问题或有想法？在 GitHub 上提交 issue — 我们会逐一查看。",
+    "settings.about.reportBug.action": "打开 GitHub",
     "calendar.feed.title": "日历订阅",
     "calendar.feed.hint": "在 Google、Apple 或 Outlook 日历中订阅，即可看到你的到期任务与倒数日。",
     "calendar.feed.loading": "加载中…",
