@@ -106,8 +106,11 @@ about **operating a product for real people**, not code quality.
   rollout or team features.
 - **[todo] Desktop installer signing.** The Windows installer is unsigned (SmartScreen
   warning). Code-sign it before promoting desktop downloads widely.
-- **[todo] Consolidate the two marketing surfaces.** There is both a static
-  `landing/index.html` and an Astro `website/`. Pick one canonical site.
+- **[done] Consolidate the two marketing surfaces.** The Astro `website/` is the
+  single canonical marketing site (published to `gh-pages` via
+  `deploy-website.yml`). The legacy static `landing/index.html` and its
+  `deploy-landing.yml` workflow have been removed; the truthful privacy/offline
+  copy from the reconciliation was carried over to `website/`.
 - **[todo] Open-graph / Twitter cards on the app shell** for shareable links
   (the app `index.html` has PWA meta but no OG/Twitter cards).
 

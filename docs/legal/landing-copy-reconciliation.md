@@ -2,7 +2,8 @@
 
 > **状态：C1–C5 已按"实事求是"原则实施**（Jalen 拍板 2026-08-10：落地话术要实事求是）。
 > 追踪 issue：#472（法务与合规）。SSOT：`docs/COMMERCIALIZATION_READINESS.md` §5。
-> 变更已落到 `landing/index.html`（EN/ZH 双语）。**残留待拍板项见 §4。**
+> 变更最初落到 `landing/index.html`（EN/ZH 双语）;**该页现已删除,`website/` Astro 站为唯一营销站,
+> 同口径已搬迁（见 §4）。** 下文的 `landing/index.html:行号` 仅作历史记录。**残留待拍板项见 §4。**
 >
 > **根因：** `landing/index.html` 曾用**桌面 / 本地优先模式**的隐私属性描述**整个产品**，
 > 但同一产品还提供**服务端账号版**（JWT 鉴权、Turso 云数据库、Lumo Cloud AI 代理、审计日志、
@@ -87,5 +88,9 @@
 
 **残留待拍板（运营方）：**
 - [ ] **隐私友好分析**（§7 / #475）：接 Plausible/PostHog 前,确认属**第一方、可关闭**;当前 C1 措辞"无第三方广告追踪"已为此预留空间,无需再改落地页,但**隐私政策须同步写明分析用途**。
-- [ ] **营销站归一**（§7）：本次只改了 `landing/index.html`;若最终以 Astro `website/` 为准,需把同样口径搬过去（该站另行审计）。
+- [x] **营销站归一**（§7）：已定以 Astro `website/` 为唯一营销站,`landing/index.html` 及
+  `deploy-landing.yml` 已删除。`website/` 已按同样"实事求是"口径对账:`FAQ.astro` 的
+  "end-to-end / 私密"表述曾暗示端到端加密,已改为"通过账号在设备间同步、数据存我方服务器、
+  仅用于运行账号、无第三方广告追踪、开源可审计"——与 C1 收敛口径一致。离线口径保留("PWA 离线外壳"
+  属实,见 `web-app/public/sw.js` 预缓存应用外壳)。
 - [ ] **隐私政策对齐**（#472）：线上隐私政策 / `docs/legal/legal-drafts.md` 与本次落地话术**同口径**(子处理方、数据留存、Cookie/存储告知)。

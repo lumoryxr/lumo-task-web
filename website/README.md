@@ -40,4 +40,5 @@ attributes; `global.css` shows the one matching `html[lang]`. The toggle button
 
 `.github/workflows/deploy-website.yml` builds this directory and pushes
 `dist/` to the `gh-pages` branch on any push to `main` under `website/**`.
-Supersedes the legacy `landing/` single-file page.
+This is the single canonical marketing site; the legacy `landing/` single-file
+page has been removed.
