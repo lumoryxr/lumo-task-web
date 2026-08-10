@@ -3,6 +3,9 @@
  */
 import { test, describe, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { log, redactForLog } from "../../lib/logger.js";
 
 /** Capture every stdout+stderr log line emitted while `fn` runs. */
@@ -22,9 +25,12 @@ function capture(fn: () => void): string[] {
 }
 
 const origLevel = process.env.LUMO_LOG_LEVEL;
+const origFile = process.env.LUMO_LOG_FILE;
 afterEach(() => {
   if (origLevel === undefined) delete process.env.LUMO_LOG_LEVEL;
   else process.env.LUMO_LOG_LEVEL = origLevel;
+  if (origFile === undefined) delete process.env.LUMO_LOG_FILE;
+  else process.env.LUMO_LOG_FILE = origFile;
 });
 
 describe("log() base envelope", () => {
@@ -107,5 +113,83 @@ describe("redactForLog", () => {
     );
     assert.ok(!line.includes(secret), "secret value leaked into the log line");
     assert.match(line, /\[REDACTED\]/);
+  });
+});
+
+describe("log() file sink via LUMO_LOG_FILE", () => {
+  /** A unique temp path per call so tests never share a file. */
+  function tmpLogPath(name: string): string {
+    return path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), "lumo-log-")),
+      name,
+    );
+  }
+
+  test("appends each emitted line as JSON+newline, and still prints to console", () => {
+    const file = tmpLogPath("app.log");
+    process.env.LUMO_LOG_FILE = file;
+    const console_lines = capture(() => log("info", { requestId: "rf", msg: "to-file" }));
+    // Console output is unaffected by the file sink.
+    assert.equal(console_lines.length, 1);
+
+    const contents = fs.readFileSync(file, "utf8");
+    assert.ok(contents.endsWith("\n"), "each line is newline-terminated");
+    const parsed = JSON.parse(contents.trim());
+    assert.equal(parsed.requestId, "rf");
+    assert.equal(parsed.msg, "to-file");
+    assert.equal(parsed.service, "lumo-backend");
+  });
+
+  test("appends one line per emitted call (JSON-lines)", () => {
+    const file = tmpLogPath("multi.log");
+    process.env.LUMO_LOG_FILE = file;
+    capture(() => {
+      log("info", { n: 1 });
+      log("warn", { n: 2 });
+      log("error", { n: 3 });
+    });
+    const lines = fs.readFileSync(file, "utf8").trim().split("\n");
+    assert.equal(lines.length, 3);
+    assert.deepEqual(lines.map((l) => JSON.parse(l).n), [1, 2, 3]);
+  });
+
+  test("does not write lines suppressed by the level filter", () => {
+    const file = tmpLogPath("filtered.log");
+    process.env.LUMO_LOG_FILE = file;
+    process.env.LUMO_LOG_LEVEL = "warn";
+    capture(() => {
+      log("info", { msg: "dropped" });
+      log("warn", { msg: "kept" });
+    });
+    const lines = fs.readFileSync(file, "utf8").trim().split("\n");
+    assert.equal(lines.length, 1);
+    assert.equal(JSON.parse(lines[0]).msg, "kept");
+  });
+
+  test("redacts secrets in the file, same as the console line", () => {
+    const file = tmpLogPath("redact.log");
+    process.env.LUMO_LOG_FILE = file;
+    const secret = "sk-file-secret-abcdef";
+    capture(() => log("info", { msg: "auth", token: secret }));
+    const contents = fs.readFileSync(file, "utf8");
+    assert.ok(!contents.includes(secret), "secret leaked into the log file");
+    assert.match(contents, /\[REDACTED\]/);
+  });
+
+  test("an unwritable path disables the sink without throwing", () => {
+    // A path whose parent is an existing FILE (not a dir) cannot be created.
+    const parentFile = tmpLogPath("not-a-dir");
+    fs.writeFileSync(parentFile, "x");
+    process.env.LUMO_LOG_FILE = path.join(parentFile, "child.log");
+    // Must not throw. The primary line is still emitted to the console, plus a
+    // one-time "log file sink disabled" diagnostic (so a mistyped path is
+    // visible instead of silently dropping file logs).
+    const lines = capture(() => log("info", { msg: "still-logs" }));
+    const parsed = lines.map((l) => JSON.parse(l));
+    assert.ok(parsed.some((o) => o.msg === "still-logs"), "primary line still logged");
+    assert.ok(
+      parsed.some((o) => o.msg === "log file sink disabled"),
+      "sink-disabled diagnostic emitted once",
+    );
   });
 });
