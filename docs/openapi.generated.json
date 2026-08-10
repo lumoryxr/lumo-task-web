@@ -958,6 +958,224 @@
         "required": [
           "ok"
         ]
+      },
+      "Feedback": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "idea",
+              "question",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "in_progress",
+              "resolved",
+              "closed"
+            ]
+          },
+          "response": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "message",
+          "category",
+          "status",
+          "response",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "AdminFeedback": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "idea",
+              "question",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "in_progress",
+              "resolved",
+              "closed"
+            ]
+          },
+          "response": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "submitter": {
+            "type": "object",
+            "properties": {
+              "user_id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string",
+                "nullable": true
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "user_id",
+              "email",
+              "name"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "message",
+          "category",
+          "status",
+          "response",
+          "created_at",
+          "updated_at",
+          "submitter"
+        ]
+      },
+      "FeedbackCreateBody": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "idea",
+              "question",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "FeedbackUpdateBody": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "in_progress",
+              "resolved",
+              "closed"
+            ]
+          },
+          "response": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "FeedbackListResponse": {
+        "type": "object",
+        "properties": {
+          "feedback": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "bug",
+                    "idea",
+                    "question",
+                    "other"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "in_progress",
+                    "resolved",
+                    "closed"
+                  ]
+                },
+                "response": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "message",
+                "category",
+                "status",
+                "response",
+                "created_at",
+                "updated_at"
+              ]
+            }
+          },
+          "isAdmin": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "feedback",
+          "isAdmin"
+        ]
       }
     }
   }

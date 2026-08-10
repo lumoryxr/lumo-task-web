@@ -809,6 +809,28 @@ export async function runMigrations() {
   await execRaw("CREATE INDEX IF NOT EXISTS idx_oauth_handoffs_created ON oauth_handoffs(created_at)");
   await execRaw("DELETE FROM oauth_handoffs WHERE created_at < datetime('now', '-1 days')");
 
+  // ── In-app feedback (#473 follow-up) ─────────────────────────────────────────
+  // Any signed-in user can submit feedback; an operator (email in
+  // LUMO_ADMIN_EMAILS) reviews all of it, moves each item through a status, and
+  // writes a reply the submitter sees. NOT a syncable domain — feedback lives
+  // server-side only (no per-device copy), so no four-tuple/tombstone columns.
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL REFERENCES users(id),
+      message    TEXT NOT NULL,
+      category   TEXT NOT NULL DEFAULT 'other',
+      status     TEXT NOT NULL DEFAULT 'open',
+      response   TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  // A user's own list filters by user_id (newest first); the admin queue lists
+  // everything newest first. Index both hot paths.
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_feedback_user_created ON feedback(user_id, created_at)");
+  await execRaw("CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at)");
+
   // Global monthly counter for the shared Lumo Cloud AI key. Guards the account
   // owner's provider bill: without an aggregate ceiling, a burst of signups runs
   // straight against the shared LUMO_AI_KEY (only per-user 100/mo caps existed).
