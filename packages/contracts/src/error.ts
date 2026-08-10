@@ -53,8 +53,6 @@ export const ERROR_CODES = {
   AI_UNAVAILABLE: { status: 502, about: "AI provider unavailable or returned an unexpected result" },
   AI_PARSE_ERROR: { status: 502, about: "AI provider response could not be parsed" },
   CLOUD_UNREACHABLE: { status: 502, about: "Cloud request failed to reach the server" },
-  OUTLOOK_FETCH_FAILED: { status: 502, about: "Outlook Graph API fetch failed" },
-  OUTLOOK_NOT_CONFIGURED: { status: 503, about: "Outlook server credentials are not configured" },
   OAUTH_EXCHANGE_FAILED: { status: 502, about: "GitHub OAuth token exchange or user fetch failed upstream" },
   // 501 — not implemented / not configured
   OAUTH_NOT_CONFIGURED: { status: 501, about: "GitHub OAuth is not configured on this server (env credentials unset)" },

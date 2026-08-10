@@ -3,7 +3,6 @@ import { useAppStore, type Accent, type Density } from "@/store/useAppStore";
 import { api } from "@/api/client";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useAIStore } from "@/store/useAIStore";
-import { useCalendarStore } from "@/store/useCalendarStore";
 import { useImportedCalendarStore } from "@/store/useImportedCalendarStore";
 import { usePetStore } from "@/store/usePetStore";
 import { useT, t as translate } from "@/i18n/useT";
@@ -737,77 +736,10 @@ function AIConfigPanel({ t, locale }: { t: (k: string) => string; locale: string
 
 /* ── Integrations panel ───────────────────────────────────────────── */
 
-const MS_CLIENT_ID = (import.meta as any).env?.VITE_MS_CLIENT_ID as string | undefined;
-
 function IntegrationsPanel({ t }: { t: (k: string) => string }) {
-  const { connected, userEmail, serverMode, serverEmail, loading, connect, disconnect } = useCalendarStore();
-  const [busy, setBusy] = useState(false);
-
-  async function handleConnect() {
-    setBusy(true);
-    try {
-      await connect();
-    } catch {
-      toast.error(t("outlook.error.connect"), "");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div>
       <h2 className="text-[15px] font-semibold text-text-primary mb-5">{t("settings.integrations")}</h2>
-      <div className="surface-card overflow-hidden">
-        <div className="grid items-center px-5 py-4" style={{ gridTemplateColumns: "1fr auto", gap: 16 }}>
-          <div>
-            <div className="flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <rect x="2" y="2" width="20" height="20" rx="3" fill="#0078D4" />
-                <path d="M12 7C9.24 7 7 9.24 7 12s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8.5c-1.93 0-3.5-1.57-3.5-3.5S10.07 8.5 12 8.5s3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z" fill="white"/>
-                <path d="M17 7h3v10h-3z" fill="white" opacity="0.8"/>
-              </svg>
-              <span className="text-[13px] font-medium text-text-primary">Microsoft Outlook</span>
-              {connected && (
-                <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: "var(--accent-fog)", color: "var(--accent-primary)" }}>
-                  {serverMode ? t("outlook.serverMode") : `✓ ${t("outlook.connected")}`}
-                </span>
-              )}
-            </div>
-            {serverMode ? (
-              <div className="mt-0.5 text-[11px] text-text-muted">{serverEmail ?? t("outlook.serverConfigured")}</div>
-            ) : connected && userEmail ? (
-              <div className="mt-0.5 text-[11px] text-text-muted">{userEmail}</div>
-            ) : (
-              <div className="mt-0.5 text-[11px] text-text-muted">
-                {MS_CLIENT_ID ? t("outlook.hint") : t("outlook.notConfigured")}
-              </div>
-            )}
-          </div>
-          {connected ? (
-            <button onClick={disconnect} className="btn btn-secondary" style={{ height: 32, fontSize: 12 }}>
-              {t("outlook.disconnect")}
-            </button>
-          ) : serverMode ? null : (
-            <button
-              onClick={handleConnect}
-              disabled={!MS_CLIENT_ID || busy || loading}
-              aria-busy={busy || loading}
-              className="btn btn-secondary inline-flex items-center gap-1.5"
-              style={{ height: 32, fontSize: 12 }}
-              title={!MS_CLIENT_ID ? t("outlook.notConfigured") : undefined}
-            >
-              {busy || loading ? (
-                <>
-                  <Spinner size={13} />
-                  {t("settings.outlook.connecting")}
-                </>
-              ) : (
-                t("outlook.connect")
-              )}
-            </button>
-          )}
-        </div>
-      </div>
 
       <CalendarFeedCard t={t} />
       <ImportCalendarCard t={t} />

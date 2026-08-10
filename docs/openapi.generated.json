@@ -436,12 +436,7 @@
               ]
             }
           },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
+          "tags": {},
           "project_id": {
             "type": "string",
             "nullable": true
@@ -456,7 +451,8 @@
           }
         },
         "required": [
-          "title"
+          "title",
+          "tags"
         ]
       },
       "TaskUpdateBody": {
@@ -632,12 +628,7 @@
               ]
             }
           },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
+          "tags": {},
           "project_id": {
             "type": "string",
             "nullable": true

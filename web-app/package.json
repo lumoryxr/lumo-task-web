@@ -23,7 +23,6 @@
     "test:electron:report": "playwright show-report playwright-report-electron"
   },
   "dependencies": {
-    "@azure/msal-browser": "^5.16.0",
     "@lumo/contracts": "file:../packages/contracts",
     "@tiptap/extension-image": "^2.27.2",
     "@tiptap/pm": "^2.27.2",

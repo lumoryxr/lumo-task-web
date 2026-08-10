@@ -31,7 +31,6 @@ describe("SettingsPage i18n", () => {
       "settings.ai.key.show",
       "settings.ai.baseUrl.helper",
       "settings.ai.testing",
-      "settings.outlook.connecting",
       "settings.storage.copy",
       "settings.storage.copied",
       "settings.storage.localNote",
