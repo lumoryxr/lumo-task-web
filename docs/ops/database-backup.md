@@ -42,45 +42,25 @@ turso db shell <target-db> < backups/lumo-2026-06-28-0900.sql
 Because the dump is plain `INSERT`s inside a transaction, a partial/corrupt
 file fails atomically rather than half-loading.
 
-## Recommended: scheduled backup in CI
+## Scheduled backup in CI (committed, opt-in)
 
-Add this workflow (it needs `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` repo
-secrets) to run a daily dump and retain it as an artifact. It is intentionally
-**not** committed as an active workflow until the secrets and retention target
-are agreed — copy it in when ready:
+The scheduled workflow lives at [`.github/workflows/db-backup.yml`](../../.github/workflows/db-backup.yml).
+It is **safe to keep committed**: without the `TURSO_DATABASE_URL` secret the job
+**skips cleanly** (emits a notice, stays green) instead of failing every night on
+an empty database. It runs daily at 03:00 UTC and can also be triggered manually
+(`workflow_dispatch`).
 
-```yaml
-# .github/workflows/db-backup.yml
-name: DB Backup
-on:
-  schedule: [{ cron: "0 3 * * *" }]   # 03:00 UTC daily
-  workflow_dispatch: {}
-jobs:
-  backup:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - run: npm ci
-        working-directory: backend
-      - name: Dump
-        working-directory: backend
-        env:
-          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-        run: |
-          mkdir -p backups
-          npm run backup > backups/lumo-$(date +%F).sql
-      - uses: actions/upload-artifact@v4
-        with:
-          name: db-backup-${{ github.run_id }}
-          path: backend/backups/*.sql
-          retention-days: 30
-```
+**To activate backups:**
 
-For production durability, push the artifact to an encrypted bucket (S3/R2)
-with lifecycle retention instead of (or in addition to) GitHub artifacts.
+1. Add repo secrets `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (the production
+   database credentials).
+2. The next scheduled run — or a manual **Run workflow** dispatch — dumps the DB
+   and uploads it as an artifact (`retention-days: 30`).
+
+The dump step fails loudly if the produced `.sql` is empty (a silent 0-byte
+backup is worse than a red run). For production durability, push the artifact to
+an encrypted bucket (S3/R2) with lifecycle retention instead of (or in addition
+to) GitHub artifacts.
 
 ## Notes
 

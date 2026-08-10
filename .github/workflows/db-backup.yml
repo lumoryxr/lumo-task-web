@@ -1,0 +1,77 @@
+# Scheduled logical database backup (opt-in).
+#
+# Safe to keep committed: without the TURSO_DATABASE_URL secret the job SKIPS
+# cleanly (a notice, not a failure), so scheduled runs stay green until backups
+# are turned on. To ACTIVATE, add repo secrets TURSO_DATABASE_URL +
+# TURSO_AUTH_TOKEN — the next run (or a manual dispatch) then dumps and retains.
+#
+# See docs/ops/database-backup.md. For production durability, push the artifact
+# to an encrypted bucket (S3/R2) with lifecycle retention, not just GH artifacts.
+name: DB Backup
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC daily
+  workflow_dispatch: {}
+
+# Never run two dumps at once; a new run supersedes an in-flight one.
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Logical dump
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Gate the whole job on the backup secret being present. Secrets are not
+      # readable in a job-level `if:`, so evaluate it into a step output here and
+      # gate the dump/upload steps on it — no secret → skip, not fail.
+      - name: Check backup is configured
+        id: cfg
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+        run: |
+          if [ -n "$TURSO_DATABASE_URL" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::TURSO_DATABASE_URL secret not set — skipping backup (add it to enable)."
+          fi
+
+      # Resolve the @lumo/contracts file: dependency the Render build way so the
+      # backend `npm ci` installs cleanly, then run the read-only logical dump.
+      - name: Install backend deps
+        if: steps.cfg.outputs.enabled == 'true'
+        working-directory: backend
+        run: |
+          npm --prefix ../packages/contracts ci
+          npm --prefix ../packages/contracts run build
+          npm ci
+
+      - name: Dump database
+        if: steps.cfg.outputs.enabled == 'true'
+        working-directory: backend
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: |
+          mkdir -p backups
+          npm run backup > "backups/lumo-$(date +%F-%H%M).sql"
+          # Fail the run if the dump is empty (0 bytes = a broken backup is worse
+          # than a loud failure).
+          test -s backups/*.sql || { echo "::error::backup dump is empty"; exit 1; }
+
+      - name: Upload backup artifact
+        if: steps.cfg.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backend/backups/*.sql
+          retention-days: 30

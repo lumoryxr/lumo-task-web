@@ -7,7 +7,7 @@ This document provides an overview of the lumo-task-web project architecture, te
 **lumo-task-web** is a full-stack task management application with:
 - Modern web UI (React + TypeScript)
 - Node.js/Hono REST API backend
-- SQLite/PostgreSQL database
+- SQLite / libSQL (Turso) database via `@libsql/client`
 - Electron desktop app (optional)
 - Cross-platform support (Windows, macOS, Linux)
 
@@ -37,10 +37,10 @@ This document provides an overview of the lumo-task-web project architecture, te
 ┌────────────────────▼─────────────────────────────────┐
 │                    Data Layer                        │
 ├─────────────────────────────────────────────────────┤
-│  SQLite (dev) / PostgreSQL (prod)                   │
+│  SQLite / libSQL (Turso) via @libsql/client         │
 │  ├─ Schema: users, tasks, projects, etc.            │
 │  ├─ Parameterized queries (no SQL injection)        │
-│  └─ Migrations                                       │
+│  └─ Migrations (raw SQL in db/migrate.ts)           │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -88,31 +88,28 @@ lumo-task-web/
 │   │   │   ├── auth.ts               # Login, register, logout
 │   │   │   └── health.ts             # Health check
 │   │   ├── middleware/
-│   │   │   ├── auth.ts               # JWT authentication
-│   │   │   ├── cors.ts               # CORS handling
-│   │   │   └── errorHandler.ts       # Global error handling
+│   │   │   └── auth.ts               # JWT authentication (CORS + global onError live in app.ts)
 │   │   ├── db/
-│   │   │   ├── schema.ts             # Database schema (Drizzle ORM)
-│   │   │   ├── client.ts             # Database connection
-│   │   │   └── migrations/           # SQL migrations
-│   │   ├── services/
-│   │   │   ├── taskService.ts        # Business logic for tasks
-│   │   │   ├── userService.ts        # Business logic for users
-│   │   │   └── authService.ts        # Authentication logic
-│   │   ├── lib/
-│   │   │   ├── errors.ts             # Error classes and utilities
+│   │   │   ├── client.ts             # @libsql/client + query/queryOne/execute/batch helpers
+│   │   │   ├── migrate.ts            # Table definitions + migrations (raw SQL)
+│   │   │   ├── schema.ts             # Column-name/type reference doc only (no ORM)
+│   │   │   ├── rows.ts               # Row → wire-shape mappers
+│   │   │   └── dbConfig.ts           # Operating-mode selection (local / replica / cloud)
+│   │   ├── lib/                      # errors, jwt, crypto, rateLimit, ssrf, cursor, ai-*, ics, …
+│   │   │   ├── errors.ts             # httpError() + error codes
 │   │   │   ├── jwt.ts                # JWT token generation
-│   │   │   └── validation.ts         # Zod schemas
+│   │   │   └── validate.ts           # Zod zValidator wrappers
 │   │   ├── app.ts                    # Hono app initialization
 │   │   └── index.ts                  # Entry point
-│   ├── __tests__/
-│   │   ├── api/                      # API endpoint tests
-│   │   ├── services/                 # Service layer tests
-│   │   └── integration/              # End-to-end tests
+│   ├── src/test/
+│   │   ├── api/                      # In-process API endpoint tests (node --test)
+│   │   ├── security/                 # authn / authz / input / secrets / rate-limit
+│   │   ├── standards/                # error-shape + contract-first guards
+│   │   ├── integration.test.ts       # real-HTTP integration
+│   │   └── dfx.integration.test.ts   # daily DFX regression (security/robustness/…)
 │   ├── package.json
 │   ├── tsconfig.json
-│   ├── tsconfig.build.json
-│   └── vitest.config.ts
+│   └── tsconfig.build.json
 │
 ├── .github/
 │   ├── workflows/                    # GitHub Actions
@@ -163,8 +160,8 @@ lumo-task-web/
 | Runtime | Node.js | 20+ |
 | Language | TypeScript | Latest |
 | Framework | Hono | Latest |
-| Database | SQLite (dev) / PostgreSQL (prod) | Latest |
-| ORM | Drizzle ORM (or raw SQL) | Latest |
+| Database | SQLite / libSQL (Turso) via `@libsql/client` | 0.17.x |
+| Data access | Raw parameterized SQL (`:name` args) — **no ORM**; business logic lives in route handlers, not a service layer | - |
 | Validation | Zod | Latest |
 | Auth | JWT (HS256) | - |
 | Testing | Node --test + Vitest | Latest |
@@ -309,17 +306,19 @@ const data = createTaskSchema.parse(body); // Throws if invalid
 
 #### 5. Database Access
 ```typescript
-// Parameterized queries (no SQL injection)
-const tasks = await db.query(
-  'SELECT * FROM tasks WHERE user_id = :userId AND status = :status',
-  { userId: 123, status: 'pending' }
+// Raw parameterized SQL via the db/client.ts helpers — no ORM.
+// `:name` bind args are the only interpolation; user_id always re-scopes the query.
+import { query, queryOne, execute, batch } from "../db/client.js";
+
+const tasks = await query(
+  'SELECT * FROM tasks WHERE user_id = :uid AND completed = 0 AND deleted_at IS NULL',
+  { uid }
 );
 
-// Or with ORM (Drizzle)
-const tasks = db.select()
-  .from(taskTable)
-  .where(eq(taskTable.userId, userId))
-  .execute();
+// Multi-statement writes go through batch() for atomicity:
+await batch([
+  { sql: 'UPDATE tasks SET completed = 1, updated_at = :now WHERE id = :id', args: { id, now } },
+]);
 ```
 
 ---

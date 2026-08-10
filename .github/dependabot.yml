@@ -44,6 +44,28 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
+  # npm dependencies for the shared contracts package
+  # (built into the production backend bundle — see render-deploy-check in ci.yml)
+  - package-ecosystem: npm
+    directory: /packages/contracts
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - dependencies
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   # GitHub Actions themselves
   - package-ecosystem: github-actions
     directory: /
