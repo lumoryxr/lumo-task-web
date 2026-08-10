@@ -41,6 +41,28 @@ const NotNowItemSchema = z.object({
 // A single task label: trimmed, non-empty, capped at 30 chars.
 const TagSchema = z.string().trim().min(1).max(30);
 
+// Case-insensitive de-duplication, preserving first-seen order and the caller's
+// original casing. The client (TagInput) already blocks duplicate entry; doing
+// it here too means the API boundary — the real source of truth — guarantees a
+// task's stored tags never fragment into "Work"/"work" duplicates, regardless
+// of which client (or direct API caller) wrote them.
+function dedupeTags(tags: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const tag of tags) {
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
+  }
+  return out;
+}
+
+// Free-form labels, a second organizing axis orthogonal to the quadrant.
+// Trimmed 1..30 chars each, at most 20 per task (keeps rows/sync bounded), and
+// de-duplicated case-insensitively at the boundary.
+const TagsFieldSchema = z.array(TagSchema).max(20).default([]).transform(dedupeTags);
+
 // ── Request bodies ────────────────────────────────────────────────────────────
 
 export const TaskCreateBodySchema = z.object({
@@ -64,9 +86,7 @@ export const TaskCreateBodySchema = z.object({
   ai_suggest: QuadrantSchema.nullable().optional(),
   not_now: z.array(NotNowItemSchema).default([]),
   subtasks: z.array(SubtaskSchema).default([]),
-  // Free-form labels, a second organizing axis orthogonal to the quadrant.
-  // Trimmed, 1..30 chars each, at most 20 per task to keep rows/sync bounded.
-  tags: z.array(TagSchema).max(20).default([]),
+  tags: TagsFieldSchema,
   // Optional owning project (#211). Null/absent = unfiled. The backend verifies
   // the referenced project belongs to the same user before persisting.
   project_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).nullable().optional(),

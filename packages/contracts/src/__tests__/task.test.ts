@@ -93,6 +93,25 @@ describe("TaskCreateBodySchema (request contract)", () => {
     assert.doesNotThrow(() => TaskCreateBodySchema.parse({ title: { en: "Hi" }, ai_suggest: "Q1" }));
     assert.throws(() => TaskCreateBodySchema.parse({ title: { en: "Hi" }, ai_suggest: "foo" }));
   });
+
+  test("trims, drops empty, and de-duplicates tags case-insensitively (first-seen order + casing kept)", () => {
+    const parsed = TaskCreateBodySchema.parse({
+      title: { en: "Hi" },
+      tags: ["Work", "  work  ", "WORK", "Home", "home"],
+    });
+    assert.deepEqual(parsed.tags, ["Work", "Home"]);
+  });
+
+  test("still enforces per-tag length and the 20-tag cap before dedupe", () => {
+    assert.throws(() => TaskCreateBodySchema.parse({ title: { en: "Hi" }, tags: ["x".repeat(31)] }));
+    assert.throws(() =>
+      TaskCreateBodySchema.parse({ title: { en: "Hi" }, tags: Array.from({ length: 21 }, (_, i) => `t${i}`) }),
+    );
+  });
+
+  test("omitted tags default to an empty array on create", () => {
+    assert.deepEqual(TaskCreateBodySchema.parse({ title: { en: "Hi" } }).tags, []);
+  });
 });
 
 describe("TaskUpdateBodySchema (partial request contract)", () => {
@@ -103,5 +122,15 @@ describe("TaskUpdateBodySchema (partial request contract)", () => {
   test("accepts a single-field patch", () => {
     const parsed = TaskUpdateBodySchema.parse({ quadrant: "Q2" });
     assert.equal(parsed.quadrant, "Q2");
+  });
+
+  test("an empty patch does NOT inject a tags key (so the backend keeps existing tags)", () => {
+    const parsed = TaskUpdateBodySchema.parse({});
+    assert.equal("tags" in parsed, false);
+  });
+
+  test("de-duplicates tags when they are present in a patch", () => {
+    const parsed = TaskUpdateBodySchema.parse({ tags: ["a", "A", "b"] });
+    assert.deepEqual(parsed.tags, ["a", "b"]);
   });
 });
