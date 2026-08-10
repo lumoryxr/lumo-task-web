@@ -27,6 +27,11 @@ vi.mock("@/api/client", () => ({
       pushCursor: { wall: 0, counter: 0 },
       pullCursor: { wall: 0, counter: 0 },
     }),
+    // The About tab now also renders FeedbackPanel, which loads on mount.
+    listFeedback: vi.fn().mockResolvedValue({ feedback: [], isAdmin: false }),
+    submitFeedback: vi.fn(),
+    adminListFeedback: vi.fn().mockResolvedValue([]),
+    adminUpdateFeedback: vi.fn(),
   },
 }));
 
@@ -85,7 +90,7 @@ afterEach(() => {
 });
 
 describe("SettingsPage · consolidated tabs (#111)", () => {
-  // On web, Data & Sync is hidden (desktop-only), so the web build shows six tabs.
+  // On web, Data & Sync is hidden (desktop-only), so the web build shows these tabs.
   const WEB_TABS = [
     "settings.general",
     "settings.notifications",
@@ -93,9 +98,10 @@ describe("SettingsPage · consolidated tabs (#111)", () => {
     "settings.members",
     "ai.config.title",
     "settings.integrations",
+    "settings.about",
   ];
 
-  it("renders exactly the six consolidated tabs on web (Data & Sync is desktop-only)", () => {
+  it("renders exactly the consolidated tabs on web (Data & Sync is desktop-only)", () => {
     renderPage();
     for (const label of WEB_TABS) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
@@ -127,6 +133,27 @@ describe("SettingsPage · consolidated tabs (#111)", () => {
     renderPage();
     expect(screen.queryByText("settings.resetData")).not.toBeInTheDocument();
     expect(screen.queryByText("settings.replayOnboarding")).not.toBeInTheDocument();
+  });
+
+  it("exposes an in-app bug-report/support entry linking to GitHub issues (#473)", () => {
+    renderPage();
+    clickTab("settings.about");
+    // The report-bug row + helper render.
+    expect(screen.getByText("settings.about.reportBug")).toBeInTheDocument();
+    expect(screen.getByText("settings.about.reportBug.helper")).toBeInTheDocument();
+    // The action is a real external link to the project's issue tracker,
+    // opening safely in a new tab.
+    const link = screen.getByRole("link", { name: "settings.about.reportBug.action" });
+    expect(link).toHaveAttribute("href", expect.stringContaining("github.com"));
+    expect(link).toHaveAttribute("href", expect.stringContaining("/issues"));
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+  });
+
+  it("shows the About & Support tab on the desktop build too", () => {
+    (window as any).electronAPI = { isElectron: true };
+    renderPage();
+    expect(screen.getByRole("button", { name: "settings.about" })).toBeInTheDocument();
   });
 
   it("confirms via ConfirmDialog before removing a member", () => {

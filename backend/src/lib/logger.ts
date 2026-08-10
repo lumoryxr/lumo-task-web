@@ -17,7 +17,17 @@
  * careless `log("info", { authorization })` can never leak a secret into the log
  * stream. NEVER rely on this as the primary control — still avoid passing
  * secrets — but it is the backstop a commercial deployment needs.
+ *
+ * Local file sink: set `LUMO_LOG_FILE` to also append every emitted (already
+ * redacted) JSON line to that file, in addition to stdout/stderr. This is for
+ * self-hosted deployments (e.g. a VPS) that keep logs on disk instead of
+ * shipping them to a hosted aggregator. The file gets the same lines the
+ * console does — the level filter and redaction are applied first. A write
+ * failure (bad path, full disk) disables the sink and never crashes a request.
  */
+
+import fs from "node:fs";
+import path from "node:path";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -57,6 +67,45 @@ export function redactForLog(value: unknown, depth = 0): unknown {
   return out;
 }
 
+// ── Optional local file sink (LUMO_LOG_FILE) ─────────────────────────────────
+// Latch the target path we've already ensured a directory for, and the path a
+// write has failed for, so we neither mkdir on every line nor retry a broken
+// path in a tight loop. Both are keyed on the resolved target: if LUMO_LOG_FILE
+// changes at runtime (mainly in tests), the new path starts fresh.
+let ensuredDirFor: string | null = null;
+let fileSinkBrokenFor: string | null = null;
+
+/** Append one already-serialized line to LUMO_LOG_FILE, if configured. */
+function appendToFile(line: string): void {
+  const target = process.env.LUMO_LOG_FILE;
+  if (!target || fileSinkBrokenFor === target) return;
+  try {
+    if (ensuredDirFor !== target) {
+      fs.mkdirSync(path.dirname(path.resolve(target)), { recursive: true });
+      ensuredDirFor = target;
+    }
+    fs.appendFileSync(target, line + "\n");
+  } catch (err) {
+    // Disable this path's file sink after the first failure and report it once
+    // to stderr. Logging must never throw into a request handler.
+    fileSinkBrokenFor = target;
+    try {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          ts: new Date().toISOString(),
+          service: SERVICE,
+          msg: "log file sink disabled",
+          file: target,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    } catch {
+      /* nothing more we can safely do */
+    }
+  }
+}
+
 /** Emit one structured log line at `level` with the given fields. */
 export function log(level: LogLevel, fields: Record<string, unknown>): void {
   if (LEVEL_WEIGHT[level] < minWeight()) return;
@@ -79,6 +128,8 @@ export function log(level: LogLevel, fields: Record<string, unknown>): void {
 
   if (level === "error") console.error(line);
   else console.log(line);
+
+  appendToFile(line);
 }
 
 const REQUEST_ID_RE = /^[A-Za-z0-9_.-]{1,128}$/;

@@ -45,6 +45,12 @@ services:
       # Unset → links fall back to localhost and won't work in production.
       - key: LUMO_APP_BASE_URL
         sync: false            # e.g. https://lumo-task-backend.onrender.com
+      # ── In-app feedback admin (Settings → About & Support). ─────────────────
+      # Comma-separated emails allowed to review/triage in-app feedback (case-
+      # insensitive; the account must sign in with a bound email in this list).
+      # Unset → feedback is still collected, but no in-app admin surface shows.
+      - key: LUMO_ADMIN_EMAILS
+        sync: false            # e.g. you@yourdomain.com
       # ── Transactional email (password reset + email verification). ──────────
       # Without these the backend still boots and queues mail to an in-memory
       # dev outbox (nothing is actually sent) — so recovery/verification emails

@@ -35,6 +35,8 @@ export const ERROR_CODES = {
   INVALID_RESET_TOKEN: { status: 400, about: "Password reset token is unknown, expired, or already used" },
   INVALID_VERIFICATION_TOKEN: { status: 400, about: "Email verification token is unknown, expired, or already used" },
   CLOUD_AUTH_FAILED: { status: 401, about: "Cloud sign-in was rejected" },
+  // 403 — authenticated but not permitted
+  FORBIDDEN: { status: 403, about: "Authenticated caller lacks permission for this resource" },
   // 404 — not found
   NOT_FOUND: { status: 404, about: "Requested resource does not exist" },
   // 413 — payload too large

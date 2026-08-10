@@ -12,6 +12,16 @@
 
 import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, ProjectTemplate, Template, TemplatePayload, ProjectTemplatePayload, User } from "@/types/task";
 import type { SyncStatusResponse, SyncCycleResponse, DataExportWire } from "@lumo/contracts";
+import type {
+  FeedbackListResponse,
+  FeedbackWire,
+  AdminFeedbackWire,
+  CreateFeedbackInput,
+  CreateFeedbackResponse,
+  UpdateFeedbackInput,
+  AdminFeedbackListResponse,
+  AdminFeedbackUpdateResponse,
+} from "@lumo/contracts";
 import { ApiError } from "@/api/ApiError";
 
 // ── Base URL ─────────────────────────────────────────────────────────────────
@@ -701,6 +711,34 @@ export const api = {
   /** Rotate the calendar feed token — invalidates the old subscription URL. */
   async rotateCalendarFeed(): Promise<{ token: string; url: string }> {
     return req<{ token: string; url: string }>("POST", "/calendar/feed/rotate");
+  },
+
+  // ── Feedback (#473 follow-up) ───────────────────────────────────────────────
+  /** The caller's own feedback (newest first) + whether they may administer. */
+  async listFeedback(): Promise<FeedbackListResponse> {
+    return req<FeedbackListResponse>("GET", "/feedback");
+  },
+
+  /** Submit new feedback; returns the created item. */
+  async submitFeedback(input: CreateFeedbackInput): Promise<FeedbackWire> {
+    const r = await req<CreateFeedbackResponse>("POST", "/feedback", input);
+    return r.feedback;
+  },
+
+  /** Admin: every user's feedback with submitter identity (newest first). */
+  async adminListFeedback(): Promise<AdminFeedbackWire[]> {
+    const r = await req<AdminFeedbackListResponse>("GET", "/admin/feedback");
+    return r.feedback;
+  },
+
+  /** Admin: set an item's status and/or write a reply the submitter sees. */
+  async adminUpdateFeedback(id: string, patch: UpdateFeedbackInput): Promise<AdminFeedbackWire> {
+    const r = await req<AdminFeedbackUpdateResponse>(
+      "PATCH",
+      `/admin/feedback/${encodeURIComponent(id)}`,
+      patch,
+    );
+    return r.feedback;
   },
 
   async patchSettings(patch: {

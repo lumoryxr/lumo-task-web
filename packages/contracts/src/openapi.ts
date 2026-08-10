@@ -12,6 +12,13 @@ import {
 } from "./person.js";
 import { ApiErrorSchema } from "./error.js";
 import {
+  FeedbackWireSchema,
+  AdminFeedbackWireSchema,
+  CreateFeedbackBodySchema,
+  UpdateFeedbackObjectSchema,
+  FeedbackListResponseSchema,
+} from "./feedback.js";
+import {
   UserProfileWireSchema,
   DataExportWireSchema,
   DeleteAccountResponseSchema,
@@ -121,6 +128,17 @@ export function personComponentSchemas(): Record<string, OpenApiSchema> {
 export function errorComponentSchemas(): Record<string, OpenApiSchema> {
   return {
     ApiError: zodToOpenApi(ApiErrorSchema),
+  };
+}
+
+/** Component schemas generated from the Feedback contract. */
+export function feedbackComponentSchemas(): Record<string, OpenApiSchema> {
+  return {
+    Feedback: zodToOpenApi(FeedbackWireSchema),
+    AdminFeedback: zodToOpenApi(AdminFeedbackWireSchema),
+    FeedbackCreateBody: zodToOpenApi(CreateFeedbackBodySchema),
+    FeedbackUpdateBody: zodToOpenApi(UpdateFeedbackObjectSchema),
+    FeedbackListResponse: zodToOpenApi(FeedbackListResponseSchema),
   };
 }
 

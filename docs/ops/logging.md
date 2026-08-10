@@ -101,6 +101,29 @@ Pass identifiers only (`userId`, `email`, `ip`) — never secrets.
 |-------------------|----------------|--------------------------------------|
 | `LUMO_LOG_LEVEL`  | `info`         | Minimum level to emit; `silent` = off|
 | `LUMO_VERSION`    | `1.0.0`        | Stamped on every line as `version`   |
+| `LUMO_LOG_FILE`   | *(unset)*      | If set, also append every emitted line to this file |
+
+## Local file sink (self-hosted / VPS)
+
+Set `LUMO_LOG_FILE=/var/log/lumo/backend.log` to **also** append every emitted
+line to that file, in addition to stdout/stderr. This is the zero-dependency
+option for a self-hosted VPS deployment that keeps logs on disk instead of
+shipping them to a hosted aggregator (no Sentry / third-party log service
+required).
+
+- The file receives the **same lines** the console does: the `LUMO_LOG_LEVEL`
+  filter and secret redaction are applied first, so `LUMO_LOG_FILE` never
+  captures more than the console (and never a raw secret).
+- The parent directory is created on first write if missing.
+- A write failure (bad path, full disk, permissions) **disables the sink** and
+  prints a one-time `{"msg":"log file sink disabled",…}` line to stderr — it
+  never throws into a request handler, so a misconfigured path degrades to
+  "console-only", never a crash.
+- Rotate it with the OS: point `logrotate` (or systemd's `journald` if you run
+  the service under systemd and log to stdout instead) at the file. The process
+  reopens the path lazily, so `copytruncate` works.
+
+Example (systemd unit): `Environment=LUMO_LOG_FILE=/var/log/lumo/backend.log`.
 
 ## Shipping to an aggregator
 
@@ -108,6 +131,7 @@ The process logs to stdout/stderr; the platform collects them:
 
 - **Render**: captured automatically; add a Log Stream to forward to a provider.
 - **Docker/K8s**: the stdout JSON is picked up by the node agent / sidecar.
+- **Self-hosted VPS**: use `LUMO_LOG_FILE` (above) and/or systemd `journald`.
 - Point your collector at the JSON-lines format and index `level`, `requestId`,
   `route`, `status`, `durationMs`, and `category` for dashboards and alerts.
 ```

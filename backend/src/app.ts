@@ -18,6 +18,7 @@ import habitsRoutes from "./routes/habits.js";
 import countdownsRoutes from "./routes/countdowns.js";
 import templatesRoutes from "./routes/templates.js";
 import projectsRoutes from "./routes/projects.js";
+import { feedbackRoutes, adminFeedbackRoutes } from "./routes/feedback.js";
 import { queryOne } from "./db/client.js";
 import { log, resolveRequestId } from "./lib/logger.js";
 import { bodySizeLimit } from "./lib/bodyLimit.js";
@@ -107,6 +108,8 @@ v1.route("/habits", habitsRoutes);
 v1.route("/countdowns", countdownsRoutes);
 v1.route("/templates", templatesRoutes);
 v1.route("/projects", projectsRoutes);
+v1.route("/feedback", feedbackRoutes);
+v1.route("/admin/feedback", adminFeedbackRoutes);
 
 app.route("/v1", v1);
 app.route("/docs", docsRoutes);

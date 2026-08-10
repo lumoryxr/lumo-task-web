@@ -1,0 +1,22 @@
+# Automatic HTTPS for Lumo. Caddy fetches + renews a Let's Encrypt cert for
+# LUMO_DOMAIN and reverse-proxies everything to the app (which serves both the
+# SPA and the /v1 API on port 8080). No cert paths to manage.
+#
+# Requirements: LUMO_DOMAIN's A/AAAA record points at this server, and ports
+# 80 + 443 are open. Caddy needs port 80 reachable for the ACME challenge.
+
+{$LUMO_DOMAIN} {
+	encode zstd gzip
+
+	# Health/liveness stays JSON (handled by the app).
+	reverse_proxy app:8080
+
+	# Security headers (the app also sets its own on API responses; these cover
+	# the SPA HTML too). HSTS is safe once you're serving HTTPS on the apex.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}

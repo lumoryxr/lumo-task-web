@@ -38,6 +38,10 @@ const DYNAMIC_KEY_FAMILIES: Record<string, string[]> = {
   "project.goal.confidence.": ["on_track", "at_risk", "off_track"],
   // PetSpecies union (PetSvg.tsx) — species selector labels in SettingsPage
   "settings.pet.species.": ["dog", "cat", "fox", "panda", "robot"],
+  // FeedbackCategory union (@lumo/contracts) — FeedbackPanel category select
+  "settings.feedback.category.": ["bug", "idea", "question", "other"],
+  // FeedbackStatus union (@lumo/contracts) — FeedbackPanel status badge/select
+  "settings.feedback.status.": ["open", "in_progress", "resolved", "closed"],
   // PetSpecies union (PetSvg.tsx) — PetChat reads `.en` / `.zh`
   "pet.species.": [
     "dog.en", "cat.en", "fox.en", "panda.en", "robot.en",

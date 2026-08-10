@@ -17,6 +17,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Spinner } from "@/components/Spinner";
 import { IconUsers } from "@/components/icons";
 import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
+import { FeedbackPanel } from "@/components/FeedbackPanel";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import type { SyncStatusResponse } from "@lumo/contracts";
 
@@ -27,7 +28,7 @@ const ACCENT_SWATCHES: Array<{ id: Accent; hex: string; labelKey: string }> = [
   { id: "graphite", hex: "#A0ADB0", labelKey: "accent.graphite" },
 ];
 
-type TabId = "general" | "notifications" | "pet" | "members" | "ai" | "integrations" | "datasync";
+type TabId = "general" | "notifications" | "pet" | "members" | "ai" | "integrations" | "about" | "datasync";
 
 export function SettingsPage() {
   const t = useT();
@@ -52,6 +53,7 @@ export function SettingsPage() {
     { id: "members",      label: t("settings.members") },
     { id: "ai",           label: t("ai.config.title") },
     { id: "integrations", label: t("settings.integrations") },
+    { id: "about",        label: t("settings.about") },
     // Data & Sync is a desktop-only concern: the web build has no configurable
     // storage location and no cloud sync (sync is a per-deployment desktop
     // feature), so the whole tab is hidden on web rather than showing an empty
@@ -175,6 +177,13 @@ export function SettingsPage() {
             <IntegrationsPanel t={t} />
           )}
 
+          {activeTab === "about" && (
+            <div className="flex flex-col gap-8">
+              <AboutPanel t={t} />
+              <FeedbackPanel t={t} />
+            </div>
+          )}
+
           {isElectron && activeTab === "datasync" && (
             <div className="flex flex-col gap-8">
               <StoragePanel t={t} />
@@ -198,6 +207,30 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
         {children}
       </div>
     </div>
+  );
+}
+
+/* ── About & Support ──────────────────────────────────────────────────
+ * A monitored, account-free support channel for the public beta: bug reports
+ * and feedback go to the project's public issue tracker. No backend/contract
+ * change — a plain external link (opens safely in a new tab). */
+const GITHUB_ISSUES_URL = "https://github.com/lumoryxr/lumo-task-web/issues/new";
+
+function AboutPanel({ t }: { t: (k: string) => string }) {
+  return (
+    <Panel title={t("settings.about")}>
+      <Row label={t("settings.about.reportBug")} helper={t("settings.about.reportBug.helper")}>
+        <a
+          href={GITHUB_ISSUES_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block text-[12px] px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+          style={{ background: "var(--accent-fog)", color: "var(--accent-primary)" }}
+        >
+          {t("settings.about.reportBug.action")}
+        </a>
+      </Row>
+    </Panel>
   );
 }
 

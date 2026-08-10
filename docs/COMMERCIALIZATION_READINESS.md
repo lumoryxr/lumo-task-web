@@ -115,7 +115,9 @@
 - **[todo] `ARCHITECTURE.md` 纠偏** · **S**——文档写的是 Drizzle+Postgres+services，实际是
   libSQL 上的参数化 SQL，误导新贡献者。
 - **[todo] 桌面安装包签名** · **S–M**——Windows 未签名（SmartScreen 警告），推广前 code-sign。
-- **[todo] 合并两个营销站** · **S**——`landing/index.html` 与 Astro `website/` 二选一。
+- **[done] 合并两个营销站** · **S**——已以 Astro `website/` 为唯一营销站（经 `deploy-website.yml`
+  发布到 `gh-pages`）;旧的 `landing/index.html` 及 `deploy-landing.yml` 已删除,落地话术对账的
+  真实口径已搬到 `website/`。
 - **[todo] 应用外链 OG/Twitter 卡片** · **S**。
 - **[todo] Postgres 迁移 ADR** · **S**（文档）——SQLite/Turso 单写入是扩展天花板，团队功能/
   大规模前先落 ADR。

@@ -4,9 +4,10 @@ name: Deploy Website
 # branch, which is what GitHub Pages serves at:
 #   https://lumoryxr.github.io/lumo-task-web/
 #
-# This supersedes deploy-landing.yml (the old single-file landing/). It uses the
-# peaceiris action (push to a branch) rather than the github-pages Actions
-# environment, matching the existing setup and avoiding branch-protection rules.
+# This is the single canonical marketing-site deploy (the old single-file
+# landing/ and its deploy-landing.yml have been removed). It uses the peaceiris
+# action (push to a branch) rather than the github-pages Actions environment,
+# matching the existing setup and avoiding branch-protection rules.
 #
 # One-time Pages setup (unchanged): Settings → Pages → Deploy from branch →
 #   gh-pages / (root).

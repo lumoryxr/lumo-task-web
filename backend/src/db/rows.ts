@@ -179,3 +179,15 @@ export interface TemplateRow {
   created_at: string;
   updated_at: string;
 }
+
+export interface FeedbackRow {
+  id: string;
+  user_id: string;
+  message: string;
+  category: string;
+  status: string;
+  /** Operator reply; NULL until one is written. */
+  response: string | null;
+  created_at: string;
+  updated_at: string;
+}

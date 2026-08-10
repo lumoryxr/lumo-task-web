@@ -29,6 +29,7 @@ export const USER_SCOPED_TABLES = [
   "countdown_events",
   "templates",
   "projects",
+  "feedback",
   "refresh_tokens",
   "password_reset_tokens",
   "email_verification_tokens",

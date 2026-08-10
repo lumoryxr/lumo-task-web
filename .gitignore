@@ -33,3 +33,6 @@ web-app/playwright-report/
 web-app/playwright-report-integration/
 web-app/playwright-report-electron/
 web-app/test-results/
+
+# Self-hosted VPS local secrets
+deploy/vps/.env

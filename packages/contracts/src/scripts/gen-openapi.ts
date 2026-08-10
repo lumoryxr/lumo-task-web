@@ -6,6 +6,7 @@ import {
   personComponentSchemas,
   errorComponentSchemas,
   userComponentSchemas,
+  feedbackComponentSchemas,
 } from "../openapi.js";
 
 /**
@@ -32,6 +33,7 @@ const doc = {
       ...personComponentSchemas(),
       ...errorComponentSchemas(),
       ...userComponentSchemas(),
+      ...feedbackComponentSchemas(),
     },
   },
 };
