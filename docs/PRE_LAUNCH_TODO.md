@@ -24,7 +24,10 @@
 
 **待决策/待基础设施(需要你):**
 - 🟠🟡 §三.2 tags→关联表、§三.5 assignees、§三.4 习惯打卡同步、§三.1 图片外置 —— 关系型迁移,建议逐个独立 PR;需你确认路线图(见对话中的多选问题)。
-- 🟠 §二.5 Sentry(需 DSN)、§五.1 限流器共享存储(需 Redis/Upstash,规模化前)。(§二.6 Outlook per-user OAuth —— **已随集成移除(2026-08-10)解决**,不再是待办。)
+- 🟠 §五.1 限流器共享存储(需 Redis/Upstash,规模化/多实例前)。(§二.6 Outlook per-user OAuth —— **已随集成移除(2026-08-10)解决**,不再是待办。)
+
+**监控/告警/运维 —— 已落地(自托管,无对外集成):**
+- ✅ §二.5 → **自托管 Prometheus exporter**(取代 Sentry 方案):后端暴露 token 门禁的 `GET /metrics`(`LUMO_METRICS_TOKEN` 未设=404 默认关闭),含默认进程指标 + `lumo_http_*`(请求量/错误率/延迟直方图/在途并发);告警走 Prometheus/Alertmanager 规则。见 `docs/OPERATIONS.md`。无 SaaS、无 DSN、数据不出机房。
 
 
 ---
