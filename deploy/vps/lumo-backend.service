@@ -1,0 +1,50 @@
+# systemd unit for a NON-Docker VPS deployment (build on the host, run under
+# systemd, put nginx + certbot in front). Docker users: ignore this file and use
+# docker-compose.yml instead.
+#
+# Setup:
+#   # build once (as your deploy user), from the repo root:
+#   npm --prefix packages/contracts ci --include=dev && npm --prefix packages/contracts run build
+#   npm --prefix backend ci --include=dev && npm --prefix backend run build
+#   ( cd web-app && ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci && VITE_API_BASE=/v1 npm run build )
+#   # serve the SPA same-origin: put the built SPA where LUMO_WEB_ROOT points
+#   rm -rf backend/web && cp -r web-app/dist backend/web
+#
+#   sudo cp deploy/vps/lumo-backend.service /etc/systemd/system/
+#   # edit User/WorkingDirectory/EnvironmentFile below to match your box, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now lumo-backend
+#   sudo journalctl -u lumo-backend -f     # follow logs
+#
+# On update: git pull, re-run the build block above, `sudo systemctl restart lumo-backend`.
+
+[Unit]
+Description=Lumo Task backend (API + SPA, single process)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lumo
+Group=lumo
+# The repo's backend directory — LUMO_WEB_ROOT (below) is resolved relative to it.
+WorkingDirectory=/opt/lumo/backend
+# Put your filled .env here (see deploy/vps/.env.example). 0600, owned by User.
+EnvironmentFile=/opt/lumo/backend/.env
+# Serve the SPA copied to ./web, on a local port nginx proxies to.
+Environment=LUMO_WEB_ROOT=web
+Environment=LUMO_PORT=8080
+ExecStart=/usr/bin/node dist/bundle.cjs
+Restart=on-failure
+RestartSec=3
+
+# Hardening (defense-in-depth for a public box).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Allow writing only the log dir (if you set LUMO_LOG_FILE under it).
+ReadWritePaths=/var/log/lumo
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

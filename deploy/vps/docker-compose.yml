@@ -1,0 +1,49 @@
+# Self-hosted Lumo on a single VPS: the app (API + SPA, one process) behind
+# Caddy, which terminates TLS and gets/renews a Let's Encrypt certificate
+# automatically for LUMO_DOMAIN. Bring your own domain + an A record → this box.
+#
+#   cp .env.example .env   # then fill it in
+#   docker compose up -d --build
+#
+# Prefer nginx + certbot instead of Caddy? Skip the caddy service and use the
+# nginx.conf in this directory. See docs/ops/vps-deployment.md.
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/vps/Dockerfile
+      args:
+        # Same-origin SPA → API, so /v1 is correct. Inlined at build time.
+        VITE_API_BASE: /v1
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 8080
+    volumes:
+      # Persist the log file (LUMO_LOG_FILE) across restarts, if you set one to a
+      # path under /var/log/lumo.
+      - lumo-logs:/var/log/lumo
+    expose:
+      - "8080"
+    # No published ports: only Caddy talks to the app, over the internal network.
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      LUMO_DOMAIN: ${LUMO_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  lumo-logs:
+  caddy-data:
+  caddy-config:
