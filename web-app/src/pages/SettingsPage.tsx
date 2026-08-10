@@ -17,6 +17,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Spinner } from "@/components/Spinner";
 import { IconUsers } from "@/components/icons";
 import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
+import { FeedbackPanel } from "@/components/FeedbackPanel";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import type { SyncStatusResponse } from "@lumo/contracts";
 
@@ -177,7 +178,10 @@ export function SettingsPage() {
           )}
 
           {activeTab === "about" && (
-            <AboutPanel t={t} />
+            <div className="flex flex-col gap-8">
+              <AboutPanel t={t} />
+              <FeedbackPanel t={t} />
+            </div>
           )}
 
           {isElectron && activeTab === "datasync" && (

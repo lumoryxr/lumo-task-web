@@ -27,6 +27,11 @@ vi.mock("@/api/client", () => ({
       pushCursor: { wall: 0, counter: 0 },
       pullCursor: { wall: 0, counter: 0 },
     }),
+    // The About tab now also renders FeedbackPanel, which loads on mount.
+    listFeedback: vi.fn().mockResolvedValue({ feedback: [], isAdmin: false }),
+    submitFeedback: vi.fn(),
+    adminListFeedback: vi.fn().mockResolvedValue([]),
+    adminUpdateFeedback: vi.fn(),
   },
 }));
 
