@@ -385,6 +385,11 @@ jobs:
       - name: Audit backend deps
         run: cd backend && npm ci && npm audit --audit-level=high
 
+      # Contracts ship inside the production backend bundle (see render-deploy-check),
+      # so a vuln in its runtime deps (zod) reaches production — audit it too.
+      - name: Audit contracts deps
+        run: cd packages/contracts && npm ci && npm audit --audit-level=high
+
   # ── 10. Render deploy check (build + boot exactly as Render does) ───────────
   #    Reproduces the production deploy on every push so a broken build or a
   #    non-booting bundle is caught in CI, not on Render. Runs the SAME backend
