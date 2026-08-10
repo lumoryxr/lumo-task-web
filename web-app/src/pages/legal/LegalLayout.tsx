@@ -50,16 +50,6 @@ export function LegalLayout({
           {zh ? "生效日期" : "Effective date"}: {effectiveDate}
         </div>
 
-        {/* Draft banner — this is a starting template, not legal advice. */}
-        <div
-          className="mt-4 rounded-lg border px-4 py-3 text-[12px] leading-relaxed text-text-secondary"
-          style={{ borderColor: "var(--border-default)", background: "var(--bg-deep)" }}
-        >
-          {zh
-            ? "说明：本文为起草模板，公开上线前需经法律顾问审阅，并补全公司主体名称、联系邮箱与所在司法辖区。"
-            : "Note: this is a starting template. Before public launch, have it reviewed by legal counsel and fill in your company entity, contact email, and governing jurisdiction."}
-        </div>
-
         <p className="mt-6 text-[14px] leading-relaxed text-text-secondary">{pick(intro)}</p>
 
         {sections.map((s, i) => (
@@ -75,11 +65,6 @@ export function LegalLayout({
           </section>
         ))}
 
-        <div className="mt-10 border-t pt-4 text-[12px] text-text-muted" style={{ borderColor: "var(--border-faint)" }}>
-          {zh
-            ? "如对本政策有疑问，请通过 [填写联系邮箱] 与我们联系。"
-            : "Questions about this policy? Contact us at [your-contact-email]."}
-        </div>
       </div>
     </div>
   );

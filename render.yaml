@@ -55,6 +55,13 @@ services:
         sync: false            # verified sender, e.g. "Lumo <no-reply@yourdomain.com>"
       - key: LUMO_RESEND_API_KEY
         sync: false            # https://resend.com API key (when provider=resend)
+      # ── Lumo Cloud AI (optional — the shared "100 free calls/mo" key). ──────
+      # Unset → cloud AI is off (users bring their own key). When set, ALSO set a
+      # global monthly cap so a burst of signups can't run your provider bill up.
+      - key: LUMO_AI_KEY
+        sync: false            # shared server-side AI key (Anthropic)
+      - key: LUMO_AI_CLOUD_GLOBAL_CAP
+        sync: false            # aggregate calls/month across all users; unset = no global cap
       # ── GitHub OAuth (optional — the "Sign in with GitHub" button). ─────────
       # All three unset → the button is hidden (getGithubConfig reports disabled);
       # the app stays fully usable via username/password. Set all three to enable.
@@ -64,6 +71,12 @@ services:
         sync: false
       - key: LUMO_GITHUB_CALLBACK_URL
         sync: false            # e.g. https://lumo-task-backend.onrender.com/v1/auth/github/callback
+      # ── Prometheus metrics (optional — the GET /metrics scrape endpoint). ───
+      # Unset → /metrics is disabled (404), so it's never public by accident.
+      # Set a random secret to enable it; Prometheus scrapes with a matching
+      # `Authorization: Bearer <token>`. See docs/OPERATIONS.md. No SaaS involved.
+      - key: LUMO_METRICS_TOKEN
+        generateValue: true    # random token; point your Prometheus scrape at it
 
   # ── Frontend (static SPA, served from Render's CDN — free, never sleeps) ─────
   - type: web

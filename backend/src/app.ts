@@ -10,7 +10,6 @@ import completedRoutes from "./routes/completed.js";
 import focusRoutes from "./routes/focus.js";
 import settingsRoutes from "./routes/settings.js";
 import aiRoutes from "./routes/ai.js";
-import outlookRoutes from "./routes/outlook.js";
 import calendarRoutes from "./routes/calendar.js";
 import storageRoutes from "./routes/storage.js";
 import syncRoutes from "./routes/sync.js";
@@ -22,6 +21,7 @@ import projectsRoutes from "./routes/projects.js";
 import { queryOne } from "./db/client.js";
 import { log, resolveRequestId } from "./lib/logger.js";
 import { bodySizeLimit } from "./lib/bodyLimit.js";
+import { metricsMiddleware, registerMetricsRoute } from "./lib/metrics.js";
 
 const allowedOrigins = (process.env.LUMO_ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -54,6 +54,11 @@ app.use("/*", async (c, next) => {
     });
   }
 });
+
+// Record request volume, latency, and concurrency for Prometheus. Placed right
+// after the access log so it times the full downstream chain (routes + all
+// later middleware). Self-skips the /metrics scrape endpoint.
+app.use("/*", metricsMiddleware);
 
 // Baseline security headers on every response (defense-in-depth for the API).
 app.use("/*", async (c, next) => {
@@ -95,7 +100,6 @@ v1.route("/completed", completedRoutes);
 v1.route("/focus", focusRoutes);
 v1.route("/settings", settingsRoutes);
 v1.route("/ai", aiRoutes);
-v1.route("/outlook", outlookRoutes);
 v1.route("/calendar", calendarRoutes);
 v1.route("/storage", storageRoutes);
 v1.route("/sync", syncRoutes);
@@ -111,6 +115,10 @@ app.route("/docs", docsRoutes);
 // Render's healthCheckPath polls — coupling it to the DB would let a transient
 // Turso blip restart-loop an otherwise-healthy instance.
 app.get("/health", (c) => c.json({ ok: true }));
+
+// Prometheus scrape endpoint (GET /metrics). Off unless LUMO_METRICS_TOKEN is
+// set; when set, requires a matching Bearer token. See docs/OPERATIONS.md.
+registerMetricsRoute(app);
 
 // Readiness: can the process actually serve (DB reachable)? For load-balancer
 // draining / external monitoring — returns 503 when the DB is unreachable.

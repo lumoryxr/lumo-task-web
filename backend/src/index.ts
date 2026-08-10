@@ -3,6 +3,7 @@ import { runMigrations } from "./db/migrate.js";
 import { app } from "./app.js";
 import { validateStartupSecrets } from "./lib/secret-policy.js";
 import { assertStartupDbConfig } from "./db/dbConfig.js";
+import { assertStartupEmailConfig } from "./lib/email-policy.js";
 import { dbMode } from "./db/client.js";
 import { mountWebStatic } from "./lib/webStatic.js";
 import { log } from "./lib/logger.js";
@@ -44,6 +45,16 @@ try {
   process.exit(1);
 }
 
+// Fail FAST on a half-configured email provider (opt-in only): if a provider is
+// set, its credentials must be complete, or password-reset/verification emails
+// would be silently dropped. No provider set → no-op, unchanged.
+try {
+  assertStartupEmailConfig();
+} catch (err) {
+  console.error(`Refusing to start: ${(err as Error).message}`);
+  process.exit(1);
+}
+
 // Mount SPA hosting before serving (after routes are registered in app.ts, so
 // the static `/*` middleware never shadows the API). Fails fast if the packaged
 // web root is missing its index.html.
@@ -64,7 +75,23 @@ log("info", { msg: "database configured", mode: dbMode() });
 runMigrations()
   .then(() => {
     log("info", { msg: "backend started", host: hostname ?? "0.0.0.0", port });
-    serve({ fetch: app.fetch, port, hostname });
+    const server = serve({ fetch: app.fetch, port, hostname });
+
+    // Graceful shutdown: on a platform stop signal (e.g. Render redeploy), stop
+    // accepting new connections and let in-flight requests drain before exit,
+    // instead of dropping them mid-flight. A short hard-deadline guarantees the
+    // process still exits if a connection hangs.
+    let shuttingDown = false;
+    const shutdown = (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      log("info", { msg: "shutting down", signal });
+      const deadline = setTimeout(() => process.exit(0), 10_000);
+      deadline.unref();
+      server.close(() => process.exit(0));
+    };
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
     // NOTE: the desktop sync cadence is driven by the RENDERER (`useSyncEngine`),
     // not a backend timer. A backend loop advanced the pull cursor without the
     // renderer knowing, so pulled cloud rows sat in SQLite and never appeared in

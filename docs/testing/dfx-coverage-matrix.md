@@ -769,3 +769,10 @@ here rather than leaving a silent hole.
   specificity**: dropping `frequencyInterval`'s bounds reddens **exactly** AC3+AC5 (AC4 boundary green); loosening
   `frequencyTimes` reddens exactly AC2; loosening `frequencyDays`'s element cap reddens exactly AC1. Handler/schema verified
   **already correct** → **gap in the tests, not the code** (test + docs only, no production change). Closes #444. dfx 182 → 187.
+
+- **2026-08-10 (integration removed — `/v1/outlook` route family + its DFX cases deleted)** — Per a launch product
+  decision the Microsoft Outlook calendar integration was removed (server Graph proxy + MSAL browser OAuth + connect UI).
+  `routes/outlook.ts` and the entire **2026-07-11 (#411 `/v1/outlook`)** DFX block (the 4 authN + fail-closed +
+  config-confidentiality cases above) were deleted with it; the `OUTLOOK_NOT_CONFIGURED` / `OUTLOOK_FETCH_FAILED` error
+  codes are gone. The #411 audit-log entry above is retained as history. The surviving calendar surface (local ICS
+  import + the public `.ics` calendar feed, still covered by the #384/#169 feed capability cases) is unaffected.

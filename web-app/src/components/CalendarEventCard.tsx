@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
-import type { OutlookEvent } from "@/store/useCalendarStore";
+import type { CalendarEvent } from "@/store/useImportedCalendarStore";
 
 interface Props {
-  event: OutlookEvent;
+  event: CalendarEvent;
   onCreateTask: (title: string, due: string) => void;
 }
 
@@ -16,7 +16,7 @@ function fmtTime(dtStr: string): string {
   }
 }
 
-export function OutlookEventCard({ event, onCreateTask }: Props) {
+export function CalendarEventCard({ event, onCreateTask }: Props) {
   const t = useT();
   const locale = useAppStore((s) => s.locale);
   const [hovered, setHovered] = useState(false);
@@ -78,7 +78,7 @@ export function OutlookEventCard({ event, onCreateTask }: Props) {
             color: "var(--accent-primary)",
             border: "1px solid var(--accent-edge)",
           }}
-          title={t("outlook.createTask")}
+          title={t("calendar.event.createTask")}
         >
           +
         </button>

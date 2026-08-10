@@ -1,14 +1,27 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { parseICS, type ImportedEvent } from "@/lib/icsParse";
-import type { OutlookEvent } from "@/store/useCalendarStore";
 
 /**
- * Adapt an imported event to the OutlookEvent shape so it can render through the
- * shared OutlookEventCard / calendar bucketing. The id is prefixed so it never
- * collides with a real Outlook event's id.
+ * Neutral calendar-event shape shared by the calendar week view and its event
+ * card (`CalendarEventCard`). Owned here so the local ICS-import overlay has no
+ * dependency on any third-party calendar integration.
  */
-export function importedToBusyEvent(ev: ImportedEvent): OutlookEvent {
+export interface CalendarEvent {
+  id: string;
+  subject: string;
+  start: { dateTime: string; timeZone: string };
+  end: { dateTime: string; timeZone: string };
+  location?: { displayName: string };
+  isAllDay?: boolean;
+}
+
+/**
+ * Adapt an imported event to the CalendarEvent shape so it can render through the
+ * shared CalendarEventCard / calendar bucketing. The id is prefixed so it never
+ * collides with any other event's id.
+ */
+export function importedToBusyEvent(ev: ImportedEvent): CalendarEvent {
   return {
     id: `imported-${ev.id}`,
     subject: ev.subject,

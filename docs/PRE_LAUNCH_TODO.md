@@ -5,6 +5,31 @@
 >
 > 图例:🔴 收费硬阻断 · 🟠 上线前必须 · 🟡 规模化/收费相关 · 🟢 清理/打磨 · ✅ 已达标(无需返工)
 
+## 进度 / Progress（滚动更新）
+
+**已完成(已进 PR):**
+- 🔴 §一.1 收费体系 → 简化为「免费 + GitHub 捐赠」;移除 Pro/Coming-soon 桩,落地页定价改为 Support 卡,Account 页加安全外链(`rel=noopener noreferrer` + 常量 URL)。
+- 🔴 §一.3 邮件 → Resend 已配置;新增 boot 断言(`email-policy.ts`):provider 设了但凭据不全就拒绝启动,并修复 `email.ts` 大小写不一致导致的静默丢邮件路径。
+- 🔴 §一.4 法律 → 隐私/条款按最佳实践定稿(免费+捐赠+beta 模型、命名子处理方 Render/Turso/Resend/GitHub、GDPR 权利),删除草稿横幅与占位联系方式。
+- 🔴 §一.2 持久化 → web 版已接 Turso(用户完成)。
+- 🟡 §四.1 AI 云配额非原子自增 → 改为单条原子 SQL(含月度滚动)。
+- 🟡 §四.2 共享 AI key 无花费上限 → 新增全局月度计数表 `ai_cloud_global` + `LUMO_AI_CLOUD_GLOBAL_CAP` 上限。
+- 🟡 §五.2 无优雅关闭 → 加 SIGTERM/SIGINT 排空 + 硬超时兜底。
+- 🟡 §三.8 `tasks.project_id` 缺索引 → 已加 `idx_tasks_user_project`。
+- 🟡 §三.9 FK-by-convention → `oauth_handoffs` 补入 `USER_SCOPED_TABLES`,并加 standards 守卫测试(含 `user_id` 的表必须在删除级联清单)。
+
+**修订(审计不精确处):**
+- §三.6 删「死列」`settings.ai_api_key/base_url/model` → **不删**:GDPR 导出仍读取它们(`user.ts:111`),删除会破坏导出,风险大于收益。
+- §三.1 `projects.content` 大小 → 写入边界**已有 `.max(1MB)`**,无需再加护栏(对象存储/子表化仍是可选的进一步优化)。
+
+**待决策/待基础设施(需要你):**
+- 🟠🟡 §三.2 tags→关联表、§三.5 assignees、§三.4 习惯打卡同步、§三.1 图片外置 —— 关系型迁移,建议逐个独立 PR;需你确认路线图(见对话中的多选问题)。
+- 🟠 §五.1 限流器共享存储(需 Redis/Upstash,规模化/多实例前)。(§二.6 Outlook per-user OAuth —— **已随集成移除(2026-08-10)解决**,不再是待办。)
+
+**监控/告警/运维 —— 已落地(自托管,无对外集成):**
+- ✅ §二.5 → **自托管 Prometheus exporter**(取代 Sentry 方案):后端暴露 token 门禁的 `GET /metrics`(`LUMO_METRICS_TOKEN` 未设=404 默认关闭),含默认进程指标 + `lumo_http_*`(请求量/错误率/延迟直方图/在途并发);告警走 Prometheus/Alertmanager 规则。见 `docs/OPERATIONS.md`。无 SaaS、无 DSN、数据不出机房。
+
+
 ---
 
 ## 一、🔴 收费硬阻断(没有这些就无法/不应收钱)
@@ -43,15 +68,14 @@
 - **最终方案**:前后端接 `SENTRY_DSN` + 外部 uptime 探针 + error-rate 告警。(结构化日志 + 审计日志 + 请求关联 ID 已具备且做得好,只差"上报 + 有人被叫醒"。)
 - **工作量**:1 天。
 
-### 6. Outlook 日历集成是"单邮箱共享"(多租户下是数据泄露)
-- **为什么**:用 app-only client-credentials 读**一个固定邮箱** `LUMO_MS_USER_EMAIL`,没有 per-user OAuth → 每个登录用户看到的是**同一个人**的日历。单组织自部署 OK,多租户 SaaS 是跨租户泄露/不可用。
-- **证据**:`backend/src/routes/outlook.ts:30,68,74-92`。默认未配(返回 503),`render.yaml` 未含 `LUMO_MS_*`。
-- **最终方案**:若把日历作为 per-user 功能卖 → 改为 per-user delegated OAuth(auth-code + 每用户加密存 refresh token,`Calendars.Read`);在此之前**不要对付费用户开启**。
-- **工作量**:1–1.5 周(若纳入 v1);否则先保持默认关闭。
+### 6. ✅ Outlook 日历集成是"单邮箱共享"—— 已随集成移除解决(2026-08-10)
+- **原风险**:用 app-only client-credentials 读**一个固定邮箱** `LUMO_MS_USER_EMAIL`,没有 per-user OAuth → 每个登录用户看到的是**同一个人**的日历,多租户 SaaS 是跨租户泄露/不可用。
+- **决议(resolved-by-removal)**:上线前产品决定移除 Microsoft Outlook 集成(server Graph proxy + MSAL 浏览器 OAuth + connect UI + `@azure/msal-browser`);`routes/outlook.ts` 已删除。跨租户泄露面随之消失。保留的日历能力为本地 ICS 导入 + 只读 `.ics` 订阅源(见 §保留项)。
+- **后续**:如未来需要 per-user 日历,应实现 per-user delegated OAuth(auth-code + 每用户加密存 refresh token)——现已从待办降级为未来可选项(见 ROADMAP #169 V3)。
 
 ### 7. 生产必设环境变量与"未设时的行为"
 - **必设**:`LUMO_ALLOWED_ORIGINS`(CORS)、`TURSO_DATABASE_URL`+`TURSO_AUTH_TOKEN`(持久化)、`LUMO_APP_BASE_URL`(邮件/OAuth 链接不是 localhost)、`VITE_API_BASE`(构建期,错/缺则请求全 404)、`LUMO_EMAIL_*`(找回邮件)。
-- **可选(未设=功能安全隐藏)**:`LUMO_AI_KEY`(云 AI,另见 §四.3 需花费上限)、`LUMO_GITHUB_*`、`LUMO_MS_*`。
+- **可选(未设=功能安全隐藏)**:`LUMO_AI_KEY`(云 AI,另见 §四.3 需花费上限)、`LUMO_GITHUB_*`。(`LUMO_MS_*` 已随 Outlook 集成移除(2026-08-10)不再使用。)
 - **两个"未设=坏"的陷阱**(见 §一.2、§一.3):Turso、Email —— 都应升级为 prod 下 boot 拒启。
 - **最终方案**:在 `deploy/` 与 README 补一份"生产环境变量清单"并把两个陷阱纳入 boot 断言。
 - **工作量**:半天(与 §一.2/§一.3 合并做)。
@@ -127,7 +151,7 @@
 2. **无优雅关闭**:`index.ts` 无 SIGTERM 处理,每次 redeploy 丢在途请求。加"停止接新连接 + 排空在途"。
 3. **无 staging 环境 / 回滚 runbook**:目前单 prod、`autoDeploy:true`。出现支付 webhook 后 staging 尤为关键;补回滚手册。
 4. **注册滥用控制薄弱**:仅用户名注册、邮箱验证非阻断、无 CAPTCHA;公开/付费前对敏感动作加信号(CAPTCHA 或"验证后激活")。
-5. **Outlook app token 模块级内存缓存**:多实例各自重取、重启即丢(与 §四.Outlook 一并处理)。
+5. ~~**Outlook app token 模块级内存缓存**~~:**已随 Outlook 集成移除(2026-08-10)解决** —— `routes/outlook.ts` 及其模块级 token 缓存已删除,此项不再适用。
 
 ---
 
@@ -157,6 +181,6 @@
 - **M0 · 免费公测可上线**(约 1 周):§一.2 持久化 + 备份/演练、§一.3 邮件、§一.4 法律定稿、§二.5 监控、§二.8 宣传更正、§四.1 原子配额、§四.2 AI 花费上限、§六 文档更正。
 - **M1 · Schema 终局化**(约 1 周,趁数据量小):§三.2 tags 关联表、§三.3 subscriptions 表、§三.1 projects 图片外置、§三.4 habit_logs 决策、§三.6/3.7/3.8/3.9 清理与约束/索引/守卫测试。
 - **M2 · 开始收费**(约 3–5 周):§一.1 Billing 全链路(依赖 M1 的 subscriptions 表)+ plan-gating + 落地页定价。
-- **M3 · 规模化**:§五 限流共享化、优雅关闭、staging/回滚、滥用控制;§二.6 Outlook per-user OAuth(若纳入)。
+- **M3 · 规模化**:§五 限流共享化、优雅关闭、staging/回滚、滥用控制。(§二.6 Outlook per-user OAuth —— 已随集成移除(2026-08-10)解决,从此里程碑移除。)
 
 > 每一项都遵循仓库的契约优先 + TDD + 四层测试规范(见 `CLAUDE.md` / `TESTING.md`)。

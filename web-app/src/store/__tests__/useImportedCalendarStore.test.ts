@@ -41,7 +41,7 @@ describe("useImportedCalendarStore", () => {
     expect(useImportedCalendarStore.getState().events).toHaveLength(1000);
   });
 
-  it("importedToBusyEvent adapts to the OutlookEvent shape with a collision-safe id", () => {
+  it("importedToBusyEvent adapts to the CalendarEvent shape with a collision-safe id", () => {
     const busy = importedToBusyEvent({
       id: "1",
       subject: "Dentist",
@@ -49,7 +49,7 @@ describe("useImportedCalendarStore", () => {
       endISO: "2026-07-10T10:00:00Z",
       isAllDay: false,
     });
-    expect(busy.id).toBe("imported-1"); // prefixed so it can't clash with an Outlook id
+    expect(busy.id).toBe("imported-1"); // prefixed so it can't clash with another event id
     expect(busy.subject).toBe("Dentist");
     // Calendar buckets by start.dateTime.substring(0,10) → must be the event's day.
     expect(busy.start.dateTime.substring(0, 10)).toBe("2026-07-10");

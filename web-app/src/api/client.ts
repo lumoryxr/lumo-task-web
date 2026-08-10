@@ -744,14 +744,6 @@ export const api = {
     return req("GET", "/storage/info");
   },
 
-  async outlookStatus(): Promise<{ configured: boolean; userEmail: string | null }> {
-    return req("GET", "/outlook/status");
-  },
-
-  async outlookCalendar(start: string, end: string): Promise<{ events: unknown[] }> {
-    return req("GET", `/outlook/calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
-  },
-
   // ── Cloud sync (in-backend sync client; talks to the LOCAL backend) ─────────
   // All four require the local JWT (user already signed into the local backend).
   // The token is never returned by the backend in the status shape.

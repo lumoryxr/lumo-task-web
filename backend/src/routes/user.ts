@@ -19,7 +19,7 @@ const deleteLimit = createRateLimiter<{ Variables: Variables }>(5, 60_000, (c) =
 // Every table that carries the user's data, keyed by `user_id`. This is the
 // single list that both the GDPR export and the account-deletion cascade walk,
 // so a new per-user domain only has to be added here once.
-const USER_SCOPED_TABLES = [
+export const USER_SCOPED_TABLES = [
   "tasks",
   "completed_entries",
   "people",
@@ -34,6 +34,7 @@ const USER_SCOPED_TABLES = [
   "email_verification_tokens",
   "recovery_codes",
   "sync_client_state",
+  "oauth_handoffs",
 ] as const;
 
 app.get("/", authMiddleware, async (c) => {

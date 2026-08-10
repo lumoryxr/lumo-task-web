@@ -72,7 +72,11 @@ async function sendViaResend(msg: EmailMessage, apiKey: string): Promise<void> {
  * to avoid leaking whether an address exists).
  */
 export async function sendEmail(msg: EmailMessage): Promise<void> {
-  const provider = process.env.LUMO_EMAIL_PROVIDER;
+  // Normalize identically to the boot guard (lib/email-policy) so a case/space
+  // variant like "Resend" or "  resend " that PASSES startup validation also
+  // actually selects the transport here — otherwise it would silently fall
+  // through to the no-op branch and drop the email, defeating the guard.
+  const provider = process.env.LUMO_EMAIL_PROVIDER?.trim().toLowerCase();
   const audit = { ts: new Date().toISOString(), email: true, to: msg.to, subject: msg.subject };
 
   try {

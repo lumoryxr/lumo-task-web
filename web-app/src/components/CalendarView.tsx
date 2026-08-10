@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useAppStore } from "@/store/useAppStore";
-import { useCalendarStore, type OutlookEvent } from "@/store/useCalendarStore";
-import { useImportedCalendarStore, importedToBusyEvent } from "@/store/useImportedCalendarStore";
+import {
+  useImportedCalendarStore,
+  importedToBusyEvent,
+  type CalendarEvent,
+} from "@/store/useImportedCalendarStore";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { TaskTitle } from "@/components/TaskTitle";
 import type { Task, Locale } from "@/types/task";
 import { fmtDuration, parseDueISO, toISODate } from "@/lib/format";
 import { TaskDetailModal } from "./TaskDetailModal";
-import { OutlookEventCard } from "./OutlookEventCard";
+import { CalendarEventCard } from "./CalendarEventCard";
 import { QuickCreate } from "./QuickCreate";
 import { IconCheck, IconClose } from "./icons";
 
@@ -123,14 +126,10 @@ export function CalendarView() {
   const tasks = useTasksStore((s) => s.tasks);
   const update = useTasksStore((s) => s.update);
 
-  const connected = useCalendarStore((s) => s.connected);
-  const outlookEvents = useCalendarStore((s) => s.events);
-  const fetchEvents = useCalendarStore((s) => s.fetchEvents);
-
-  // Imported .ics events (#169 V2) surface as read-only busy blocks alongside
-  // Outlook events, via the same OutlookEventCard shape.
+  // Imported .ics events (#169 V2) surface as read-only busy blocks via the
+  // shared CalendarEventCard shape.
   const importedEvents = useImportedCalendarStore((s) => s.events);
-  const importedAsEvents = useMemo<OutlookEvent[]>(
+  const importedAsEvents = useMemo<CalendarEvent[]>(
     () => importedEvents.map(importedToBusyEvent),
     [importedEvents],
   );
@@ -153,24 +152,16 @@ export function CalendarView() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!connected) return;
-    const d = getWeekDays(weekOffset);
-    const endDate = new Date(d[6].date);
-    endDate.setHours(23, 59, 59, 999);
-    fetchEvents(d[0].date.toISOString(), endDate.toISOString());
-  }, [weekOffset, connected, fetchEvents]);
-
   function openQCFromEvent(title: string, due: string) {
     setQcTitle(title);
     setQcDue(due);
     setQcOpen(true);
   }
 
-  // Partition Outlook + imported events into day buckets
-  const eventBuckets = new Map<string, OutlookEvent[]>();
+  // Partition imported events into day buckets
+  const eventBuckets = new Map<string, CalendarEvent[]>();
   days.forEach((d) => eventBuckets.set(d.iso, []));
-  for (const evt of [...outlookEvents, ...importedAsEvents]) {
+  for (const evt of importedAsEvents) {
     const dateStr = evt.start.dateTime.substring(0, 10);
     if (eventBuckets.has(dateStr)) {
       eventBuckets.get(dateStr)!.push(evt);
@@ -372,7 +363,7 @@ export function CalendarView() {
                         <AllDayChip key={task.id} task={task} />
                       ))}
                       {evts.map((evt) => (
-                        <OutlookEventCard key={evt.id} event={evt} onCreateTask={openQCFromEvent} />
+                        <CalendarEventCard key={evt.id} event={evt} onCreateTask={openQCFromEvent} />
                       ))}
                     </div>
                   )}
