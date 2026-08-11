@@ -130,18 +130,52 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ steps.ssh.outputs.port }}
-          # Pin this deploy to the exact image we just built (by SHA), refresh
-          # the compose/Caddy files from main (never touches the gitignored
-          # .env), then pull + recreate. Run from deploy/vps so the .env there is
-          # used for BOTH ${...} interpolation and the app's env_file.
+          # Self-healing deploy. A box that never ran bootstrap.sh has no checkout
+          # at /opt/lumo, no .env, and no data dir — so create what's safe to
+          # create and fail with a clear message on what only a human can supply.
+          # Pins the exact image we built (by SHA); refreshes compose/Caddy from
+          # main (never touches the gitignored .env); runs from deploy/vps so that
+          # .env drives BOTH ${...} interpolation and the app's env_file.
           # Runs under the VPS user's login shell, which may be dash (/bin/sh) —
           # so keep this POSIX: `set -eu`, no bashism like `pipefail`.
           script: |
             set -eu
-            cd /opt/lumo
+            REPO_URL="https://github.com/lumoryxr/lumo-task-web.git"
+            APP_DIR="/opt/lumo"
+            # Use sudo only when we're not root and it exists (mirrors bootstrap.sh).
+            SUDO=""
+            if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then SUDO="sudo"; fi
+
+            # 1. Checkout at /opt/lumo (provides the compose + Caddy files). Clone
+            #    it on a fresh box that never ran bootstrap.sh.
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "==> $APP_DIR has no checkout — cloning $REPO_URL"
+              $SUDO mkdir -p "$APP_DIR"
+              $SUDO chown "$(id -u):$(id -g)" "$APP_DIR"
+              git clone --depth 1 "$REPO_URL" "$APP_DIR"
+            fi
+            cd "$APP_DIR"
             git fetch --depth 1 origin main
             git reset --hard origin/main
             cd deploy/vps
+
+            # 2. Runtime secrets live in a gitignored .env we can't create for you.
+            if [ ! -f .env ]; then
+              echo "::error::Missing $APP_DIR/deploy/vps/.env — copy .env.example to .env and set LUMO_JWT_SECRET, LUMO_ENCRYPTION_KEY, LUMO_DOMAIN, LUMO_DATA_DIR, then re-run. See docs/ops/vps-deployment.md."
+              exit 1
+            fi
+
+            # 3. SQLite data dir must exist and be writable by the container's node
+            #    user (uid 1000), or the bind mount fails `up`. Read its path from
+            #    .env (fallback to the documented default) and create it if absent.
+            DATA_DIR="$(grep -E '^LUMO_DATA_DIR=' .env | tail -1 | cut -d= -f2- || true)"
+            DATA_DIR="${DATA_DIR:-/mnt/lumo-data}"
+            if [ ! -d "$DATA_DIR" ]; then
+              echo "==> creating data dir $DATA_DIR (owner 1000:1000)"
+              $SUDO mkdir -p "$DATA_DIR/backups"
+              $SUDO chown -R 1000:1000 "$DATA_DIR"
+            fi
+
             export LUMO_IMAGE='${{ needs.build-and-push.outputs.image_ref }}'
             docker compose -f docker-compose.prod.yml pull app
             docker compose -f docker-compose.prod.yml up -d
