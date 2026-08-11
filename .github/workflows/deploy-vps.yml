@@ -127,8 +127,10 @@ jobs:
           # the compose/Caddy files from main (never touches the gitignored
           # .env), then pull + recreate. Run from deploy/vps so the .env there is
           # used for BOTH ${...} interpolation and the app's env_file.
+          # Runs under the VPS user's login shell, which may be dash (/bin/sh) —
+          # so keep this POSIX: `set -eu`, no bashism like `pipefail`.
           script: |
-            set -euo pipefail
+            set -eu
             cd /opt/lumo
             git fetch --depth 1 origin main
             git reset --hard origin/main
