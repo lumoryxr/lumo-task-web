@@ -36,3 +36,6 @@ web-app/test-results/
 
 # Self-hosted VPS local secrets
 deploy/vps/.env
+# Local-test SQLite data / backups (never commit a real DB)
+deploy/vps/data/
+deploy/vps/backups/

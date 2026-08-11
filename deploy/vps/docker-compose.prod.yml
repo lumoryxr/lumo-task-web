@@ -1,0 +1,53 @@
+# Production compose for push-to-deploy: runs the PREBUILT image from GHCR
+# instead of building on the box. CI (.github/workflows/deploy-vps.yml) builds
+# deploy/vps/Dockerfile, pushes it to ghcr.io, then SSHes in to `pull` + `up -d`
+# this file. The small VPS never runs npm/Vite — it just pulls a ~image.
+#
+#   cp .env.example .env            # fill in secrets + LUMO_DOMAIN + LUMO_DATA_DIR
+#   docker login ghcr.io           # one-time, read:packages PAT (or make pkg public)
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Same shape as docker-compose.yml (app + Caddy, same-origin SPA+API, SQLite on
+# the mounted disk) — the only difference is `image:` vs `build:`.
+
+services:
+  app:
+    # Pinned by CI to :latest (and also :<sha>). Override the tag by exporting
+    # LUMO_IMAGE before `up` if you want to deploy a specific commit.
+    image: ${LUMO_IMAGE:-ghcr.io/lumoryxr/lumo-task-web:latest}
+    pull_policy: always
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 8080
+      # Container-internal SQLite path; persisted on the host disk via the bind
+      # mount below. TURSO_* in .env (if set) takes precedence and this is unused.
+      LUMO_DB_PATH: /data/lumo.db
+    volumes:
+      # SQLite on the mounted cloud disk. LUMO_DATA_DIR is the host mount (.env);
+      # it must be writable by uid 1000 (bootstrap.sh chowns it).
+      - ${LUMO_DATA_DIR:-/mnt/lumo-data}:/data
+      - lumo-logs:/var/log/lumo
+    expose:
+      - "8080"
+    # No published ports: only Caddy talks to the app over the internal network.
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      LUMO_DOMAIN: ${LUMO_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  lumo-logs:
+  caddy-data:
+  caddy-config:

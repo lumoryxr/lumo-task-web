@@ -1,0 +1,129 @@
+name: Deploy to VPS
+
+# Push-to-deploy for the self-hosted single-VPS setup (docs/ops/vps-deployment.md).
+#
+# Flow: build the single-process image (deploy/vps/Dockerfile) → push it to GHCR
+# → SSH into the VPS and `docker compose ... pull && up -d` the prebuilt image.
+# The small VPS never runs npm/Vite; it only pulls a ~image.
+#
+# Primary trigger is manual (workflow_dispatch) — you decide when a beta build
+# ships. Pushes to main that touch the app also deploy; unrelated commits don't.
+#
+# ── One-time setup ────────────────────────────────────────────────────────────
+# Repo → Settings → Secrets and variables → Actions → add:
+#   VPS_HOST       public IP or hostname of the box
+#   VPS_USER       ssh user (e.g. deploy)
+#   VPS_SSH_KEY    that user's PRIVATE key (the box has the matching public key)
+#   VPS_SSH_PORT   optional, defaults to 22
+# Runtime secrets (LUMO_JWT_SECRET, …) live ONLY in the VPS's deploy/vps/.env —
+# never in CI. The VPS must have the repo checked out at /opt/lumo and be logged
+# in to ghcr.io (bootstrap.sh does both). See docs/ops/vps-deployment.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch/tag/SHA) to build and deploy"
+        required: false
+        default: main
+  push:
+    branches: [main]
+    # Only redeploy when something that affects the running app changes.
+    paths:
+      - "backend/**"
+      - "web-app/**"
+      - "packages/contracts/**"
+      - "deploy/vps/**"
+      - ".github/workflows/deploy-vps.yml"
+
+# Never let two deploys race the same box; a newer deploy supersedes an older one.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-and-push:
+    name: Build image and push to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_ref: ${{ steps.meta.outputs.image_ref }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+
+      - name: Resolve image tags
+        id: meta
+        run: |
+          # GHCR requires a lowercase repo path; github.repository is already
+          # lowercase for this org, but normalize to be safe.
+          IMAGE_LC="$(echo "${IMAGE}" | tr '[:upper:]' '[:lower:]')"
+          echo "image_lc=${IMAGE_LC}" >> "$GITHUB_OUTPUT"
+          echo "image_ref=${IMAGE_LC}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/vps/Dockerfile
+          build-args: |
+            VITE_API_BASE=/v1
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_lc }}:latest
+            ${{ steps.meta.outputs.image_lc }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to VPS over SSH
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull + restart on the VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          # Pin this deploy to the exact image we just built (by SHA), refresh
+          # the compose/Caddy files from main (never touches the gitignored
+          # .env), then pull + recreate. Run from deploy/vps so the .env there is
+          # used for BOTH ${...} interpolation and the app's env_file.
+          script: |
+            set -euo pipefail
+            cd /opt/lumo
+            git fetch --depth 1 origin main
+            git reset --hard origin/main
+            cd deploy/vps
+            export LUMO_IMAGE='${{ needs.build-and-push.outputs.image_ref }}'
+            docker compose -f docker-compose.prod.yml pull app
+            docker compose -f docker-compose.prod.yml up -d
+            docker image prune -f
+            # Smoke the app's health endpoint from inside the container.
+            for i in $(seq 1 15); do
+              if docker compose -f docker-compose.prod.yml exec -T app \
+                   node -e "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
+                echo "health OK"; exit 0
+              fi
+              sleep 2
+            done
+            echo "::error::app did not report healthy after deploy"; exit 1
