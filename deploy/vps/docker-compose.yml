@@ -20,7 +20,14 @@ services:
     env_file: .env
     environment:
       PORT: 8080
+      # Container-internal path of the SQLite DB. The app writes it here; the
+      # bind mount below persists it on the host's mounted cloud disk. (If you
+      # set TURSO_* in .env instead, that takes precedence and this is unused.)
+      LUMO_DB_PATH: /data/lumo.db
     volumes:
+      # Persist SQLite on the mounted cloud disk. LUMO_DATA_DIR is the host mount
+      # (see .env). The dir must be writable by uid 1000 (bootstrap.sh chowns it).
+      - ${LUMO_DATA_DIR:-/mnt/lumo-data}:/data
       # Persist the log file (LUMO_LOG_FILE) across restarts, if you set one to a
       # path under /var/log/lumo.
       - lumo-logs:/var/log/lumo
