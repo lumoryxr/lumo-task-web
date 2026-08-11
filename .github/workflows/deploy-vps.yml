@@ -130,9 +130,11 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ steps.ssh.outputs.port }}
-          # Self-healing deploy. A box that never ran bootstrap.sh has no checkout
-          # at /opt/lumo, no .env, and no data dir — so create what's safe to
-          # create and fail with a clear message on what only a human can supply.
+          # Provisioning is delegated to bootstrap.sh — the SINGLE source of init
+          # logic (Docker, the /opt/lumo checkout, the data dir, the .env seed).
+          # If the box was never initialized the deploy just runs bootstrap first,
+          # so there is only one place that knows how to set a box up — this
+          # workflow never re-implements it.
           # Pins the exact image we built (by SHA); refreshes compose/Caddy from
           # main (never touches the gitignored .env); runs from deploy/vps so that
           # .env drives BOTH ${...} interpolation and the app's env_file.
@@ -140,42 +142,25 @@ jobs:
           # so keep this POSIX: `set -eu`, no bashism like `pipefail`.
           script: |
             set -eu
-            REPO_URL="https://github.com/lumoryxr/lumo-task-web.git"
-            APP_DIR="/opt/lumo"
-            # Use sudo only when we're not root and it exists (mirrors bootstrap.sh).
-            SUDO=""
-            if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then SUDO="sudo"; fi
-
-            # 1. Checkout at /opt/lumo (provides the compose + Caddy files). Clone
-            #    it on a fresh box that never ran bootstrap.sh.
-            if [ ! -d "$APP_DIR/.git" ]; then
-              echo "==> $APP_DIR has no checkout — cloning $REPO_URL"
-              $SUDO mkdir -p "$APP_DIR"
-              $SUDO chown "$(id -u):$(id -g)" "$APP_DIR"
-              git clone --depth 1 "$REPO_URL" "$APP_DIR"
+            # Never provisioned? Run the one init script. It installs Docker, clones
+            # /opt/lumo, prepares the data dir, and seeds .env from the example.
+            # (If it has to install Docker for a non-root user, the docker group
+            # only applies to the NEXT login — just re-run the deploy once.)
+            if [ ! -d /opt/lumo/.git ]; then
+              echo "==> /opt/lumo not initialized — running bootstrap.sh"
+              curl -fsSL https://raw.githubusercontent.com/lumoryxr/lumo-task-web/main/deploy/vps/bootstrap.sh | bash
             fi
-            cd "$APP_DIR"
+            cd /opt/lumo
             git fetch --depth 1 origin main
             git reset --hard origin/main
             cd deploy/vps
-
-            # 2. Runtime secrets live in a gitignored .env we can't create for you.
-            if [ ! -f .env ]; then
-              echo "::error::Missing $APP_DIR/deploy/vps/.env — copy .env.example to .env and set LUMO_JWT_SECRET, LUMO_ENCRYPTION_KEY, LUMO_DOMAIN, LUMO_DATA_DIR, then re-run. See docs/ops/vps-deployment.md."
+            # The one thing bootstrap can't fill in: real secrets. It seeds .env
+            # from .env.example with an EMPTY LUMO_JWT_SECRET — refuse to deploy
+            # until a human fills it, rather than booting with blank crypto keys.
+            if [ ! -f .env ] || ! grep -Eq '^LUMO_JWT_SECRET=.+' .env; then
+              echo "::error::/opt/lumo/deploy/vps/.env is missing or LUMO_JWT_SECRET is empty. Fill it in (LUMO_JWT_SECRET, LUMO_ENCRYPTION_KEY, LUMO_DOMAIN, LUMO_DATA_DIR) — make secrets with 'openssl rand -hex 32' — then re-run. See docs/ops/vps-deployment.md."
               exit 1
             fi
-
-            # 3. SQLite data dir must exist and be writable by the container's node
-            #    user (uid 1000), or the bind mount fails `up`. Read its path from
-            #    .env (fallback to the documented default) and create it if absent.
-            DATA_DIR="$(grep -E '^LUMO_DATA_DIR=' .env | tail -1 | cut -d= -f2- || true)"
-            DATA_DIR="${DATA_DIR:-/mnt/lumo-data}"
-            if [ ! -d "$DATA_DIR" ]; then
-              echo "==> creating data dir $DATA_DIR (owner 1000:1000)"
-              $SUDO mkdir -p "$DATA_DIR/backups"
-              $SUDO chown -R 1000:1000 "$DATA_DIR"
-            fi
-
             export LUMO_IMAGE='${{ needs.build-and-push.outputs.image_ref }}'
             docker compose -f docker-compose.prod.yml pull app
             docker compose -f docker-compose.prod.yml up -d

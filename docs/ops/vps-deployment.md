@@ -40,16 +40,28 @@ cold-start), low latency (SPA↔API in-process), and cheap to run.
 
 ## 1. First-time setup (bootstrap)
 
-On the box, run the bootstrap script — it installs Docker, prepares the data disk
-(critically, `chown`s it so the container can write the DB), clones the repo to
-`/opt/lumo`, and scaffolds `.env`:
+`bootstrap.sh` is the single init script: it installs Docker, prepares the data
+disk (critically, `chown`s it so the container can write the DB), clones the repo
+to `/opt/lumo`, and scaffolds `.env`.
+
+**You normally don't run it by hand.** The GitHub Actions deploy detects an
+uninitialized box (no `/opt/lumo/.git`) and runs `bootstrap.sh` for you on the
+first deploy — there's only one place that knows how to set a box up, and the
+workflow calls it rather than duplicating the logic. The one thing it can't do is
+invent your secrets, so a deploy stops with a clear error until `.env` has a real
+`LUMO_JWT_SECRET`.
+
+Run it by hand only if you want to provision ahead of time — e.g. to install
+Docker before the first deploy so a non-root SSH user picks up the `docker` group
+(a freshly added group only applies on the next login, so otherwise the very
+first auto-init deploy may need one re-run):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lumoryxr/lumo-task-web/main/deploy/vps/bootstrap.sh | bash
 # or from a checkout:  bash deploy/vps/bootstrap.sh
 ```
 
-Then fill in the secrets it created:
+Either way, fill in the secrets (this is the only required manual step):
 
 ```bash
 $EDITOR /opt/lumo/deploy/vps/.env
