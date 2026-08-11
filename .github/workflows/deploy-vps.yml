@@ -1,13 +1,18 @@
 name: Deploy to VPS
 
-# Push-to-deploy for the self-hosted single-VPS setup (docs/ops/vps-deployment.md).
+# Tag-to-deploy for the self-hosted single-VPS setup (docs/ops/vps-deployment.md).
 #
 # Flow: build the single-process image (deploy/vps/Dockerfile) → push it to GHCR
 # → SSH into the VPS and `docker compose ... pull && up -d` the prebuilt image.
 # The small VPS never runs npm/Vite; it only pulls a ~image.
 #
-# Primary trigger is manual (workflow_dispatch) — you decide when a beta build
-# ships. Pushes to main that touch the app also deploy; unrelated commits don't.
+# Deploy is GATED so production is never touched by an ordinary commit:
+#   • push to main        → build + push the image to GHCR only (a build check
+#                           that proves the app still builds and is deployable).
+#                           The running VPS is NOT touched.
+#   • push a version tag  → build that commit AND deploy it to the VPS. This is
+#     (e.g. v1.2.3)         how you ship a packaged release.
+#   • manual dispatch     → build + deploy the chosen ref, on demand.
 #
 # ── One-time setup ────────────────────────────────────────────────────────────
 # Repo → Settings → Secrets and variables → Actions → add:
@@ -27,14 +32,11 @@ on:
         required: false
         default: main
   push:
+    # main → build-only (validation); a v* tag → build + deploy. The deploy job's
+    # `if:` below is what enforces that split. No `paths:` filter here: it would
+    # also gate tag pushes (AND semantics) and could silently skip a release.
     branches: [main]
-    # Only redeploy when something that affects the running app changes.
-    paths:
-      - "backend/**"
-      - "web-app/**"
-      - "packages/contracts/**"
-      - "deploy/vps/**"
-      - ".github/workflows/deploy-vps.yml"
+    tags: ["v*"]
 
 # Never let two deploys race the same box; a newer deploy supersedes an older one.
 concurrency:
@@ -95,6 +97,11 @@ jobs:
   deploy:
     name: Deploy to VPS over SSH
     needs: build-and-push
+    # The gate: deploy ONLY on a version tag or a manual run. A plain push to
+    # main runs build-and-push (the build check) but skips this job entirely.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       # VPS_HOST may be "host" or "host:port" — split it so we can store one
