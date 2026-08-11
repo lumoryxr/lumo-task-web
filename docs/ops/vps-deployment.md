@@ -3,9 +3,9 @@
 Run Lumo end-to-end on your own VPS. The design is deliberately small: **one Node
 process serves both the JSON API (`/v1`, `/docs`) and the built SPA** on the same
 origin (no CORS), with a reverse proxy in front for HTTPS. Data is a **local
-SQLite file on a mounted disk**, and releases ship via **GitHub Actions
-tag-to-deploy** — pushing a version tag deploys; ordinary commits to `main` only
-build a validation image. Everything lives in [`deploy/vps/`](../../deploy/vps).
+SQLite file on a mounted disk**, and deploys are **manual** — you click *Run
+workflow* when you want to ship; ordinary commits to `main` only build a
+validation image. Everything lives in [`deploy/vps/`](../../deploy/vps).
 
 This is the recommended shape for a public beta: always-warm (no free-tier
 cold-start), low latency (SPA↔API in-process), and cheap to run.
@@ -105,7 +105,7 @@ prefer the prebuilt image for routine deploys.
 
 ---
 
-## 3. Tag-to-deploy with GitHub Actions
+## 3. Manual deploy with GitHub Actions
 
 [`.github/workflows/deploy-vps.yml`](../../.github/workflows/deploy-vps.yml) builds
 the image, pushes it to GHCR, then SSHes into the box to `pull` + `up -d` and
@@ -114,18 +114,22 @@ touches production:**
 
 | Trigger | What happens |
 |---|---|
-| Push to `main` | Build the image and push it to GHCR **only** — a build check that proves the app still builds and is deployable. The running VPS is untouched. |
-| Push a tag `v*` (e.g. `v1.2.3`) | Build that commit **and deploy it** to the VPS. This is how you ship a packaged release. |
-| Manual dispatch (Actions → *Deploy to VPS* → *Run workflow*) | Build + deploy the ref you choose, on demand. |
+| Push to `main` (app paths) | Build the image and push it to GHCR **only** — a build check that proves the app still builds and is deployable. The running VPS is untouched. |
+| Manual dispatch (Actions → *Deploy to VPS* → *Run workflow*) | Build **and deploy** the ref you choose. This is the only trigger that touches production. |
 
-Cut a release when you're ready to ship what's on `main`:
+Ship when you're ready: **Actions → *Deploy to VPS* → *Run workflow*.** Leave
+`ref` as `main` to deploy the tip of main, or enter an **existing** branch, tag,
+or commit SHA to deploy that instead.
 
-```bash
-git tag v1.2.3 && git push origin v1.2.3
-```
-
-That single tag push builds the tagged commit and deploys it — no per-commit
-deploys to your production box.
+> The `ref` field takes a git ref that **already exists** — not a new version
+> number you want to create. Typing something like `V0.0.1` when no such tag
+> exists fails the checkout with `The process '/usr/bin/git' failed with exit
+> code 1`. To deploy a specific release, create/push that tag first, then run the
+> workflow with it (or just deploy `main`).
+>
+> Version tags `v*` are owned by the product **Release** workflow (`release.yml`),
+> which cuts a GitHub Release — they intentionally do **not** deploy the VPS, so a
+> release and a production deploy stay independent.
 
 One-time setup — repo → **Settings → Secrets and variables → Actions**:
 
