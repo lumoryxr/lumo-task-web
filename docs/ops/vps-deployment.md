@@ -4,7 +4,8 @@ Run Lumo end-to-end on your own VPS. The design is deliberately small: **one Nod
 process serves both the JSON API (`/v1`, `/docs`) and the built SPA** on the same
 origin (no CORS), with a reverse proxy in front for HTTPS. Data is a **local
 SQLite file on a mounted disk**, and releases ship via **GitHub Actions
-push-to-deploy**. Everything lives in [`deploy/vps/`](../../deploy/vps).
+tag-to-deploy** — pushing a version tag deploys; ordinary commits to `main` only
+build a validation image. Everything lives in [`deploy/vps/`](../../deploy/vps).
 
 This is the recommended shape for a public beta: always-warm (no free-tier
 cold-start), low latency (SPA↔API in-process), and cheap to run.
@@ -39,16 +40,28 @@ cold-start), low latency (SPA↔API in-process), and cheap to run.
 
 ## 1. First-time setup (bootstrap)
 
-On the box, run the bootstrap script — it installs Docker, prepares the data disk
-(critically, `chown`s it so the container can write the DB), clones the repo to
-`/opt/lumo`, and scaffolds `.env`:
+`bootstrap.sh` is the single init script: it installs Docker, prepares the data
+disk (critically, `chown`s it so the container can write the DB), clones the repo
+to `/opt/lumo`, and scaffolds `.env`.
+
+**You normally don't run it by hand.** The GitHub Actions deploy detects an
+uninitialized box (no `/opt/lumo/.git`) and runs `bootstrap.sh` for you on the
+first deploy — there's only one place that knows how to set a box up, and the
+workflow calls it rather than duplicating the logic. The one thing it can't do is
+invent your secrets, so a deploy stops with a clear error until `.env` has a real
+`LUMO_JWT_SECRET`.
+
+Run it by hand only if you want to provision ahead of time — e.g. to install
+Docker before the first deploy so a non-root SSH user picks up the `docker` group
+(a freshly added group only applies on the next login, so otherwise the very
+first auto-init deploy may need one re-run):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lumoryxr/lumo-task-web/main/deploy/vps/bootstrap.sh | bash
 # or from a checkout:  bash deploy/vps/bootstrap.sh
 ```
 
-Then fill in the secrets it created:
+Either way, fill in the secrets (this is the only required manual step):
 
 ```bash
 $EDITOR /opt/lumo/deploy/vps/.env
@@ -92,12 +105,27 @@ prefer the prebuilt image for routine deploys.
 
 ---
 
-## 3. Push-to-deploy with GitHub Actions
+## 3. Tag-to-deploy with GitHub Actions
 
 [`.github/workflows/deploy-vps.yml`](../../.github/workflows/deploy-vps.yml) builds
 the image, pushes it to GHCR, then SSHes into the box to `pull` + `up -d` and
-smoke `/health`. It runs on **manual dispatch** (Actions → *Deploy to VPS* → *Run
-workflow*) and on pushes to `main` that touch the app.
+smoke `/health`. **Deploying to the VPS is gated so an ordinary commit never
+touches production:**
+
+| Trigger | What happens |
+|---|---|
+| Push to `main` | Build the image and push it to GHCR **only** — a build check that proves the app still builds and is deployable. The running VPS is untouched. |
+| Push a tag `v*` (e.g. `v1.2.3`) | Build that commit **and deploy it** to the VPS. This is how you ship a packaged release. |
+| Manual dispatch (Actions → *Deploy to VPS* → *Run workflow*) | Build + deploy the ref you choose, on demand. |
+
+Cut a release when you're ready to ship what's on `main`:
+
+```bash
+git tag v1.2.3 && git push origin v1.2.3
+```
+
+That single tag push builds the tagged commit and deploys it — no per-commit
+deploys to your production box.
 
 One-time setup — repo → **Settings → Secrets and variables → Actions**:
 
