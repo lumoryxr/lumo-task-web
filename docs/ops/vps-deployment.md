@@ -103,15 +103,19 @@ One-time setup — repo → **Settings → Secrets and variables → Actions**:
 
 | Secret | Value |
 |---|---|
-| `VPS_HOST` | public IP / hostname of the box |
+| `VPS_HOST` | host or `host:port` of the box (e.g. `203.0.113.10` or `203.0.113.10:2222`); port defaults to 22 |
 | `VPS_USER` | SSH user (must be in the `docker` group) |
-| `VPS_SSH_KEY` | that user's **private** key (box holds the matching public key) |
-| `VPS_SSH_PORT` | optional; defaults to 22 |
+| `VPS_PASSWORD` | that SSH user's password (password auth — no key needed) |
 
 The image is pushed with the built-in `GITHUB_TOKEN` (no extra secret). Runtime
 secrets (`LUMO_JWT_SECRET`, …) live **only** in the VPS `.env` — never in CI. The
 deploy step refreshes `deploy/vps/` from `main` on the box (leaving the gitignored
 `.env` intact) and deploys the exact image built for that commit.
+
+The deploy connects over SSH with **password auth** (`VPS_PASSWORD`) — no keypair to
+manage. Use a long, unique password and consider `fail2ban` + a non-default SSH port
+on the box; if you'd rather use a key later, swap `password:` for `key:` in the
+workflow's SSH step.
 
 ---
 
