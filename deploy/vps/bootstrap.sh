@@ -121,7 +121,8 @@ $(log "Bootstrap complete.")
     4. Bring it up:
          cd $APP_DIR/deploy/vps
          docker compose -f docker-compose.prod.yml up -d
-    5. Add repo secrets VPS_HOST / VPS_USER / VPS_SSH_KEY so pushes auto-deploy.
+    5. Add repo secrets VPS_HOST (host or host:port) / VPS_USER / VPS_PASSWORD
+       so pushes auto-deploy.
 
   Full guide: docs/ops/vps-deployment.md
 EOF

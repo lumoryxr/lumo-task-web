@@ -11,10 +11,10 @@ name: Deploy to VPS
 #
 # ── One-time setup ────────────────────────────────────────────────────────────
 # Repo → Settings → Secrets and variables → Actions → add:
-#   VPS_HOST       public IP or hostname of the box
+#   VPS_HOST       host or host:port of the box (e.g. 203.0.113.10 or
+#                  203.0.113.10:2222). Port is optional and defaults to 22.
 #   VPS_USER       ssh user (e.g. deploy)
-#   VPS_SSH_KEY    that user's PRIVATE key (the box has the matching public key)
-#   VPS_SSH_PORT   optional, defaults to 22
+#   VPS_PASSWORD   that ssh user's password (password auth; no key needed)
 # Runtime secrets (LUMO_JWT_SECRET, …) live ONLY in the VPS's deploy/vps/.env —
 # never in CI. The VPS must have the repo checked out at /opt/lumo and be logged
 # in to ghcr.io (bootstrap.sh does both). See docs/ops/vps-deployment.md.
@@ -97,13 +97,32 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
+      # VPS_HOST may be "host" or "host:port" — split it so we can store one
+      # combined secret instead of two. Port defaults to 22 when absent.
+      - name: Parse host:port
+        id: ssh
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          set -euo pipefail
+          raw="${VPS_HOST}"
+          if printf '%s' "$raw" | grep -q ':'; then
+            host="${raw%:*}"; port="${raw##*:}"
+          else
+            host="$raw"; port="22"
+          fi
+          # Guard against a non-numeric/empty port (e.g. a bare IPv6 with no port).
+          case "$port" in ''|*[!0-9]*) host="$raw"; port="22";; esac
+          echo "host=${host}" >> "$GITHUB_OUTPUT"
+          echo "port=${port}" >> "$GITHUB_OUTPUT"
+
       - name: Pull + restart on the VPS
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.VPS_HOST }}
+          host: ${{ steps.ssh.outputs.host }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ steps.ssh.outputs.port }}
           # Pin this deploy to the exact image we just built (by SHA), refresh
           # the compose/Caddy files from main (never touches the gitignored
           # .env), then pull + recreate. Run from deploy/vps so the .env there is
