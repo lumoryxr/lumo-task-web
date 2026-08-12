@@ -134,6 +134,10 @@ jobs:
       LUMO_DOMAIN: ${{ vars.LUMO_DOMAIN }}
       LUMO_APP_BASE_URL: ${{ vars.LUMO_APP_BASE_URL }}
       LUMO_DATA_DIR: ${{ vars.LUMO_DATA_DIR }}
+      # Optional: only needed if the data disk is a network fs that refuses chown
+      # and enforces a fixed owner — set these to that uid/gid. Empty = uid 1000.
+      LUMO_UID: ${{ vars.LUMO_UID }}
+      LUMO_GID: ${{ vars.LUMO_GID }}
       LUMO_ALLOWED_ORIGINS: ${{ vars.LUMO_ALLOWED_ORIGINS }}
       LUMO_ADMIN_EMAILS: ${{ vars.LUMO_ADMIN_EMAILS }}
       LUMO_LOG_LEVEL: ${{ vars.LUMO_LOG_LEVEL }}
@@ -173,7 +177,7 @@ jobs:
           # Forward the GitHub-managed config (job env:) into the remote shell so
           # the render step can write .env from it. Values travel over the
           # encrypted SSH channel; secret values stay masked in the Actions log.
-          envs: LUMO_JWT_SECRET,LUMO_ENCRYPTION_KEY,LUMO_AI_KEY,LUMO_RESEND_API_KEY,LUMO_GITHUB_CLIENT_SECRET,LUMO_METRICS_TOKEN,TURSO_AUTH_TOKEN,LUMO_DOMAIN,LUMO_APP_BASE_URL,LUMO_DATA_DIR,LUMO_ALLOWED_ORIGINS,LUMO_ADMIN_EMAILS,LUMO_LOG_LEVEL,LUMO_EMAIL_PROVIDER,LUMO_EMAIL_FROM,LUMO_AI_CLOUD_GLOBAL_CAP,LUMO_GITHUB_CLIENT_ID,LUMO_GITHUB_CALLBACK_URL,TURSO_DATABASE_URL
+          envs: LUMO_JWT_SECRET,LUMO_ENCRYPTION_KEY,LUMO_AI_KEY,LUMO_RESEND_API_KEY,LUMO_GITHUB_CLIENT_SECRET,LUMO_METRICS_TOKEN,TURSO_AUTH_TOKEN,LUMO_DOMAIN,LUMO_APP_BASE_URL,LUMO_DATA_DIR,LUMO_UID,LUMO_GID,LUMO_ALLOWED_ORIGINS,LUMO_ADMIN_EMAILS,LUMO_LOG_LEVEL,LUMO_EMAIL_PROVIDER,LUMO_EMAIL_FROM,LUMO_AI_CLOUD_GLOBAL_CAP,LUMO_GITHUB_CLIENT_ID,LUMO_GITHUB_CALLBACK_URL,TURSO_DATABASE_URL
           # Provisioning is delegated to bootstrap.sh — the SINGLE source of init
           # logic (Docker, the /opt/lumo checkout, the data dir, the .env seed).
           # If the box was never initialized the deploy just runs bootstrap first,
@@ -216,6 +220,8 @@ jobs:
             LUMO_JWT_SECRET=${LUMO_JWT_SECRET}
             LUMO_ENCRYPTION_KEY=${LUMO_ENCRYPTION_KEY}
             LUMO_DATA_DIR=${LUMO_DATA_DIR:-/mnt/lumo-data}
+            LUMO_UID=${LUMO_UID:-}
+            LUMO_GID=${LUMO_GID:-}
             LUMO_ALLOWED_ORIGINS=${LUMO_ALLOWED_ORIGINS:-}
             LUMO_ADMIN_EMAILS=${LUMO_ADMIN_EMAILS:-}
             LUMO_LOG_LEVEL=${LUMO_LOG_LEVEL:-info}

@@ -39,6 +39,12 @@ ENV NODE_ENV=production
 # serveStatic resolves LUMO_WEB_ROOT relative to cwd, so cwd must be the backend.
 WORKDIR /app/backend
 
+# gosu lets the entrypoint start as root (to fix the bind-mounted data disk's
+# ownership) and then drop to the unprivileged app user before running the app.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends gosu \
+ && rm -rf /var/lib/apt/lists/*
+
 # The bundle + its externalized runtime deps (@libsql/client → native libsql).
 COPY --from=build /app/backend/dist ./dist
 COPY --from=build /app/backend/node_modules ./node_modules
@@ -46,15 +52,23 @@ COPY --from=build /app/backend/package.json ./package.json
 # SPA served same-origin from ./web (LUMO_WEB_ROOT is cwd-relative).
 COPY --from=build /app/web-app/dist ./web
 
+# Self-healing entrypoint: as root it makes the mounted data disk writable by the
+# app user, then drops privileges with gosu. See the script header for the why.
+COPY deploy/vps/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 ENV LUMO_WEB_ROOT=web
 ENV PORT=8080
 EXPOSE 8080
 
-# Run unprivileged (the base image ships a "node" user).
-USER node
+# NOTE: no `USER node` here — the container starts as root so the entrypoint can
+# chown the bind-mounted /data volume, then it execs the app via `gosu` as the
+# unprivileged app user (uid 1000 by default; override with LUMO_UID/LUMO_GID).
 
-# Liveness for the reverse proxy / orchestrator: GET /health.
+# Liveness for the reverse proxy / orchestrator: GET /health. HEALTHCHECK does not
+# run through ENTRYPOINT, so it stays a plain node one-liner.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "dist/bundle.cjs"]
