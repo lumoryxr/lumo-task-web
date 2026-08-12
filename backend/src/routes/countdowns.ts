@@ -5,12 +5,21 @@ import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
+import { log } from "../lib/logger.js";
 import { hlcNow } from "../lib/hlc.js";
+import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
+import type { CountdownWire } from "@lumo/contracts";
 import type { Variables } from "../env.js";
 import type { CountdownEventRow } from "../db/rows.js";
 
 const app = new Hono<{ Variables: Variables }>();
 app.use("/*", authMiddleware);
+
+// Most users have a handful of countdowns; the page size stays generous so
+// ordinary callers get them all in one request, while the cursor bounds a
+// pathologically large account. Matches people/projects (DEFAULT 200 / MAX 500).
+const DEFAULT_LIMIT = 200;
+const MAX_LIMIT = 500;
 
 const IdParam = z.object({ id: z.string().min(1).max(64) });
 
@@ -49,7 +58,7 @@ const MigrateBody = z.object({
   })).max(MIGRATE_MAX_EVENTS),
 });
 
-export function rowToEvent(row: CountdownEventRow) {
+export function rowToEvent(row: CountdownEventRow): CountdownWire {
   return {
     id: row.id,
     title: row.title,
@@ -63,14 +72,52 @@ export function rowToEvent(row: CountdownEventRow) {
   };
 }
 
-// GET /countdowns
+// GET /countdowns[?limit=&cursor=] → { items, nextCursor }
+// Keyset-paginated by (created_at ASC, id ASC) so a heavy account never returns
+// an unbounded array. The cursor is a position only; the query is always
+// re-scoped to the authenticated user. Callers that want the whole list page
+// through until nextCursor is null.
 app.get("/", async (c) => {
-  const userId = c.get("userId");
-  const rows = await query<CountdownEventRow>(
-    "SELECT * FROM countdown_events WHERE user_id = :uid AND deleted_at IS NULL ORDER BY created_at ASC",
-    { uid: userId }
-  );
-  return c.json(rows.map(rowToEvent));
+  const userId = c.get("userId") as string;
+
+  const limitRaw = Number(c.req.query("limit"));
+  const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, MAX_LIMIT) : DEFAULT_LIMIT;
+
+  let after: CursorPos | null = null;
+  const cursor = c.req.query("cursor");
+  if (cursor) {
+    try {
+      after = decodeCursor(cursor);
+    } catch {
+      return httpError(c, 400, "INVALID_CURSOR", "Invalid cursor");
+    }
+  }
+
+  try {
+    let sql = "SELECT * FROM countdown_events WHERE user_id = :uid AND deleted_at IS NULL";
+    const params: Record<string, string | number> = { uid: userId };
+    if (after) {
+      params.ca = after.createdAt;
+      params.cid = after.id;
+      sql += " AND (created_at > :ca OR (created_at = :ca AND id > :cid))";
+    }
+    // Fetch one extra row to know whether a further page exists.
+    params.lim = limit + 1;
+    sql += " ORDER BY created_at ASC, id ASC LIMIT :lim";
+    const rows = await query<CountdownEventRow>(sql, params);
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
+    const nextCursor = hasMore && last
+      ? encodeCursor({ createdAt: last.created_at, id: last.id })
+      : null;
+
+    return c.json({ items: page.map(rowToEvent), nextCursor });
+  } catch (err) {
+    log("error", { requestId: c.get("requestId"), route: "GET /v1/countdowns", msg: err instanceof Error ? err.message : String(err) });
+    return httpError(c, 500, "INTERNAL_ERROR", "Internal server error");
+  }
 });
 
 // POST /countdowns/migrate — idempotent bulk import; must be before /:id

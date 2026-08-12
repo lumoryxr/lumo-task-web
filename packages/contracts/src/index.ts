@@ -9,6 +9,7 @@
 export * from "./primitives.js";
 export * from "./task.js";
 export * from "./person.js";
+export * from "./countdown.js";
 export * from "./template.js";
 export * from "./feedback.js";
 export * from "./error.js";

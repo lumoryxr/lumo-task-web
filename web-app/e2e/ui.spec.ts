@@ -206,6 +206,16 @@ async function mockAPI(page: Page) {
         body: JSON.stringify({ items: [], nextCursor: null }),
       });
     }
+    if (url.includes("/v1/countdowns")) {
+      // GET list is the paginated envelope (#439); other methods keep an empty stub
+      // so countdownApi.list()'s res.items.map never hits the {} catch-all.
+      const body = method === "GET" ? { items: [], nextCursor: null } : {};
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+    }
     if (url.includes("/v1/templates")) {
       // GET → array; mutations → empty object. Without this the catch-all returns
       // {} and templateApi.list()'s .map throws on sign-in.
@@ -455,10 +465,11 @@ async function mockAPIWithData(page: Page) {
       });
     }
     if (url.includes("/v1/countdowns")) {
+      // GET → keyset-paginated envelope { items, nextCursor } (#439; single page here).
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(MOCK_COUNTDOWNS),
+        body: JSON.stringify({ items: MOCK_COUNTDOWNS, nextCursor: null }),
       });
     }
 

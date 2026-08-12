@@ -941,8 +941,20 @@ export const habitApi = {
 
 export const countdownApi = {
   async list(_userId: string): Promise<CountdownEvent[]> {
-    const rows = await req<any[]>("GET", "/countdowns");
-    return rows.map(adaptCountdownEvent);
+    // GET /countdowns is keyset-paginated ({ items, nextCursor }); page through
+    // transparently so the store still receives the full CountdownEvent[].
+    const out: CountdownEvent[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 1000; page++) {
+      const path: string = cursor
+        ? `/countdowns?limit=200&cursor=${encodeURIComponent(cursor)}`
+        : "/countdowns?limit=200";
+      const res: { items: any[]; nextCursor: string | null } = await req("GET", path);
+      out.push(...res.items.map(adaptCountdownEvent));
+      if (res.nextCursor == null) return out;
+      cursor = res.nextCursor;
+    }
+    return out;
   },
 
   async create(_userId: string, input: Omit<CountdownEvent, "id" | "createdAt">, id?: string): Promise<CountdownEvent> {
