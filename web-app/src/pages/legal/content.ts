@@ -7,11 +7,13 @@
  * so the prose lives in exactly one place.
  *
  * These are production documents tailored to how Lumo actually operates today:
- * a free (donation-supported) personal-productivity product, with data hosted
- * on Turso, transactional email via Resend, optional GitHub sign-in, and
- * bring-your-own-key AI. There is NO paid subscription. If you later
- * incorporate a legal entity or add paid plans, update the operator/contact
- * config (`@/config/app`) and add subscription/refund terms here.
+ * a free, open-source, personally-maintained (donation-supported) productivity
+ * project — not a company. Data for the hosted account is on Turso,
+ * transactional email via Resend, optional GitHub sign-in, and bring-your-own-key
+ * AI. There is NO legal entity behind it and NO paid subscription. The operator
+ * is identified generically (see `OPERATOR_NAME` in `@/config/app`), not as a
+ * registered company. If that ever changes — a legal entity, or paid plans —
+ * update the operator/contact config and add the corresponding terms here.
  *
  * Long-form prose is kept out of `strings.ts` deliberately: the i18n parity
  * guard covers short UI keys, not multi-paragraph policy text.
@@ -54,8 +56,8 @@ export const TERMS_DOC: LegalDoc = {
   title: { en: "Terms of Service", zh: "服务条款" },
   effectiveDate: EFFECTIVE_DATE,
   intro: {
-    en: "These Terms of Service (the “Terms”) govern your access to and use of Lumo (the “Service”). Lumo is a free personal-productivity application for tasks, focus, and habits. By creating an account or using the Service you agree to these Terms; if you do not agree, do not use the Service.",
-    zh: "本服务条款（下称“本条款”）约束你对 Lumo（下称“本服务”）的访问与使用。Lumo 是一款免费的个人效率应用，用于任务、专注与习惯管理。注册账号或使用本服务，即表示你同意本条款；若你不同意，请勿使用本服务。",
+    en: "These Terms of Service (the “Terms”) govern your access to and use of Lumo (the “Service”). Lumo is a free, open-source personal-productivity application for tasks, focus, and habits, maintained by volunteers rather than a company. By creating an account or using the Service you agree to these Terms; if you do not agree, do not use the Service.",
+    zh: "本服务条款（下称“本条款”）约束你对 Lumo（下称“本服务”）的访问与使用。Lumo 是一款免费、开源的个人效率应用，用于任务、专注与习惯管理，由志愿者个人维护，并非公司运营。注册账号或使用本服务，即表示你同意本条款；若你不同意，请勿使用本服务。",
   },
   sections: [
     {
@@ -204,8 +206,8 @@ export const PRIVACY_DOC: LegalDoc = {
   title: { en: "Privacy Policy", zh: "隐私政策" },
   effectiveDate: EFFECTIVE_DATE,
   intro: {
-    en: "This Privacy Policy explains what data Lumo collects, how it is used, who processes it, and the control you have over it. Lumo is a personal-productivity app for tasks, focus, and habits. We aim to collect as little as possible and never sell your data.",
-    zh: "本隐私政策说明 Lumo 收集哪些数据、如何使用、由谁处理，以及你对数据拥有的控制权。Lumo 是一款用于任务、专注与习惯的个人效率应用。我们力求尽可能少地收集数据，且绝不出售你的数据。",
+    en: "This Privacy Policy explains what data Lumo collects, how it is used, who processes it, and the control you have over it. Lumo is a free, open-source personal-productivity app for tasks, focus, and habits, maintained by volunteers rather than a company. We aim to collect as little as possible and never sell your data.",
+    zh: "本隐私政策说明 Lumo 收集哪些数据、如何使用、由谁处理，以及你对数据拥有的控制权。Lumo 是一款免费、开源、用于任务、专注与习惯的个人效率应用，由志愿者个人维护，并非公司运营。我们力求尽可能少地收集数据，且绝不出售你的数据。",
   },
   sections: [
     {
