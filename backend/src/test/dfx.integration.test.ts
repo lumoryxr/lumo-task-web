@@ -807,20 +807,20 @@ describe("DFX · Security — cross-tenant id-collision guard on /v1/countdowns/
       token: attacker.token,
     });
     assert.equal(aStatus, 200);
-    assert.ok(Array.isArray(attackerList), "countdowns list must be an array");
+    assert.ok(Array.isArray(attackerList.items), "countdowns list must be a keyset page { items, nextCursor }");
     assert.ok(
-      attackerList.some((e: any) => e.id === ownId),
+      attackerList.items.some((e: any) => e.id === ownId),
       "attacker's own migrated countdown must be imported",
     );
     // Load-bearing teeth #1: OR REPLACE would rewrite the row's user_id → attacker gains it.
     assert.ok(
-      !attackerList.some((e: any) => e.id === foreignId),
+      !attackerList.items.some((e: any) => e.id === foreignId),
       "attacker must NOT acquire the victim's countdown by colliding id (OR REPLACE would leak it)",
     );
 
     // Victim's list: the row must survive UNMUTATED (same title, not the attacker's "STOLEN").
     const { body: victimList } = await api("GET", "/v1/countdowns", { token: victim.token });
-    const survivor = victimList.find((e: any) => e.id === foreignId);
+    const survivor = victimList.items.find((e: any) => e.id === foreignId);
     // Load-bearing teeth #2: OR REPLACE moves the row to the attacker → it vanishes here.
     assert.ok(survivor, "victim's countdown must survive the colliding import");
     assert.equal(survivor.title, "Victim Countdown", "victim's countdown content must be unmutated");
@@ -2348,7 +2348,7 @@ describe("DFX · Robustness — countdown `date` anchor is format-bounded (#240)
     // in the owner's list so display + recurrence can read it back later.
     const list = await api("GET", "/v1/countdowns", { token: alice.token });
     assert.equal(list.status, 200);
-    const found = (list.body as Array<{ id: string; date: string }>).find((e) => e.id === created.id);
+    const found = (list.body.items as Array<{ id: string; date: string }>).find((e) => e.id === created.id);
     assert.ok(found, "the created countdown must appear in the owner's list");
     assert.equal(found!.date, date, "a subsequent read must reflect the persisted date");
   });
@@ -2366,7 +2366,7 @@ describe("DFX · Robustness — countdown `date` anchor is format-bounded (#240)
 
     // No partial poison: the rejected PATCH must not have overwritten the column.
     const list = await api("GET", "/v1/countdowns", { token: alice.token });
-    const found = (list.body as Array<{ id: string; date: string }>).find((e) => e.id === created.id);
+    const found = (list.body.items as Array<{ id: string; date: string }>).find((e) => e.id === created.id);
     assert.equal(found?.date, good, "a rejected update must leave the stored date unchanged");
   });
 });
@@ -3219,10 +3219,11 @@ describe("DFX · Scalability — completed full-history pagination is bounded & 
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Scalability gap: the two blocks above only exercise /v1/tasks (over-max → 400)
-// and /v1/completed (over-max → clamped). But `people` (DEFAULT 200 / MAX 500) and
-// `projects` (DEFAULT 100 / MAX 500) are ALSO keyset-paginated { items, nextCursor }
-// via the shared cursor lib, and — like completed, unlike tasks — they CLAMP an
-// over-max `limit` (Math.min) rather than rejecting it. Both had zero daily-suite
+// and /v1/completed (over-max → clamped). But `people` (DEFAULT 200 / MAX 500),
+// `projects` (DEFAULT 100 / MAX 500) and `countdowns` (DEFAULT 200 / MAX 500, #439)
+// are ALSO keyset-paginated { items, nextCursor } via the shared cursor lib, and —
+// like completed, unlike tasks — they CLAMP an over-max `limit` (Math.min) rather
+// than rejecting it. Each had zero daily-suite
 // scalability presence, so a regression that flipped their over-max contract to a
 // tasks-style 400, or broke their cursor/envelope, would slip past the tasks-only
 // + completed-only cases. These lock in the { items, nextCursor } envelope, the
@@ -3251,6 +3252,13 @@ const PAGINATED_LIST_RESOURCES: Array<{
     path: "/v1/projects",
     defaultLimit: 100,
     create: (i) => ({ name: `Project ${String(i).padStart(3, "0")}`, color: "cyan" }),
+  },
+  {
+    // #439 — countdowns joined the keyset family (DEFAULT 200 / MAX 500, clamps).
+    name: "countdowns",
+    path: "/v1/countdowns",
+    defaultLimit: 200,
+    create: (i) => ({ title: `Countdown ${String(i).padStart(3, "0")}`, date: "2026-12-01", color: "green", repeat: "none" }),
   },
 ];
 

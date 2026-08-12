@@ -55,8 +55,9 @@ describe("useCountdownStore", () => {
 
   it("load fetches events from server and sets state", async () => {
     const serverEvents = [makeEvent()];
-    // Migration already done — only GET /countdowns is called
-    mockFetch(200, serverEvents);
+    // Migration already done — only GET /countdowns is called. GET is the keyset
+    // envelope { items, nextCursor } (#439).
+    mockFetch(200, { items: serverEvents, nextCursor: null });
     localStorage.setItem("lumo.countdowns.migrated.v1." + UID, "1");
 
     await useCountdownStore.getState().load(UID);
@@ -71,7 +72,7 @@ describe("useCountdownStore", () => {
 
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true, migrated: 1 }) } as Response)
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [oldEvent] } as Response);
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [oldEvent], nextCursor: null }) } as Response);
     vi.stubGlobal("fetch", fetchMock);
 
     await useCountdownStore.getState().load(UID);
@@ -87,7 +88,7 @@ describe("useCountdownStore", () => {
 
     const fetchMock = vi.fn()
       .mockRejectedValueOnce(new Error("network error"))
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as Response);
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [], nextCursor: null }) } as Response);
     vi.stubGlobal("fetch", fetchMock);
 
     await useCountdownStore.getState().load(UID);
@@ -103,8 +104,8 @@ describe("useCountdownStore", () => {
     const fetchMock = vi.fn()
       // POST /countdowns/migrate rejects (e.g. permanent 4xx)
       .mockRejectedValueOnce(new Error("400 bad request"))
-      // GET /countdowns — server has nothing yet
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as Response);
+      // GET /countdowns — server has nothing yet (keyset envelope, #439)
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [], nextCursor: null }) } as Response);
     vi.stubGlobal("fetch", fetchMock);
 
     await useCountdownStore.getState().load(UID);
@@ -115,7 +116,7 @@ describe("useCountdownStore", () => {
 
   it("load skips the migrate request entirely when there is no local data", async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as Response);
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [], nextCursor: null }) } as Response);
     vi.stubGlobal("fetch", fetchMock);
 
     await useCountdownStore.getState().load(UID);

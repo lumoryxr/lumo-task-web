@@ -5,6 +5,7 @@
  */
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
+import { CountdownListResponseSchema } from "@lumo/contracts";
 import { req, setupDb, signInDemo, newUserWithToken } from "../helpers/index.js";
 
 let demoToken = "";
@@ -67,8 +68,9 @@ describe("Countdowns", () => {
     assert.equal(status, 201);
     assert.equal(body.calendar, "lunar");
     const list = await req("GET", "/v1/countdowns", { token: demoToken });
-    const found = (list.body as any[]).find((e) => e.id === body.id);
-    assert.equal(found.calendar, "lunar");
+    const parsed = CountdownListResponseSchema.parse(list.body); // contract conformance
+    const found = parsed.items.find((e) => e.id === body.id);
+    assert.equal(found?.calendar, "lunar");
   });
 
   test("400 → POST rejects an invalid calendar value", async () => {
@@ -116,7 +118,7 @@ describe("Countdowns", () => {
     const { status } = await req("DELETE", `/v1/countdowns/${eventId}`, { token: demoToken });
     assert.equal(status, 204);
     const { body } = await req("GET", "/v1/countdowns", { token: demoToken });
-    assert.equal((body as any[]).some((e) => e.id === eventId), false);
+    assert.equal(CountdownListResponseSchema.parse(body).items.some((e) => e.id === eventId), false);
   });
 
   test("404 → DELETE on an already-removed event", async () => {
@@ -141,7 +143,7 @@ describe("Countdowns", () => {
     assert.equal((await req("POST", "/v1/countdowns/migrate", { token: demoToken, body: payload })).status, 200);
 
     const { body } = await req("GET", "/v1/countdowns", { token: demoToken });
-    assert.equal((body as any[]).filter((e) => e.id === "cd_migrate_1").length, 1);
+    assert.equal(CountdownListResponseSchema.parse(body).items.filter((e) => e.id === "cd_migrate_1").length, 1);
   });
 
   test("400 → POST /migrate rejects an over-cap events array (bounded bulk import)", async () => {
@@ -173,7 +175,7 @@ describe("Countdowns — cross-user isolation", () => {
     });
 
     const { body: bEvents } = await req("GET", "/v1/countdowns", { token: otherToken });
-    assert.equal((bEvents as any[]).some((e) => e.id === event.id), false);
+    assert.equal(CountdownListResponseSchema.parse(bEvents).items.some((e) => e.id === event.id), false);
 
     assert.equal(
       (await req("PATCH", `/v1/countdowns/${event.id}`, { token: otherToken, body: { title: "hijacked" } })).status,
@@ -182,7 +184,68 @@ describe("Countdowns — cross-user isolation", () => {
     assert.equal((await req("DELETE", `/v1/countdowns/${event.id}`, { token: otherToken })).status, 404);
 
     const { body: aEvents } = await req("GET", "/v1/countdowns", { token: demoToken });
-    assert.equal((aEvents as any[]).some((e) => e.id === event.id), true);
+    assert.equal(CountdownListResponseSchema.parse(aEvents).items.some((e) => e.id === event.id), true);
     await req("DELETE", `/v1/countdowns/${event.id}`, { token: demoToken });
+  });
+});
+
+describe("GET /v1/countdowns — keyset pagination (#439)", () => {
+  test("200 → returns a keyset page { items, nextCursor }", async () => {
+    const { status, body } = await req("GET", "/v1/countdowns", { token: demoToken });
+    assert.equal(status, 200);
+    const parsed = CountdownListResponseSchema.parse(body); // contract conformance
+    assert.ok(Array.isArray(parsed.items));
+  });
+
+  test("400 → malformed cursor is rejected with INVALID_CURSOR", async () => {
+    const { status, body } = await req(
+      "GET",
+      "/v1/countdowns?cursor=not-a-valid-cursor%00%00",
+      { token: demoToken },
+    );
+    assert.equal(status, 400);
+    assert.equal((body as any).error?.code, "INVALID_CURSOR");
+  });
+
+  test("pages through with limit + cursor, in stable created_at ASC order, no dupes/gaps", async () => {
+    // Fresh isolated user so the count is deterministic.
+    const { token } = await newUserWithToken("cd-page");
+    const created: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const { body } = await req("POST", "/v1/countdowns", {
+        token,
+        body: { title: `Event ${i}`, date: "2026-12-01", color: "green", repeat: "none" },
+      });
+      created.push(body.id);
+    }
+
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const path: string = cursor
+        ? `/v1/countdowns?limit=2&cursor=${encodeURIComponent(cursor)}`
+        : "/v1/countdowns?limit=2";
+      const { status, body } = await req("GET", path, { token });
+      assert.equal(status, 200);
+      const parsed = CountdownListResponseSchema.parse(body);
+      assert.ok(parsed.items.length <= 2, "page must respect the limit");
+      for (const e of parsed.items) seen.push(e.id);
+      cursor = parsed.nextCursor;
+      pages += 1;
+      assert.ok(pages <= 10, "must terminate");
+    } while (cursor);
+
+    assert.equal(seen.length, 5, "every countdown appears exactly once across pages");
+    assert.equal(new Set(seen).size, 5, "no duplicates across pages");
+    // created_at ASC == creation order for these sequential inserts.
+    assert.deepEqual(seen, created, "stable creation order across pages");
+  });
+
+  test("over-max limit is clamped to ≤ 500 (does not 400)", async () => {
+    const { status, body } = await req("GET", "/v1/countdowns?limit=99999", { token: demoToken });
+    assert.equal(status, 200);
+    const parsed = CountdownListResponseSchema.parse(body);
+    assert.ok(parsed.items.length <= 500, "over-max limit must be clamped, not rejected");
   });
 });
