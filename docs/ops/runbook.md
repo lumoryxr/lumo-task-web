@@ -76,9 +76,15 @@ Notes:
 
 ## Incident communication / status page
 
-- **Status page:** a lightweight page (BetterStack / Instatus / a static page)
-  fed by the `/health` + `/ready` probes gives users one canonical "is it down?"
-  answer. Stand it up before charging (support obligation, #473).
+- **Status page:** a built-in, dependency-free page is served at
+  **`<api-origin>/status`** (e.g. `https://api.lumo.app/status`). It polls
+  `/health` (liveness) + `/ready` (DB readiness) from the same origin and shows a
+  plain "is it up?" answer — no external account (BetterStack / Instatus)
+  required. Link users here for one canonical status. Caveat: it is served *by*
+  the backend, so it reports a **degraded DB while the process is up**, but a full
+  process outage takes the page down with it — external down-detection is the
+  uptime-monitor item tracked in #471. Add a hosted monitor there when you want
+  independent outage alerting.
 - **Comms template (fill in):**
   > **[Investigating] <service> degraded** — <time UTC>. We're seeing <symptom>.
   > Impact: <who / what>. Next update in <N> min.

@@ -23,6 +23,7 @@ import { queryOne } from "./db/client.js";
 import { log, resolveRequestId } from "./lib/logger.js";
 import { bodySizeLimit } from "./lib/bodyLimit.js";
 import { metricsMiddleware, registerMetricsRoute } from "./lib/metrics.js";
+import { STATUS_PAGE_HTML } from "./lib/statusPage.js";
 
 const allowedOrigins = (process.env.LUMO_ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -134,6 +135,13 @@ app.get("/ready", async (c) => {
     return c.json({ ok: false, db: "down" }, 503);
   }
 });
+
+// Public status page (#473): a lightweight, dependency-free HTML page that polls
+// /health + /ready from the same origin and renders a plain "is it up?" answer —
+// the honest MVP status page from docs/ops/runbook.md, no external account needed.
+// Unauthenticated like /health; served BY the backend, so it reports a degraded
+// DB while the process is up (full outage detection = the uptime monitor, #471).
+app.get("/status", (c) => c.html(STATUS_PAGE_HTML));
 
 app.onError((err, c) => {
   // Hono raises HTTPException for client-side faults detected before/within a
