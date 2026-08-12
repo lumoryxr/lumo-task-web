@@ -11,6 +11,8 @@
 >
 > 占位信息：生效日期 `{{EFFECTIVE_DATE}}`、主体 `{{COMPANY_ENTITY}}`、联系邮箱
 > `{{CONTACT_EMAIL}}`、适用法律/管辖 `{{GOVERNING_LAW}}` — 上线前替换。
+>
+> 子处理方清单 / DPA 起点见 [`subprocessors.md`](./subprocessors.md)(#472)。
 
 ---
 
