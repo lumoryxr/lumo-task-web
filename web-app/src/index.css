@@ -32,6 +32,17 @@
   --accent-fog: rgba(61, 255, 160, 0.1);
   --accent-edge: rgba(61, 255, 160, 0.5);
 
+  /* Aurora — decorative multi-hue glow, borrowed from the marketing landing.
+     These are fixed hues (NOT theme-swapped); the teal end of every aurora
+     gradient uses --accent-primary so it still follows the runtime accent,
+     while violet + pink stay constant for the signature "aurora" wash. Purely
+     decorative — never used for text or affordance color. */
+  --aurora-violet: #8b7bff;
+  --aurora-pink: #f472b6;
+  --aurora-violet-glow: rgba(139, 123, 255, 0.30);
+  --aurora-pink-glow: rgba(244, 114, 182, 0.22);
+  --aurora-grid: rgba(255, 255, 255, 0.022);
+
   /* Keyboard focus ring */
   --focus-ring: 2px solid var(--accent-primary);
 
@@ -100,6 +111,120 @@ html, body, #root { margin: 0; padding: 0; height: 100%; }
     radial-gradient(820px 620px at -12% 114%, var(--accent-fog), transparent 60%);
 }
 
+/* ── Living aurora backdrop ───────────────────────────────────────────────
+   Ports the marketing landing's signature moving aurora into the app. A single
+   decorative, aria-hidden layer (rendered once behind the shell) holding three
+   soft blurred blobs — accent-teal, violet, pink — that drift on long, offset
+   loops, plus a faint masked grid for structure. It sits at z-index:-1 like the
+   ambient glow, so all in-flow content paints above it. Motion is slow and
+   large-scale (never near text), and the global reduced-motion reset below
+   freezes the drift to a static frame for vestibular safety. */
+.app-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.app-aurora__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.app-aurora__blob--teal {
+  width: 46vw; height: 46vw; max-width: 620px; max-height: 620px;
+  top: -14%; left: -8%;
+  background: var(--accent-glow);
+  animation: auroraDrift1 26s ease-in-out infinite;
+}
+.app-aurora__blob--violet {
+  width: 40vw; height: 40vw; max-width: 540px; max-height: 540px;
+  top: -10%; right: -10%;
+  background: var(--aurora-violet-glow);
+  animation: auroraDrift2 32s ease-in-out infinite;
+}
+.app-aurora__blob--pink {
+  width: 34vw; height: 34vw; max-width: 460px; max-height: 460px;
+  bottom: -18%; left: 34%;
+  background: var(--aurora-pink-glow);
+  opacity: 0.32;
+  animation: auroraDrift1 38s ease-in-out infinite reverse;
+}
+.app-aurora__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--aurora-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--aurora-grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 78% 58% at 50% 0%, #000 38%, transparent 82%);
+  -webkit-mask-image: radial-gradient(ellipse 78% 58% at 50% 0%, #000 38%, transparent 82%);
+}
+@keyframes auroraDrift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(4%, 3%) scale(1.12); }
+}
+@keyframes auroraDrift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-4%, 2%) scale(1.08); }
+}
+
+/* ── Gradient text — the landing's teal→violet→pink headline treatment ─────
+   The teal stop uses the runtime accent so themed accents still lead the
+   gradient; violet + pink are the fixed aurora hues. Apply to a wrapping
+   <span> around the words that should shimmer. */
+.gradient-text {
+  background: linear-gradient(
+    120deg,
+    var(--accent-primary) 0%,
+    var(--aurora-violet) 55%,
+    var(--aurora-pink) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* ── Eyebrow pill — small accent-tinted label above a heading ──────────────
+   The landing's "eyebrow": a rounded, accent-fogged capsule with a pulsing dot.
+   Used for date/section labels so headers get the same premium framing. */
+.eyebrow-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 11px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent-primary);
+  background: var(--accent-fog);
+  border: 1px solid var(--accent-edge);
+}
+.eyebrow-pill__dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: var(--accent-primary);
+  box-shadow: 0 0 8px var(--accent-primary);
+  animation: eyebrowPulse 2.4s ease-in-out infinite;
+}
+@keyframes eyebrowPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.82); }
+}
+
+/* ── Reveal-on-mount — staggered entrance for page headers/sections ────────
+   A gentle rise+fade the landing uses on scroll; in-app we run it once on
+   mount (content is already in view). data-reveal-delay steps the stagger.
+   Fully collapsed by the reduced-motion reset. */
+.reveal-up {
+  animation: revealUp 0.6s var(--ease-spring, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+.reveal-up[data-reveal-delay="1"] { animation-delay: 0.06s; }
+.reveal-up[data-reveal-delay="2"] { animation-delay: 0.13s; }
+.reveal-up[data-reveal-delay="3"] { animation-delay: 0.2s; }
+@keyframes revealUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── Surface card — the app's shared "raised panel" language ──────────────
    The task-row/matrix refresh gave interactive rows depth (soft border +
    shadow-card, lift on hover). Static info panels (Stats tiles, quadrant
@@ -126,6 +251,31 @@ html, body, #root { margin: 0; padding: 0; height: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .surface-card--interactive:hover { transform: none; }
+}
+
+/* Empty-state icon medallion — an accent-fogged disc with a breathing halo and
+   a soft outer glow, so "nothing here yet" reads as an inviting moment rather
+   than dead space. Colors are all accent tokens (re-theme with the accent). */
+.empty-halo {
+  position: relative;
+  background:
+    radial-gradient(circle at 50% 38%, var(--accent-fog), transparent 72%),
+    var(--bg-surface);
+  border: 1px solid var(--accent-edge);
+  box-shadow: 0 0 26px -6px var(--accent-glow);
+}
+.empty-halo::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid var(--accent-edge);
+  opacity: 0.6;
+  animation: emptyHaloPulse 3.2s ease-in-out infinite;
+}
+@keyframes emptyHaloPulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50%      { transform: scale(1.08); opacity: 0; }
 }
 
 /* Today page — compact planning strip. Three low-frequency actions (plan day /
@@ -271,8 +421,25 @@ body {
   transition: all 120ms var(--ease-default);
 }
 .btn:disabled { opacity: 0.5; }
-.btn-primary { background: var(--accent-primary); color: var(--text-inverse); font-weight: 600; }
-.btn-primary:hover { filter: brightness(1.08); }
+/* Primary CTA — landing-style: an accent gradient with a soft accent glow and
+   a subtle lift on hover. The gradient runs from the runtime accent into its
+   dim variant, so it re-themes with the accent swap. Glow + inset highlight
+   give it the same "premium button" depth as the marketing page. */
+.btn-primary {
+  color: var(--text-inverse);
+  font-weight: 600;
+  background: linear-gradient(120deg, var(--accent-primary), var(--accent-dim));
+  box-shadow: 0 6px 20px -8px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.btn-primary:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px -8px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.btn-primary:active { transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary:hover { transform: none; }
+}
 .btn-secondary {
   background: var(--bg-elevated); color: var(--text-primary);
   border-color: var(--border-default);
@@ -324,6 +491,7 @@ body {
 .nav-item.active::before {
   content: ""; position: absolute; left: -10px; top: 8px; bottom: 8px;
   width: 2px; background: var(--accent-primary); border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 10px var(--accent-primary);
 }
 .nav-item .badge {
   margin-left: auto; font-size: 11px; font-weight: 500;

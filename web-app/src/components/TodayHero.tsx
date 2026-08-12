@@ -53,15 +53,16 @@ export function TodayHero({ name, done, total }: TodayHeroProps) {
       : t("today.hero.empty");
 
   return (
-    <div className="flex items-start justify-between gap-4 mb-6">
+    <div className="reveal-up flex items-start justify-between gap-4 mb-6">
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint mb-1.5">
+        <span className="eyebrow-pill mb-2.5">
+          <span className="eyebrow-pill__dot" aria-hidden="true" />
           {dateStr}
-        </div>
+        </span>
         <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-text-primary leading-tight truncate">
           {greeting}
           {sep}
-          {name}
+          {name && <span className="gradient-text">{name}</span>}
         </h1>
         <div className="text-sm text-text-secondary mt-1.5">{subline}</div>
       </div>
