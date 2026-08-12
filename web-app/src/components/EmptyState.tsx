@@ -41,13 +41,11 @@ export function EmptyState({
     >
       <div
         aria-hidden="true"
-        className="flex items-center justify-center"
+        className="empty-halo flex items-center justify-center"
         style={{
           width: page ? 64 : 48,
           height: page ? 64 : 48,
           borderRadius: "50%",
-          background: "var(--accent-fog)",
-          border: "1px solid var(--accent-edge)",
           color: "var(--accent-primary)",
         }}
       >

@@ -108,6 +108,38 @@ function AuthHero() {
         }}
       />
 
+      {/* Drifting aurora blobs — the landing's signature moving glow, scoped to
+          the auth hero. Decorative + aria-hidden; frozen under reduced-motion. */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <span
+          style={{
+            position: "absolute",
+            top: "-12%",
+            left: "-16%",
+            width: 320,
+            height: 320,
+            borderRadius: "50%",
+            filter: "blur(72px)",
+            background: "var(--aurora-violet-glow)",
+            animation: "auroraDrift2 30s ease-in-out infinite",
+          }}
+        />
+        <span
+          style={{
+            position: "absolute",
+            bottom: "-16%",
+            right: "-14%",
+            width: 300,
+            height: 300,
+            borderRadius: "50%",
+            filter: "blur(72px)",
+            background: "var(--aurora-pink-glow)",
+            opacity: 0.7,
+            animation: "auroraDrift1 36s ease-in-out infinite reverse",
+          }}
+        />
+      </div>
+
       {/* Centered visual */}
       <div className="relative flex-1 flex items-center justify-center">
         {/* Glow halo */}

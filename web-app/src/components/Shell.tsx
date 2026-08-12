@@ -72,6 +72,15 @@ export function Shell() {
   return (
     <div className={`density-${density}`}>
       <div className="fixed inset-0 flex bg-base app-stage">
+        {/* Decorative living-aurora backdrop (ported from the marketing landing).
+            Purely ambient, aria-hidden, painted behind all content; its drift is
+            frozen under reduced-motion. */}
+        <div className="app-aurora" aria-hidden="true">
+          <span className="app-aurora__blob app-aurora__blob--teal" />
+          <span className="app-aurora__blob app-aurora__blob--violet" />
+          <span className="app-aurora__blob app-aurora__blob--pink" />
+          <div className="app-aurora__grid" />
+        </div>
         <div className="lumo-pulse" />
         {!isMobile && <Sidebar />}
         <main className="relative flex flex-1 flex-col min-w-0 min-h-0">
