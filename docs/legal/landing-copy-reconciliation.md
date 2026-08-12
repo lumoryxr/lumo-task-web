@@ -1,7 +1,12 @@
 # 落地页话术对账 / Landing-copy Reconciliation
 
 > **状态：C1–C5 已按"实事求是"原则实施**（Jalen 拍板 2026-08-10：落地话术要实事求是）。
-> 追踪 issue：#472（法务与合规）。SSOT：`docs/COMMERCIALIZATION_READINESS.md` §5。
+>
+> **定位更新（2026-08-12）：Lumo 是免费开源个人项目 —— 不收费、不接产品分析、无公司主体。**
+> 因此原先"接入 Plausible/PostHog 分析"(#475) 与"Stripe 支付"(#470) **均已取消**;下文凡涉及
+> "未来接分析/支付"的前瞻项作废,"无第三方广告追踪 / 不收集分析"的话术现在是**长期成立的事实**,
+> 无需为分析预留改口空间。
+> 原追踪 issue：#472（已改为"开源个人项目声明",见 `legal-drafts.md` / `subprocessors.md`）。
 > 变更最初落到 `landing/index.html`（EN/ZH 双语）;**该页现已删除,`website/` Astro 站为唯一营销站,
 > 同口径已搬迁（见 §4）。** 下文的 `landing/index.html:行号` 仅作历史记录。**残留待拍板项见 §4。**
 >
@@ -71,9 +76,9 @@
 ---
 
 ## 3. 与其它工作项的联动
-- **隐私政策对齐**（#472）：页面话术改定后,须与 `docs/legal/legal-drafts.md` / 线上隐私政策**同口径**（子处理方 Stripe/Resend/GitHub/AI、数据留存、Cookie/存储告知）。
-- **分析接入**（#475 / §7）：接 Plausible/PostHog **之前**必须先落 C1 的收敛,否则上线即打脸。
-- **website/ Astro 站**：本次只审计了 `landing/index.html`;若保留/合并到 `website/`（§7 营销站合并）,需同样对账。
+- **隐私政策对齐**（#472）：页面话术须与线上隐私政策(`web-app/src/pages/legal/content.ts`)**同口径**（子处理方:托管/Turso/Resend/GitHub/自带 AI —— **无 Stripe/支付**、**无分析**;数据留存、Cookie/存储告知）。已对齐。
+- ~~**分析接入**（#475）~~：**已取消** —— 免费开源项目不接产品分析,C1"无第三方广告追踪 / 不收集分析"永久成立。
+- **website/ Astro 站**：`landing/index.html` 已删除,`website/` 为唯一营销站并已按同口径对账（见 §4）。
 
 ---
 
@@ -86,11 +91,11 @@
 - [x] **C4** 「无需注册账号」→ **「桌面版无需注册」**。
 - [x] **C5** meta description 去掉把 local-first-privacy 套到 Web 的表述,改为"local-first 桌面 + 可选托管 Web"。
 
-**残留待拍板（运营方）：**
-- [ ] **隐私友好分析**（§7 / #475）：接 Plausible/PostHog 前,确认属**第一方、可关闭**;当前 C1 措辞"无第三方广告追踪"已为此预留空间,无需再改落地页,但**隐私政策须同步写明分析用途**。
+**残留项（已随"免费开源"定位收口）：**
+- [x] **隐私友好分析**（原 §7 / #475）：**不做**（#475 已关闭)。产品不接任何第一方/第三方分析,"无第三方广告追踪 / 不收集分析"是长期事实,无需再为分析预留改口空间。
 - [x] **营销站归一**（§7）：已定以 Astro `website/` 为唯一营销站,`landing/index.html` 及
   `deploy-landing.yml` 已删除。`website/` 已按同样"实事求是"口径对账:`FAQ.astro` 的
   "end-to-end / 私密"表述曾暗示端到端加密,已改为"通过账号在设备间同步、数据存我方服务器、
   仅用于运行账号、无第三方广告追踪、开源可审计"——与 C1 收敛口径一致。离线口径保留("PWA 离线外壳"
   属实,见 `web-app/public/sw.js` 预缓存应用外壳)。
-- [ ] **隐私政策对齐**（#472）：线上隐私政策 / `docs/legal/legal-drafts.md` 与本次落地话术**同口径**(子处理方、数据留存、Cookie/存储告知)。
+- [x] **隐私政策对齐**（#472）：线上隐私政策(`web-app/src/pages/legal/content.ts`)与本次落地话术**已同口径** —— 子处理方(`subprocessors.md`:托管/Turso/Resend/GitHub/自带 AI,无支付、无分析)、数据留存、Cookie/本地存储告知一致;`legal-drafts.md` 已改为"开源个人项目"概述。
