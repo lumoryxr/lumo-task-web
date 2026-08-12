@@ -47,13 +47,18 @@ to `/opt/lumo`, and scaffolds `.env`.
 **You normally don't run it by hand.** The GitHub Actions deploy detects an
 uninitialized box (no `/opt/lumo/.git`) and runs `bootstrap.sh` for you on the
 first deploy — there's only one place that knows how to set a box up, and the
-workflow calls it rather than duplicating the logic. The one thing it can't do is
-invent your secrets, so a deploy stops with a clear error until `.env` has a real
-`LUMO_JWT_SECRET`.
+workflow calls it rather than duplicating the logic.
 
-Run it by hand only if you want to provision ahead of time — e.g. to install
-Docker before the first deploy so a non-root SSH user picks up the `docker` group
-(a freshly added group only applies on the next login, so otherwise the very
+**Config is GitHub-managed — you don't fill in `.env` on the box.** The deploy
+renders `/opt/lumo/deploy/vps/.env` from your GitHub Secrets/Variables on every
+run (see [§3.1](#31-one-time-setup--github-managed-config)); `bootstrap.sh` only
+scaffolds a placeholder that the deploy overwrites. The one thing the deploy can't
+invent is your crypto keys, so it stops with a clear error until `LUMO_JWT_SECRET`
+and `LUMO_ENCRYPTION_KEY` are set **in GitHub** (not on the box).
+
+Run `bootstrap.sh` by hand only if you want to provision ahead of time — e.g. to
+install Docker before the first deploy so a non-root SSH user picks up the `docker`
+group (a freshly added group only applies on the next login, so otherwise the very
 first auto-init deploy may need one re-run):
 
 ```bash
@@ -61,16 +66,13 @@ curl -fsSL https://raw.githubusercontent.com/lumoryxr/lumo-task-web/main/deploy/
 # or from a checkout:  bash deploy/vps/bootstrap.sh
 ```
 
-Either way, fill in the secrets (this is the only required manual step):
+Migrations run automatically on first boot — no manual step.
 
-```bash
-$EDITOR /opt/lumo/deploy/vps/.env
-```
-
-Minimum to boot: `LUMO_DOMAIN`, `LUMO_APP_BASE_URL`, `LUMO_JWT_SECRET`,
-`LUMO_ENCRYPTION_KEY`, and `LUMO_DATA_DIR` (the host path of your mounted disk —
-must match the box). The rest degrade cleanly when unset (see the comments in
-`.env.example`). Migrations run automatically on first boot — no manual step.
+> **Deploying without GitHub Actions?** If you run `docker compose` on the box by
+> hand instead, then `.env` is yours to fill (`$EDITOR /opt/lumo/deploy/vps/.env`)
+> — minimum to boot: `LUMO_DOMAIN`, `LUMO_APP_BASE_URL`, `LUMO_JWT_SECRET`,
+> `LUMO_ENCRYPTION_KEY`, `LUMO_DATA_DIR`. Don't mix the two: a subsequent Actions
+> deploy will overwrite the file from GitHub.
 
 > **Why the `chown`?** The container runs as the unprivileged `node` user
 > (uid 1000). A freshly mounted disk is root-owned, so without
@@ -131,7 +133,16 @@ or commit SHA to deploy that instead.
 > which cuts a GitHub Release — they intentionally do **not** deploy the VPS, so a
 > release and a production deploy stay independent.
 
-One-time setup — repo → **Settings → Secrets and variables → Actions**:
+### 3.1 One-time setup — GitHub-managed config
+
+All runtime config lives in **GitHub → Settings → Secrets and variables →
+Actions**, and the deploy job **renders `/opt/lumo/deploy/vps/.env` on the box from
+it every run**. GitHub is the single source of truth — you do **not** hand-edit
+`.env` on the VPS anymore (it's regenerated on each deploy, so any manual change is
+overwritten). To change a value: edit the Secret/Variable, then re-run *Deploy to
+VPS*.
+
+**SSH access — add as _Secrets_:**
 
 | Secret | Value |
 |---|---|
@@ -139,10 +150,35 @@ One-time setup — repo → **Settings → Secrets and variables → Actions**:
 | `VPS_USER` | SSH user (must be in the `docker` group) |
 | `VPS_PASSWORD` | that SSH user's password (password auth — no key needed) |
 
-The image is pushed with the built-in `GITHUB_TOKEN` (no extra secret). Runtime
-secrets (`LUMO_JWT_SECRET`, …) live **only** in the VPS `.env` — never in CI. The
-deploy step refreshes `deploy/vps/` from `main` on the box (leaving the gitignored
-`.env` intact) and deploys the exact image built for that commit.
+**App config — sensitive values as _Secrets_, non-sensitive as _Variables_** (both
+tabs are on the same *Secrets and variables → Actions* page):
+
+| Where | Name | Required? | Value |
+|---|---|---|---|
+| Secret | `LUMO_JWT_SECRET` | **yes** | `openssl rand -hex 32` — signs sessions; rotating logs everyone out |
+| Secret | `LUMO_ENCRYPTION_KEY` | **yes** | `openssl rand -hex 32` — at-rest encryption; rotating makes stored AI keys/tokens unreadable |
+| Variable | `LUMO_DOMAIN` | **yes** | your domain, e.g. `app.example.com` |
+| Variable | `LUMO_APP_BASE_URL` | **yes** | public URL, e.g. `https://app.example.com` (reset/verify/OAuth links) |
+| Variable | `LUMO_DATA_DIR` | no | host path of the mounted data disk; defaults to `/mnt/lumo-data` |
+| Variable | `LUMO_ALLOWED_ORIGINS` / `LUMO_ADMIN_EMAILS` / `LUMO_LOG_LEVEL` | no | see [`.env.example`](../../deploy/vps/.env.example) |
+| Variable | `LUMO_EMAIL_PROVIDER` / `LUMO_EMAIL_FROM` · Secret `LUMO_RESEND_API_KEY` | no | transactional email (Resend) |
+| Secret | `LUMO_AI_KEY` · Variable `LUMO_AI_CLOUD_GLOBAL_CAP` | no | shared server-side AI key + monthly cap |
+| Variable | `LUMO_GITHUB_CLIENT_ID` / `LUMO_GITHUB_CALLBACK_URL` · Secret `LUMO_GITHUB_CLIENT_SECRET` | no | GitHub login |
+| Secret | `LUMO_METRICS_TOKEN` | no | bearer token for `/metrics` |
+| Variable `TURSO_DATABASE_URL` · Secret `TURSO_AUTH_TOKEN` | no | hosted Turso DB instead of the local disk — set **both or neither** |
+
+Unset optional values render as empty, and those features degrade cleanly (email
+falls back to a dev outbox, the GitHub-login button hides, `/metrics` is disabled,
+etc.). The two crypto **Secrets are required**: if either is missing the deploy
+refuses to boot rather than run with blank crypto. The image itself is pushed with
+the built-in `GITHUB_TOKEN` (no extra secret), and the deploy runs the exact image
+built for the chosen ref.
+
+> Secrets are encrypted at rest and masked in workflow logs; Variables are stored
+> and shown in plaintext (so keep genuinely sensitive values in Secrets). The
+> rendered `.env` on the box is written `chmod 600`. This is the intentional
+> tradeoff for central management: the crypto keys now also live in GitHub, not
+> only on the VPS.
 
 The deploy connects over SSH with **password auth** (`VPS_PASSWORD`) — no keypair to
 manage. Use a long, unique password and consider `fail2ban` + a non-default SSH port

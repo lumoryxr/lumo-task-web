@@ -18,14 +18,22 @@ name: Deploy to VPS
 # — release.yml — and must not double as a production deploy.)
 #
 # ── One-time setup ────────────────────────────────────────────────────────────
-# Repo → Settings → Secrets and variables → Actions → add:
+# Repo → Settings → Secrets and variables → Actions.
+# SSH access (Secrets):
 #   VPS_HOST       host or host:port of the box (e.g. 203.0.113.10 or
 #                  203.0.113.10:2222). Port is optional and defaults to 22.
 #   VPS_USER       ssh user (e.g. deploy)
 #   VPS_PASSWORD   that ssh user's password (password auth; no key needed)
-# Runtime secrets (LUMO_JWT_SECRET, …) live ONLY in the VPS's deploy/vps/.env —
-# never in CI. The VPS must have the repo checked out at /opt/lumo and be logged
-# in to ghcr.io (bootstrap.sh does both). See docs/ops/vps-deployment.md.
+# Runtime config is GitHub-managed: the deploy job RENDERS deploy/vps/.env on the
+# box from these values every run (single source of truth — you no longer edit
+# .env by hand on the VPS). Sensitive values go under Secrets, non-sensitive under
+# Variables; the full list and which-goes-where is in docs/ops/vps-deployment.md.
+#   Secrets (required):   LUMO_JWT_SECRET, LUMO_ENCRYPTION_KEY  (openssl rand -hex 32)
+#   Variables (required): LUMO_DOMAIN, LUMO_APP_BASE_URL   (LUMO_DATA_DIR defaults
+#                         to /mnt/lumo-data)
+#   Optional: email/AI/OAuth/Turso keys — see the env: block below and the docs.
+# The VPS must have the repo checked out at /opt/lumo and be logged in to ghcr.io
+# (bootstrap.sh does both).
 
 on:
   workflow_dispatch:
@@ -109,6 +117,32 @@ jobs:
     # build-and-push (the build check) but skips this job entirely.
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # GitHub-managed runtime config. These become the deploy/vps/.env rendered on
+    # the box (see the SSH step). Sensitive → Secrets, non-sensitive → Variables.
+    # An unset Secret/Variable resolves to "" here; the render step supplies
+    # defaults where it matters and refuses to boot if the crypto keys are empty.
+    env:
+      # Sensitive (repo Secrets)
+      LUMO_JWT_SECRET: ${{ secrets.LUMO_JWT_SECRET }}
+      LUMO_ENCRYPTION_KEY: ${{ secrets.LUMO_ENCRYPTION_KEY }}
+      LUMO_AI_KEY: ${{ secrets.LUMO_AI_KEY }}
+      LUMO_RESEND_API_KEY: ${{ secrets.LUMO_RESEND_API_KEY }}
+      LUMO_GITHUB_CLIENT_SECRET: ${{ secrets.LUMO_GITHUB_CLIENT_SECRET }}
+      LUMO_METRICS_TOKEN: ${{ secrets.LUMO_METRICS_TOKEN }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      # Non-sensitive (repo Variables)
+      LUMO_DOMAIN: ${{ vars.LUMO_DOMAIN }}
+      LUMO_APP_BASE_URL: ${{ vars.LUMO_APP_BASE_URL }}
+      LUMO_DATA_DIR: ${{ vars.LUMO_DATA_DIR }}
+      LUMO_ALLOWED_ORIGINS: ${{ vars.LUMO_ALLOWED_ORIGINS }}
+      LUMO_ADMIN_EMAILS: ${{ vars.LUMO_ADMIN_EMAILS }}
+      LUMO_LOG_LEVEL: ${{ vars.LUMO_LOG_LEVEL }}
+      LUMO_EMAIL_PROVIDER: ${{ vars.LUMO_EMAIL_PROVIDER }}
+      LUMO_EMAIL_FROM: ${{ vars.LUMO_EMAIL_FROM }}
+      LUMO_AI_CLOUD_GLOBAL_CAP: ${{ vars.LUMO_AI_CLOUD_GLOBAL_CAP }}
+      LUMO_GITHUB_CLIENT_ID: ${{ vars.LUMO_GITHUB_CLIENT_ID }}
+      LUMO_GITHUB_CALLBACK_URL: ${{ vars.LUMO_GITHUB_CALLBACK_URL }}
+      TURSO_DATABASE_URL: ${{ vars.TURSO_DATABASE_URL }}
     steps:
       # VPS_HOST may be "host" or "host:port" — split it so we can store one
       # combined secret instead of two. Port defaults to 22 when absent.
@@ -136,14 +170,18 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ steps.ssh.outputs.port }}
+          # Forward the GitHub-managed config (job env:) into the remote shell so
+          # the render step can write .env from it. Values travel over the
+          # encrypted SSH channel; secret values stay masked in the Actions log.
+          envs: LUMO_JWT_SECRET,LUMO_ENCRYPTION_KEY,LUMO_AI_KEY,LUMO_RESEND_API_KEY,LUMO_GITHUB_CLIENT_SECRET,LUMO_METRICS_TOKEN,TURSO_AUTH_TOKEN,LUMO_DOMAIN,LUMO_APP_BASE_URL,LUMO_DATA_DIR,LUMO_ALLOWED_ORIGINS,LUMO_ADMIN_EMAILS,LUMO_LOG_LEVEL,LUMO_EMAIL_PROVIDER,LUMO_EMAIL_FROM,LUMO_AI_CLOUD_GLOBAL_CAP,LUMO_GITHUB_CLIENT_ID,LUMO_GITHUB_CALLBACK_URL,TURSO_DATABASE_URL
           # Provisioning is delegated to bootstrap.sh — the SINGLE source of init
           # logic (Docker, the /opt/lumo checkout, the data dir, the .env seed).
           # If the box was never initialized the deploy just runs bootstrap first,
           # so there is only one place that knows how to set a box up — this
           # workflow never re-implements it.
           # Pins the exact image we built (by SHA); refreshes compose/Caddy from
-          # main (never touches the gitignored .env); runs from deploy/vps so that
-          # .env drives BOTH ${...} interpolation and the app's env_file.
+          # main and RENDERS .env from GitHub-managed config; runs from deploy/vps
+          # so that .env drives BOTH ${...} interpolation and the app's env_file.
           # Runs under the VPS user's login shell, which may be dash (/bin/sh) —
           # so keep this POSIX: `set -eu`, no bashism like `pipefail`.
           script: |
@@ -160,13 +198,39 @@ jobs:
             git fetch --depth 1 origin main
             git reset --hard origin/main
             cd deploy/vps
-            # The one thing bootstrap can't fill in: real secrets. It seeds .env
-            # from .env.example with an EMPTY LUMO_JWT_SECRET — refuse to deploy
-            # until a human fills it, rather than booting with blank crypto keys.
-            if [ ! -f .env ] || ! grep -Eq '^LUMO_JWT_SECRET=.+' .env; then
-              echo "::error::/opt/lumo/deploy/vps/.env is missing or LUMO_JWT_SECRET is empty. Fill it in (LUMO_JWT_SECRET, LUMO_ENCRYPTION_KEY, LUMO_DOMAIN, LUMO_DATA_DIR) — make secrets with 'openssl rand -hex 32' — then re-run. See docs/ops/vps-deployment.md."
+            # Render .env from the GitHub-managed config forwarded above. GitHub is
+            # the single source of truth: this FILE is regenerated every deploy, so
+            # manage values in repo Secrets/Variables, not by hand on the box. The
+            # crypto keys must be present or we refuse to boot with blank crypto.
+            if [ -z "${LUMO_JWT_SECRET:-}" ] || [ -z "${LUMO_ENCRYPTION_KEY:-}" ]; then
+              echo "::error::LUMO_JWT_SECRET / LUMO_ENCRYPTION_KEY are not set in GitHub. Add them under Settings → Secrets and variables → Actions → Secrets (generate each with 'openssl rand -hex 32'), then re-run. See docs/ops/vps-deployment.md."
               exit 1
             fi
+            umask 077
+            cat > .env <<EOF
+            # Generated by the Deploy to VPS workflow — DO NOT edit by hand.
+            # Manage these in GitHub → Settings → Secrets and variables → Actions.
+            NODE_ENV=production
+            LUMO_DOMAIN=${LUMO_DOMAIN:-}
+            LUMO_APP_BASE_URL=${LUMO_APP_BASE_URL:-}
+            LUMO_JWT_SECRET=${LUMO_JWT_SECRET}
+            LUMO_ENCRYPTION_KEY=${LUMO_ENCRYPTION_KEY}
+            LUMO_DATA_DIR=${LUMO_DATA_DIR:-/mnt/lumo-data}
+            LUMO_ALLOWED_ORIGINS=${LUMO_ALLOWED_ORIGINS:-}
+            LUMO_ADMIN_EMAILS=${LUMO_ADMIN_EMAILS:-}
+            LUMO_LOG_LEVEL=${LUMO_LOG_LEVEL:-info}
+            LUMO_EMAIL_PROVIDER=${LUMO_EMAIL_PROVIDER:-}
+            LUMO_EMAIL_FROM=${LUMO_EMAIL_FROM:-}
+            LUMO_RESEND_API_KEY=${LUMO_RESEND_API_KEY:-}
+            LUMO_AI_KEY=${LUMO_AI_KEY:-}
+            LUMO_AI_CLOUD_GLOBAL_CAP=${LUMO_AI_CLOUD_GLOBAL_CAP:-}
+            LUMO_GITHUB_CLIENT_ID=${LUMO_GITHUB_CLIENT_ID:-}
+            LUMO_GITHUB_CLIENT_SECRET=${LUMO_GITHUB_CLIENT_SECRET:-}
+            LUMO_GITHUB_CALLBACK_URL=${LUMO_GITHUB_CALLBACK_URL:-}
+            LUMO_METRICS_TOKEN=${LUMO_METRICS_TOKEN:-}
+            TURSO_DATABASE_URL=${TURSO_DATABASE_URL:-}
+            TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN:-}
+            EOF
             export LUMO_IMAGE='${{ needs.build-and-push.outputs.image_ref }}'
             docker compose -f docker-compose.prod.yml pull app
             docker compose -f docker-compose.prod.yml up -d
