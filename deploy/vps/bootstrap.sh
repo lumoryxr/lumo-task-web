@@ -61,8 +61,15 @@ prepare_data_dir() {
     warn "for real persistence mount your provider's block/cloud disk there first."
   fi
   $SUDO mkdir -p "$DATA_DIR/backups"
-  # The container's node user (1000) must own this to write /data/lumo.db.
-  $SUDO chown -R "${APP_UID}:${APP_GID}" "$DATA_DIR"
+  # The container's node user (1000) must own this to write /data/lumo.db. This is
+  # a best-effort fast path only — the container entrypoint also self-heals the
+  # ownership at startup, so DON'T let a chown failure (e.g. a network filesystem
+  # that refuses chown) abort the whole bootstrap under `set -e`.
+  if ! $SUDO chown -R "${APP_UID}:${APP_GID}" "$DATA_DIR" 2>/dev/null; then
+    warn "Could not chown $DATA_DIR to ${APP_UID}:${APP_GID} (network disk?)."
+    warn "The container will retry this itself on startup. If it still can't write,"
+    warn "set LUMO_UID/LUMO_GID in .env to the owner the disk enforces."
+  fi
 }
 
 # 3. Repo checkout ───────────────────────────────────────────────────────────────

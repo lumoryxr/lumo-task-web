@@ -74,11 +74,21 @@ Migrations run automatically on first boot — no manual step.
 > `LUMO_ENCRYPTION_KEY`, `LUMO_DATA_DIR`. Don't mix the two: a subsequent Actions
 > deploy will overwrite the file from GitHub.
 
-> **Why the `chown`?** The container runs as the unprivileged `node` user
-> (uid 1000). A freshly mounted disk is root-owned, so without
-> `chown -R 1000:1000 /mnt/lumo-data` the app can't create `lumo.db`. `bootstrap.sh`
-> does this for you; if you mount the disk *after* bootstrapping, re-run it (it's
-> idempotent) or run the `chown` yourself.
+> **Data-disk permissions (the `SQLITE_CANTOPEN` fix).** The app runs as the
+> unprivileged `node` user (uid 1000), and a freshly mounted cloud disk is
+> root-owned — so without fixing ownership the app can't create `lumo.db` and
+> libsql fails with `Unable to open connection to local database /data/lumo.db: 14`
+> (`SQLITE_CANTOPEN`). **You normally don't have to do anything:** the container's
+> entrypoint starts as root, makes the bind-mounted `/data` writable by the app
+> user, then drops privileges — so it self-heals even if the disk was mounted
+> *after* `bootstrap.sh` ran, or gets remounted later. `bootstrap.sh` also chowns
+> it as a fast path.
+>
+> If your disk is on a **network filesystem that refuses `chown`** (it enforces a
+> fixed owner), the entrypoint logs a warning and the error persists. Point the app
+> at the owner the disk grants instead: `stat -c '%u:%g' /mnt/lumo-data`, then set
+> `LUMO_UID` / `LUMO_GID` in `.env` to that uid/gid and restart
+> (`deploy/vps/lumo.sh restart`).
 
 ---
 
@@ -104,6 +114,29 @@ curl -fsS https://$LUMO_DOMAIN/health && echo ok
 **Build on the box instead of pulling?** Use `docker-compose.yml` (it has a
 `build:` section) with `docker compose up -d --build`. Slower on a small VPS;
 prefer the prebuilt image for routine deploys.
+
+### 2.1 Day-to-day maintenance — `lumo.sh`
+
+For routine ops there's a small wrapper, [`deploy/vps/lumo.sh`](../../deploy/vps/lumo.sh),
+so you don't type the long `docker compose -f docker-compose.prod.yml …` each time.
+Run it from anywhere (it cd's into `deploy/vps` itself):
+
+```bash
+/opt/lumo/deploy/vps/lumo.sh start        # up -d (start the stack)
+/opt/lumo/deploy/vps/lumo.sh stop         # stop containers (data + volumes kept)
+/opt/lumo/deploy/vps/lumo.sh restart      # restart app + proxy
+/opt/lumo/deploy/vps/lumo.sh status       # container status + health
+/opt/lumo/deploy/vps/lumo.sh logs app     # tail logs (omit 'app' for all services)
+/opt/lumo/deploy/vps/lumo.sh update       # pull the latest image + recreate
+/opt/lumo/deploy/vps/lumo.sh backup       # on-box SQLite backup now
+/opt/lumo/deploy/vps/lumo.sh fix-perms    # re-chown the data dir from the host
+/opt/lumo/deploy/vps/lumo.sh health       # curl /health inside the container
+/opt/lumo/deploy/vps/lumo.sh help         # full command list
+```
+
+Tip: `sudo ln -s /opt/lumo/deploy/vps/lumo.sh /usr/local/bin/lumo` to just type
+`lumo start`, `lumo logs app`, etc. It defaults to the prebuilt-image compose file;
+set `LUMO_COMPOSE_FILE=docker-compose.yml` to operate the build-on-box stack.
 
 ---
 
