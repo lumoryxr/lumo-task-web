@@ -2913,6 +2913,38 @@ describe("DFX · Robustness — `people` avatar fields are format/length-bounded
     const found = (list.body.items as Array<{ id: string; color: string }>).find((p) => p.id === created.id);
     assert.equal(found?.color, good, "a rejected update must leave the stored color unchanged");
   });
+
+  // #410 — the `:id` path param is bounded to [1,64] at the boundary, matching
+  // every sibling CRUD resource. An oversized id is a clean 400 (never a DB
+  // round-trip that resolves to 404), on BOTH write paths, and mutates nothing.
+  test("over-length `:id` (> 64 chars) on PATCH → 400 VALIDATION_ERROR (not a 404 DB miss), stored row unmutated", async () => {
+    const { body: created } = await createPerson(alice.token, { name: "Ivy", initials: "IV", color: "#123456" });
+    const oversized = "z".repeat(65);
+    const { status, body } = await api("PATCH", `/v1/people/${oversized}`, {
+      token: alice.token,
+      body: { name: "Renamed" },
+    });
+    assert.equal(status, 400, "an oversized :id must be rejected at the boundary, not resolve to a 404");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+
+    const list = await api("GET", "/v1/people", { token: alice.token });
+    const found = (list.body.items as Array<{ id: string; name: string }>).find((p) => p.id === created.id);
+    assert.equal(found?.name, "Ivy", "the oversized-:id PATCH must not have touched any row");
+  });
+
+  test("over-length `:id` (> 64 chars) on DELETE → 400 VALIDATION_ERROR (not a 404), nothing tombstoned", async () => {
+    const { body: created } = await createPerson(alice.token, { name: "Kai", initials: "KA", color: "#654321" });
+    const oversized = "z".repeat(65);
+    const { status, body } = await api("DELETE", `/v1/people/${oversized}`, { token: alice.token });
+    assert.equal(status, 400, "an oversized :id must be rejected at the boundary, not resolve to a 404");
+    assert.equal(body.error?.code, "VALIDATION_ERROR");
+
+    const list = await api("GET", "/v1/people", { token: alice.token });
+    assert.ok(
+      (list.body.items as Array<{ id: string }>).some((p) => p.id === created.id),
+      "an invalid DELETE must not tombstone any row",
+    );
+  });
 });
 
 // ── Design for RELIABILITY — person-delete → tasks.assignee_ids cascade (#263) ──

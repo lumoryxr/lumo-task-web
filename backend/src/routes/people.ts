@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { validate } from "../lib/validate.js";
 import { nanoid } from "nanoid";
 import { PersonCreateBodySchema, PersonUpdateBodySchema, type PersonWire } from "@lumo/contracts";
@@ -18,6 +19,12 @@ app.use("/*", authMiddleware);
 // everyone in one request, while the cursor bounds a pathologically large team.
 const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 500;
+
+// Bound the :id path param at the request boundary, matching every sibling
+// user-scoped resource (tasks/countdowns/habits/projects/templates). The contract
+// caps a person id at ^[A-Za-z0-9_-]{1,64}$, so max(64) never rejects a real id —
+// it only turns an oversized junk :id into a clean 400 instead of a DB round-trip.
+const IdParam = z.object({ id: z.string().min(1).max(64) });
 
 // Request/response shapes are owned by @lumo/contracts (Contract-First).
 export function rowToPerson(row: PersonRow): PersonWire {
@@ -97,7 +104,7 @@ app.post("/", validate("json", PersonCreateBodySchema), async (c) => {
 });
 
 // PATCH /people/:id
-app.patch("/:id", validate("json", PersonUpdateBodySchema), async (c) => {
+app.patch("/:id", validate("param", IdParam), validate("json", PersonUpdateBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const personId = c.req.param("id");
   const body = c.req.valid("json");
@@ -131,7 +138,7 @@ app.patch("/:id", validate("json", PersonUpdateBodySchema), async (c) => {
 });
 
 // DELETE /people/:id
-app.delete("/:id", async (c) => {
+app.delete("/:id", validate("param", IdParam), async (c) => {
   const userId = c.get("userId") as string;
   const personId = c.req.param("id");
   try {
