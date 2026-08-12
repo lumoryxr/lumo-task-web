@@ -51,7 +51,9 @@ function setup(task = TASK) {
 }
 
 function getSaveBtn() {
-  return screen.getByText("edit.save").closest("button")!;
+  // Query by accessible name (aria-label), not text — while a save is in-flight
+  // the label is replaced by an aria-hidden <Spinner/>, so getByText would miss it.
+  return screen.getByRole("button", { name: "edit.save" });
 }
 
 function getTitleInput() {
@@ -88,6 +90,37 @@ describe("TaskEditModal", () => {
 
     resolve();
     await waitFor(() => expect(getSaveBtn()).not.toBeDisabled());
+  });
+
+  it("shows a spinner and sets aria-busy on Save while the update is in-flight (#430 AC1)", async () => {
+    let resolve!: () => void;
+    mockUpdate.mockReturnValueOnce(new Promise<void>((res) => { resolve = res; }));
+
+    setup();
+    const save = getSaveBtn();
+    // Idle: label shown, not busy.
+    expect(save).toHaveAttribute("aria-busy", "false");
+    expect(save.textContent).toContain("edit.save");
+
+    fireEvent.click(save);
+    // In-flight: spinner replaces the label and aria-busy flips true.
+    await waitFor(() => expect(getSaveBtn()).toHaveAttribute("aria-busy", "true"));
+    expect(getSaveBtn().querySelector(".spinner")).not.toBeNull();
+    expect(getSaveBtn().textContent).not.toContain("edit.save");
+
+    resolve();
+    await waitFor(() => expect(getSaveBtn()).toHaveAttribute("aria-busy", "false"));
+    expect(getSaveBtn().querySelector(".spinner")).toBeNull();
+  });
+
+  it("sources the delete-confirm label from the edit.deleteConfirm i18n key (#430 AC2)", () => {
+    setup();
+    // First click arms the confirm-to-delete state; the label must come from the
+    // i18n key, not a hardcoded locale ternary.
+    fireEvent.click(screen.getByText("edit.delete"));
+    expect(screen.getByText("edit.deleteConfirm")).toBeInTheDocument();
+    expect(screen.queryByText("确认删除？")).toBeNull();
+    expect(screen.queryByText("Confirm delete?")).toBeNull();
   });
 
   it("calls onClose after successful save", async () => {
