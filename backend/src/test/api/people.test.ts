@@ -155,6 +155,20 @@ describe("PATCH /v1/people/:id", () => {
     assert.equal(status, 404);
   });
 
+  test("400 → oversized :id is rejected at the boundary (not 404), row untouched", async () => {
+    const oversized = "x".repeat(65);
+    const { status, body } = await req("PATCH", `/v1/people/${oversized}`, {
+      token: demoToken,
+      body: { name: "Too long" },
+    });
+    assert.equal(status, 400, "oversized :id should be a 400, not a 404 DB miss");
+    assert.equal((body as any).error?.code, "VALIDATION_ERROR");
+    // The real person is untouched — the oversized id never reached the DB.
+    const { body: list } = await req("GET", "/v1/people", { token: demoToken });
+    const still = list.items.find((p: any) => p.id === personId);
+    assert.equal(still?.name, "Alice Updated");
+  });
+
   test("401 → no token", async () => {
     const { status } = await req("PATCH", `/v1/people/${personId}`, {
       body: { name: "No auth" },
@@ -183,6 +197,21 @@ describe("DELETE /v1/people/:id", () => {
   test("404 → unknown id", async () => {
     const { status } = await req("DELETE", "/v1/people/nonexistent-id", { token: demoToken });
     assert.equal(status, 404);
+  });
+
+  test("400 → oversized :id is rejected at the boundary (not 404), nothing tombstoned", async () => {
+    const { token } = await newUserWithToken();
+    const { body: p } = await req("POST", "/v1/people", {
+      token,
+      body: { name: "Keep Me", initials: "KM", color: "#3B82F6" },
+    });
+    const oversized = "y".repeat(65);
+    const { status, body } = await req("DELETE", `/v1/people/${oversized}`, { token });
+    assert.equal(status, 400, "oversized :id should be a 400, not a 404 DB miss");
+    assert.equal((body as any).error?.code, "VALIDATION_ERROR");
+    // No row was tombstoned — the real person is still listed.
+    const { body: list } = await req("GET", "/v1/people", { token });
+    assert.ok(list.items.some((row: any) => row.id === p.id), "person must survive an invalid DELETE");
   });
 
   test("401 → no token", async () => {
