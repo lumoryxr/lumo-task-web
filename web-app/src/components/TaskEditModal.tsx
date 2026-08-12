@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconClose } from "@/components/icons";
+import { Spinner } from "@/components/Spinner";
 import { TagInput } from "@/components/TagInput";
 import { derivePlanTags } from "@/utils/planFilters";
 import { useT } from "@/i18n/useT";
@@ -490,9 +491,7 @@ export function TaskEditModal({ task, onClose }: Props) {
             onClick={handleDelete}
             disabled={busy}
           >
-            {confirmDelete
-              ? locale === "zh" ? "确认删除？" : "Confirm delete?"
-              : t("edit.delete")}
+            {confirmDelete ? t("edit.deleteConfirm") : t("edit.delete")}
           </button>
           {confirmDelete && (
             <button className="btn btn-ghost text-[12px]" onClick={() => setConfirmDelete(false)} disabled={busy}>
@@ -505,9 +504,11 @@ export function TaskEditModal({ task, onClose }: Props) {
               <button
                 className="btn btn-primary"
                 disabled={!title.trim() || busy}
+                aria-busy={busy}
+                aria-label={t("edit.save")}
                 onClick={handleSave}
               >
-                {t("edit.save")}
+                {busy ? <Spinner /> : t("edit.save")}
               </button>
             </>
           )}
