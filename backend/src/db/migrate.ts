@@ -691,12 +691,20 @@ export async function runMigrations() {
       }
     }
 
-    // (c) Guarded rebuild — only while `email` is still NOT NULL. Foreign keys are
-    // OFF (the codebase never enables PRAGMA foreign_keys), so dropping/renaming
-    // the referenced `users` table is safe; the FK-by-convention columns on other
-    // tables keep pointing at the renamed table.
+    // (c) Guarded rebuild — only while `email` is still NOT NULL. The `users`
+    // table is the FK target of tasks/settings/people/… , and libsql enables
+    // `PRAGMA foreign_keys` by DEFAULT (unlike better-sqlite3), so the rebuild's
+    // `DROP TABLE users` — which performs an implicit row-delete — would trip
+    // "FOREIGN KEY constraint failed" on any DB that already has child rows
+    // (the Windows desktop boot failure). Suspend FK enforcement for the
+    // rebuild, then restore it. The toggle MUST live outside the batch: a
+    // `PRAGMA foreign_keys` issued inside a transaction is a silent no-op, and
+    // `batch(...)` wraps its statements in BEGIN…COMMIT. The `finally` restores
+    // enforcement even if the rebuild throws, so a failure never leaks FK OFF.
     const emailCol = uCols.find((c) => c.name === "email");
     if (emailCol && emailCol.notnull === 1) {
+      await execRaw("PRAGMA foreign_keys = OFF");
+      try {
       // Table rebuild (SQLite can't relax a NOT NULL in place). Run the whole
       // create→copy→drop→rename as ONE atomic batch (BEGIN…COMMIT) so a crash
       // mid-rebuild rolls back completely instead of leaving an orphaned
@@ -738,6 +746,9 @@ export async function runMigrations() {
         // recreate it inside the same transaction so it exists within this boot.
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_feed_token_hash ON users(calendar_feed_token_hash) WHERE calendar_feed_token_hash IS NOT NULL",
       ]);
+      } finally {
+        await execRaw("PRAGMA foreign_keys = ON");
+      }
     }
 
     // (a·2) Partial-unique index on the case-insensitive handle. Created after the

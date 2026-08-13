@@ -12,9 +12,17 @@
  * every subsequent deploy. Production hit exactly this:
  *   LibsqlError SQL_INPUT_ERROR: table users_new already exists
  *
- * These tests pin the fix: migrations must (a) survive a pre-existing orphan
- * `users_new` (self-heal), and (b) still perform the rebuild correctly,
- * preserving data.
+ * A SECOND production failure (Windows desktop build) came from the same
+ * rebuild: `DROP TABLE users` performs an implicit row-delete, and libsql
+ * enables `PRAGMA foreign_keys` by DEFAULT (unlike better-sqlite3), so on any
+ * DB with real child rows (tasks/settings/… → users(id)) that delete tripped
+ *   SQLITE_CONSTRAINT: FOREIGN KEY constraint failed  (statementIndex 3)
+ * and the backend never started. The rebuild must run with FK enforcement
+ * suspended, then restore it.
+ *
+ * These tests pin the fixes: migrations must (a) survive a pre-existing orphan
+ * `users_new` (self-heal), (b) still perform the rebuild correctly, preserving
+ * data, and (c) complete the rebuild even when child rows reference the user.
  */
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -23,6 +31,9 @@ import { runMigrations } from "../../db/migrate.js";
 
 /** Recreate the pre-migration legacy `users` schema (email NOT NULL, no username cols). */
 async function seedLegacyUsers(): Promise<void> {
+  // Drop child tables first: libsql keeps FK enforcement ON, so `DROP TABLE
+  // users` while a `tasks` row references it would itself trip the constraint.
+  await execRaw("DROP TABLE IF EXISTS tasks");
   await execRaw("DROP TABLE IF EXISTS users");
   await execRaw("DROP TABLE IF EXISTS users_new");
   await execRaw(`
@@ -75,6 +86,48 @@ describe("users rebuild migration — crash-safe & self-healing", () => {
     );
     assert.equal(row?.email, "alice@example.com");
     assert.ok(row?.username_lower, "username_lower backfilled for the migrated user");
+  });
+
+  test("completes the rebuild when child rows reference the user (FK enforcement on)", async () => {
+    // libsql defaults `PRAGMA foreign_keys = ON`. Seed a child table with a row
+    // pointing at the legacy user so the rebuild's `DROP TABLE users` implicit
+    // delete would violate the FK — exactly the Windows desktop boot failure.
+    await execRaw("DROP TABLE IF EXISTS tasks");
+    await execRaw(`
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        title_en TEXT NOT NULL,
+        quadrant TEXT NOT NULL DEFAULT 'unclassified',
+        today INTEGER NOT NULL DEFAULT 0,
+        due TEXT,
+        duration INTEGER NOT NULL DEFAULT 0,
+        pomos_done INTEGER NOT NULL DEFAULT 0,
+        pomos_total INTEGER NOT NULL DEFAULT 0,
+        completed INTEGER NOT NULL DEFAULT 0,
+        not_now_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    await execRaw(
+      "INSERT INTO tasks (id, user_id, title_en) VALUES ('t1', 'u1', 'Ship it')",
+    );
+
+    // Before the fix this rejects with SQLITE_CONSTRAINT (FOREIGN KEY).
+    await assert.doesNotReject(() => runMigrations());
+
+    // Rebuild happened, and the referencing child row survived intact.
+    const email = (await query<{ name: string; notnull: number }>("PRAGMA table_info(users)")).find(
+      (c) => c.name === "email",
+    );
+    assert.equal(email!.notnull, 0, "email must be nullable after rebuild");
+    const task = await queryOne<{ user_id: string }>("SELECT user_id FROM tasks WHERE id = 't1'");
+    assert.equal(task?.user_id, "u1", "child task row preserved and still points at the user");
+
+    // FK enforcement is restored after the rebuild (it must not leak OFF).
+    const fk = await queryOne<{ foreign_keys: number }>("PRAGMA foreign_keys");
+    assert.equal(fk?.foreign_keys, 1, "foreign_keys must be re-enabled after the rebuild");
   });
 
   test("is idempotent — a second run is a clean no-op", async () => {
