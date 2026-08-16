@@ -14,6 +14,34 @@
 export const GITHUB_URL = "https://github.com/lumoryxr/lumo-task-web";
 
 /**
+ * The product's public home — where every shared card, QR code and brand
+ * footer points. Shared screenshots are often the only trace of Lumo a new
+ * person sees, so this must always be a domain we actually own (the cards
+ * previously printed a `lumo.app` that goes nowhere).
+ */
+export const SITE_URL = "https://lumoryxr.duckdns.org";
+
+/** `SITE_URL` without the scheme — the form printed on share cards. */
+export const SITE_LABEL = "lumoryxr.duckdns.org";
+
+/**
+ * Build the link encoded into a share card's QR code, tagged with the surface
+ * it came from. The tag rides along as `?ref=` so we can tell which shared
+ * artifact actually brings people back (weekly recap vs. pet level-up vs. …)
+ * instead of guessing. Keep the values stable — they become analytics keys.
+ */
+export type ShareSurface =
+  | "share-weekly"
+  | "share-wrapped"
+  | "share-streak"
+  | "share-pet"
+  | "share-recap";
+
+export function shareLink(surface: ShareSurface): string {
+  return `${SITE_URL}/?ref=${surface}`;
+}
+
+/**
  * Where "support / donate" sends people. Lumo is free; this is a voluntary
  * support link. Defaults to the repository (which surfaces the GitHub "Sponsor"
  * button via .github/FUNDING.yml). Point it straight at

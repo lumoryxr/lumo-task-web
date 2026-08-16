@@ -6,6 +6,7 @@ import { isShareCancellation } from "@/utils/share";
 import { useAIStore } from "@/store/useAIStore";
 import { useDogStore } from "@/store/useDogStore";
 import { DogSvg } from "@/components/DogSvg";
+import { ShareBrandFooter } from "@/components/ShareBrandFooter";
 import type { PrevWeekStats } from "@/utils/wrapped";
 
 const DAY_KEYS = [
@@ -254,8 +255,8 @@ Data: ${stats.tasksCompleted} tasks, ${focusHours}h focus, Q1 urgent+important $
           ))}
         </div>
 
-        {/* Brand footer */}
-        <div style={{ textAlign: "center", fontSize: 11, color: "var(--text-faint)" }}>lumo.app</div>
+        {/* Brand footer — QR + real domain, so a screenshot is a way in */}
+        <ShareBrandFooter surface="share-wrapped" />
       </div>
 
       {/* Action buttons — outside captured area */}

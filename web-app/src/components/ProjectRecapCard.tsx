@@ -4,6 +4,7 @@ import { useT } from "@/i18n/useT";
 import { toast } from "@/store/useToastStore";
 import { captureAndShare, isShareCancellation } from "@/utils/share";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import { ShareBrandFooter } from "@/components/ShareBrandFooter";
 import type { Project, ProjectColor } from "@/types/task";
 import type { ProjectRecap } from "@/utils/projectRecap";
 
@@ -102,8 +103,8 @@ export function ProjectRecapCard({ project, recap, userName, onClose }: Props) {
           <Stat value={`${recap.goalsDone}/${recap.goalsTotal}`} label={t("project.recap.goals")} primary={primary} />
         </div>
 
-        <div style={{ marginTop: 24, fontSize: 11, color: "var(--text-faint)" }}>
-          lumo.app · {userName}
+        <div style={{ marginTop: 24 }}>
+          <ShareBrandFooter surface="share-recap" caption={userName} />
         </div>
       </div>
 

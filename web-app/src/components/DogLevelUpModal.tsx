@@ -5,6 +5,7 @@ import { DogSvg } from "@/components/DogSvg";
 import { useAppStore } from "@/store/useAppStore";
 import { useT } from "@/i18n/useT";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import { ShareBrandFooter } from "@/components/ShareBrandFooter";
 import { captureAndShare, isShareCancellation } from "@/utils/share";
 import { toast } from "@/store/useToastStore";
 
@@ -148,8 +149,8 @@ export function DogLevelUpModal() {
           </button>
         </div>
 
-        <div style={{ marginTop: 24, fontSize: 11, color: "var(--text-faint)" }}>
-          lumo.app · Lumo Dog
+        <div style={{ marginTop: 24 }}>
+          <ShareBrandFooter surface="share-pet" caption="Lumo Dog" />
         </div>
       </div>
     </div>,
