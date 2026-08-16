@@ -585,6 +585,53 @@ input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type="number"] { -moz-appearance: textfield; }
 
+/* ── 3D pet stage ─────────────────────────────────────────────────────────
+   The pets are drawn with a pseudo-3D lighting model (see PetShadingSvg.tsx).
+   This is the motion half: a perspective container plus a slow float that also
+   yaws the model left/right, so the volume shading catches the eye as a solid
+   turning in space rather than a sprite sliding up and down. `--excited` swaps
+   in a springy hop with squash-and-stretch (the classic weight cue: stretch on
+   the way up, squash on landing). The ground shadow breathes counter to the
+   float — tighter and fainter as the pet rises — which is what actually sells
+   the height. All of it collapses under the global reduced-motion reset. */
+.pet-3d {
+  perspective: 420px;
+  display: block;
+}
+.pet-3d__body {
+  display: block;
+  transform-style: preserve-3d;
+  animation: petFloat3d 3.6s ease-in-out infinite;
+}
+.pet-3d__body--excited {
+  animation: petHop3d 0.66s var(--ease-spring) infinite;
+}
+@keyframes petFloat3d {
+  0%, 100% { transform: translateY(0) rotateY(-8deg) rotateZ(-1.2deg); }
+  50%      { transform: translateY(-5px) rotateY(8deg) rotateZ(1.2deg); }
+}
+@keyframes petHop3d {
+  0%, 100% { transform: translateY(0) scale(1, 1) rotateY(0deg); }
+  28%      { transform: translateY(-9px) scale(0.94, 1.08) rotateY(9deg); }
+  58%      { transform: translateY(0) scale(1.08, 0.92) rotateY(-9deg); }
+  80%      { transform: translateY(-2px) scale(0.99, 1.02) rotateY(3deg); }
+}
+.pet-3d__shadow {
+  animation: petShadow3d 3.6s ease-in-out infinite;
+}
+.pet-3d__body--excited .pet-3d__shadow {
+  animation: petShadow3dExcited 0.66s var(--ease-spring) infinite;
+}
+@keyframes petShadow3d {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 0.26; transform: scale(0.82); }
+}
+@keyframes petShadow3dExcited {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  28%      { opacity: 0.2; transform: scale(0.7); }
+  58%      { opacity: 0.55; transform: scale(1.08); }
+}
+
 /* ── Floating Pet ───────────────────────────────────────────────────────── */
 @keyframes petBounce {
   0%, 100% { transform: translateY(0); }
