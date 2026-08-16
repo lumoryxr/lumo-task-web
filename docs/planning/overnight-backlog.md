@@ -16,8 +16,8 @@
 ## Pick-list (top-down)
 
 ### A. Docs & contributor onboarding (safe, no auth needed)
-- [ ] **CONTRIBUTING.md** — dev setup (the `NODE_ENV`/tsx/vitest-worker gotchas from `TOOLS.md`), branch/PR conventions, how gates + code-review work, where the ROADMAP vs this backlog sit. *(Biggest onboarding unblocker; consolidates tribal knowledge.)*
-- [ ] **Issue/PR templates** — `.github/ISSUE_TEMPLATE/{bug,feature}.md` + `PULL_REQUEST_TEMPLATE.md` (AC checklist, tests, DFX-matrix reminder). Lightweight.
+- [x] **CONTRIBUTING.md** — already existed at `.github/CONTRIBUTING.md` (comprehensive: workflow/roles, branch + Conventional-Commits conventions, PR checklist, local dev). Gap filled in #500: FE vitest worker-cap (`--maxWorkers`, OOM) + the standards/i18n guard suites that run in CI. *(2026-08-16)*
+- [x] **Issue/PR templates** — already present: `.github/ISSUE_TEMPLATE/{bug_report,feature_request,epic,story}` + `.github/pull_request_template.md`. *(pre-existing; verified 2026-08-16)*
 - [ ] **`docs/marketing/good-first-issues.md` → real GH issues** — re-verify each is still open/unbuilt against current code, then file the still-valid ones (labels `good first issue`, `help wanted`). *Needs Jalen's OK to post publicly — see Blocked list.*
 - [ ] **README polish pass** — top-of-file badges (CI, license, PWA), a 1-line demo link, and a "100% AI-coded" note if Jalen approves that as public narrative (see Blocked). Keep claims aligned with actual code (auth exists → demo = guest login, not "no signup").
 - [ ] **Screenshot/GIF set for README + launch** — needs a running app + capture; can be scripted via the browser tool. Low risk, high marketing value.
@@ -47,3 +47,4 @@ Kept here so there's one place to unblock the overnight lane in the morning.
 ## Log
 - 2026-08-16: File created. Overnight lane scoped to complement (not race) the 2h engineering loop; consolidated the pending Jalen decisions.
 - 2026-08-16: Shipped `SECURITY.md` + `CODE_OF_CONDUCT.md` (community-health completeness; disclosure/enforcement routed through GitHub private vulnerability reporting, consistent with the project's no-personal-email contact policy). Section-C `.github/` hygiene item done.
+- 2026-08-16: Reconciled A1/A2 — both CONTRIBUTING.md and the issue/PR templates **already existed** (this list was stale). Instead of duplicating, filled the one real gap in CONTRIBUTING via #500: the general FE-test pitfalls (vitest worker-cap for OOM; running the `src/test/standards/` + `src/i18n/__tests__/strings.test.ts` guard suites pre-push). Also ran a `docs/**` internal-link sweep — clean except vendored `.agents/skills/` placeholder examples (out of scope) and one stale memory-file ref in a dated QA snapshot (left as-is; historical).
