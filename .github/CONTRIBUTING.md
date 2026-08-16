@@ -273,6 +273,33 @@ npm run build              # 构建后端
 make ci                    # 等价于 npm run typecheck && npm run lint && npm run build && npm test
 ```
 
+### 前端测试注意事项（避免踩坑）
+
+前端用 Vitest（jsdom 环境）。两点容易踩坑，提前知道能省一次红 CI：
+
+**1. 大机器 / 内存受限时限制 worker，避免 OOM。**
+`npm test`（即 `vitest run`）默认按 CPU 核数起 worker，每个 worker 各拉一套 jsdom（较重）。核多、内存小的机器上容易一次性顶爆内存被内核 kill（进程以 `exit 137` 退出）。遇到这种情况，显式限制并发即可：
+
+```bash
+cd web-app
+npx vitest run --maxWorkers=2            # 跑全套
+npx vitest run <file> --maxWorkers=2     # 跑单个文件
+```
+
+（Vitest 4 没有 `--minWorkers`；用 `--maxWorkers`。）
+
+**2. 推前端改动前，务必跑 standards + i18n 守卫套件。**
+这两组测试会在 CI 的 “Unit Tests (frontend)” job 里跟单测一起跑；如果你本地只跑了自己改动的测试文件，很容易漏掉它们、然后 CI 才发现问题。推送前先本地跑一遍：
+
+```bash
+cd web-app
+npx vitest run src/test/standards/ src/i18n/__tests__/strings.test.ts --maxWorkers=2
+```
+
+它们守的是：
+- **`src/test/standards/`** — 设计规范守卫：内联样式的颜色必须走 CSS 变量（`var(--...)`）、圆角 4/8/12/20 必须用 `var(--radius-sm|md|lg|xl)`、对比度、error-boundary、reduced-motion、safe-area 等。
+- **`src/i18n/__tests__/strings.test.ts`** — i18n 守卫：key 存在性 + 多语言 parity + **动态 key 家族**。凡是用模板字符串拼 key（形如 `` t(`prefix.${x}`) ``），都要在该测试的 `DYNAMIC_KEY_FAMILIES` 里登记 `prefix` 及其全部成员，否则守卫会红（哪怕 key 已在 `strings.ts` 里定义）。
+
 ---
 
 ## 问题排查
