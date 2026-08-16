@@ -6,13 +6,13 @@
 
 [![CI](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml)
 [![Release](https://github.com/lumoryxr/lumo-task-web/actions/workflows/release-desktop.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/releases)
-[![Demo](https://img.shields.io/badge/demo-live-brightgreen?logo=render)](https://lumo-task-frontend.onrender.com)
+[![Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://lumoryxr.duckdns.org/?ref=readme)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![AI-Coded](https://img.shields.io/badge/coded%20by-AI%20only-blueviolet?logo=anthropic)](https://claude.ai)
 
 **[English](README.md) | [中文](README.zh.md)**
 
-[在线 Demo](https://lumo-task-frontend.onrender.com) · [发布版本](https://github.com/lumoryxr/lumo-task-web/releases) · [贡献指南](.github/CONTRIBUTING.md)
+[在线 Demo](https://lumoryxr.duckdns.org/?ref=readme) · [发布版本](https://github.com/lumoryxr/lumo-task-web/releases) · [贡献指南](.github/CONTRIBUTING.md)
 
 </div>
 
