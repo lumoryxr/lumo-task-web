@@ -298,7 +298,7 @@ npx vitest run src/test/standards/ src/i18n/__tests__/strings.test.ts --maxWorke
 
 它们守的是：
 - **`src/test/standards/`** — 设计规范守卫：内联样式的颜色必须走 CSS 变量（`var(--...)`）、圆角 4/8/12/20 必须用 `var(--radius-sm|md|lg|xl)`、对比度、error-boundary、reduced-motion、safe-area 等。
-- **`src/i18n/__tests__/strings.test.ts`** — i18n 守卫：key 存在性 + 多语言 parity + **动态 key 家族**。凡是写 `t(\`prefix.${x}\`)`（模板字符串拼 key），都要在该测试的 `DYNAMIC_KEY_FAMILIES` 里登记 `prefix` 及其全部成员，否则守卫会红（哪怕 key 已在 `strings.ts` 里定义）。
+- **`src/i18n/__tests__/strings.test.ts`** — i18n 守卫：key 存在性 + 多语言 parity + **动态 key 家族**。凡是用模板字符串拼 key（形如 `` t(`prefix.${x}`) ``），都要在该测试的 `DYNAMIC_KEY_FAMILIES` 里登记 `prefix` 及其全部成员，否则守卫会红（哪怕 key 已在 `strings.ts` 里定义）。
 
 ---
 
