@@ -139,7 +139,7 @@
 - [ ] `ARCHITECTURE.md` 一页架构图/说明。
 - [x] 起草 8–12 个 `good first issue`(基于代码里真实的小改进点)→ 见 `good-first-issues.md`。
 - [x] PH / Show HN / Reddit 文案初稿(中英)→ 见下方 §9。
-- [ ] 对比图与 Demo 脚本大纲。
+- [x] 对比图与 Demo 脚本大纲(Demo 脚本 + 分镜 → 见 §10)。
 
 ---
 
@@ -192,3 +192,38 @@
 - **Q:AI 分类要联网/Key 吗?** A:AI 一键分类走 LLM,但有**启发式兜底**,没 Key/断网也能用基础分类。
 - **Q:为什么开源(MIT)?** A:实验要可验证 + 想看"人 + AI 协作贡献"能不能跑起来。欢迎 good-first-issue。
 - **Q:AI 最容易翻车的地方?** A:命名、跨文件大重构、flaky 测试定位——这些正是 review 环节重点盯的。
+
+---
+
+## 10. Demo 脚本 & 分镜(60–90s,可复用为 PH/HN 头图 GIF + X thread 视频)
+
+> 目标:一镜到底讲清**一个早晨的使用闭环**——「今天到底先做什么?」→ 排序 → 专注 → 完成。全程只演**真实已上线功能**(四象限拖拽 / 番茄专注 / AI 分类 / 完成庆祝 / 统计),不摆拍不存在的能力。
+> 建议两版:**主 Demo(60–90s 带旁白/字幕)** 用于落地页 + Show HN;**无声 GIF(8–12s)** 截主 Demo 的高潮 3 步(加任务→拖象限→专注)做 PH/README 头图。
+> 语言:先录 EN 主版(PH/HN),ZH 字幕另出一版(少数派/即刻)。分辨率按落地页头图比例(GIF 建议 ≤ 5 MB,压帧率到 12–15fps)。
+
+### 10.1 主 Demo 分镜(逐镜)
+
+| # | 时长 | 画面 | 旁白 / 字幕(EN) | 备注 |
+|---|---|---|---|---|
+| 1 | 0–5s | 冷启动到 **Today** 视图(建议已 seed 几条任务,避免空态) | “Every morning, same question: *what do I actually do first?*” | 用 demo/访客账号预置数据,别现场注册 |
+| 2 | 5–12s | 快速敲进 2–3 条任务 | “Dump everything in — 30 seconds.” | 展示输入顺滑 + 中英混排也行 |
+| 3 | 12–22s | 点 **AI 一键分类**,任务自动落到四象限 | “One click — AI sorts them by urgency × importance.” | 关键差异点,给个短暂停顿看结果 |
+| 4 | 22–32s | **拖拽**一条任务跨象限(Q2→Q1),卡片 settle 动画 | “Disagree? Just drag. It’s *your* matrix.” | 体现掌控感,非黑箱 |
+| 5 | 32–45s | 点 Q1 任务进 **全屏番茄专注**,计时启动;切一下标签页再切回,计时**没断** | “Pick one. Focus. The timer survives tab switches.” | Web Worker 计时是真卖点,值得演“切标签不掉” |
+| 6 | 45–55s | 计时结束/手动完成,**Lumo 宠物庆祝**微动画 + 任务划入完成 | “Done. Lumo cheers. Small dopamine, on purpose.” | 情绪钩子,别停太久 |
+| 7 | 55–70s | 切 **Stats**,展示完成曲线 + 可分享 PNG;一带而过桌面版/PWA 安装图标 | “Track streaks, share your week. Web, PWA, or desktop.” | 收尾展示广度,不逐个点开 |
+| 8 | 70–85s | 定格 logo + 一行大字 + demo 链接 | **“100% of the code is written by AI. Live demo → …”** | 元钩子做**收尾定帧**(主叙事若 Jalen 拍板为效率工具,可把此行降为副标,见 §8.1) |
+
+### 10.2 无声 GIF(8–12s,循环)
+镜 2 → 镜 3 → 镜 4 三步接龙(加任务 → AI 分类 → 拖象限),末帧压一行字幕 `Sort your day in 10 seconds`。**不带**番茄/统计,保持短、可循环、体积小。
+
+### 10.3 录制注意(避免翻车)
+- **数据预置**:用 demo/访客账号提前建好任务,演示时只做“分类/拖拽/专注”动作,别现场注册/等 AI 冷启动。
+- **AI 分类兜底**:若录制环境无 LLM Key,启发式兜底也能出象限结果——照常录,别演“等模型返回”的空窗。
+- **只演已上线功能**:严格对齐 ROADMAP「Current State」清单(四象限 / 番茄 / AI 分类 / 习惯 / 统计 PNG / PWA / 桌面版)。不演路线图上还没做的(如年度 Wrapped、Web Push 提醒)。
+- **claims 一致性**:结尾“100% AI-coded”表述与主叙事最终口径保持一致(§8.1 / §9 事实基线),demo 链接指向可用的访客登录页而非“完全免注册”。
+
+### 10.4 复用
+- 主 Demo → 落地页首屏、Show HN 帖内首评、B 站/YouTube 长解说的开场。
+- GIF → PH 头图、README 顶部、X thread 第 1 条。
+- 分镜 6/5 的单镜(专注不掉 + 宠物庆祝)可各截一条 5–8s 短视频,喂 §9.2 追问预案与 build-in-public thread。
