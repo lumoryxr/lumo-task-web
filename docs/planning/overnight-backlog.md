@@ -27,7 +27,7 @@
 - [ ] Draft a short **CHANGELOG.md** / "what shipped" highlight reel from the ROADMAP Done log — reusable for launch + build-in-public posts. Safe, docs-only.
 
 ### C. Low-risk chores (fill-in when A/B are blocked)
-- [ ] **`.github/` hygiene** — `SECURITY.md` (responsible-disclosure contact), `CODE_OF_CONDUCT.md` (Contributor Covenant). Standard, docs-only.
+- [x] **`.github/` hygiene** — `SECURITY.md` (responsible-disclosure via GitHub private reporting), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1). Standard, docs-only. *(2026-08-16)*
 - [ ] **Docs link-check** — sweep `docs/**` for dead internal links / stale file references. Report-only unless trivial fixes.
 - [ ] **`docs/planning/growth-opportunities.md` → ROADMAP hand-off** — for each growth idea that's actually a *product* feature, note it as a Phase-3 proposal candidate so the loop/Jalen can adopt it (don't build).
 
@@ -46,3 +46,4 @@ Kept here so there's one place to unblock the overnight lane in the morning.
 
 ## Log
 - 2026-08-16: File created. Overnight lane scoped to complement (not race) the 2h engineering loop; consolidated the pending Jalen decisions.
+- 2026-08-16: Shipped `SECURITY.md` + `CODE_OF_CONDUCT.md` (community-health completeness; disclosure/enforcement routed through GitHub private vulnerability reporting, consistent with the project's no-personal-email contact policy). Section-C `.github/` hygiene item done.
