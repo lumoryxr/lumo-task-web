@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { ShareBrandFooter } from "@/components/ShareBrandFooter";
 import { useT } from "@/i18n/useT";
 import { toast } from "@/store/useToastStore";
 import { isShareCancellation } from "@/utils/share";
@@ -174,13 +175,8 @@ export function ShareCard({
             ))}
           </div>
 
-          {/* Brand footer */}
-          <div
-            className="text-center text-[11px] font-medium"
-            style={{ color: "var(--text-faint)" }}
-          >
-            lumo.app
-          </div>
+          {/* Brand footer — QR + real domain, so a screenshot is a way in */}
+          <ShareBrandFooter surface="share-weekly" caption={`${weekLabel} · ${userName}`} />
         </div>
       </div>
 

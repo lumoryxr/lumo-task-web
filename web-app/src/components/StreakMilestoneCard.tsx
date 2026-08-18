@@ -4,6 +4,7 @@ import { useT } from "@/i18n/useT";
 import { toast } from "@/store/useToastStore";
 import { captureAndShare, isShareCancellation } from "@/utils/share";
 import { useModalA11y } from "@/hooks/useModalA11y";
+import { ShareBrandFooter } from "@/components/ShareBrandFooter";
 
 interface StreakMilestoneCardProps {
   milestone: number;
@@ -88,8 +89,8 @@ export function StreakMilestoneCard({ milestone, userName, onDismiss }: StreakMi
           {t("streak.milestone.caption")}
         </div>
 
-        <div style={{ marginTop: 22, fontSize: 11, color: "var(--text-faint)" }}>
-          lumo.app · {userName}
+        <div style={{ marginTop: 22 }}>
+          <ShareBrandFooter surface="share-streak" caption={userName} />
         </div>
       </div>
 

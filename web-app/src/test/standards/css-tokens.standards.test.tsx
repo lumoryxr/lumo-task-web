@@ -38,6 +38,9 @@ const ALLOWLIST = new Set<string>([
   "components/TaskMoreMenu.tsx", // danger red one-off
   "components/BatchActionBar.tsx", // bulk-delete danger red one-off (same as TaskMoreMenu)
   "components/WinControls.tsx", // Windows close-button red
+  // A QR code must be true black on true white to stay scannable — it is a
+  // machine-readable target, not a themeable surface.
+  "components/ShareBrandFooter.tsx",
 ]);
 
 // Inline SVG artwork (*Svg.tsx) is allowed by convention — colors are artwork.
