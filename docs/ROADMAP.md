@@ -73,6 +73,15 @@ Lead with the app's **unique hooks** — the virtual-pet/gamification system and
 - [ ] *(**#169**, untouched)* **Calendar interop — Google + ICS two-way** — the pre-existing Microsoft Outlook read-only display was **removed for launch (2026-08-10)**; the ICS *export* (V1) and ICS *import* (V2) features remain and are the surviving calendar interop surface. **Needs, in order:** V3 Google Calendar OAuth two-way. (Also covers the "Deeper integrations: Google/ICS" line.)
 - [ ] *(standard features, lower bar — confirm with Jalen)* recurring tasks · subtasks · due-date push notifications · macOS/Linux Electron builds · real-time multi-device sync · team/shared workspace · public API.
 
+### Growth-lever candidates — hand-off from `docs/planning/growth-opportunities.md`
+> These are the growth doc's ideas that are genuinely **product features** (not marketing execution), surfaced here so the loop/Jalen can adopt them from the single source of truth. **Propose-only — do not auto-build.** Ideas already tracked above are cross-linked, not duplicated.
+> - **A1 (shareable achievement cards)** → extends **#171**: add one-click "share to X / 小红书 / WeChat" intents + product watermark + demo backlink on the existing Wrapped/streak cards (the highest-ROI viral loop). Low risk, mostly frontend on shipped export pipeline.
+> - **B1 (daily morning "today's one thing" reminder)** → covered by **#170**'s Web-Push delivery work; the growth angle is the *habit-forming daily hook*, gated on a notification/frequency-cap policy call.
+> - **B2 (streak visualization + gamification depth)** → overlaps **#174** (pet depth) + **#171** (cards); the new ask is a calendar heatmap + milestone badges.
+- [ ] *(proposal — **A2**, product + security)* **Public read-only share page** — a redacted, no-auth link to a "today's plan" / quadrant snapshot; upgrades screenshots into a clickable landing page (SEO + conversion). Needs a read-only token + public route + redaction; write a PRD first.
+- [ ] *(proposal — **A3**)* **Onboarding "share/invite" step** — a final onboarding step to share an achievement card / copy an invite link, triggered at the aha-moment. Small–medium, mostly frontend.
+- [ ] *(proposal — **C1**, low-risk, feeds the content line)* **In-app "AI dev log" page** — render the ROADMAP/CHANGELOG Done log into a readable timeline inside the product/website; turns the "100% AI-coded" story into a shareable, SEO-friendly asset. Pure display.
+
 ---
 
 ## Current State / 当前状态 (shipped & in production)
