@@ -187,6 +187,7 @@ export function SettingsPage() {
           {isElectron && activeTab === "datasync" && (
             <div className="flex flex-col gap-8">
               <StoragePanel t={t} />
+              <CloudEndpointPanel t={t} />
               <SyncPanel t={t} />
             </div>
           )}
@@ -1192,6 +1193,139 @@ function StoragePanel({ t }: { t: (k: string) => string }) {
  *  - enabled === true  → enabled state + last-synced + last-error + "Sync now"
  *    (`api.syncNow`) + "Disable" (`api.syncDisable`).
  */
+// Desktop-only. Governs WHICH cloud server the sync loop signs into — the
+// official server by default, or a self-hoster's own. The value is persisted
+// and applied by the Electron main process (it relaunches on save); this panel
+// is just the editor.
+function CloudEndpointPanel({ t }: { t: (k: string) => string }) {
+  const [info, setInfo] = useState<{ endpoint: string; isCustom: boolean; defaultEndpoint: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    // Optional-chain the METHOD too: a preload from an older build (or a test
+    // stub) may expose electronAPI without this endpoint yet.
+    window.electronAPI?.getCloudEndpoint?.()
+      ?.then((d) => setInfo(d))
+      .catch(() => setInfo(null));
+  }, []);
+
+  function startEdit() {
+    setValue(info?.isCustom ? info.endpoint : "");
+    setError(null);
+    setEditing(true);
+  }
+
+  async function save(endpoint: string) {
+    if (!window.electronAPI || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      // On success the main process relaunches the app, so this never resolves.
+      const result = await window.electronAPI.setCloudEndpoint(endpoint);
+      if (!result.ok) {
+        setError(result.error === "INVALID_ENDPOINT" ? t("settings.cloud.error.invalid") : t("settings.cloud.error.save"));
+      }
+    } catch {
+      setError(t("settings.cloud.error.save"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <h2 className="text-[15px] font-semibold text-text-primary mb-5">{t("settings.cloud")}</h2>
+      <div className="surface-card overflow-hidden">
+        <div className="settings-row items-start px-5 py-4">
+          <div>
+            <div className="text-[13px] font-medium text-text-primary leading-snug">
+              {t("settings.cloud.endpoint")}
+            </div>
+            <div className="text-[11.5px] text-text-muted mt-1 leading-relaxed max-w-[200px]">
+              {t("settings.cloud.endpoint.helper")}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 min-w-0" style={{ maxWidth: 360 }}>
+            {!info ? (
+              <span className="text-[12px] text-text-muted">{t("settings.storage.loading")}</span>
+            ) : !editing ? (
+              <>
+                <div className="flex items-center gap-2 min-w-0">
+                  <code
+                    className="flex-1 text-[11px] leading-relaxed truncate select-all"
+                    style={{
+                      color: "var(--text-secondary)",
+                      background: "var(--bg-deep)",
+                      border: "1px solid var(--border-faint)",
+                      borderRadius: 6,
+                      padding: "4px 8px",
+                      fontFamily: "monospace",
+                      minWidth: 0,
+                    }}
+                    title={info.endpoint}
+                  >
+                    {info.endpoint}
+                  </code>
+                  <span
+                    className="flex-shrink-0 text-[10.5px] px-2 py-1 rounded-md"
+                    style={{
+                      border: "1px solid var(--border-faint)",
+                      color: info.isCustom ? "var(--accent-primary)" : "var(--text-faint)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {info.isCustom ? t("settings.cloud.custom") : t("settings.cloud.default")}
+                  </span>
+                </div>
+                <button onClick={startEdit} className="btn btn-secondary self-start" style={{ height: 30, fontSize: 12 }}>
+                  {t("settings.storage.change")}
+                </button>
+              </>
+            ) : (
+              <form
+                onSubmit={(e) => { e.preventDefault(); void save(value.trim()); }}
+                className="flex flex-col gap-2"
+              >
+                <input
+                  type="url"
+                  inputMode="url"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder={t("settings.cloud.placeholder")}
+                  className="w-full text-[12px] rounded-lg px-3 py-2 outline-none focus:ring-1"
+                  style={{ background: "var(--bg-deep)", border: "1px solid var(--border-default)", color: "var(--text-primary)", fontFamily: "monospace" }}
+                />
+                {error && (
+                  <div className="text-[11.5px] leading-relaxed" style={{ color: "var(--danger, #ff6b6b)" }}>{error}</div>
+                )}
+                <div className="text-[11px] text-text-faint leading-relaxed">{t("settings.cloud.restartNote")}</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button type="submit" disabled={saving} className="btn btn-primary" style={{ height: 30, fontSize: 12, opacity: saving ? 0.6 : 1 }}>
+                    {saving ? t("settings.cloud.saving") : t("settings.cloud.save")}
+                  </button>
+                  {info.isCustom && (
+                    <button type="button" onClick={() => void save("")} disabled={saving} className="btn btn-secondary" style={{ height: 30, fontSize: 12 }}>
+                      {t("settings.cloud.reset")}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => { setEditing(false); setError(null); }} disabled={saving} className="btn btn-secondary" style={{ height: 30, fontSize: 12 }}>
+                    {t("settings.sync.cancel")}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SyncPanel({ t }: { t: (k: string) => string }) {
   const userId = useAuthStore((s) => s.user.id);
   const [status, setStatus] = useState<SyncStatusResponse | null>(null);

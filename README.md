@@ -109,13 +109,19 @@ That's it — no URL, token, or config file. The app signs into the cloud backen
 
 **Per-install secrets are automatic** — `LUMO_JWT_SECRET` and `LUMO_ENCRYPTION_KEY` are generated on first launch and persisted under the app's userData dir. Users never configure them.
 
-**Which backend it talks to (packaging):** the installer bakes in a cloud backend origin via `LUMO_CLOUD_API_BASE` (`web-app/electron/main.cjs`). The default points at the operated production backend:
+**Which backend it talks to:** the desktop app resolves its cloud origin in this order (`web-app/electron/cloudEndpoint.cjs`):
 
-```
-https://lumo-task-backend-1c3x.onrender.com
-```
+1. **A custom server the user saved** in Settings → Data & Sync (for self-hosters).
+2. **An operator-baked `LUMO_CLOUD_API_BASE`**, set before packaging.
+3. **The built-in production default:**
 
-To ship a build against a different backend, set the env var **before packaging** (it is a server-trusted constant, never accepted from the client — that would be an SSRF vector):
+   ```
+   https://lumoryxr.duckdns.org
+   ```
+
+All three are local, machine-owner-controlled sources — the origin is **never accepted over the HTTP API** (a request-supplied base would be an SSRF vector on the shared cloud). A user-entered address is validated to be an `https` origin (or `http` to `localhost`) with no path before it's stored, and the app restarts so the backend reconnects.
+
+To change the packaged default, set the env var **before packaging**:
 
 ```bash
 LUMO_CLOUD_API_BASE=https://your-backend.example.com make package-win
