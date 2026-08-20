@@ -93,7 +93,7 @@ Lumo 的主视图是艾森豪威尔矩阵——重要/紧急两条轴切出四�
 ### 标题
 
 ```
-[分享创造] Lumo Task - 四象限 + 番茄钟 + 会成长宠物的待办应用，全部代码由 AI 编写，MIT 开源
+[分享创造] Lumo Task - 四象限 + 番茄钟 + 会成长宠物的待办应用，全部代码由 AI 编写，Apache-2.0 开源
 ```
 
 ### 正文
@@ -126,7 +126,7 @@ commit 历史是公开的，有兴趣可以直接翻。
 - 移动端是响应式 Web / PWA，没有原生 App
 
 在线：https://lumoryxr.duckdns.org/?ref=v2ex
-源码：https://github.com/lumoryxr/lumo-task-web （MIT，可自部署）
+源码：https://github.com/lumoryxr/lumo-task-web （Apache-2.0，可自部署）
 
 欢迎拍砖，尤其是契约那套设计和 AI 工作流部分。
 ```
@@ -210,7 +210,7 @@ https://lumoryxr.duckdns.org/?ref=jike
 ## 通用 FAQ（各渠道回帖备用）
 
 **Q：数据存在哪？安全吗？**
-自己的实例存自己的库；仓库 MIT 开源，可以完全自部署。
+自己的实例存自己的库；仓库 Apache-2.0 开源，可以完全自部署。
 
 **Q：AI 写的代码质量怎么保证？**
 契约驱动 + 分层测试 + CI 全绿才能合。前端 900+ 测试，后端有契约一致性/安全/集成三层，加 Playwright E2E。

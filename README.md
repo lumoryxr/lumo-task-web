@@ -7,7 +7,7 @@
 [![CI](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml)
 [![Release](https://github.com/lumoryxr/lumo-task-web/actions/workflows/release-desktop.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/releases)
 [![Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://lumoryxr.duckdns.org/?ref=readme)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![AI-Coded](https://img.shields.io/badge/coded%20by-AI%20only-blueviolet?logo=anthropic)](https://claude.ai)
 
 **[English](README.md) | [中文](README.zh.md)**
@@ -232,4 +232,8 @@ To participate: generate code with any AI (Claude, GPT, Gemini, ...), open a Pul
 
 ## License
 
-MIT © [lumoryxr](https://github.com/lumoryxr)
+[Apache License 2.0](LICENSE) © [lumoryxr](https://github.com/lumoryxr)
+
+Free for personal and commercial use. Redistributions and derivative works must
+retain attribution — keep the `LICENSE` and `NOTICE` files and credit the source
+(see [`NOTICE`](NOTICE)).
