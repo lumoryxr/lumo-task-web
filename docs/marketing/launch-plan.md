@@ -145,7 +145,7 @@
 
 ## 9. 文案初稿(ready-to-use,claims 已对齐 README/实际功能)
 
-> 事实基线(用于所有文案,避免过度承诺):四象限拖拽(Q1–Q4)、全屏番茄专注(Web Worker 计时,切标签不掉)、AI 一键分类(带启发式兜底)、EN/ZH 双语、PWA 可安装 + 离线壳、Windows/macOS 桌面版、**100% 由 AI(Claude)编写**、MIT、Live demo 在 Render(demo/访客登录可玩,非"完全免注册")。
+> 事实基线(用于所有文案,避免过度承诺):四象限拖拽(Q1–Q4)、全屏番茄专注(Web Worker 计时,切标签不掉)、AI 一键分类(带启发式兜底)、EN/ZH 双语、PWA 可安装 + 离线壳、Windows/macOS 桌面版、**100% 由 AI(Claude)编写**、Apache-2.0、Live demo 在 Render(demo/访客登录可玩,非"完全免注册")。
 > ⚠️ 发布前逐条复核:demo 链接是否可用、桌面版下载页是否就绪、"AI-coded" 表述是否要 Jalen 拍板(见 §8.1/§8.4)。
 
 ### 9.1 Product Hunt
@@ -190,7 +190,7 @@
 - **Q:质量怎么保证?** A:固定工程铁律——契约先行、验收标准即测试、本地门禁全绿、每个 PR 实跑 code-review 并回写后才合。
 - **Q:我的数据在哪?** A:后端是自托管 SQLite,可自建部署;不依赖第三方存任务数据。
 - **Q:AI 分类要联网/Key 吗?** A:AI 一键分类走 LLM,但有**启发式兜底**,没 Key/断网也能用基础分类。
-- **Q:为什么开源(MIT)?** A:实验要可验证 + 想看"人 + AI 协作贡献"能不能跑起来。欢迎 good-first-issue。
+- **Q:为什么开源(Apache-2.0)?** A:实验要可验证 + 想看"人 + AI 协作贡献"能不能跑起来。欢迎 good-first-issue。
 - **Q:AI 最容易翻车的地方?** A:命名、跨文件大重构、flaky 测试定位——这些正是 review 环节重点盯的。
 
 ---
