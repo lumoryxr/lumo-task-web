@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
+import { TARGET_BASE_URL } from "./e2e/environments";
 
-const BASE_URL =
-  process.env.PROD_BASE_URL ?? "https://lumo-task-frontend.onrender.com";
+const BASE_URL = TARGET_BASE_URL;
 
 export default defineConfig({
   testDir: "./e2e",

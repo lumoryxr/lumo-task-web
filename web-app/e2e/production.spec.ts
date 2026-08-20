@@ -25,16 +25,21 @@
  *   AC-11  Mobile layout
  *   AC-12  Security smoke
  *
- * Run: PROD_BASE_URL=https://lumo-task-frontend.onrender.com \
- *      npx playwright test --config=playwright.production.config.ts
+ * Runs against either live environment — both are defined in
+ * `e2e/environments.json` and exercised by the same suite:
+ *   production (lumoryxr.duckdns.org, single-origin VPS) and
+ *   gamma (Render, split frontend/backend services).
+ *
+ * Run: npx playwright test --config=playwright.production.config.ts
+ *      (defaults to production; override with PROD_BASE_URL / PROD_API_BASE)
  */
 
 import { test, expect, request, type APIRequestContext, type Page } from "@playwright/test";
 
-const FRONTEND_BASE =
-  process.env.PROD_BASE_URL ?? "https://lumo-task-frontend.onrender.com";
-const API_BASE =
-  process.env.PROD_API_BASE ?? "https://lumo-task-backend-1c3x.onrender.com";
+import { TARGET_BASE_URL, TARGET_API_BASE, IS_SAME_ORIGIN } from "./environments";
+
+const FRONTEND_BASE = TARGET_BASE_URL;
+const API_BASE = TARGET_API_BASE;
 
 function randomId(): string {
   return Math.random().toString(36).slice(2, 14);
@@ -512,17 +517,36 @@ test("AC-API.3 — GET /v1/completed returns a list for new user", async ({ requ
   expect(Array.isArray(arr)).toBe(true);
 });
 
-test("AC-12.3 — CORS preflight from frontend origin returns 204 with correct ACAO", async ({ request }) => {
-  const res = await request.fetch(`${API_BASE}/v1/tasks`, {
+async function preflight(api: APIRequestContext, origin: string) {
+  return api.fetch(`${API_BASE}/v1/tasks`, {
     method: "OPTIONS",
     headers: {
-      Origin: FRONTEND_BASE,
+      Origin: origin,
       "Access-Control-Request-Method": "GET",
       "Access-Control-Request-Headers": "authorization,content-type",
     },
     timeout: 30_000,
   });
-  expect([200, 204]).toContain(res.status());
+}
+
+// The security property — an untrusted site cannot read the API from a
+// browser — holds on both topologies, so this runs everywhere.
+test("AC-12.3 — CORS preflight from an untrusted origin is not allowed", async ({ request }) => {
+  const res = await preflight(request, "https://evil.example");
   const acao = res.headers()["access-control-allow-origin"];
-  expect(acao).toBe(FRONTEND_BASE);
+  expect(acao, "API echoed ACAO for an untrusted origin").not.toBe("https://evil.example");
+  expect(acao).not.toBe("*");
+});
+
+// Only meaningful when the SPA and the API are separate origins (Render/gamma).
+// On the VPS both are served by one process on one origin, so a browser never
+// preflights and no CORS allowlist entry is required — asserting one there
+// would fail for a configuration that is correct.
+test("AC-12.4 — CORS preflight from the frontend origin is allowed (split-origin only)", async ({
+  request,
+}) => {
+  test.skip(IS_SAME_ORIGIN, "Frontend and API share an origin — CORS is not in play");
+  const res = await preflight(request, FRONTEND_BASE);
+  expect([200, 204]).toContain(res.status());
+  expect(res.headers()["access-control-allow-origin"]).toBe(FRONTEND_BASE);
 });
