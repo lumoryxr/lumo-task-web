@@ -23,6 +23,21 @@ declare global {
       moveDbTo: (newDir: string) => Promise<{ ok: boolean; error?: string }>;
       /** Reveals lumo.db in Finder / Explorer. */
       showDbInFolder: () => void;
+      /**
+       * Returns the current cloud endpoint, whether it's a user override, and
+       * the built-in default.
+       */
+      getCloudEndpoint: () => Promise<{
+        endpoint: string;
+        isCustom: boolean;
+        defaultEndpoint: string;
+      }>;
+      /**
+       * Persists a custom cloud endpoint (empty string resets to default) and
+       * relaunches. Resolves to { ok:false, error } on validation failure; on
+       * success the app relaunches, so the promise does not resolve.
+       */
+      setCloudEndpoint: (endpoint: string) => Promise<{ ok: boolean; error?: string }>;
     };
   }
 }

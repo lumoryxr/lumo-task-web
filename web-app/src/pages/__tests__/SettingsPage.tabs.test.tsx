@@ -180,11 +180,19 @@ describe("SettingsPage · Data & Sync is desktop-only (#112)", () => {
     expect(screen.queryByText("settings.sync")).not.toBeInTheDocument();
   });
 
-  it("shows Storage + Sync inside the Data & Sync tab on the desktop build", () => {
-    (window as any).electronAPI = { isElectron: true };
+  it("shows Storage + Cloud Server + Sync inside the Data & Sync tab on the desktop build", () => {
+    (window as any).electronAPI = {
+      isElectron: true,
+      getCloudEndpoint: vi.fn().mockResolvedValue({
+        endpoint: "https://lumoryxr.duckdns.org",
+        isCustom: false,
+        defaultEndpoint: "https://lumoryxr.duckdns.org",
+      }),
+    };
     renderPage();
     clickTab("settings.dataSync");
     expect(screen.getByText("settings.storage")).toBeInTheDocument();
+    expect(screen.getByText("settings.cloud")).toBeInTheDocument();
     expect(screen.getByText("settings.sync")).toBeInTheDocument();
   });
 });

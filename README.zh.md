@@ -109,13 +109,19 @@ Web 应用运行在 `http://localhost:5173`，API 运行在 `http://localhost:30
 
 **每台安装的密钥自动生成** —— `LUMO_JWT_SECRET`、`LUMO_ENCRYPTION_KEY` 在首次启动时生成并持久化到应用的 userData 目录，用户无需配置。
 
-**连哪个后端（打包相关）：** 安装包通过 `LUMO_CLOUD_API_BASE`（`web-app/electron/main.cjs`）烤入一个云后端地址。默认指向运营的生产后端：
+**连哪个后端：** 桌面版按以下顺序解析云端地址（`web-app/electron/cloudEndpoint.cjs`）：
 
-```
-https://lumo-task-backend-1c3x.onrender.com
-```
+1. **用户在设置 → 数据与同步里保存的自定义服务器**（供自托管用户）。
+2. **打包前烤入的 `LUMO_CLOUD_API_BASE`**。
+3. **内置的生产默认值：**
 
-若要打一版连别的后端，在**打包前**设置该环境变量（它是服务端可信常量，绝不接受客户端传入——否则是 SSRF 漏洞）：
+   ```
+   https://lumoryxr.duckdns.org
+   ```
+
+这三者都是本地、由机器所有者控制的来源——地址**绝不通过 HTTP API 接受**（请求体传入的地址在共享云上是 SSRF 漏洞）。用户填入的地址在保存前会校验为 `https` origin（本地可用 `http://localhost`）且不带路径，保存后应用会重启以重新连接。
+
+若要改打包默认值，在**打包前**设置该环境变量：
 
 ```bash
 LUMO_CLOUD_API_BASE=https://your-backend.example.com make package-win

@@ -8,14 +8,21 @@ const os = require("os");
 
 // ── Cloud sync backend origin ─────────────────────────────────────────────────
 //
-// The bundled backend runs an in-process sync client that talks to OUR operated
-// cloud backend over its authenticated HTTP API (P1b). This is the cloud ROOT
-// origin — the backend appends `/v1` itself. It is a server-trusted constant,
-// never user-entered (accepting it from a client would be an SSRF vector).
+// The bundled backend runs an in-process sync client that talks to a cloud
+// backend over its authenticated HTTP API (P1b). This is the cloud ROOT origin
+// — the backend appends `/v1` itself.
 //
-// OPERATOR: set LUMO_CLOUD_API_BASE to your deployed cloud backend origin
-// before packaging if it differs from the default below.
-const CLOUD_API_BASE = process.env.LUMO_CLOUD_API_BASE || "https://lumo-task-backend-1c3x.onrender.com";
+// Resolution (see electron/cloudEndpoint.cjs): the user's saved custom endpoint
+// (Settings → Data & Sync, for self-hosters) → an operator-set
+// LUMO_CLOUD_API_BASE baked in at package time → the built-in production
+// default. All three are LOCAL, machine-owner-controlled sources; the value is
+// still NEVER accepted over the HTTP API (the sync route rejects a
+// request-supplied base — that would be an SSRF vector on the shared cloud).
+const {
+  DEFAULT_CLOUD_API_BASE,
+  validateCloudEndpoint,
+  resolveCloudApiBase,
+} = require("./cloudEndpoint.cjs");
 
 // ── File logger ───────────────────────────────────────────────────────────────
 
@@ -137,6 +144,41 @@ function waitForPort(port, timeout) {
   });
 }
 
+// ── Local preferences (userData/storage.json) ─────────────────────────────────
+
+/**
+ * Read the merged prefs object from userData/storage.json.
+ * Returns {} when the file is missing or malformed — every caller treats an
+ * absent key as "use the default".
+ */
+function readPrefs() {
+  const prefPath = path.join(app.getPath("userData"), "storage.json");
+  if (fs.existsSync(prefPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(prefPath, "utf8"));
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      // Malformed prefs — fall through to defaults.
+    }
+  }
+  return {};
+}
+
+/**
+ * Merge `patch` into the stored prefs and persist. Merge (not overwrite) so
+ * unrelated keys — e.g. the DB dir vs. the cloud endpoint — never clobber each
+ * other. Passing a key with value `undefined` deletes it.
+ */
+function writePrefs(patch) {
+  const prefPath = path.join(app.getPath("userData"), "storage.json");
+  const next = { ...readPrefs() };
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) delete next[k];
+    else next[k] = v;
+  }
+  fs.writeFileSync(prefPath, JSON.stringify(next), { encoding: "utf8", mode: 0o600 });
+}
+
 // ── Database path (supports user-customisable location) ───────────────────────
 
 /**
@@ -147,23 +189,28 @@ function waitForPort(port, timeout) {
  *   2. Default                  → userData/lumo.db
  */
 function getDbPath() {
-  const prefPath = path.join(app.getPath("userData"), "storage.json");
-  if (fs.existsSync(prefPath)) {
-    try {
-      const prefs = JSON.parse(fs.readFileSync(prefPath, "utf8"));
-      if (prefs.dbDir && typeof prefs.dbDir === "string") {
-        return path.join(prefs.dbDir, "lumo.db");
-      }
-    } catch {
-      // Malformed prefs — fall through to default
-    }
+  const prefs = readPrefs();
+  if (prefs.dbDir && typeof prefs.dbDir === "string") {
+    return path.join(prefs.dbDir, "lumo.db");
   }
   return path.join(app.getPath("userData"), "lumo.db");
 }
 
 function saveDbDirPref(dbDir) {
-  const prefPath = path.join(app.getPath("userData"), "storage.json");
-  fs.writeFileSync(prefPath, JSON.stringify({ dbDir }), { encoding: "utf8", mode: 0o600 });
+  writePrefs({ dbDir });
+}
+
+// ── Cloud endpoint (supports self-hosted / custom server) ─────────────────────
+
+/**
+ * The cloud origin the backend should sign into. Saved custom endpoint (if the
+ * user set one) → operator env → production default. See cloudEndpoint.cjs.
+ */
+function getCloudApiBase() {
+  return resolveCloudApiBase({
+    savedEndpoint: readPrefs().cloudApiBase,
+    envBase: process.env.LUMO_CLOUD_API_BASE,
+  });
 }
 
 // ── Backend process ───────────────────────────────────────────────────────────
@@ -189,8 +236,9 @@ async function startBackend() {
     LUMO_JWT_SECRET: jwtSecret,
     LUMO_ENCRYPTION_KEY: encryptionKey,
     // Cloud backend origin for the in-process sync client (P1b). The backend
-    // appends `/v1`. Server-trusted constant — never user-entered.
-    LUMO_CLOUD_API_BASE: CLOUD_API_BASE,
+    // appends `/v1`. Resolved from local machine-owner config only (saved
+    // custom endpoint → operator env → default) — never from an HTTP request.
+    LUMO_CLOUD_API_BASE: getCloudApiBase(),
     // In packaged builds, @libsql/* native modules live in extraResources.
     // NODE_PATH lets the forked bundle resolve them at runtime.
     ...(app.isPackaged
@@ -350,9 +398,53 @@ function createWindow() {
     shell.showItemInFolder(getDbPath());
   });
 
-  // NOTE: Cloud sync is now an in-process backend loop driven by the HTTP
-  // endpoints (/sync/enable|disable|now|status) — no IPC, no app.relaunch().
-  // The cloud origin is injected into the backend env via LUMO_CLOUD_API_BASE.
+  // ── Cloud endpoint IPC (self-hosted / custom server) ──────────────────────
+  //
+  // Cloud sync itself is an in-process backend loop driven by the HTTP
+  // endpoints (/sync/enable|disable|now|status). What IS configurable from the
+  // UI is WHICH cloud that loop signs into: self-hosters point it at their own
+  // server. The chosen origin is persisted locally (userData/storage.json) and
+  // injected into the backend env on the next launch — never taken from the
+  // network API.
+
+  /**
+   * Current cloud endpoint plus enough context for the UI to show whether it's
+   * the default or a user override, and what the default is.
+   */
+  ipcMain.handle("cloud:getEndpoint", () => {
+    const saved = validateCloudEndpoint(readPrefs().cloudApiBase ?? "");
+    return {
+      endpoint: getCloudApiBase(),
+      isCustom: saved !== null,
+      defaultEndpoint: DEFAULT_CLOUD_API_BASE,
+    };
+  });
+
+  /**
+   * Persist a custom cloud endpoint (or reset to default when empty), then
+   * relaunch so the backend restarts against the new origin — mirrors db:moveTo.
+   * Returns { ok, error? }; on success the app relaunches and this never
+   * resolves in the renderer.
+   */
+  ipcMain.handle("cloud:setEndpoint", (_event, raw) => {
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+
+    // Empty, or exactly the default → clear any override and fall back to default.
+    if (!trimmed || validateCloudEndpoint(trimmed) === DEFAULT_CLOUD_API_BASE) {
+      writePrefs({ cloudApiBase: undefined });
+    } else {
+      const normalised = validateCloudEndpoint(trimmed);
+      if (!normalised) {
+        return { ok: false, error: "INVALID_ENDPOINT" };
+      }
+      writePrefs({ cloudApiBase: normalised });
+    }
+
+    // Relaunch so startBackend() picks up the new LUMO_CLOUD_API_BASE.
+    app.relaunch();
+    app.exit(0);
+    return { ok: true };
+  });
 
   // ── Pet focus compact mode ────────────────────────────────────────────────
   let savedBounds = null;

@@ -25,6 +25,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Reveals lumo.db in Finder / Explorer (fire-and-forget). */
   showDbInFolder: () => ipcRenderer.send("db:showInFolder"),
 
-  // Cloud sync is driven entirely by the backend's HTTP endpoints (P1b) —
-  // no preload bridge needed.
+  // ── Cloud endpoint (which server sync signs into) ────────────────────────────
+  /**
+   * Current cloud endpoint + whether it's a user override + the default.
+   * @returns {Promise<{endpoint:string, isCustom:boolean, defaultEndpoint:string}>}
+   */
+  getCloudEndpoint: () => ipcRenderer.invoke("cloud:getEndpoint"),
+  /**
+   * Persist a custom cloud endpoint (empty string resets to default), then
+   * relaunch. Resolves to {ok:false, error} on validation failure; on success
+   * the app relaunches so the promise does not resolve.
+   * @param {string} endpoint
+   * @returns {Promise<{ok:boolean, error?:string}>}
+   */
+  setCloudEndpoint: (endpoint) => ipcRenderer.invoke("cloud:setEndpoint", endpoint),
 });
