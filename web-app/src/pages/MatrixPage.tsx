@@ -9,7 +9,8 @@ import { TaskTitle } from "@/components/TaskTitle";
 import type { Quadrant, Task } from "@/types/task";
 import { useAppStore } from "@/store/useAppStore";
 import { fmtDuration, getDueLabel, getDueColor } from "@/lib/format";
-import { IconArrowRight, IconBookmark, IconCheck, IconMore, IconSparkle } from "@/components/icons";
+import { IconArrowRight, IconBookmark, IconCheck, IconMore, IconPlus, IconSparkle } from "@/components/icons";
+import { useShellOutlet } from "@/components/shellOutletContext";
 import { AIClassifyModal } from "@/components/AIClassifyModal";
 import { TemplateLibraryModal } from "@/components/TemplateLibraryModal";
 import { TaskDetailModal } from "@/components/TaskDetailModal";
@@ -37,6 +38,7 @@ type ViewMode = "matrix" | "calendar";
 
 export function MatrixPage() {
   const t = useT();
+  const { openQuickCreate } = useShellOutlet();
   const isMobile = useIsMobile();
   const tasks = useTasksStore((s) => s.tasks);
   const loading = useTasksStore((s) => s.loading);
@@ -76,6 +78,16 @@ export function MatrixPage() {
     <div className="fade-in flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-shrink-0 px-7 pt-7 pb-4">
+        {/* Create task — explicit primary action, first in the toolbar so it
+            reads as the main thing to do on this board. */}
+        <button
+          className="btn btn-primary flex-shrink-0"
+          onClick={() => openQuickCreate()}
+          aria-label={t("action.newTask")}
+        >
+          <IconPlus size={14} />
+          {t("action.newTask")}
+        </button>
         {view === "matrix" ? (
           <>
             {isMobile ? (
@@ -174,7 +186,14 @@ export function MatrixPage() {
       {view === "matrix" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-2 gap-3 sm:gap-4 flex-1 min-h-0 overflow-y-auto px-4 sm:px-7 pb-4 sm:pb-7">
           {quadrants.map((q) => (
-            <QuadrantPanel key={q.id} id={q.id} title={q.label} subtitle={q.sub} projectFilter={activeProject} />
+            <QuadrantPanel
+              key={q.id}
+              id={q.id}
+              title={q.label}
+              subtitle={q.sub}
+              projectFilter={activeProject}
+              onAdd={() => openQuickCreate(q.id)}
+            />
           ))}
         </div>
       ) : (
@@ -268,11 +287,13 @@ function QuadrantPanel({
   title,
   subtitle,
   projectFilter,
+  onAdd,
 }: {
   id: Quadrant;
   title: string;
   subtitle: string;
   projectFilter: string | null;
+  onAdd: () => void;
 }) {
   const all = useTasksStore((s) => s.byQuadrant(id));
   const tasks = filterPlanTasks(all, null, projectFilter);
@@ -298,6 +319,14 @@ function QuadrantPanel({
         </span>
         <span className="text-[11px] text-text-faint ml-1">{subtitle}</span>
         <span className="ml-auto text-[11px] tabular-nums text-text-muted">{tasks.length}</span>
+        <button
+          onClick={onAdd}
+          aria-label={t("matrix.quadrantAdd")}
+          title={t("matrix.quadrantAdd")}
+          className="flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:bg-subtle hover:text-text-primary transition-colors"
+        >
+          <IconPlus size={14} />
+        </button>
       </header>
 
       <div className="flex-1 min-h-0 scroll-y p-3 flex flex-col gap-2">

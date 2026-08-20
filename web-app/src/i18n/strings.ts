@@ -25,6 +25,9 @@ export const STRINGS: Record<Locale, Dict> = {
     "status.local.alone": "All data stays on this device.",
     "topbar.search": "Search tasks…",
     "topbar.quickadd": "Quick add",
+    "action.newTask": "New task",
+    "today.empty.create": "Create a task",
+    "matrix.quadrantAdd": "Add task here",
 
     "search.placeholder": "Search tasks…",
     "search.noResults": "No matching tasks",
@@ -1127,6 +1130,9 @@ export const STRINGS: Record<Locale, Dict> = {
     "status.local.alone": "所有数据保留在本机。",
     "topbar.search": "搜索任务…",
     "topbar.quickadd": "快速添加",
+    "action.newTask": "新建任务",
+    "today.empty.create": "创建任务",
+    "matrix.quadrantAdd": "在此象限新建任务",
 
     "search.placeholder": "搜索任务…",
     "search.noResults": "未找到匹配任务",

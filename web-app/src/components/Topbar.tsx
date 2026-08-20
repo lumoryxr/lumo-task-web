@@ -53,14 +53,17 @@ export function Topbar({ title, subtitle, onQuickAdd, onOpenSearch }: TopbarProp
         </span>
       </button>
 
-      {/* Quick add */}
+      {/* Create task — explicit, high-visibility primary action. Previously a
+          bare icon that customers missed; now a labeled accent button. */}
       <button
         onClick={onQuickAdd}
-        title={t("topbar.quickadd")}
-        className="flex items-center justify-center w-8 h-8 rounded-md text-text-secondary hover:bg-subtle hover:text-text-primary transition-colors"
-        style={{ WebkitAppRegion: "no-drag" }}
+        title={t("action.newTask")}
+        aria-label={t("action.newTask")}
+        className="btn btn-primary flex-shrink-0"
+        style={{ height: 32, WebkitAppRegion: "no-drag" }}
       >
-        <IconPlus size={16} />
+        <IconPlus size={15} />
+        <span className="hidden sm:inline">{t("action.newTask")}</span>
       </button>
 
       {/* Avatar */}

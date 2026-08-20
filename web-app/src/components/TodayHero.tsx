@@ -1,4 +1,5 @@
 import { ProgressRing } from "@/components/ProgressRing";
+import { IconPlus } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -19,6 +20,8 @@ interface TodayHeroProps {
   done: number;
   /** Today's total workload (done + remaining). */
   total: number;
+  /** When provided, renders an explicit "New task" button in the header. */
+  onCreate?: () => void;
 }
 
 /**
@@ -26,7 +29,7 @@ interface TodayHeroProps {
  * completion progress ring. Mirrors the marketing mockup Jalen approved
  * (0704). The ring/subline only appear when there's a workload to summarize.
  */
-export function TodayHero({ name, done, total }: TodayHeroProps) {
+export function TodayHero({ name, done, total, onCreate }: TodayHeroProps) {
   const t = useT();
   const locale = useAppStore((s) => s.locale);
   const now = new Date();
@@ -67,18 +70,26 @@ export function TodayHero({ name, done, total }: TodayHeroProps) {
         <div className="text-sm text-text-secondary mt-1.5">{subline}</div>
       </div>
 
-      {total > 0 && (
-        <div
-          className="relative shrink-0 grid place-items-center"
-          role="img"
-          aria-label={`${pct}%`}
-        >
-          <ProgressRing pct={pct} color="var(--accent-primary)" size={56} stroke={5} />
-          <span className="absolute text-[12px] font-bold tabular-nums text-text-primary">
-            {pct}%
-          </span>
-        </div>
-      )}
+      <div className="flex items-center gap-3 shrink-0">
+        {onCreate && (
+          <button className="btn btn-primary" onClick={onCreate} aria-label={t("action.newTask")}>
+            <IconPlus size={15} />
+            {t("action.newTask")}
+          </button>
+        )}
+        {total > 0 && (
+          <div
+            className="relative grid place-items-center"
+            role="img"
+            aria-label={`${pct}%`}
+          >
+            <ProgressRing pct={pct} color="var(--accent-primary)" size={56} stroke={5} />
+            <span className="absolute text-[12px] font-bold tabular-nums text-text-primary">
+              {pct}%
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

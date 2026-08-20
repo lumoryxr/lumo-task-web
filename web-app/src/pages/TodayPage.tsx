@@ -11,7 +11,8 @@ import { TodayHero } from "@/components/TodayHero";
 import { BatchActionBar } from "@/components/BatchActionBar";
 import { FilterChip } from "@/components/FilterChip";
 import { TaskListSkeleton } from "@/components/skeletons";
-import { IconArrowRight } from "@/components/icons";
+import { IconArrowRight, IconPlus } from "@/components/icons";
+import { useShellOutlet } from "@/components/shellOutletContext";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
@@ -301,7 +302,7 @@ function ConvictionCard({ task, tasks, locale }: ConvictionCardProps) {
 
 // ─── Empty State ───────────────────────────────────────────────────────────
 
-function TodayEmptyState() {
+function TodayEmptyState({ onCreate }: { onCreate: () => void }) {
   const navigate = useNavigate();
   const t = useT();
   const locale = useAppStore((s) => s.locale);
@@ -361,10 +362,16 @@ function TodayEmptyState() {
         {t("today.empty.sub")}
       </p>
 
-      <button className="btn btn-secondary" onClick={() => navigate("/matrix")}>
-        {t("today.empty.cta")}
-        <span style={{ marginLeft: 4, opacity: 0.7 }}>→</span>
-      </button>
+      <div className="flex items-center gap-3">
+        <button className="btn btn-primary" onClick={onCreate}>
+          <IconPlus size={15} />
+          {t("today.empty.create")}
+        </button>
+        <button className="btn btn-secondary" onClick={() => navigate("/matrix")}>
+          {t("today.empty.cta")}
+          <span style={{ marginLeft: 4, opacity: 0.7 }}>→</span>
+        </button>
+      </div>
 
       {/* Subtle hint row */}
       <div
@@ -674,6 +681,7 @@ function WeekFocusSection({ weekFocusTasks }: WeekFocusSectionProps) {
 
 export function TodayPage() {
   const t = useT();
+  const { openQuickCreate } = useShellOutlet();
   const locale = useAppStore((s) => s.locale);
   const tasks = useTasksStore((s) => s.tasks);
   const completed = useTasksStore((s) => s.completed);
@@ -796,7 +804,7 @@ export function TodayPage() {
     return (
       <>
         <div className="px-4 sm:px-7 pt-6 sm:pt-7">
-          <TodayHero name={heroName} done={doneToday} total={totalToday} />
+          <TodayHero name={heroName} done={doneToday} total={totalToday} onCreate={() => openQuickCreate()} />
           <PlanningStrip
             onPlanning={() => setPlanningOpen(true)} planned={planned}
             onWeekly={() => setWeeklyOpen(true)} weeklyPlanned={weeklyPlanned}
@@ -804,7 +812,7 @@ export function TodayPage() {
           />
           <WeekFocusSection weekFocusTasks={weekFocusTasks} />
         </div>
-        <TodayEmptyState />
+        <TodayEmptyState onCreate={() => openQuickCreate()} />
         {planningOpen && <MorningPlanningModal onClose={handlePlanningClose} />}
         {eveningOpen && <EveningReviewModal onClose={handleEveningClose} />}
         {weeklyOpen && (
@@ -820,7 +828,7 @@ export function TodayPage() {
 
   return (
     <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
-      <TodayHero name={heroName} done={doneToday} total={totalToday} />
+      <TodayHero name={heroName} done={doneToday} total={totalToday} onCreate={() => openQuickCreate()} />
 
       {/* Planning strip — plan day / plan week / evening review, folded into one
           compact row so these low-frequency actions don't dominate the page */}
