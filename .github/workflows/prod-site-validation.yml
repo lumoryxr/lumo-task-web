@@ -1,40 +1,120 @@
-name: Production Site Validation
+name: Live Site Validation
 
-# Validates the LIVE deployed frontend + backend (no mocks, no dev server).
+# Runs the production E2E suite against the LIVE deployments (no mocks, no dev
+# server). Two environments run the SAME suite:
+#
+#   production — https://lumoryxr.duckdns.org, the VPS everything we publish
+#                points at (share-card QR codes, README badges, launch posts).
+#                One process serves both the SPA and the /v1 API on one origin.
+#   gamma      — the Render deployment, used to validate a release *before* it
+#                reaches production. Frontend and backend are separate services.
+#
+# Both target URLs come from `web-app/e2e/environments.json` — the same file the
+# Playwright config and the spec read — so hosts are never restated in YAML.
 #
 # This is NOT part of CI: it must never run on push or pull_request, because it
-# hits the real production environment (flaky/slow on PR validation, and it
-# would exercise live infra on every change). It runs only:
-#   - On a daily schedule (regression detection against live infra)
+# hits real environments (slow/flaky as PR validation, and it would exercise
+# live infra on every change). It runs only:
+#   - On a daily schedule (regression detection against both environments)
 #   - Manually, from the Actions tab (workflow_dispatch)
 #
-# Distinct from `ui-tests.yml`, which runs the mocked-API UI suite against a
-# dev server. This workflow uses production-target Playwright config
-# (`web-app/playwright.production.config.ts` + `e2e/production.spec.ts`).
+# Distinct from `ui-tests.yml`, which runs the mocked-API UI suite against a dev
+# server. This workflow uses `web-app/playwright.production.config.ts` +
+# `e2e/production.spec.ts`.
 on:
   schedule:
     - cron: "30 8 * * *"
   workflow_dispatch:
     inputs:
-      prod_base_url:
-        description: "Frontend base URL"
+      target:
+        description: "Environment(s) to validate"
+        type: choice
+        options:
+          - both
+          - production
+          - gamma
+        default: both
+      base_url:
+        description: "Frontend base URL override (single environment only)"
         required: false
-        default: "https://lumo-task-frontend.onrender.com"
-      prod_api_base:
-        description: "Backend base URL"
+      api_base:
+        description: "Backend base URL override (single environment only)"
         required: false
-        default: "https://lumo-task-backend-1c3x.onrender.com"
 
 jobs:
-  prod-validation:
-    name: Playwright Production Validation
+  # Turns the shared environments file into a job matrix, so adding or
+  # repointing an environment is a one-line JSON edit and never a YAML edit.
+  plan:
+    name: Resolve targets
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: build
+        env:
+          TARGET: ${{ inputs.target || 'both' }}
+          BASE_URL_OVERRIDE: ${{ inputs.base_url }}
+          API_BASE_OVERRIDE: ${{ inputs.api_base }}
+        run: |
+          set -euo pipefail
+          file=web-app/e2e/environments.json
+
+          if [ "$TARGET" = "both" ]; then
+            selected=$(jq -c 'to_entries' "$file")
+          else
+            if ! jq -e --arg t "$TARGET" 'has($t)' "$file" >/dev/null; then
+              echo "::error::Unknown environment '$TARGET' — not defined in $file"
+              exit 1
+            fi
+            selected=$(jq -c --arg t "$TARGET" '{ ($t): .[$t] } | to_entries' "$file")
+          fi
+
+          # A URL override addresses one specific deployment, so it is only
+          # unambiguous when exactly one environment was selected.
+          if [ "$(printf '%s' "$selected" | jq 'length')" = "1" ]; then
+            if [ -n "${BASE_URL_OVERRIDE:-}" ]; then
+              selected=$(printf '%s' "$selected" | jq -c --arg v "$BASE_URL_OVERRIDE" '.[0].value.baseUrl = $v')
+            fi
+            if [ -n "${API_BASE_OVERRIDE:-}" ]; then
+              selected=$(printf '%s' "$selected" | jq -c --arg v "$API_BASE_OVERRIDE" '.[0].value.apiBase = $v')
+            fi
+          elif [ -n "${BASE_URL_OVERRIDE:-}${API_BASE_OVERRIDE:-}" ]; then
+            echo "::warning::URL overrides ignored — they apply only when a single environment is selected"
+          fi
+
+          include=$(printf '%s' "$selected" | jq -c 'map({
+            env: .key,
+            label: .value.label,
+            baseUrl: .value.baseUrl,
+            apiBase: .value.apiBase
+          })')
+
+          echo "Validating: $(printf '%s' "$include" | jq -r 'map(.env) | join(", ")')"
+          printf '%s' "$include" | jq .
+          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
+
+  validate:
+    name: ${{ matrix.label }}
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      # One environment being down must not hide the other's result.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     defaults:
       run:
         working-directory: web-app
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Show target
+        run: |
+          echo "environment : ${{ matrix.env }}"
+          echo "frontend    : ${{ matrix.baseUrl }}"
+          echo "api         : ${{ matrix.apiBase }}"
 
       - uses: actions/setup-node@v7
         with:
@@ -64,14 +144,14 @@ jobs:
       - name: Run production E2E suite
         run: npx playwright test --config=playwright.production.config.ts
         env:
-          PROD_BASE_URL: ${{ inputs.prod_base_url || 'https://lumo-task-frontend.onrender.com' }}
-          PROD_API_BASE: ${{ inputs.prod_api_base || 'https://lumo-task-backend-1c3x.onrender.com' }}
+          PROD_BASE_URL: ${{ matrix.baseUrl }}
+          PROD_API_BASE: ${{ matrix.apiBase }}
 
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-prod-${{ github.run_id }}
+          name: playwright-report-${{ matrix.env }}-${{ github.run_id }}
           path: web-app/playwright-report-prod/
           retention-days: 30
 
@@ -79,6 +159,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-traces-prod-${{ github.run_id }}
+          name: playwright-traces-${{ matrix.env }}-${{ github.run_id }}
           path: web-app/test-results/
           retention-days: 14

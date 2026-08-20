@@ -1,0 +1,12 @@
+{
+  "production": {
+    "label": "Production · lumoryxr.duckdns.org",
+    "baseUrl": "https://lumoryxr.duckdns.org",
+    "apiBase": "https://lumoryxr.duckdns.org"
+  },
+  "gamma": {
+    "label": "Gamma · Render",
+    "baseUrl": "https://lumo-task-frontend.onrender.com",
+    "apiBase": "https://lumo-task-backend-1c3x.onrender.com"
+  }
+}
