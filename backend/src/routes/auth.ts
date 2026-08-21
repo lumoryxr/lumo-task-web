@@ -10,6 +10,7 @@ import { issueResetToken, consumeResetToken } from "../lib/passwordReset.js";
 import { issueVerificationToken, consumeVerificationToken } from "../lib/emailVerification.js";
 import { issueRecoveryCode, verifyAndConsumeRecoveryCode } from "../lib/recoveryCode.js";
 import { sendEmail } from "../lib/email.js";
+import { appBaseUrl } from "../lib/appBaseUrl.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
@@ -99,19 +100,16 @@ const VerifyEmailBody = z.object({
   token: z.string().min(1).max(512),
 });
 
-/** Absolute base URL of the web app, used to build links in emails. */
-function appBaseUrl(): string {
-  return (process.env.LUMO_APP_BASE_URL || "https://lumo-task-frontend.onrender.com").replace(/\/+$/, "");
-}
-
 /**
  * Issue a fresh verification token and email the confirmation link. Best-effort:
  * a delivery failure is logged by the email lib but never blocks the caller
- * (registration must still succeed if email is down).
+ * (registration must still succeed if email is down). `baseUrl` is the resolved
+ * app base URL (see lib/appBaseUrl) — passed in so this helper stays free of the
+ * request context.
  */
-async function sendVerificationEmail(userId: string, email: string, name: string): Promise<void> {
+async function sendVerificationEmail(userId: string, email: string, name: string, baseUrl: string): Promise<void> {
   const rawToken = await issueVerificationToken(userId);
-  const link = `${appBaseUrl()}/verify-email?token=${encodeURIComponent(rawToken)}`;
+  const link = `${baseUrl}/verify-email?token=${encodeURIComponent(rawToken)}`;
   await sendEmail({
     to: email,
     subject: "Verify your Lumo email",
@@ -258,7 +256,7 @@ app.post("/bind-email", authRateLimit, authMiddleware, validate("json", BindEmai
   audit("auth.bind_email", { userId, ip: clientIp(c) });
 
   // Best-effort verification email — binding succeeds even if delivery is down.
-  await sendVerificationEmail(userId, email, user.name);
+  await sendVerificationEmail(userId, email, user.name, appBaseUrl(c));
   audit("auth.verify_email.sent", { userId, ip: clientIp(c) });
 
   return c.json({ ok: true, email, emailVerified: false });
@@ -355,7 +353,7 @@ app.post("/forgot-password", authRateLimit, validate("json", ForgotPasswordBody)
 
   if (user) {
     const rawToken = await issueResetToken(user.id);
-    const link = `${appBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
+    const link = `${appBaseUrl(c)}/reset-password?token=${encodeURIComponent(rawToken)}`;
     await sendEmail({
       to: email,
       subject: "Reset your Lumo password",
@@ -425,7 +423,7 @@ app.post("/resend-verification", authRateLimit, authMiddleware, async (c) => {
   // No-op (still 200) when already verified OR when no email is bound — the
   // response never depends on state in a way a caller could probe.
   if (user.email && !user.email_verified) {
-    await sendVerificationEmail(user.id, user.email, user.name);
+    await sendVerificationEmail(user.id, user.email, user.name, appBaseUrl(c));
     audit("auth.verify_email.resend", { userId, ip: clientIp(c) });
   }
   return c.json({ ok: true });

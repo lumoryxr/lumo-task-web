@@ -25,6 +25,7 @@ import { createRateLimiter } from "../lib/rateLimit.js";
 import { getClientIp } from "../lib/clientIp.js";
 import { audit } from "../lib/audit.js";
 import { githubOauth } from "../lib/githubOauth.js";
+import { appBaseUrl } from "../lib/appBaseUrl.js";
 import type { Context } from "hono";
 import type { Variables } from "../env.js";
 import type { UserRow } from "../db/rows.js";
@@ -49,11 +50,6 @@ const RESERVED_USERNAMES = new Set(["admin", "root", "lumo", "support", "system"
 
 function clientIp(c: Context<{ Variables: Variables }>): string {
   return getClientIp(c);
-}
-
-/** Absolute base URL of the web app — the SPA the callback redirects back to. */
-function appBaseUrl(): string {
-  return (process.env.LUMO_APP_BASE_URL || "https://lumo-task-frontend.onrender.com").replace(/\/+$/, "");
 }
 
 function initialsFromUsername(username: string): string {
@@ -167,16 +163,16 @@ app.get("/callback", oauthRateLimit, async (c) => {
   // The callback is ALWAYS a top-level browser navigation, so every failure
   // redirects to the login page with a readable flag — never a raw JSON body.
   if (!githubOauth.isConfigured()) {
-    return c.redirect(`${appBaseUrl()}/#/login?error=oauth`, 302);
+    return c.redirect(`${appBaseUrl(c)}/#/login?error=oauth`, 302);
   }
   if (!state || !(await consumeState(state))) {
     audit("auth.github.state_invalid", { ip: clientIp(c) });
-    return c.redirect(`${appBaseUrl()}/#/login?error=oauth`, 302);
+    return c.redirect(`${appBaseUrl(c)}/#/login?error=oauth`, 302);
   }
   if (!code) {
     // User denied / GitHub error — no code to exchange. Back to login.
     audit("auth.github.callback_no_code", { ip: clientIp(c) });
-    return c.redirect(`${appBaseUrl()}/#/login?error=oauth`, 302);
+    return c.redirect(`${appBaseUrl(c)}/#/login?error=oauth`, 302);
   }
 
   let ghUser: { id: string; login: string };
@@ -187,7 +183,7 @@ app.get("/callback", oauthRateLimit, async (c) => {
     // Upstream exchange/user-fetch failure. The design routes this back to the
     // login page for the user; the audit records the failure server-side.
     audit("auth.github.exchange_failed", { ip: clientIp(c) });
-    return c.redirect(`${appBaseUrl()}/#/login?error=oauth`, 302);
+    return c.redirect(`${appBaseUrl(c)}/#/login?error=oauth`, 302);
   }
 
   try {
@@ -234,10 +230,10 @@ app.get("/callback", oauthRateLimit, async (c) => {
        VALUES (:code, :uid, :token, :rt, :now)`,
       { code: handoff, uid: userId, token, rt: refreshToken, now: new Date().toISOString() },
     );
-    return c.redirect(`${appBaseUrl()}/#/oauth/github?code=${encodeURIComponent(handoff)}`, 302);
+    return c.redirect(`${appBaseUrl(c)}/#/oauth/github?code=${encodeURIComponent(handoff)}`, 302);
   } catch {
     audit("auth.github.callback_failed", { ip: clientIp(c) });
-    return c.redirect(`${appBaseUrl()}/#/login?error=oauth`, 302);
+    return c.redirect(`${appBaseUrl(c)}/#/login?error=oauth`, 302);
   }
 });
 
