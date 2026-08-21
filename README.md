@@ -6,13 +6,13 @@
 
 [![CI](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml)
 [![Release](https://github.com/lumoryxr/lumo-task-web/actions/workflows/release-desktop.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/releases)
-[![Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://lumoryxr.duckdns.org/?ref=readme)
+[![Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://task.lumoryxr.com/?ref=readme)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![AI-Coded](https://img.shields.io/badge/coded%20by-AI%20only-blueviolet?logo=anthropic)](https://claude.ai)
 
 **[English](README.md) | [中文](README.zh.md)**
 
-[Live Demo](https://lumoryxr.duckdns.org/?ref=readme) · [Releases](https://github.com/lumoryxr/lumo-task-web/releases) · [Contributing](.github/CONTRIBUTING.md)
+[Live Demo](https://task.lumoryxr.com/?ref=readme) · [Releases](https://github.com/lumoryxr/lumo-task-web/releases) · [Contributing](.github/CONTRIBUTING.md)
 
 </div>
 
@@ -116,7 +116,7 @@ That's it — no URL, token, or config file. The app signs into the cloud backen
 3. **The built-in production default:**
 
    ```
-   https://lumoryxr.duckdns.org
+   https://task.lumoryxr.com
    ```
 
 All three are local, machine-owner-controlled sources — the origin is **never accepted over the HTTP API** (a request-supplied base would be an SSRF vector on the shared cloud). A user-entered address is validated to be an `https` origin (or `http` to `localhost`) with no path before it's stored, and the app restarts so the backend reconnects.

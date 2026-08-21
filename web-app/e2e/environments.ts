@@ -2,7 +2,7 @@
  * Live deployment targets for the production validation suite.
  *
  * Two environments run the SAME suite:
- *   - `production` — the VPS behind lumoryxr.duckdns.org. Everything we
+ *   - `production` — the VPS behind task.lumoryxr.com. Everything we
  *     advertise (share-card QR codes, README badges, launch posts) points
  *     here, so this is the one that must never be broken.
  *   - `gamma` — the Render deployment, used to validate a release before it

@@ -23,6 +23,7 @@
 
 import { test, expect, type Page } from "@playwright/test";
 import { STRINGS } from "../src/i18n/strings";
+import { SITE_LABEL } from "../src/config/app";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -1368,14 +1369,15 @@ const I18N_KEY_SHAPE = /^[a-z][a-z0-9]*(?:\.[a-z0-9_]+)+$/;
 
 async function findRawI18nKeys(page: Page): Promise<string[]> {
   return page.evaluate(
-    ({ keys, namespaces, shapeSrc }) => {
+    ({ keys, namespaces, shapeSrc, allow }) => {
       const KEYS = new Set(keys);
       const NS = new Set(namespaces);
+      const ALLOW = new Set(allow);
       const shape = new RegExp(shapeSrc);
       const hits = new Set<string>();
       const consider = (raw: string | null) => {
         const t = (raw || "").trim();
-        if (!t) return;
+        if (!t || ALLOW.has(t)) return;
         if (KEYS.has(t) || (shape.test(t) && NS.has(t.split(".")[0]))) hits.add(t);
       };
       const visible = (el: Element | null) => {
@@ -1398,7 +1400,16 @@ async function findRawI18nKeys(page: Page): Promise<string[]> {
       });
       return [...hits];
     },
-    { keys: [...I18N_KEYS], namespaces: [...I18N_NAMESPACES], shapeSrc: I18N_KEY_SHAPE.source },
+    {
+      keys: [...I18N_KEYS],
+      namespaces: [...I18N_NAMESPACES],
+      shapeSrc: I18N_KEY_SHAPE.source,
+      // The brand footer prints the site label (e.g. `task.lumoryxr.com`), which
+      // collides with the `task.` i18n namespace under the dotted-key heuristic.
+      // It's an intentional domain, not a leaked key — allowlist it so a real
+      // `task.*` leak elsewhere is still caught.
+      allow: [SITE_LABEL],
+    },
   );
 }
 

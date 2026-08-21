@@ -6,13 +6,13 @@
 
 [![CI](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/actions/workflows/ci.yml)
 [![Release](https://github.com/lumoryxr/lumo-task-web/actions/workflows/release-desktop.yml/badge.svg)](https://github.com/lumoryxr/lumo-task-web/releases)
-[![Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://lumoryxr.duckdns.org/?ref=readme)
+[![Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://task.lumoryxr.com/?ref=readme)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![AI-Coded](https://img.shields.io/badge/coded%20by-AI%20only-blueviolet?logo=anthropic)](https://claude.ai)
 
 **[English](README.md) | [中文](README.zh.md)**
 
-[在线 Demo](https://lumoryxr.duckdns.org/?ref=readme) · [发布版本](https://github.com/lumoryxr/lumo-task-web/releases) · [贡献指南](.github/CONTRIBUTING.md)
+[在线 Demo](https://task.lumoryxr.com/?ref=readme) · [发布版本](https://github.com/lumoryxr/lumo-task-web/releases) · [贡献指南](.github/CONTRIBUTING.md)
 
 </div>
 
@@ -116,7 +116,7 @@ Web 应用运行在 `http://localhost:5173`，API 运行在 `http://localhost:30
 3. **内置的生产默认值：**
 
    ```
-   https://lumoryxr.duckdns.org
+   https://task.lumoryxr.com
    ```
 
 这三者都是本地、由机器所有者控制的来源——地址**绝不通过 HTTP API 接受**（请求体传入的地址在共享云上是 SSRF 漏洞）。用户填入的地址在保存前会校验为 `https` origin（本地可用 `http://localhost`）且不带路径，保存后应用会重启以重新连接。

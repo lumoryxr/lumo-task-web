@@ -1,7 +1,7 @@
 # 国内渠道 Launch 文案（可直接发布）
 
 > 配套文档：策略见 [`launch-plan.md`](./launch-plan.md)。这里只放**能直接复制粘贴发出去的成稿**。
-> 站点：<https://lumoryxr.duckdns.org> ・ 仓库：<https://github.com/lumoryxr/lumo-task-web>
+> 站点：<https://task.lumoryxr.com> ・ 仓库：<https://github.com/lumoryxr/lumo-task-web>
 
 ## 链接规范（发帖前务必替换）
 
@@ -9,11 +9,11 @@
 
 | 渠道 | 链接 |
 |---|---|
-| 少数派 | `https://lumoryxr.duckdns.org/?ref=sspai` |
-| V2EX | `https://lumoryxr.duckdns.org/?ref=v2ex` |
-| 即刻 | `https://lumoryxr.duckdns.org/?ref=jike` |
-| 小红书 | `https://lumoryxr.duckdns.org/?ref=xhs` |
-| B 站 | `https://lumoryxr.duckdns.org/?ref=bilibili` |
+| 少数派 | `https://task.lumoryxr.com/?ref=sspai` |
+| V2EX | `https://task.lumoryxr.com/?ref=v2ex` |
+| 即刻 | `https://task.lumoryxr.com/?ref=jike` |
+| 小红书 | `https://task.lumoryxr.com/?ref=xhs` |
+| B 站 | `https://task.lumoryxr.com/?ref=bilibili` |
 
 > `ref` 值一旦发布就是分析口径的 key，不要事后改名。新增渠道时追加，不要复用旧值。
 
@@ -79,7 +79,7 @@ Lumo 的主视图是艾森豪威尔矩阵——重要/紧急两条轴切出四�
 
 永久免费、开源、不需要信用卡。
 
-- 在线体验：<https://lumoryxr.duckdns.org/?ref=sspai>
+- 在线体验：<https://task.lumoryxr.com/?ref=sspai>
 - 源码：<https://github.com/lumoryxr/lumo-task-web>
 
 如果你也是"清单列得很勤但执行很差"的那类人，也许可以试试换个反馈方式。
@@ -125,7 +125,7 @@ commit 历史是公开的，有兴趣可以直接翻。
 - AI 分类需要自己配 key，默认走启发式
 - 移动端是响应式 Web / PWA，没有原生 App
 
-在线：https://lumoryxr.duckdns.org/?ref=v2ex
+在线：https://task.lumoryxr.com/?ref=v2ex
 源码：https://github.com/lumoryxr/lumo-task-web （Apache-2.0，可自部署）
 
 欢迎拍砖，尤其是契约那套设计和 AI 工作流部分。
@@ -156,7 +156,7 @@ Lumo Task：一个待办应用，但主界面是艾森豪威尔四象限，
 还有一件事——这个项目 100% 的代码都是 AI 写的，我只写需求和验收。
 
 永久免费 / 开源 / 不用注册也能玩
-https://lumoryxr.duckdns.org/?ref=jike
+https://task.lumoryxr.com/?ref=jike
 ```
 
 ### 第 2 条 · 幕后（隔 2–3 天）
@@ -190,7 +190,7 @@ https://github.com/lumoryxr/lumo-task-web
 
 （配图/录屏）
 
-https://lumoryxr.duckdns.org/?ref=jike
+https://task.lumoryxr.com/?ref=jike
 ```
 
 ---

@@ -1,16 +1,20 @@
 name: Deploy Website
 
 # Builds the Astro marketing site in website/ and publishes it to the gh-pages
-# branch, which is what GitHub Pages serves at:
-#   https://lumoryxr.github.io/lumo-task-web/
+# branch, which GitHub Pages serves at the custom domain:
+#   https://web.lumoryxr.com/
 #
-# This is the single canonical marketing-site deploy (the old single-file
-# landing/ and its deploy-landing.yml have been removed). It uses the peaceiris
-# action (push to a branch) rather than the github-pages Actions environment,
-# matching the existing setup and avoiding branch-protection rules.
+# The site is built at the domain ROOT (astro.config.mjs base '/'), and the
+# custom domain is pinned by website/public/CNAME (copied into dist/ on build,
+# so it survives every deploy). This is the single canonical marketing-site
+# deploy (the old single-file landing/ and its deploy-landing.yml have been
+# removed). It uses the peaceiris action (push to a branch) rather than the
+# github-pages Actions environment, matching the existing setup and avoiding
+# branch-protection rules.
 #
-# One-time Pages setup (unchanged): Settings → Pages → Deploy from branch →
-#   gh-pages / (root).
+# One-time Pages setup: Settings → Pages → Deploy from branch → gh-pages /
+# (root), then set the custom domain to web.lumoryxr.com (a CNAME DNS record
+# web → lumoryxr.github.io). "Enforce HTTPS" once the cert is issued.
 
 on:
   push:
@@ -46,7 +50,7 @@ jobs:
         working-directory: website
         run: npm ci
 
-      - name: Build (base = /lumo-task-web)
+      - name: Build (root base, custom domain web.lumoryxr.com)
         working-directory: website
         run: npm run build
 

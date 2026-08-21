@@ -4,7 +4,7 @@
  * The production E2E suite (`e2e/production.spec.ts`) runs against real
  * deployments, and there are two of them:
  *
- *   - **production** — the VPS behind `lumoryxr.duckdns.org`. This is the URL
+ *   - **production** — the VPS behind `task.lumoryxr.com`. This is the URL
  *     every share card, QR code, README badge and launch post points at.
  *   - **gamma** — the Render deployment, used to validate a release before it
  *     reaches production.

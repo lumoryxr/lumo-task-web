@@ -1,8 +1,8 @@
 {
   "production": {
-    "label": "Production · lumoryxr.duckdns.org",
-    "baseUrl": "https://lumoryxr.duckdns.org",
-    "apiBase": "https://lumoryxr.duckdns.org"
+    "label": "Production · task.lumoryxr.com",
+    "baseUrl": "https://task.lumoryxr.com",
+    "apiBase": "https://task.lumoryxr.com"
   },
   "gamma": {
     "label": "Gamma · Render",

@@ -14,6 +14,18 @@
 export const GITHUB_URL = "https://github.com/lumoryxr/lumo-task-web";
 
 /**
+ * The root domain we own — the SINGLE place the primary domain is written on
+ * the frontend. Every host below derives from it, so moving to a new domain (or
+ * swapping a subdomain) is a one-line change here; nothing else hardcodes the
+ * host. The live-site validation target is kept in lockstep with `SITE_URL` by
+ * the `prod-validation-targets` standards test.
+ */
+export const ROOT_DOMAIN = "lumoryxr.com";
+
+/** The web app / product home users open (marketing site is `web.<root>`). */
+export const APP_HOST = `task.${ROOT_DOMAIN}`;
+
+/**
  * The product's public home — where every shared card, QR code and brand
  * footer points. Shared screenshots are often the only trace of Lumo a new
  * person sees, so this must always be a domain we actually own (the cards
@@ -22,8 +34,11 @@ export const GITHUB_URL = "https://github.com/lumoryxr/lumo-task-web";
  * Self-hosters override it at build time with `VITE_SITE_URL` (inlined by Vite);
  * unset falls back to the operator's canonical domain below.
  */
+// `import.meta.env?` (not `.env.`): under Vite/vitest `env` is defined, but this
+// module is also imported by the Playwright runner (plain Node), where it is
+// undefined — the optional chain lets it fall back cleanly instead of throwing.
 export const SITE_URL = (
-  import.meta.env.VITE_SITE_URL || "https://lumoryxr.duckdns.org"
+  import.meta.env?.VITE_SITE_URL || `https://${APP_HOST}`
 ).replace(/\/+$/, "");
 
 /** `SITE_URL` without the scheme — the form printed on share cards. */

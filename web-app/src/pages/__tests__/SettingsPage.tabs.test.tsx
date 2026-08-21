@@ -184,9 +184,9 @@ describe("SettingsPage · Data & Sync is desktop-only (#112)", () => {
     (window as any).electronAPI = {
       isElectron: true,
       getCloudEndpoint: vi.fn().mockResolvedValue({
-        endpoint: "https://lumoryxr.duckdns.org",
+        endpoint: "https://task.lumoryxr.com",
         isCustom: false,
-        defaultEndpoint: "https://lumoryxr.duckdns.org",
+        defaultEndpoint: "https://task.lumoryxr.com",
       }),
     };
     renderPage();
