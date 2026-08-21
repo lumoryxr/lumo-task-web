@@ -27,7 +27,7 @@
  *
  * Runs against either live environment — both are defined in
  * `e2e/environments.json` and exercised by the same suite:
- *   production (lumoryxr.duckdns.org, single-origin VPS) and
+ *   production (task.lumoryxr.com, single-origin VPS) and
  *   gamma (Render, split frontend/backend services).
  *
  * Run: npx playwright test --config=playwright.production.config.ts

@@ -3,7 +3,7 @@ name: Live Site Validation
 # Runs the production E2E suite against the LIVE deployments (no mocks, no dev
 # server). Two environments run the SAME suite:
 #
-#   production — https://lumoryxr.duckdns.org, the VPS everything we publish
+#   production — https://task.lumoryxr.com, the VPS everything we publish
 #                points at (share-card QR codes, README badges, launch posts).
 #                One process serves both the SPA and the /v1 API on one origin.
 #   gamma      — the Render deployment, used to validate a release *before* it

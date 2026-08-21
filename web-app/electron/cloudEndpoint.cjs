@@ -18,7 +18,7 @@
 
 // Everything we advertise points here (share cards, QR codes, README, launch
 // posts), so it is the right default for a fresh desktop install too.
-const DEFAULT_CLOUD_API_BASE = "https://lumoryxr.duckdns.org";
+const DEFAULT_CLOUD_API_BASE = "https://task.lumoryxr.com";
 
 const MAX_ENDPOINT_LENGTH = 200;
 

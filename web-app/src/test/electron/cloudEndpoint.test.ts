@@ -22,7 +22,7 @@ const { DEFAULT_CLOUD_API_BASE, validateCloudEndpoint, resolveCloudApiBase } =
 
 describe("validateCloudEndpoint", () => {
   it("accepts an https origin and normalises away a trailing slash", () => {
-    expect(validateCloudEndpoint("https://lumoryxr.duckdns.org")).toBe("https://lumoryxr.duckdns.org");
+    expect(validateCloudEndpoint("https://task.lumoryxr.com")).toBe("https://task.lumoryxr.com");
     expect(validateCloudEndpoint("https://sync.example.com/")).toBe("https://sync.example.com");
     expect(validateCloudEndpoint("  https://sync.example.com  ")).toBe("https://sync.example.com");
   });
@@ -59,7 +59,7 @@ describe("validateCloudEndpoint", () => {
 describe("resolveCloudApiBase", () => {
   it("defaults to production when nothing is configured", () => {
     expect(resolveCloudApiBase()).toBe(DEFAULT_CLOUD_API_BASE);
-    expect(DEFAULT_CLOUD_API_BASE).toBe("https://lumoryxr.duckdns.org");
+    expect(DEFAULT_CLOUD_API_BASE).toBe("https://task.lumoryxr.com");
     expect(resolveCloudApiBase({ savedEndpoint: null, envBase: "" })).toBe(DEFAULT_CLOUD_API_BASE);
   });
 

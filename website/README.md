@@ -1,7 +1,9 @@
 # Lumo — marketing website
 
 The public landing page for Lumo, built with [Astro](https://astro.build) and
-deployed to GitHub Pages at **https://lumoryxr.github.io/lumo-task-web/**.
+deployed to GitHub Pages behind the custom domain **https://web.lumoryxr.com/**.
+The domain is pinned by `public/CNAME`; the site is built at the domain root
+(`astro.config.mjs` base `/`). The app itself lives at **task.lumoryxr.com**.
 
 Dark, aurora-styled, fully bilingual (EN / 中文), zero-runtime-framework — just
 static HTML/CSS with a few inline scripts (language toggle + scroll reveal). All
@@ -12,13 +14,13 @@ motion respects `prefers-reduced-motion`.
 ```bash
 cd website
 npm install
-npm run dev        # http://localhost:4321/lumo-task-web
+npm run dev        # http://localhost:4321/
 ```
 
 ## Build
 
 ```bash
-npm run build      # → website/dist  (base path /lumo-task-web baked in)
+npm run build      # → website/dist  (root base + CNAME baked in)
 npm run preview
 ```
 

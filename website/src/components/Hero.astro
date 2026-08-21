@@ -1,6 +1,7 @@
 ---
 import AppMock from "./AppMock.astro";
-const app = "https://lumoryxr.duckdns.org";
+import { APP_URL } from "../config";
+const app = APP_URL;
 // No-JS fallback → the latest GitHub release page. A script in Base.astro
 // upgrades [data-win-download] to the direct .exe asset URL + version.
 const releasesLatest = "https://github.com/lumoryxr/lumo-task-web/releases/latest";
