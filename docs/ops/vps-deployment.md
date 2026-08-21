@@ -175,6 +175,11 @@ it every run**. GitHub is the single source of truth — you do **not** hand-edi
 overwritten). To change a value: edit the Secret/Variable, then re-run *Deploy to
 VPS*.
 
+> **Setting up GitHub login or email?** See the focused, step-by-step guide
+> [`github-login-and-email-setup.md`](./github-login-and-email-setup.md) — it
+> covers creating the GitHub OAuth App, verifying a Resend sender domain, and
+> exactly which Secret/Variable each value goes into.
+
 **SSH access — add as _Secrets_:**
 
 | Secret | Value |
