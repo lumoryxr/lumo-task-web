@@ -10,28 +10,44 @@
  *      public SPA origin, no trailing slash.
  *   2. Otherwise derive the origin from the (reverse-proxied) request itself —
  *      correct for a single-origin deployment where the API serves the SPA
- *      same-origin behind a proxy (the VPS image behind Caddy). This replaces a
- *      previously hard-coded production URL that sent self-hosters to the wrong
- *      domain after login.
+ *      same-origin behind a proxy (the VPS image behind Caddy).
  *
- * The derived host trusts the same proxy the rest of the app already trusts for
- * client IP (see lib/clientIp): a reverse proxy in front sets X-Forwarded-Proto
- * / X-Forwarded-Host. When there is no proxy, the Host header is used. Explicit
- * config (1) always wins, so a deployment that can't trust its inbound headers
- * should set LUMO_APP_BASE_URL.
+ * Trust model — identical to lib/clientIp. `X-Forwarded-*` is a chain where each
+ * proxy APPENDS what it received, so the LEFT-most entry is attacker-controlled.
+ * We therefore read the entry our own infrastructure inserted: the N-th from the
+ * right, where N = trustedProxyHops(). Picking the left-most instead would let a
+ * client send `X-Forwarded-Host: attacker.com` and poison a password-reset link
+ * (host-header injection → reset-token theft). Explicit config (1) always wins,
+ * so a deployment that cannot trust its inbound headers must set
+ * LUMO_APP_BASE_URL rather than rely on this derivation.
  */
 import type { Context } from "hono";
+import { trustedProxyHops } from "./clientIp.js";
 
 /** Minimal shape we need from a request — keeps the helper unit-testable. */
 interface HeaderSource {
   header(name: string): string | undefined;
 }
 
-/** First token of a possibly comma-listed header value (e.g. XFF-style). */
-function firstToken(value: string | undefined): string | undefined {
+/**
+ * Value our own proxy inserted into a possibly-appended `X-Forwarded-*` header:
+ * the N-th entry from the right (N = trusted hops), matching lib/clientIp. A
+ * single-value header (the common case) resolves to that one value regardless.
+ */
+function trustedToken(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  const t = value.split(",")[0]?.trim();
-  return t || undefined;
+  const parts = value.split(",").map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) return undefined;
+  const idx = Math.max(0, parts.length - trustedProxyHops());
+  return parts[idx];
+}
+
+function isLoopbackHost(host: string): boolean {
+  return (
+    host === "localhost" || host.startsWith("localhost:") ||
+    host === "127.0.0.1" || host.startsWith("127.0.0.1:") ||
+    host === "::1" || host.startsWith("[::1]")
+  );
 }
 
 /**
@@ -40,9 +56,17 @@ function firstToken(value: string | undefined): string | undefined {
  */
 export function requestOrigin(c: Context | { req: HeaderSource }): string {
   const req = c.req as HeaderSource;
-  const proto = firstToken(req.header("x-forwarded-proto")) || "https";
-  const host = firstToken(req.header("x-forwarded-host")) || req.header("host")?.trim();
-  if (!host) return "";
+  const host = trustedToken(req.header("x-forwarded-host")) || req.header("host")?.trim();
+  if (!host) {
+    // No host at all → callers get a root-relative URL. That still resolves for
+    // the same-origin OAuth redirect, but an email link would be unclickable —
+    // warn so an operator isn't left guessing why reset mail looks broken.
+    console.warn("[appBaseUrl] no Host/X-Forwarded-Host on request and LUMO_APP_BASE_URL is unset; emitting a relative base URL. Set LUMO_APP_BASE_URL.");
+    return "";
+  }
+  // Default the scheme to https, except for a loopback host (local dev / intranet
+  // over plain http) where https would produce an unreachable link.
+  const proto = trustedToken(req.header("x-forwarded-proto")) || (isLoopbackHost(host) ? "http" : "https");
   return `${proto}://${host}`.replace(/\/+$/, "");
 }
 

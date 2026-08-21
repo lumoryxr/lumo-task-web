@@ -34,11 +34,10 @@ async function getBase(): Promise<string> {
     const port = await window.electronAPI.getApiPort();
     resolvedBase = `http://127.0.0.1:${port}/v1`;
   } else {
-    const env = (import.meta as any).env ?? {};
-    const configured = env.VITE_API_BASE as string | undefined;
+    const configured = import.meta.env.VITE_API_BASE as string | undefined;
     if (configured) {
       resolvedBase = configured;
-    } else if (env.PROD) {
+    } else if (import.meta.env.PROD) {
       // A production bundle shipped without VITE_API_BASE must NOT silently point
       // at localhost — every user's app would look broken with no clue why. Fail
       // loudly and fall back to same-origin `/v1` (correct when the API is served
