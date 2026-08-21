@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { TodayHero, greetingPeriod } from "../TodayHero";
 
 // Locale drives useT (real dictionary lookup) + the date/separator branch.
@@ -33,5 +33,18 @@ describe("TodayHero", () => {
     render(<TodayHero done={0} total={0} />);
     expect(screen.getByText("A fresh day — plan your focus.")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("renders an explicit New task button that fires onCreate", () => {
+    const onCreate = vi.fn();
+    render(<TodayHero done={0} total={0} onCreate={onCreate} />);
+    const btn = screen.getByRole("button", { name: "New task" });
+    fireEvent.click(btn);
+    expect(onCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits the New task button when no onCreate is provided", () => {
+    render(<TodayHero done={0} total={0} />);
+    expect(screen.queryByRole("button", { name: "New task" })).not.toBeInTheDocument();
   });
 });

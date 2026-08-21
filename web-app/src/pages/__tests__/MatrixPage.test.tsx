@@ -1,6 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { MatrixPage } from "../MatrixPage";
+
+// Shared spy for the Shell-provided Quick Create opener.
+const { openQuickCreate } = vi.hoisted(() => ({ openQuickCreate: vi.fn() }));
+vi.mock("@/components/shellOutletContext", () => ({
+  useShellOutlet: () => ({ openQuickCreate }),
+}));
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 //
@@ -73,5 +79,26 @@ describe("MatrixPage empty state", () => {
     expect(screen.queryByText("Important · Not urgent")).toBeNull();
     expect(screen.queryByText("Urgent · Not important")).toBeNull();
     expect(screen.queryByText("Neither")).toBeNull();
+  });
+});
+
+describe("MatrixPage create-task affordances", () => {
+  beforeEach(() => openQuickCreate.mockClear());
+
+  it("shows an explicit primary New task button that opens Quick Create", () => {
+    render(<MatrixPage />);
+    const btn = screen.getByRole("button", { name: "action.newTask" });
+    fireEvent.click(btn);
+    expect(openQuickCreate).toHaveBeenCalledTimes(1);
+    // No quadrant preset when created from the toolbar.
+    expect(openQuickCreate).toHaveBeenCalledWith();
+  });
+
+  it("shows a per-quadrant add button that presets that quadrant", () => {
+    render(<MatrixPage />);
+    const adds = screen.getAllByLabelText("matrix.quadrantAdd");
+    expect(adds).toHaveLength(4);
+    fireEvent.click(adds[0]);
+    expect(openQuickCreate).toHaveBeenCalledWith("Q1");
   });
 });

@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useOutlet } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { QuickCreate } from "@/components/QuickCreate";
+import type { ShellOutletContext } from "@/components/shellOutletContext";
+import type { Quadrant } from "@/types/task";
 import { CommandPalette } from "@/components/CommandPalette";
 import { FloatingPet } from "@/components/FloatingPet";
 import { VerifyEmailBanner } from "@/components/VerifyEmailBanner";
@@ -37,15 +39,29 @@ function TabBarIcon({ icon }: { icon: string }) {
 export function Shell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const outlet = useOutlet();
   const t = useT();
   const density = useAppStore((s) => s.density);
   const isMobile = useIsMobile();
   const [quickOpen, setQuickOpen] = useState(false);
+  const [quickQuadrant, setQuickQuadrant] = useState<Quadrant | undefined>(undefined);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
+
+  // Open the Quick Create modal, optionally preset to a quadrant. Handed to
+  // routed pages via the outlet context so Today / Matrix can surface an
+  // explicit "create task" button in-page (not only the top-bar action).
+  const openQuickCreate = useCallback((quadrant?: Quadrant) => {
+    setQuickQuadrant(quadrant);
+    setQuickOpen(true);
+  }, []);
+  const closeQuickCreate = useCallback(() => {
+    setQuickOpen(false);
+    setQuickQuadrant(undefined);
+  }, []);
+
+  const outlet = useOutlet({ openQuickCreate } satisfies ShellOutletContext);
 
   // Register ⌘K / Ctrl+K global shortcut
   useEffect(() => {
@@ -88,7 +104,7 @@ export function Shell() {
             <Topbar
               title={meta.title}
               subtitle={meta.sub}
-              onQuickAdd={() => setQuickOpen(true)}
+              onQuickAdd={() => openQuickCreate()}
               onOpenSearch={openSearch}
             />
           )}
@@ -102,9 +118,10 @@ export function Shell() {
 
           {quickOpen && (
             <QuickCreate
-              onClose={() => setQuickOpen(false)}
+              initialQuadrant={quickQuadrant}
+              onClose={closeQuickCreate}
               onCreated={() => {
-                setQuickOpen(false);
+                closeQuickCreate();
                 if (location.pathname !== "/matrix") navigate("/matrix");
               }}
             />
