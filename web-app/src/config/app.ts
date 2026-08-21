@@ -34,8 +34,11 @@ export const APP_HOST = `task.${ROOT_DOMAIN}`;
  * Self-hosters override it at build time with `VITE_SITE_URL` (inlined by Vite);
  * unset falls back to the operator's canonical domain below.
  */
+// `import.meta.env?` (not `.env.`): under Vite/vitest `env` is defined, but this
+// module is also imported by the Playwright runner (plain Node), where it is
+// undefined — the optional chain lets it fall back cleanly instead of throwing.
 export const SITE_URL = (
-  import.meta.env.VITE_SITE_URL || `https://${APP_HOST}`
+  import.meta.env?.VITE_SITE_URL || `https://${APP_HOST}`
 ).replace(/\/+$/, "");
 
 /** `SITE_URL` without the scheme — the form printed on share cards. */
