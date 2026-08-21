@@ -27,14 +27,18 @@ and must NOT be filed** (they'd be closed-on-arrival); 5 remain fileable.
 | 8 | DFX bounds case (mentored) | 🟢 **Fileable** | Still valid; needs a maintainer to point at a safe endpoint. |
 | 9 | Pin Node with `.nvmrc` / `engines` | 🟢 **Fileable** | No root `.nvmrc` yet; `backend/package.json` has `engines`. Task narrows to: add `.nvmrc` matching CI (Node 22). |
 | 10 | Keyboard shortcut hint | 🟢 **Fileable** | `CommandPalette.tsx` exists; surfacing a hint is still open. |
-| 11 | Social-preview (OG/Twitter) meta tags | 🟢 **Fileable** | `web-app/index.html` has only `<title>` — no `<meta name="description">`, no `og:*`/`twitter:*`. Bare link previews on PH/HN/Reddit. |
+| 11 | Social-preview (OG/Twitter) meta tags | 🟡 **Partial** — text meta shipped (PR #522); image half remains | Text `og:*`/`twitter:*`/`description` now live in `index.html`. Still fileable: add `public/og-image.png` (1200×630) + `og:image`/`twitter:image`, upgrade `twitter:card` to `summary_large_image`. Related bug: `icon-192/512.png` referenced by manifest + `apple-touch-icon` but **absent from repo** (see #16). |
 | 12 | Bilingual `<html lang>` on language switch | 🟢 **Fileable** | `index.html` hardcodes `lang="en"`; nothing sets `document.documentElement.lang` on the EN/ZH switch (verified — only `.classList` is touched). a11y + SEO gap. |
 | 13 | Unit test for `useCoarsePointer` hook | 🟢 **Fileable** | Every sibling in `src/hooks/__tests__` has a test except `useCoarsePointer.ts` (26 lines). |
 | 14 | Add `.editorconfig` | 🟢 **Fileable** | No `.editorconfig` at repo root — contributors' editors don't share indent/charset/EOL. |
 | 15 | Repo-structure map in CONTRIBUTING | 🟢 **Fileable** | `.github/CONTRIBUTING.md` has no directory/layout map to orient newcomers. |
+| 16 | Add the missing PWA icons (`icon-192/512.png`) | 🟢 **Fileable** 🔥 | `manifest.json` + `apple-touch-icon` reference `/icon-192.png` and `/icon-512.png`, but neither exists anywhere in the repo (grep-verified) → broken PWA install icon + apple-touch-icon 404. Needs the two PNGs (brand: bg `#0d1210`, accent `#3dffa0`) added to `web-app/public/`. Unblocks #11's `og:image` too. |
 
 > **Refill note (2026-08-21):** refilled from 5 → **10 fileable** (#4, #6, #8, #9, #10 + new #11–#15),
 > back inside the 8–12 target (launch-plan §4.2). New starters #11–#15 verified against current `main`.
+> **Update (2026-08-21, PR #522):** shipped the *text* half of #11 (OG/Twitter/description meta in `index.html`);
+> #11 is now 🟡 partial (image half remains) and a new **#16** was filed for the missing `icon-192/512.png` PWA
+> assets discovered en route (they gate #11's `og:image`). Net fileable count still ≥ 8.
 > Item #1's old "residual `web-app/.env.example`" note is **moot** — the frontend uses **zero**
 > `import.meta.env.*` vars (grep-verified), so no frontend `.env.example` is needed.
 
@@ -110,11 +114,17 @@ and must NOT be filed** (they'd be closed-on-arrival); 5 remain fileable.
 **Scope:** Add a subtle, localized shortcut hint (e.g. show the palette hotkey in an empty state or topbar tooltip). Reuse existing modal/palette a11y (`useModalA11y`). Keep it token-driven and reduced-motion safe.
 **Acceptance:** Hint is localized (EN + ZH), discoverable, non-intrusive; no a11y regressions.
 
-### 11. [frontend/seo] Add social-preview (Open Graph + Twitter) meta tags 🔥 *launch-critical*
+### 11. [frontend/seo] Add social-preview (Open Graph + Twitter) meta tags 🔥 *launch-critical* — 🟡 *text half shipped (PR #522)*
 **Area:** frontend · **Difficulty:** ⭐⭐
-**Why:** The launch push (Product Hunt / Show HN / Reddit / X — see `launch-plan.md` §9) relies on rich link previews. `web-app/index.html` currently ships only `<title>Lumo Task</title>` with **no** `<meta name="description">`, `og:*`, or `twitter:*` tags, so shared links render as bare text.
-**Scope:** In `web-app/index.html` `<head>`, add: `<meta name="description">`, `og:title`/`og:description`/`og:type`/`og:url`/`og:image`, and `twitter:card`/`twitter:title`/`twitter:description`/`twitter:image`. Reuse the existing app icon (`/icon-192.png`) or add a dedicated `public/og-image.png` (1200×630). Keep copy aligned with the README one-liner + `launch-plan.md` fact baseline (Eisenhower matrix + Pomodoro + AI classify; Apache-2.0).
-**Acceptance:** A shared URL renders a title, description, and preview image in a validator (e.g. opengraph.xyz / X card validator); no build warnings; copy matches README.
+**Why:** The launch push (Product Hunt / Show HN / Reddit / X — see `launch-plan.md` §9) relies on rich link previews. **Shipped in PR #522:** `<meta name="description">` + `og:type`/`og:site_name`/`og:title`/`og:description`/`og:url`/`og:locale` + `twitter:card=summary`/`twitter:title`/`twitter:description` — so Slack/Discord/Telegram/WhatsApp/iMessage previews now render title + description instead of bare text.
+**Remaining (still fileable):** the **image** half. Add a `web-app/public/og-image.png` (1200×630), then add `og:image`/`og:image:width`/`og:image:height`/`twitter:image` and upgrade `twitter:card` to `summary_large_image`. **Blocked by #16** (the referenced `icon-192/512.png` don't exist yet — the same asset gap). Keep copy aligned with the README one-liner + `launch-plan.md` fact baseline (Eisenhower matrix + Pomodoro + AI classify; Apache-2.0).
+**Acceptance:** A shared URL renders a title, description, **and preview image** in a validator (e.g. opengraph.xyz / X card validator); no build warnings; copy matches README.
+
+### 16. [frontend/bug] Add the missing PWA icons (`icon-192.png` / `icon-512.png`) 🔥
+**Area:** frontend · **Difficulty:** ⭐⭐
+**Why:** `web-app/public/manifest.json` declares `/icon-192.png` + `/icon-512.png` and `index.html` sets `apple-touch-icon` to `/icon-192.png`, but **neither file exists anywhere in the repo** (grep-verified). Result: broken PWA install icon and a 404 apple-touch-icon on iOS home-screen add. This also blocks #11's `og:image`.
+**Scope:** Add the two PNGs to `web-app/public/` at exactly `icon-192.png` (192×192) and `icon-512.png` (512×512), on brand (background `#0d1210`, accent `#3dffa0`, matching `theme_color`). A single source (e.g. an SVG mark) exported at both sizes keeps them consistent; the 512 doubles as a base for the launch `og-image.png`.
+**Acceptance:** Both files exist at the exact referenced paths and correct dimensions; installing the PWA shows the icon; no console 404 for the manifest icons or apple-touch-icon.
 
 ### 12. [frontend/a11y] Update `<html lang>` when the user switches EN ⇄ ZH
 **Area:** a11y · **Difficulty:** ⭐⭐
