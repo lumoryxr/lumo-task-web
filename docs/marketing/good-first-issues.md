@@ -27,9 +27,16 @@ and must NOT be filed** (they'd be closed-on-arrival); 5 remain fileable.
 | 8 | DFX bounds case (mentored) | 🟢 **Fileable** | Still valid; needs a maintainer to point at a safe endpoint. |
 | 9 | Pin Node with `.nvmrc` / `engines` | 🟢 **Fileable** | No root `.nvmrc` yet; `backend/package.json` has `engines`. Task narrows to: add `.nvmrc` matching CI (Node 22). |
 | 10 | Keyboard shortcut hint | 🟢 **Fileable** | `CommandPalette.tsx` exists; surfacing a hint is still open. |
+| 11 | Social-preview (OG/Twitter) meta tags | 🟢 **Fileable** | `web-app/index.html` has only `<title>` — no `<meta name="description">`, no `og:*`/`twitter:*`. Bare link previews on PH/HN/Reddit. |
+| 12 | Bilingual `<html lang>` on language switch | 🟢 **Fileable** | `index.html` hardcodes `lang="en"`; nothing sets `document.documentElement.lang` on the EN/ZH switch (verified — only `.classList` is touched). a11y + SEO gap. |
+| 13 | Unit test for `useCoarsePointer` hook | 🟢 **Fileable** | Every sibling in `src/hooks/__tests__` has a test except `useCoarsePointer.ts` (26 lines). |
+| 14 | Add `.editorconfig` | 🟢 **Fileable** | No `.editorconfig` at repo root — contributors' editors don't share indent/charset/EOL. |
+| 15 | Repo-structure map in CONTRIBUTING | 🟢 **Fileable** | `.github/CONTRIBUTING.md` has no directory/layout map to orient newcomers. |
 
-> **Refill note:** fileable set is now **5**, below the target 8–12 (launch-plan §4.2). Draft a few
-> fresh starters before the public launch push. Shipped items are marked ✅ below but kept for provenance.
+> **Refill note (2026-08-21):** refilled from 5 → **10 fileable** (#4, #6, #8, #9, #10 + new #11–#15),
+> back inside the 8–12 target (launch-plan §4.2). New starters #11–#15 verified against current `main`.
+> Item #1's old "residual `web-app/.env.example`" note is **moot** — the frontend uses **zero**
+> `import.meta.env.*` vars (grep-verified), so no frontend `.env.example` is needed.
 
 ---
 
@@ -103,11 +110,44 @@ and must NOT be filed** (they'd be closed-on-arrival); 5 remain fileable.
 **Scope:** Add a subtle, localized shortcut hint (e.g. show the palette hotkey in an empty state or topbar tooltip). Reuse existing modal/palette a11y (`useModalA11y`). Keep it token-driven and reduced-motion safe.
 **Acceptance:** Hint is localized (EN + ZH), discoverable, non-intrusive; no a11y regressions.
 
+### 11. [frontend/seo] Add social-preview (Open Graph + Twitter) meta tags 🔥 *launch-critical*
+**Area:** frontend · **Difficulty:** ⭐⭐
+**Why:** The launch push (Product Hunt / Show HN / Reddit / X — see `launch-plan.md` §9) relies on rich link previews. `web-app/index.html` currently ships only `<title>Lumo Task</title>` with **no** `<meta name="description">`, `og:*`, or `twitter:*` tags, so shared links render as bare text.
+**Scope:** In `web-app/index.html` `<head>`, add: `<meta name="description">`, `og:title`/`og:description`/`og:type`/`og:url`/`og:image`, and `twitter:card`/`twitter:title`/`twitter:description`/`twitter:image`. Reuse the existing app icon (`/icon-192.png`) or add a dedicated `public/og-image.png` (1200×630). Keep copy aligned with the README one-liner + `launch-plan.md` fact baseline (Eisenhower matrix + Pomodoro + AI classify; Apache-2.0).
+**Acceptance:** A shared URL renders a title, description, and preview image in a validator (e.g. opengraph.xyz / X card validator); no build warnings; copy matches README.
+
+### 12. [frontend/a11y] Update `<html lang>` when the user switches EN ⇄ ZH
+**Area:** a11y · **Difficulty:** ⭐⭐
+**Why:** The app is fully bilingual with runtime switching, but `index.html` hardcodes `lang="en"` and nothing updates it (verified: only `document.documentElement.classList` is touched, never `.lang`). Screen readers pick the wrong pronunciation and search engines mis-tag the page language.
+**Scope:** When the active language changes (see the i18n/language state in `src/store/useAppStore.ts` + `src/i18n`), set `document.documentElement.lang` to `"en"` or `"zh"`. A tiny effect/hook mirroring `useReducedMotionClass.ts` (which already toggles a root class) is the natural pattern. Add a small test asserting the attribute follows the language.
+**Acceptance:** `document.documentElement.lang` reflects the selected language on load and on switch; test green; no hydration/console warnings.
+
+### 13. [test] Unit test for the `useCoarsePointer` hook
+**Area:** test · **Difficulty:** ⭐⭐
+**Why:** Every hook in `src/hooks/__tests__` has coverage except `useCoarsePointer.ts` (26 lines) — an easy way to learn the repo's test setup and lock a small contract.
+**Scope:** Add `src/hooks/__tests__/useCoarsePointer.test.ts` following the sibling pattern (e.g. `useIsMobile.test.ts`): mock `matchMedia`, assert the hook returns the coarse/fine result and responds to change events, and cleans up its listener on unmount.
+**Acceptance:** New test green under `NODE_ENV=test npx vitest run src/hooks/__tests__/useCoarsePointer.test.ts --maxWorkers=2`; covers initial value + change + cleanup.
+
+### 14. [dx] Add a repo-root `.editorconfig`
+**Area:** dx · **Difficulty:** ⭐ (very easy)
+**Why:** There's no `.editorconfig`, so contributors' editors don't share indentation, charset, or final-newline rules — a common source of noisy diffs for newcomers.
+**Scope:** Add `.editorconfig` at the repo root matching the existing style (2-space indent, UTF-8, LF, trim trailing whitespace, final newline). Cross-check a few existing files (`web-app/src`, `backend/src`) so the rules match reality; note any Markdown exception (trailing-space line breaks).
+**Acceptance:** `.editorconfig` present and consistent with current formatting; no reformatting churn introduced.
+
+### 15. [docs] Add a repo-structure map to CONTRIBUTING
+**Area:** docs · **Difficulty:** ⭐
+**Why:** `.github/CONTRIBUTING.md` explains the workflow but never orients a newcomer to *where things live* (monorepo: `web-app/`, `backend/`, `packages/`, `docs/`, `deploy/`).
+**Scope:** Add a short "Repository layout" section to `.github/CONTRIBUTING.md`: a compact tree/table of the top-level dirs and one line each on what lives there and where to add a frontend vs backend change. Keep it accurate to the current tree.
+**Acceptance:** Section is accurate to the repo; links to key entry points resolve; ≤ ~15 lines.
+
 ---
 
 ## Notes for the maintainer
-- Keep **8–12 open** at any time; refill as they're taken (launch-plan §4.2). **As of 2026-08-21 only
-  5 remain fileable (#4, #6, #8, #9, #10)** — draft fresh starters before the public launch push.
+- Keep **8–12 open** at any time; refill as they're taken (launch-plan §4.2). **As of 2026-08-21, 10
+  remain fileable (#4, #6, #8, #9, #10, #11, #12, #13, #14, #15)** — inside target after the #11–#15 refill.
 - For each, respond to a first-time contributor's PR within ~48h even if only to acknowledge.
-- Of the still-fileable set: **#9** is pure-DX and safe for anyone; **#4, #6, #10** touch UI with existing
-  patterns to copy; **#8** needs a maintainer to point at a safe endpoint first.
+- Difficulty spread: **#9, #14, #15** are pure-DX/docs and safe for anyone; **#4, #6, #10, #11, #12** touch
+  UI/markup with existing patterns to copy; **#13** is an isolated test; **#8** needs a maintainer to
+  point at a safe endpoint first.
+- **#11 is launch-critical** — social-preview tags should land *before* the PH/HN push, so file (or just
+  ship) it early even if no contributor picks it up.
