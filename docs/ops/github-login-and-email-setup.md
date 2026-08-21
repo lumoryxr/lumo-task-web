@@ -127,6 +127,8 @@ curl https://app.example.com/v1/auth/github/config
 | 登录页没有 GitHub 按钮 | 三个 `LUMO_GITHUB_*` 缺一，`/config` 返回 `false` | 补齐后重新部署；用上面的 `curl` 确认 |
 | `curl` 返回 `true` 但按钮仍不显示 | 前端拿到的 API 基址或 CORS 不对（多见于 SPA 与 API 不同源） | 检查 `VITE_API_BASE` 与 `LUMO_ALLOWED_ORIGINS`（单进程镜像同源，通常无需设） |
 | GitHub 授权后报 redirect_uri 不匹配 | OAuth App 的 callback 与 `LUMO_GITHUB_CALLBACK_URL` 不一致 | 两处改成完全一致 |
+| **登录成功后被跳到别的域名（如 render）** | `LUMO_APP_BASE_URL` 没设或设错 | 设为你的站点 origin（`https://你的域名`，无斜杠无路径）后重新部署 |
+| 密码重置/验证邮件里的链接指向错误域名 | 同上，`LUMO_APP_BASE_URL` 没设或设错 | 同上 |
 | 容器启动即崩、日志提 `LUMO_EMAIL_*` | `provider=resend` 但缺 key 或 from（启动守卫拦截） | 三项补齐或全部清空 |
 | 邮件收不到、日志无 `transport:"resend"` | 生产未配 provider，走了静默 no-op | 配齐 Resend 三项后重新部署 |
 | 邮件进垃圾箱 | 发件域缺 SPF/DKIM/DMARC | 在 Resend 后台按提示补全 DNS |

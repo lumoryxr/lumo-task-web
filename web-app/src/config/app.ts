@@ -18,11 +18,16 @@ export const GITHUB_URL = "https://github.com/lumoryxr/lumo-task-web";
  * footer points. Shared screenshots are often the only trace of Lumo a new
  * person sees, so this must always be a domain we actually own (the cards
  * previously printed a `lumo.app` that goes nowhere).
+ *
+ * Self-hosters override it at build time with `VITE_SITE_URL` (inlined by Vite);
+ * unset falls back to the operator's canonical domain below.
  */
-export const SITE_URL = "https://lumoryxr.duckdns.org";
+export const SITE_URL = (
+  import.meta.env.VITE_SITE_URL || "https://lumoryxr.duckdns.org"
+).replace(/\/+$/, "");
 
 /** `SITE_URL` without the scheme — the form printed on share cards. */
-export const SITE_LABEL = "lumoryxr.duckdns.org";
+export const SITE_LABEL = SITE_URL.replace(/^https?:\/\//, "");
 
 /**
  * Build the link encoded into a share card's QR code, tagged with the surface

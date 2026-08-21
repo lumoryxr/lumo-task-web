@@ -39,12 +39,15 @@ services:
         sync: false            # libsql://lumo-task-<org>.turso.io  (REQUIRED for persistence)
       - key: TURSO_AUTH_TOKEN
         sync: false            # from: turso db tokens create lumo-task
-      # Public base URL of THIS backend. Used to build the links emailed for
-      # password reset (/reset-password?token=…) and email verification
-      # (/verify-email?token=…), and as the default GitHub OAuth callback origin.
-      # Unset → links fall back to localhost and won't work in production.
+      # Public origin of the WEB APP (the SPA). Used to build the emailed links
+      # for password reset (/reset-password?token=…) and email verification
+      # (/verify-email?token=…), and the post-login GitHub OAuth redirect back to
+      # the SPA. REQUIRED here because the SPA is a SEPARATE origin from this API
+      # (split frontend/backend) — set it to the frontend site URL. Unset → the
+      # backend derives the origin from the incoming request, which only lands
+      # right for a single-origin deployment, not this split one.
       - key: LUMO_APP_BASE_URL
-        sync: false            # e.g. https://lumo-task-backend.onrender.com
+        sync: false            # the frontend SPA origin, e.g. https://lumo-task-frontend.onrender.com
       # ── In-app feedback admin (Settings → About & Support). ─────────────────
       # Comma-separated emails allowed to review/triage in-app feedback (case-
       # insensitive; the account must sign in with a bound email in this list).
