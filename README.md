@@ -216,6 +216,21 @@ Merge to main
 
 ---
 
+## Contributing
+
+**Why contribute here?** This is one of the few open-source projects where you don't hand-write the code — you *direct an AI to write it* and open a PR. It's a live experiment in human + AI collaborative development, on a modern stack (React 18 / TS / Hono / Zod contracts), with strict CI and a real code-review pass on every PR. Good practice, a genuinely unusual line for your résumé, and a front-row seat to how far AI-driven development can go.
+
+**Your first PR in ~5 minutes:**
+
+1. Fork the repo and get it running: `make dev-full` (see [Quick Start](#quick-start)).
+2. Pick an issue labeled [`good-first-issue`](https://github.com/lumoryxr/lumo-task-web/issues?q=is%3Aissue+is%3Aopen+label%3Agood-first-issue) or [`help-wanted`](https://github.com/lumoryxr/lumo-task-web/issues?q=is%3Aissue+is%3Aopen+label%3Ahelp-wanted).
+3. Generate the change with any AI (Claude, GPT, Gemini, …), following the standards in [`CLAUDE.md`](CLAUDE.md) and the workflow in [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) (contract-first, tests as acceptance criteria, local gates green).
+4. Open a PR and **note which AI you used** in the description.
+
+We aim to give every new PR a first response within 48h. See [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) for branch naming, commit conventions, and how to run the local gates, and [`ARCHITECTURE.md`](ARCHITECTURE.md) for the mental model.
+
+---
+
 ## About This Project
 
 **This project is 100% written and maintained by AI.**
