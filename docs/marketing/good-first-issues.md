@@ -10,6 +10,27 @@
 > gates in `TESTING.md` (typecheck + tests before commit; `web-app` vitest with `--maxWorkers=2`
 > and `NODE_ENV=test`).
 
+## Re-verification status — 2026-08-21
+
+Re-checked all 10 against current `main` before any public filing. **5 are already shipped/satisfied
+and must NOT be filed** (they'd be closed-on-arrival); 5 remain fileable.
+
+| # | Title | Status | Evidence on `main` |
+|---|-------|--------|--------------------|
+| 1 | README `.env.example` + one-command dev | ✅ **Satisfied** | README "Quick Start" is copy-paste ready (Node 22+, `git clone`, `make dev-full`, ports, Make-targets table). Only residual: no `web-app/.env.example` (app runs via `make dev-full` without it). |
+| 2 | "Why contribute" blurb in README | ✅ **Shipped** (PR #517) | `README.md` "Why contribute here?" section. |
+| 3 | `EmptyState` CTA component test | ✅ **Shipped** | `web-app/src/components/__tests__/EmptyState.test.tsx` — 5 tests incl. CTA-fires-handler, no-CTA branch, `aria-hidden` icon. |
+| 4 | icon-only `aria-label` audit (one page) | 🟢 **Fileable** | Still a valid per-page hardening task. |
+| 5 | Loading skeleton for a bare-`Loading…` page | ✅ **Satisfied** | No bare `app.loading` text left in `src/pages`; loading states use `Spinner`/`aria-busy`/skeletons. |
+| 6 | Consistent focus-ring/hover on one list | 🟢 **Fileable** | Still valid; ties to open "Visual consistency" work. |
+| 7 | i18n CI reminder in CONTRIBUTING | ✅ **Shipped** (via #500) | `.github/CONTRIBUTING.md` already documents the standards + i18n guard suites and `--maxWorkers`. |
+| 8 | DFX bounds case (mentored) | 🟢 **Fileable** | Still valid; needs a maintainer to point at a safe endpoint. |
+| 9 | Pin Node with `.nvmrc` / `engines` | 🟢 **Fileable** | No root `.nvmrc` yet; `backend/package.json` has `engines`. Task narrows to: add `.nvmrc` matching CI (Node 22). |
+| 10 | Keyboard shortcut hint | 🟢 **Fileable** | `CommandPalette.tsx` exists; surfacing a hint is still open. |
+
+> **Refill note:** fileable set is now **5**, below the target 8–12 (launch-plan §4.2). Draft a few
+> fresh starters before the public launch push. Shipped items are marked ✅ below but kept for provenance.
+
 ---
 
 ## How to use this file
@@ -20,19 +41,20 @@
 
 ---
 
-### 1. [docs] Add a `.env.example` walkthrough + "one-command dev" block to README
+### 1. [docs] Add a `.env.example` walkthrough + "one-command dev" block to README ✅ *Satisfied (2026-08-21)*
+> README "Quick Start" already covers this. Only residual: a `web-app/.env.example` pointer — too small to file alone.
 **Area:** docs · **Difficulty:** ⭐ (very easy)
 **Why:** The fastest way to lose a new contributor is a fuzzy setup. Make "clone → run" copy-pasteable.
 **Scope:** In `README.md` (and `README.zh.md`), add a short "Run it locally in 2 minutes" section: prerequisites (Node version), the exact commands to install + start `backend` and `web-app`, and a pointer to `.env.example`. Cross-check against the real scripts in `backend/package.json` and `web-app/package.json`.
 **Acceptance:** A newcomer following only the README gets both servers running; commands verified accurate; EN + ZH parity.
 
-### 2. [docs] "Why contribute" + project-experiment blurb in README
+### 2. [docs] "Why contribute" + project-experiment blurb in README ✅ *Shipped — PR #517 (2026-08-20)*
 **Area:** docs · **Difficulty:** ⭐
 **Why:** This repo's hook is that it's 100%-AI-coded with a strict review process — say so, and invite people to join the experiment (launch-plan §4.1).
 **Scope:** Add a short "Why contribute" section to `README.md`/`README.zh.md`: the AI-driven experiment, the modern stack, the CI/review rigor, and a link to good-first-issues + CONTRIBUTING.
 **Acceptance:** Section reads clearly; links resolve; EN + ZH parity.
 
-### 3. [test] Component test for `EmptyState`'s optional CTA path
+### 3. [test] Component test for `EmptyState`'s optional CTA path ✅ *Shipped — `EmptyState.test.tsx` (2026-08-21 verify)*
 **Area:** test · **Difficulty:** ⭐⭐
 **Why:** `src/components/EmptyState.tsx` is reused across pages; lock its contract.
 **Scope:** In `src/components/__tests__/`, add tests asserting: renders title/subtitle, icon is `aria-hidden`, `role=status`, and the optional CTA renders + fires its handler only when provided. Follow the existing pattern in `__tests__/skeletons.test.tsx`.
@@ -44,7 +66,8 @@
 **Scope:** Pick one page (e.g. `src/pages/CountdownPage.tsx` or `HabitsPage.tsx`), find every icon-only `<button>`, ensure each has a localized `aria-label` via `t()`. Add any missing i18n keys to `src/i18n` (EN + ZH).
 **Acceptance:** Every icon-only control on the chosen page has a localized accessible name; i18n key-presence guard stays green; no hardcoded strings.
 
-### 5. [frontend] Loading skeleton for a page that still shows bare "Loading…"
+### 5. [frontend] Loading skeleton for a page that still shows bare "Loading…" ✅ *Satisfied (2026-08-21)*
+> No bare `app.loading` text remains in `src/pages`; loading states use `Spinner`/`aria-busy`/skeletons.
 **Area:** frontend · **Difficulty:** ⭐⭐
 **Why:** Skeletons exist for Today/Stats/Habits/Projects; extend the pattern to any remaining page that still renders plain `app.loading` text (verify which — e.g. Countdown or a project sub-view).
 **Scope:** Reuse `Skeleton`/`SkeletonScreen` from `src/components/Skeleton.tsx` + `skeletons.tsx`; add a content-shaped skeleton for the target page's loading state; honor `prefers-reduced-motion` + in-product `reducedMotion` (mirror existing skeletons). Add a small component test.
@@ -56,7 +79,7 @@
 **Scope:** Pick one list/card grid (e.g. Projects or People) and ensure hover/`:focus-visible` states use the shared design tokens (no ad-hoc `px`/colors). Reference the token system in `web-app/src` (Tailwind tokens) and existing `.btn`/card styles.
 **Acceptance:** States are keyboard-visible and token-driven; no new ad-hoc color/spacing literals; screenshots before/after in the PR.
 
-### 7. [i18n] Add a missing-key CI reminder to CONTRIBUTING
+### 7. [i18n] Add a missing-key CI reminder to CONTRIBUTING ✅ *Shipped — via PR #500*
 **Area:** docs · **Difficulty:** ⭐
 **Why:** There's already a static key-presence guard + render-layer Playwright guard (ROADMAP i18n). Document how to run them so contributors don't get surprised by red CI.
 **Scope:** In `.github/CONTRIBUTING.md`, add a short "i18n rules" note: every user-facing string via `t()`, EN + ZH parity, and the exact command to run the i18n guard locally.
@@ -83,7 +106,8 @@
 ---
 
 ## Notes for the maintainer
-- Keep **8–12 open** at any time; refill as they're taken (launch-plan §4.2).
+- Keep **8–12 open** at any time; refill as they're taken (launch-plan §4.2). **As of 2026-08-21 only
+  5 remain fileable (#4, #6, #8, #9, #10)** — draft fresh starters before the public launch push.
 - For each, respond to a first-time contributor's PR within ~48h even if only to acknowledge.
-- Items 1, 2, 7, 9 are pure-docs/DX and safe to hand to anyone; 3–6, 10 touch UI with existing
-  patterns to copy; 8 needs a maintainer to point at a safe endpoint first.
+- Of the still-fileable set: **#9** is pure-DX and safe for anyone; **#4, #6, #10** touch UI with existing
+  patterns to copy; **#8** needs a maintainer to point at a safe endpoint first.
