@@ -200,6 +200,21 @@ NODE_VERSION=22
 
 ---
 
+## 参与贡献
+
+**为什么来这里贡献？** 这是极少数「你不手写代码，而是**指挥 AI 写代码**再提 PR」的开源项目。它是一场人 + AI 协作开发的真实实验，技术栈现代（React 18 / TS / Hono / Zod 契约），CI 严格，每个 PR 都会真跑一遍 code-review。练手扎实、简历上一行别人没有的经历，还能近距离看 AI 驱动开发能走多远。
+
+**5 分钟提交你的第一个 PR：**
+
+1. Fork 仓库并跑起来：`make dev-full`（见[快速开始](#快速开始)）。
+2. 挑一个带 [`good-first-issue`](https://github.com/lumoryxr/lumo-task-web/issues?q=is%3Aissue+is%3Aopen+label%3Agood-first-issue) 或 [`help-wanted`](https://github.com/lumoryxr/lumo-task-web/issues?q=is%3Aissue+is%3Aopen+label%3Ahelp-wanted) 标签的 issue。
+3. 用任意 AI（Claude、GPT、Gemini……）生成改动，遵循 [`CLAUDE.md`](CLAUDE.md) 的工程标准与 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) 的流程（契约先行、验收标准即测试、本地门禁全绿）。
+4. 提交 PR，并在描述里**注明你用了哪个 AI**。
+
+我们力争在 48 小时内对每个新 PR 做出首次回应。分支命名、提交规范、本地门禁怎么跑见 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)，架构心智模型见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
+
+---
+
 ## 关于本项目
 
 **本项目 100% 由 AI 编写和维护。**
