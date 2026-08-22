@@ -1,19 +1,18 @@
 import { useNavigate } from "react-router-dom";
 import { useT } from "@/i18n/useT";
-import { IconPlus, IconSearch } from "@/components/icons";
+import { IconSearch } from "@/components/icons";
 import { useAuthStore } from "@/store/useAuthStore";
 import { WinControls } from "@/components/WinControls";
 
 interface TopbarProps {
   title: string;
   subtitle?: string;
-  onQuickAdd: () => void;
   onOpenSearch?: () => void;
 }
 
 const isElectron = typeof window !== "undefined" && !!window.electronAPI;
 
-export function Topbar({ title, subtitle, onQuickAdd, onOpenSearch }: TopbarProps) {
+export function Topbar({ title, subtitle, onOpenSearch }: TopbarProps) {
   const t = useT();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -51,19 +50,6 @@ export function Topbar({ title, subtitle, onQuickAdd, onOpenSearch }: TopbarProp
         >
           ⌘K
         </span>
-      </button>
-
-      {/* Create task — explicit, high-visibility primary action. Previously a
-          bare icon that customers missed; now a labeled accent button. */}
-      <button
-        onClick={onQuickAdd}
-        title={t("action.newTask")}
-        aria-label={t("action.newTask")}
-        className="btn btn-primary flex-shrink-0"
-        style={{ height: 32, WebkitAppRegion: "no-drag" }}
-      >
-        <IconPlus size={15} />
-        <span className="hidden sm:inline">{t("action.newTask")}</span>
       </button>
 
       {/* Avatar */}

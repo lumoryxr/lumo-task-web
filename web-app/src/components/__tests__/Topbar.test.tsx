@@ -18,18 +18,16 @@ vi.mock("@/store/useAuthStore", () => ({
 
 vi.mock("@/components/WinControls", () => ({ WinControls: () => null }));
 
-describe("Topbar create-task button", () => {
-  it("renders an explicit, labeled New task action (not a bare icon)", () => {
-    render(<Topbar title="Today" onQuickAdd={() => {}} />);
-    const btn = screen.getByRole("button", { name: "action.newTask" });
-    // The visible label — the whole point of the fix — is present, not icon-only.
-    expect(btn).toHaveTextContent("action.newTask");
+describe("Topbar actions", () => {
+  it("does not render the top-right New task action", () => {
+    render(<Topbar title="Today" />);
+    expect(screen.queryByRole("button", { name: "action.newTask" })).not.toBeInTheDocument();
   });
 
-  it("invokes onQuickAdd when clicked", () => {
-    const onQuickAdd = vi.fn();
-    render(<Topbar title="Today" onQuickAdd={onQuickAdd} />);
-    fireEvent.click(screen.getByRole("button", { name: "action.newTask" }));
-    expect(onQuickAdd).toHaveBeenCalledTimes(1);
+  it("keeps the search action available", () => {
+    const onOpenSearch = vi.fn();
+    render(<Topbar title="Today" onOpenSearch={onOpenSearch} />);
+    fireEvent.click(screen.getByRole("button", { name: "topbar.search" }));
+    expect(onOpenSearch).toHaveBeenCalledTimes(1);
   });
 });
