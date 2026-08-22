@@ -460,15 +460,15 @@ function verifyResultPage(ok: boolean): string {
 app.get("/verify-email", authRateLimit, async (c) => {
   const token = c.req.query("token") ?? "";
   let ok = false;
-  if (token) {
-    const userId = await consumeVerificationToken(token);
-    if (userId) {
-      await execute("UPDATE users SET email_verified = 1 WHERE id = :id", { id: userId });
-      audit("auth.verify_email.ok", { userId, ip: clientIp(c) });
-      ok = true;
-    }
+  const result = token ? await consumeVerificationToken(token) : ({ ok: false, reason: "unknown" } as const);
+  if (result.ok) {
+    await execute("UPDATE users SET email_verified = 1 WHERE id = :id", { id: result.userId });
+    audit("auth.verify_email.ok", { userId: result.userId, ip: clientIp(c) });
+    ok = true;
+  } else {
+    // Log WHY (unknown/expired/used) so a live "invalid link" is diagnosable.
+    audit("auth.verify_email.fail", { ip: clientIp(c), reason: result.reason, via: "link" });
   }
-  if (!ok) audit("auth.verify_email.fail", { ip: clientIp(c) });
 
   const base = appBaseUrl(c);
   if (base) {
@@ -485,13 +485,13 @@ app.get("/verify-email", authRateLimit, async (c) => {
 // returns the invalid-token error.
 app.post("/verify-email", authRateLimit, validate("json", VerifyEmailBody), async (c) => {
   const { token } = c.req.valid("json");
-  const userId = await consumeVerificationToken(token);
-  if (!userId) {
-    audit("auth.verify_email.fail", { ip: clientIp(c) });
+  const result = await consumeVerificationToken(token);
+  if (!result.ok) {
+    audit("auth.verify_email.fail", { ip: clientIp(c), reason: result.reason, via: "post" });
     return httpError(c, 400, "INVALID_VERIFICATION_TOKEN", "This verification link is invalid or has expired. Request a new one.");
   }
-  await execute("UPDATE users SET email_verified = 1 WHERE id = :id", { id: userId });
-  audit("auth.verify_email.ok", { userId, ip: clientIp(c) });
+  await execute("UPDATE users SET email_verified = 1 WHERE id = :id", { id: result.userId });
+  audit("auth.verify_email.ok", { userId: result.userId, ip: clientIp(c) });
   return c.json({ ok: true });
 });
 
