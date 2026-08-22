@@ -478,7 +478,7 @@ test("AC-12.2 — GET /v1/tasks with tampered JWT returns 401", async ({ request
 // AC-API  Additional API-only coverage (run in browser-less environments too)
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("AC-API.1 — GET /v1/habits returns array for new user", async ({ request }) => {
+test("AC-API.1 — GET /v1/habits returns a habit list for a new user", async ({ request }) => {
   const { token } = await registerViaApi(request);
   const res = await request.get(`${API_BASE}/v1/habits`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -486,7 +486,10 @@ test("AC-API.1 — GET /v1/habits returns array for new user", async ({ request 
   });
   expect(res.status()).toBe(200);
   const body = await res.json();
-  const arr = Array.isArray(body) ? body : body.habits ?? [];
+  // GET /v1/habits is keyset-paginated ({ items, nextCursor }); tolerate the
+  // legacy bare-array shape too so this smoke test stays green across the deploy
+  // window (frontend/backend cut over independently).
+  const arr = Array.isArray(body) ? body : body.items ?? body.habits ?? [];
   expect(Array.isArray(arr)).toBe(true);
 });
 

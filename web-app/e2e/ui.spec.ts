@@ -440,7 +440,7 @@ async function mockAPIWithData(page: Page) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(MOCK_HABITS),
+        body: JSON.stringify({ items: MOCK_HABITS, nextCursor: null }),
       });
     }
 

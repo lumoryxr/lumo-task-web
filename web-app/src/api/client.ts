@@ -871,8 +871,20 @@ function adaptCountdownEvent(raw: any): CountdownEvent {
 
 export const habitApi = {
   async listHabits(_userId: string): Promise<Habit[]> {
-    const rows = await req<any[]>("GET", "/habits");
-    return rows.map(adaptHabit);
+    // GET /habits is keyset-paginated ({ items, nextCursor }); page through
+    // transparently so the store still receives the full Habit[].
+    const out: Habit[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 1000; page++) {
+      const path: string = cursor
+        ? `/habits?limit=200&cursor=${encodeURIComponent(cursor)}`
+        : "/habits?limit=200";
+      const res: { items: any[]; nextCursor: string | null } = await req("GET", path);
+      out.push(...res.items.map(adaptHabit));
+      if (res.nextCursor == null) return out;
+      cursor = res.nextCursor;
+    }
+    return out;
   },
 
   async listLogs(_userId: string): Promise<HabitLog[]> {

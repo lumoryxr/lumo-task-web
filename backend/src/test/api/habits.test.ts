@@ -23,11 +23,12 @@ describe("Habits", () => {
     assert.equal(status, 401);
   });
 
-  test("200 → list is empty initially", async () => {
+  test("200 → list is empty initially (keyset page shape)", async () => {
     const { status, body } = await req("GET", "/v1/habits", { token: demoToken });
     assert.equal(status, 200);
-    assert.ok(Array.isArray(body));
-    assert.equal(body.length, 0);
+    assert.ok(Array.isArray(body.items), "list must be a { items, nextCursor } page");
+    assert.equal(body.items.length, 0);
+    assert.equal(body.nextCursor, null);
   });
 
   test("201 → POST creates a habit and returns the row", async () => {
@@ -53,8 +54,8 @@ describe("Habits", () => {
 
   test("200 → list now contains the created habit", async () => {
     const { body } = await req("GET", "/v1/habits", { token: demoToken });
-    assert.equal(body.length, 1);
-    assert.equal(body[0].id, habitId);
+    assert.equal(body.items.length, 1);
+    assert.equal(body.items[0].id, habitId);
   });
 
   test("400 → POST rejects empty title", async () => {
@@ -145,7 +146,7 @@ describe("Habits", () => {
     assert.equal(status, 204);
 
     const { body: habits } = await req("GET", "/v1/habits", { token: demoToken });
-    assert.equal((habits as any[]).some((h) => h.id === habitId), false);
+    assert.equal((habits.items as any[]).some((h) => h.id === habitId), false);
     const { body: logs } = await req("GET", "/v1/habits/logs", { token: demoToken });
     assert.equal((logs as any[]).some((l) => l.habitId === habitId), false, "logs must be cascaded on habit delete");
   });
@@ -177,7 +178,7 @@ describe("Habits", () => {
     assert.equal(second.status, 200);
 
     const { body: habits } = await req("GET", "/v1/habits", { token: demoToken });
-    assert.equal((habits as any[]).filter((h) => h.id === "habit_migrate_1").length, 1);
+    assert.equal((habits.items as any[]).filter((h) => h.id === "habit_migrate_1").length, 1);
     const { body: logs } = await req("GET", "/v1/habits/logs", { token: demoToken });
     assert.equal((logs as any[]).filter((l) => l.habitId === "habit_migrate_1").length, 1);
   });
@@ -219,7 +220,7 @@ describe("Habits — cross-user isolation", () => {
     });
 
     const { body: bHabits } = await req("GET", "/v1/habits", { token: otherToken });
-    assert.equal((bHabits as any[]).some((h) => h.id === habit.id), false, "user B must not list user A's habit");
+    assert.equal((bHabits.items as any[]).some((h) => h.id === habit.id), false, "user B must not list user A's habit");
 
     assert.equal(
       (await req("PATCH", `/v1/habits/${habit.id}`, { token: otherToken, body: { title: "hijacked" } })).status,
@@ -232,7 +233,7 @@ describe("Habits — cross-user isolation", () => {
     );
 
     const { body: aHabits } = await req("GET", "/v1/habits", { token: demoToken });
-    assert.equal((aHabits as any[]).some((h) => h.id === habit.id), true);
+    assert.equal((aHabits.items as any[]).some((h) => h.id === habit.id), true);
     await req("DELETE", `/v1/habits/${habit.id}`, { token: demoToken });
   });
 
@@ -275,5 +276,62 @@ describe("Habits — cross-user isolation", () => {
     );
 
     await req("DELETE", `/v1/habits/${habit.id}`, { token: demoToken });
+  });
+});
+
+describe("GET /v1/habits — keyset pagination", () => {
+  let token = "";
+
+  before(async () => {
+    ({ token } = await newUserWithToken("habits-keyset"));
+    // Seed enough habits to force multiple pages at a small limit.
+    for (let i = 0; i < 5; i++) {
+      const { status } = await req("POST", "/v1/habits", {
+        token,
+        body: { title: `Habit ${i}`, color: "green", frequency: "daily" },
+      });
+      assert.equal(status, 201);
+    }
+  });
+
+  test("200 → returns a keyset page { items, nextCursor }", async () => {
+    const { status, body } = await req("GET", "/v1/habits", { token });
+    assert.equal(status, 200);
+    assert.ok(Array.isArray(body.items));
+    // Default limit (200) is well above the seed, so the whole list fits one page.
+    assert.equal(body.items.length, 5);
+    assert.equal(body.nextCursor, null);
+  });
+
+  test("400 → malformed cursor is rejected with INVALID_CURSOR", async () => {
+    const { status, body } = await req("GET", "/v1/habits?cursor=not-a-valid-cursor%00%00", { token });
+    assert.equal(status, 400);
+    assert.equal((body as any).error?.code, "INVALID_CURSOR");
+  });
+
+  test("pages through with limit + cursor, in stable created_at ASC order, no dupes/gaps", async () => {
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let guard = 0;
+    do {
+      const path: string = cursor
+        ? `/v1/habits?limit=2&cursor=${encodeURIComponent(cursor)}`
+        : "/v1/habits?limit=2";
+      const { status, body } = await req("GET", path, { token });
+      assert.equal(status, 200);
+      assert.ok(body.items.length <= 2, "page must respect the limit");
+      for (const h of body.items) seen.push(h.id);
+      cursor = body.nextCursor;
+      assert.ok(guard++ < 100, "pagination must terminate");
+    } while (cursor);
+
+    assert.equal(seen.length, 5, "every seeded habit must be visited exactly once");
+    assert.equal(new Set(seen).size, 5, "no duplicate ids across pages");
+  });
+
+  test("over-max limit is clamped to ≤ 500 (does not 400)", async () => {
+    const { status, body } = await req("GET", "/v1/habits?limit=99999", { token });
+    assert.equal(status, 200);
+    assert.ok(Array.isArray(body.items));
   });
 });
