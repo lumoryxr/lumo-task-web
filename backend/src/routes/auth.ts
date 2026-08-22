@@ -10,7 +10,7 @@ import { issueResetToken, consumeResetToken } from "../lib/passwordReset.js";
 import { issueVerificationToken, consumeVerificationToken } from "../lib/emailVerification.js";
 import { issueRecoveryCode, verifyAndConsumeRecoveryCode } from "../lib/recoveryCode.js";
 import { sendEmail } from "../lib/email.js";
-import { appBaseUrl } from "../lib/appBaseUrl.js";
+import { appBaseUrl, apiBaseUrl } from "../lib/appBaseUrl.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
@@ -103,13 +103,17 @@ const VerifyEmailBody = z.object({
 /**
  * Issue a fresh verification token and email the confirmation link. Best-effort:
  * a delivery failure is logged by the email lib but never blocks the caller
- * (registration must still succeed if email is down). `baseUrl` is the resolved
- * app base URL (see lib/appBaseUrl) — passed in so this helper stays free of the
- * request context.
+ * (registration must still succeed if email is down).
+ *
+ * `apiBase` is the resolved public API origin (see lib/appBaseUrl.apiBaseUrl) —
+ * the link points at the API's own `GET /v1/auth/verify-email`, NOT the SPA, so
+ * the click always lands on the server that minted the token (reachable with no
+ * cross-origin SPA load / CORS). That endpoint verifies server-side and then
+ * redirects the browser to the SPA result page.
  */
-async function sendVerificationEmail(userId: string, email: string, name: string, baseUrl: string): Promise<void> {
+async function sendVerificationEmail(userId: string, email: string, name: string, apiBase: string): Promise<void> {
   const rawToken = await issueVerificationToken(userId);
-  const link = `${baseUrl}/verify-email?token=${encodeURIComponent(rawToken)}`;
+  const link = `${apiBase}/v1/auth/verify-email?token=${encodeURIComponent(rawToken)}`;
   await sendEmail({
     to: email,
     subject: "Verify your Lumo email",
@@ -256,7 +260,7 @@ app.post("/bind-email", authRateLimit, authMiddleware, validate("json", BindEmai
   audit("auth.bind_email", { userId, ip: clientIp(c) });
 
   // Best-effort verification email — binding succeeds even if delivery is down.
-  await sendVerificationEmail(userId, email, user.name, appBaseUrl(c));
+  await sendVerificationEmail(userId, email, user.name, apiBaseUrl(c));
   audit("auth.verify_email.sent", { userId, ip: clientIp(c) });
 
   return c.json({ ok: true, email, emailVerified: false });
@@ -397,10 +401,63 @@ app.post("/reset-password", authRateLimit, validate("json", ResetPasswordBody), 
   return c.json({ ok: true });
 });
 
+// Minimal, dependency-free result page rendered ONLY when no SPA origin is known
+// (LUMO_APP_BASE_URL unset AND no derivable request host) — so a click still ends
+// on a coherent outcome even in a misconfigured deployment. The happy path below
+// redirects to the branded SPA result page instead.
+function verifyResultPage(ok: boolean): string {
+  const title = ok ? "Email verified" : "Verification link invalid";
+  const body = ok
+    ? "Your email address has been verified. You can close this window and return to Lumo."
+    : "This verification link is invalid or has expired. Request a fresh link from the app.";
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<title>${title}</title></head>` +
+    `<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1.5rem;text-align:center;color:#1a1a1a">` +
+    `<h1 style="font-size:1.25rem">${title}</h1><p style="color:#555;line-height:1.6">${body}</p></body></html>`;
+}
+
+// Confirm an email by opening the emailed link (GET — the click IS the intent).
+// The link points at THIS API, so the click always reaches a live endpoint and
+// verification completes server-side HERE, with no dependency on the SPA booting
+// or a cross-origin POST. On completion we redirect the browser to the SPA result
+// page (?status=success|invalid); if no SPA origin is known we render a minimal
+// self-contained page so the user still sees the outcome. Public + rate-limited.
+// Single-use: a valid token flips the flag once; a reused/expired/unknown token
+// lands on the invalid result.
+//
+// NOTE: a GET link may be pre-fetched by email security scanners, which would
+// consume the single-use token before the human clicks. The end state is still
+// correct (the email is verified); the human's later click then shows the
+// invalid result with a path to request a fresh link. This is an accepted,
+// standard trade-off for verification links (unlike password reset, where the
+// POST + new-password form makes prefetch inert).
+app.get("/verify-email", authRateLimit, async (c) => {
+  const token = c.req.query("token") ?? "";
+  let ok = false;
+  if (token) {
+    const userId = await consumeVerificationToken(token);
+    if (userId) {
+      await execute("UPDATE users SET email_verified = 1 WHERE id = :id", { id: userId });
+      audit("auth.verify_email.ok", { userId, ip: clientIp(c) });
+      ok = true;
+    }
+  }
+  if (!ok) audit("auth.verify_email.fail", { ip: clientIp(c) });
+
+  const base = appBaseUrl(c);
+  if (base) {
+    return c.redirect(`${base}/verify-email?status=${ok ? "success" : "invalid"}`, 302);
+  }
+  return c.html(verifyResultPage(ok), ok ? 200 : 400);
+});
+
 // Confirm an email address with the token from the verification link. Public
 // (the user may not be signed in on the device they open the link with) and
-// rate-limited. Idempotent-ish: a valid token flips the flag once; reusing it
-// (now consumed) returns the invalid-token error.
+// rate-limited. Retained for backward compatibility with older links that point
+// straight at the SPA (which POSTs the token here), and for programmatic clients.
+// Idempotent-ish: a valid token flips the flag once; reusing it (now consumed)
+// returns the invalid-token error.
 app.post("/verify-email", authRateLimit, validate("json", VerifyEmailBody), async (c) => {
   const { token } = c.req.valid("json");
   const userId = await consumeVerificationToken(token);
@@ -423,7 +480,7 @@ app.post("/resend-verification", authRateLimit, authMiddleware, async (c) => {
   // No-op (still 200) when already verified OR when no email is bound — the
   // response never depends on state in a way a caller could probe.
   if (user.email && !user.email_verified) {
-    await sendVerificationEmail(user.id, user.email, user.name, appBaseUrl(c));
+    await sendVerificationEmail(user.id, user.email, user.name, apiBaseUrl(c));
     audit("auth.verify_email.resend", { userId, ip: clientIp(c) });
   }
   return c.json({ ok: true });

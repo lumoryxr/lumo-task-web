@@ -9,19 +9,25 @@ import { Spinner } from "@/components/Spinner";
 import { IconCheck } from "@/components/icons";
 
 /**
- * /verify-email?token=… — confirm an email from the emailed link.
+ * /verify-email — show the outcome of confirming an email from the emailed link.
  *
- * The click IS the intent, so we verify automatically on mount rather than
- * making the user press another button. On success we refresh the signed-in
- * user (if any) so the "verify your email" banner clears immediately. A
- * bad/expired/used token (ApiError INVALID_VERIFICATION_TOKEN) shows an inline
- * invalid state with a path back into the app to request a fresh link.
+ * Two entry shapes:
+ *   1. `?status=success|invalid` — the CURRENT flow. The emailed link points at
+ *      the backend API, which verifies server-side and redirects here with the
+ *      outcome. There is nothing to POST; we just render the result (and refresh
+ *      the signed-in user on success so the "verify your email" banner clears).
+ *   2. `?token=…` — LEGACY links that point straight at the SPA. We keep the
+ *      auto-verify-on-mount POST so links already sitting in inboxes still work.
+ *
+ * A bad/expired/used token shows an inline invalid state with a path back into
+ * the app to request a fresh link.
  */
 export function VerifyEmailPage() {
   const t = useT();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const token = params.get("token") ?? "";
+  const status = params.get("status"); // "success" | "invalid" from the backend redirect
+  const token = params.get("token") ?? ""; // legacy: SPA-side POST verification
   const verifyEmail = useAuthStore((s) => s.verifyEmail);
   const refreshUser = useAuthStore((s) => s.refreshUser);
   const isSignedIn = useAuthStore(selectIsSignedIn);
@@ -30,11 +36,26 @@ export function VerifyEmailPage() {
   // than /today (which the route guard would bounce straight to /login).
   const home = isSignedIn ? "/today" : "/login";
 
-  const [state, setState] = useState<"loading" | "success" | "invalid">(token ? "loading" : "invalid");
+  const initialState: "loading" | "success" | "invalid" =
+    status === "success" ? "success" : status === "invalid" ? "invalid" : token ? "loading" : "invalid";
+  const [state, setState] = useState(initialState);
   const ran = useRef(false);
 
   useEffect(() => {
-    if (!token || ran.current) return;
+    if (ran.current) return;
+    // Current flow: the backend already verified and redirected here. On success,
+    // refresh the signed-in user so the banner clears; nothing else to do.
+    if (status === "success") {
+      ran.current = true;
+      refreshUser();
+      return;
+    }
+    if (status === "invalid") {
+      ran.current = true;
+      return;
+    }
+    // Legacy flow: an older link points at the SPA with the raw token — POST it.
+    if (!token) return;
     ran.current = true; // guard StrictMode's double-invoke — a token is single-use
     (async () => {
       try {
@@ -48,7 +69,7 @@ export function VerifyEmailPage() {
         setState("invalid");
       }
     })();
-  }, [token, verifyEmail, refreshUser]);
+  }, [status, token, verifyEmail, refreshUser]);
 
   return (
     <AuthShell>

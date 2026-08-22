@@ -39,15 +39,23 @@ services:
         sync: false            # libsql://lumo-task-<org>.turso.io  (REQUIRED for persistence)
       - key: TURSO_AUTH_TOKEN
         sync: false            # from: turso db tokens create lumo-task
-      # Public origin of the WEB APP (the SPA). Used to build the emailed links
-      # for password reset (/reset-password?token=…) and email verification
-      # (/verify-email?token=…), and the post-login GitHub OAuth redirect back to
-      # the SPA. REQUIRED here because the SPA is a SEPARATE origin from this API
-      # (split frontend/backend) — set it to the frontend site URL. Unset → the
-      # backend derives the origin from the incoming request, which only lands
-      # right for a single-origin deployment, not this split one.
+      # Public origin of the WEB APP (the SPA). Used for the password-reset link
+      # (/reset-password?token=…), the post-verification redirect target, and the
+      # post-login GitHub OAuth redirect back to the SPA. Set it to the frontend
+      # site URL in this split frontend/backend deployment. Unset → the backend
+      # derives the origin from the incoming request (right only for single-origin).
+      # NOTE: email verification no longer depends on this to COMPLETE — the
+      # verification link points at the backend's own GET /v1/auth/verify-email,
+      # which verifies server-side and only then redirects to this SPA origin. So
+      # a wrong/unset value degrades the post-verify landing page, not verification.
       - key: LUMO_APP_BASE_URL
         sync: false            # the frontend SPA origin, e.g. https://lumo-task-frontend.onrender.com
+      # Public origin of THIS API — where the emailed verification link points so
+      # the click lands on the server that minted the token. Optional: unset → the
+      # backend derives it from the incoming request (correct behind a trusted
+      # proxy). Set it only if the request-derived origin is wrong for your setup.
+      - key: LUMO_API_BASE_URL
+        sync: false            # e.g. https://lumo-task-backend.onrender.com
       # ── In-app feedback admin (Settings → About & Support). ─────────────────
       # Comma-separated emails allowed to review/triage in-app feedback (case-
       # insensitive; the account must sign in with a bound email in this list).
