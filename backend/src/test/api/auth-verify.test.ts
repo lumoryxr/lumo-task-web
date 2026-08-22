@@ -73,6 +73,22 @@ describe("GET /v1/auth/verify-email (the emailed link)", () => {
     assert.match(mails[0].text, /\/v1\/auth\/verify-email\?token=/, "link must target the API GET endpoint");
   });
 
+  test("the email carries an HTML body whose href holds the FULL, untruncated token", async () => {
+    const r = await registerAndGetToken("htmllink");
+    // Re-issue so we can read the freshly-sent mail (registerAndGetToken drained it).
+    await req("POST", "/v1/auth/resend-verification", { token: r.token });
+    const mail = drainOutbox()[0];
+
+    // The token in a plain-text mail is what gets truncated by line-wrapping; the
+    // fix is a real <a href> that carries the whole URL. Assert both the HTML body
+    // exists and that its href token matches the text token exactly (full length).
+    assert.ok(mail.html, "verification email must include an HTML body");
+    const textToken = mail.text.match(/verify-email\?token=([^\s]+)/)![1];
+    const hrefToken = mail.html!.match(/href="[^"]*verify-email\?token=([^"&]+)"/)![1];
+    assert.equal(hrefToken, textToken, "HTML href token must equal the text-body token");
+    assert.equal(decodeURIComponent(hrefToken).length, 43, "a 32-byte base64url token is 43 chars");
+  });
+
   test("valid token verifies server-side and redirects to the SPA success page", async () => {
     const r = await registerAndGetToken("getok");
 

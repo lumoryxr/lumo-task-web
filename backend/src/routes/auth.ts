@@ -100,6 +100,35 @@ const VerifyEmailBody = z.object({
   token: z.string().min(1).max(512),
 });
 
+// Escape text interpolated into the HTML email body. Names come from user input;
+// the link is our own same-origin URL built from a URL-safe base64url token, but
+// we escape it too so it is safe in both an href attribute and body text.
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (ch) =>
+    ch === "&" ? "&amp;" : ch === "<" ? "&lt;" : ch === ">" ? "&gt;" : ch === '"' ? "&quot;" : "&#39;",
+  );
+}
+
+/**
+ * Minimal HTML body for an action email (verify / reset). The clickable link
+ * lives in an <a href> AND as a copy-paste span — an href attribute is never
+ * subject to the plain-text line-wrapping that truncates a long inline URL (the
+ * bug that produced a short, invalid token). The plain-text body is still sent
+ * alongside for text-only clients.
+ */
+function actionEmailHtml(opts: { name: string; intro: string; link: string; cta: string; footer: string }): string {
+  const href = escapeHtml(opts.link);
+  return (
+    `<!doctype html><html><body style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#1a1a1a;line-height:1.6;max-width:32rem;margin:0 auto">` +
+    `<p>Hi ${escapeHtml(opts.name)},</p>` +
+    `<p>${escapeHtml(opts.intro)}</p>` +
+    `<p><a href="${href}" style="display:inline-block;padding:10px 18px;background:var(--accent,#4f46e5);background:#4f46e5;color:#fff;border-radius:8px;text-decoration:none">${escapeHtml(opts.cta)}</a></p>` +
+    `<p style="color:#555;font-size:13px">If the button doesn't work, copy and paste this link into your browser:<br><span style="word-break:break-all">${href}</span></p>` +
+    `<p style="color:#888;font-size:12px">${escapeHtml(opts.footer)}</p>` +
+    `</body></html>`
+  );
+}
+
 /**
  * Issue a fresh verification token and email the confirmation link. Best-effort:
  * a delivery failure is logged by the email lib but never blocks the caller
@@ -114,15 +143,13 @@ const VerifyEmailBody = z.object({
 async function sendVerificationEmail(userId: string, email: string, name: string, apiBase: string): Promise<void> {
   const rawToken = await issueVerificationToken(userId);
   const link = `${apiBase}/v1/auth/verify-email?token=${encodeURIComponent(rawToken)}`;
+  const intro = "Welcome to Lumo! Please confirm your email address using the link below. It expires in 24 hours.";
+  const footer = "If you didn't create a Lumo account, you can safely ignore this email.";
   await sendEmail({
     to: email,
     subject: "Verify your Lumo email",
-    text:
-      `Hi ${name},\n\n` +
-      `Welcome to Lumo! Please confirm your email address by opening the link below. ` +
-      `It expires in 24 hours.\n\n` +
-      `${link}\n\n` +
-      `If you didn't create a Lumo account, you can safely ignore this email.`,
+    text: `Hi ${name},\n\n${intro}\n\n${link}\n\n${footer}`,
+    html: actionEmailHtml({ name, intro, link, cta: "Verify email", footer }),
   });
 }
 
@@ -358,15 +385,13 @@ app.post("/forgot-password", authRateLimit, validate("json", ForgotPasswordBody)
   if (user) {
     const rawToken = await issueResetToken(user.id);
     const link = `${appBaseUrl(c)}/reset-password?token=${encodeURIComponent(rawToken)}`;
+    const intro = "We received a request to reset your Lumo password. Use the link below to choose a new one. It expires in 30 minutes and can be used once.";
+    const footer = "If you didn't request this, you can safely ignore this email — your password won't change.";
     await sendEmail({
       to: email,
       subject: "Reset your Lumo password",
-      text:
-        `Hi ${user.name},\n\n` +
-        `We received a request to reset your Lumo password. ` +
-        `Open the link below to choose a new one. It expires in 30 minutes and can be used once.\n\n` +
-        `${link}\n\n` +
-        `If you didn't request this, you can safely ignore this email — your password won't change.`,
+      text: `Hi ${user.name},\n\n${intro}\n\n${link}\n\n${footer}`,
+      html: actionEmailHtml({ name: user.name, intro, link, cta: "Reset password", footer }),
     });
     audit("auth.password_reset.request", { userId: user.id, ip: clientIp(c) });
   } else {
@@ -435,15 +460,15 @@ function verifyResultPage(ok: boolean): string {
 app.get("/verify-email", authRateLimit, async (c) => {
   const token = c.req.query("token") ?? "";
   let ok = false;
-  if (token) {
-    const userId = await consumeVerificationToken(token);
-    if (userId) {
-      await execute("UPDATE users SET email_verified = 1 WHERE id = :id", { id: userId });
-      audit("auth.verify_email.ok", { userId, ip: clientIp(c) });
-      ok = true;
-    }
+  const result = token ? await consumeVerificationToken(token) : ({ ok: false, reason: "unknown" } as const);
+  if (result.ok) {
+    await execute("UPDATE users SET email_verified = 1 WHERE id = :id", { id: result.userId });
+    audit("auth.verify_email.ok", { userId: result.userId, ip: clientIp(c) });
+    ok = true;
+  } else {
+    // Log WHY (unknown/expired/used) so a live "invalid link" is diagnosable.
+    audit("auth.verify_email.fail", { ip: clientIp(c), reason: result.reason, via: "link" });
   }
-  if (!ok) audit("auth.verify_email.fail", { ip: clientIp(c) });
 
   const base = appBaseUrl(c);
   if (base) {
@@ -460,13 +485,13 @@ app.get("/verify-email", authRateLimit, async (c) => {
 // returns the invalid-token error.
 app.post("/verify-email", authRateLimit, validate("json", VerifyEmailBody), async (c) => {
   const { token } = c.req.valid("json");
-  const userId = await consumeVerificationToken(token);
-  if (!userId) {
-    audit("auth.verify_email.fail", { ip: clientIp(c) });
+  const result = await consumeVerificationToken(token);
+  if (!result.ok) {
+    audit("auth.verify_email.fail", { ip: clientIp(c), reason: result.reason, via: "post" });
     return httpError(c, 400, "INVALID_VERIFICATION_TOKEN", "This verification link is invalid or has expired. Request a new one.");
   }
-  await execute("UPDATE users SET email_verified = 1 WHERE id = :id", { id: userId });
-  audit("auth.verify_email.ok", { userId, ip: clientIp(c) });
+  await execute("UPDATE users SET email_verified = 1 WHERE id = :id", { id: result.userId });
+  audit("auth.verify_email.ok", { userId: result.userId, ip: clientIp(c) });
   return c.json({ ok: true });
 });
 
