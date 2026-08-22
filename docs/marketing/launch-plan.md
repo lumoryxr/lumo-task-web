@@ -71,22 +71,22 @@
 开源项目的贡献漏斗 = **看到 → 看懂 → 跑起来 → 找到能上手的活 → 提第一个 PR → 被善待**。逐环节降摩擦:
 
 ### 4.1 让人"看懂 + 跑起来"(5 分钟内)
-- [ ] README 顶部:徽章(CI/Demo/License/**AI-Coded**)已有 ✅;补一段"**Why contribute**"(参与一个 AI-driven 开发实验、技术栈现代、CI 严格、review 到位)。
-- [ ] **一条命令起项目**(dev 脚本 + `.env.example` + "已知坑"小节),README 里显眼。
-- [ ] `ARCHITECTURE.md`:一页讲清前后端/契约/测试分层,让新人快速建立心智模型。
+- [x] README 顶部:徽章(CI/Demo/License/**AI-Coded**)+ "**Why contribute**" 段(参与一个 AI-driven 开发实验、技术栈现代、CI 严格、review 到位)均已上线(`README.md` "Contributing" 段)。
+- [x] **一条命令起项目**:README "Quick Start" 已是可复制粘贴的 `make dev-full`(Node 22+、端口、Make-targets 表);后端有 `backend/.env.example`。*残留:无 `web-app/.env.example`(前端走 `make dev-full` 无需它);"已知坑" 见 `TESTING.md`。*
+- [x] `ARCHITECTURE.md` 已存在:一页讲清前后端/契约/测试分层。
 
 ### 4.2 让人"找到能上手的活"
-- [ ] 建 **`good first issue` / `help wanted`** 标签,并**手动挑 8–12 个真·小而清晰**的任务(带验收标准 + 相关文件路径 + 提示)。这是转化贡献者最关键的一步。
-- [ ] 一个公开 **ROADMAP / GitHub Projects 看板**,让人看到方向、认领任务。
-- [ ] `CONTRIBUTING.md` ✅ 已有 → 校对:分支命名、提交规范、本地门禁怎么跑、PR 模板、review 期望。
-- [ ] **PR/Issue 模板** + 明确的"我们如何 review"(强调 AI + 人协作、code-review 会真跑)。
+- [~] **`good first issue` / `help wanted`** 任务:标签定义已在 `.github/labels.json`;10 个候选已起草并逐条对当前 `main` 复核(`docs/marketing/good-first-issues.md`,5 个仍可发、5 个已被 loop 实现)。**公开建 issue 是外部动作 → 待 Jalen 拍板(§8.3 之外的单独 OK)。**
+- [~] 公开 **ROADMAP**:`docs/ROADMAP.md` 已是单一事实源(方向 + Done log);GitHub Projects 看板待 Jalen 决定是否开。
+- [x] `CONTRIBUTING.md` 已校对:分支命名、Conventional-Commits、本地门禁跑法(含 FE vitest `--maxWorkers`/OOM + standards/i18n 守卫)、PR 模板、review 期望齐全(`.github/CONTRIBUTING.md`)。
+- [x] **PR/Issue 模板**齐全(`.github/pull_request_template.md` + `ISSUE_TEMPLATE/{bug_report,feature_request,epic,story}`);"我们如何 review" 在 CONTRIBUTING/README 已写明(AI + 人协作、每 PR 实跑 code-review)。
 
 ### 4.3 让人"被善待 + 想留下"
-- [ ] **48h 内响应**首个 PR(哪怕只是"看到了,排期中")。
-- [ ] `CODE_OF_CONDUCT.md`、贡献者致谢(all-contributors 或 README 列表)。
-- [ ] 轻量社区入口:**Discord 或 GitHub Discussions**(先用 Discussions,零维护成本)。
-- [ ] 独特卖点话术:"**来和一个 AI 一起维护产品**"——对好奇 AI 协作开发的人极有吸引力,也是简历亮点。
-- [ ] 上开源榜:提交到 `awesome-*` 列表、GitHub Trending 冲榜(靠上线日集中 star)、`good-first-issue` 聚合站(goodfirstissue.dev 等)。
+- [~] **48h 内响应**首个 PR:承诺已写入 README/CONTRIBUTING;实际履约是上线后的运营动作(非文档项)。
+- [~] `CODE_OF_CONDUCT.md` 已有(Contributor Covenant 2.1);贡献者致谢(all-contributors / README 列表)未建 —— 首个外部 PR 到来后再上,避免空列表。
+- [ ] 轻量社区入口:**Discord 或 GitHub Discussions** —— *待 Jalen 定(§8.2)*。
+- [x] 独特卖点话术:"**来和一个 AI 一起维护产品**" 已落进 README "Why contribute" 段。
+- [ ] 上开源榜(`awesome-*` / Trending / goodfirstissue.dev 等)—— 外部提交动作,留到上线日附近执行。
 
 ---
 
@@ -94,7 +94,7 @@
 
 | 时段 | 动作 |
 |---|---|
-| D-7 ~ D-3 | 落地页/GIF/Demo 视频、埋点、对比图、社媒账号、good-first-issues、Why-contribute 段落 |
+| D-7 ~ D-3 | 落地页/GIF/Demo 视频、埋点、对比图、社媒账号(good-first-issues 草稿 ✅ / Why-contribute 段 ✅ 已提前备好,详见 §4) |
 | D-2 | PH/HN/少数派 文案与配图定稿;预热一条 build-in-public 帖 |
 | **D-Day** | PH + Show HN + Reddit + 中文渠道同步;全天守评论区回帖 |
 | D+1 ~ D+7 | 复盘数据;发"上线复盘"帖(坦诚数据最吃香);处理涌入的 issue/PR |
@@ -135,11 +135,13 @@
 ---
 
 ## 附:可立即执行、不需 Jalen 的准备项(我过夜/后续可代做)
-- [ ] README 增补 "Why contribute" 段 + 一条命令起项目说明(需校对现有 dev 脚本)。
-- [ ] `ARCHITECTURE.md` 一页架构图/说明。
-- [x] 起草 8–12 个 `good first issue`(基于代码里真实的小改进点)→ 见 `good-first-issues.md`。
+- [x] README 增补 "Why contribute" 段 + 一条命令起项目说明(`README.md` Contributing + Quick Start `make dev-full`,已上线)。
+- [x] `ARCHITECTURE.md` 一页架构图/说明(已存在)。
+- [x] 起草 8–12 个 `good first issue`(基于代码里真实的小改进点)→ 见 `good-first-issues.md`(已对 `main` 复核:5 可发 / 5 已实现)。
 - [x] PH / Show HN / Reddit 文案初稿(中英)→ 见下方 §9。
 - [x] 对比图与 Demo 脚本大纲(Demo 脚本 + 分镜 → 见 §10)。
+
+> **对账说明(2026-08-22,过夜):** §4.1/§4.2/§4.3/§附 里若干**准备项此前已由过夜 lane / 2h 工程 loop 完成但清单仍显未勾**(Why-contribute 段、一条命令起项目、ARCHITECTURE.md、CONTRIBUTING/模板校对、good-first-issues 草稿)。本次仅按当前 `main` 的真实状态对账勾选并补一句证据,**未改任何代码/产品文案**。仍待 Jalen 的纯决策项集中在 §8(主叙事、社区入口、D-Day、署名、分析工具)+ 公开建 good-first-issue。
 
 ---
 
