@@ -44,7 +44,10 @@ scrape_configs:
       type: Bearer
       credentials: "<LUMO_METRICS_TOKEN>"   # or credentials_file
     static_configs:
-      - targets: ["lumo-task-backend.onrender.com"]
+      # Public production origin (single-origin VPS serves the SPA and /v1 API
+      # together, so /metrics lives here too). Self-hosters: point this at your
+      # own backend host.
+      - targets: ["task.lumoryxr.com"]
 ```
 
 ## Example alert rules
