@@ -42,6 +42,22 @@ beforeEach(() => {
 });
 
 describe("VerifyEmailPage", () => {
+  it("shows success from the backend ?status=success redirect and refreshes the user (no POST)", async () => {
+    h.search = "status=success";
+    render(<VerifyEmailPage />);
+    expect(await screen.findByText("auth.verify.success.title")).toBeInTheDocument();
+    expect(mockRefresh).toHaveBeenCalled();
+    expect(mockVerify).not.toHaveBeenCalled();
+  });
+
+  it("shows invalid from the backend ?status=invalid redirect (no POST, no refresh)", async () => {
+    h.search = "status=invalid";
+    render(<VerifyEmailPage />);
+    expect(screen.getByText("auth.verify.invalid.title")).toBeInTheDocument();
+    expect(mockVerify).not.toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
   it("auto-verifies the token on mount and refreshes the user on success", async () => {
     mockVerify.mockResolvedValue(undefined);
     render(<VerifyEmailPage />);

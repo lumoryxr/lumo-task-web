@@ -8,6 +8,18 @@ import { test, describe, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { req, setupDb, uniqueEmail, uniqueUsername } from "../helpers/index.js";
 import { drainOutbox } from "../../lib/email.js";
+import { app } from "../../app.js";
+
+// GET the emailed link directly against the app (the shared `req` helper can't
+// parse an empty 302 body). A forwarded host makes appBaseUrl resolve to an SPA
+// origin so the handler redirects (its no-host fallback serves inline HTML).
+async function openVerifyLink(token: string | null) {
+  const qs = token === null ? "" : `?token=${encodeURIComponent(token)}`;
+  return app.request(`/v1/auth/verify-email${qs}`, {
+    method: "GET",
+    headers: { "x-forwarded-host": "app.example.com", "x-forwarded-proto": "https" },
+  });
+}
 
 before(async () => {
   await setupDb();
@@ -47,6 +59,52 @@ describe("registration → verification email", () => {
     const me = await req("GET", "/v1/user", { token: r.token });
     assert.equal(me.status, 200);
     assert.equal(me.body.emailVerified, false);
+  });
+});
+
+describe("GET /v1/auth/verify-email (the emailed link)", () => {
+  test("the emailed link points at the API's own GET endpoint", async () => {
+    const username = uniqueUsername("linkhost");
+    const email = uniqueEmail("linkhost");
+    const reg = await req("POST", "/v1/auth/register", { body: { username, password: "password123" } });
+    drainOutbox();
+    await req("POST", "/v1/auth/bind-email", { token: reg.body.token, body: { email } });
+    const mails = drainOutbox();
+    assert.match(mails[0].text, /\/v1\/auth\/verify-email\?token=/, "link must target the API GET endpoint");
+  });
+
+  test("valid token verifies server-side and redirects to the SPA success page", async () => {
+    const r = await registerAndGetToken("getok");
+
+    const res = await openVerifyLink(r.verifyToken);
+    assert.equal(res.status, 302);
+    assert.match(res.headers.get("location") ?? "", /\/verify-email\?status=success$/);
+
+    // The account is verified purely from the GET click — no SPA POST involved.
+    const me = await req("GET", "/v1/user", { token: r.token });
+    assert.equal(me.body.emailVerified, true);
+
+    // Single-use: opening the (now consumed) link again lands on the invalid page.
+    const again = await openVerifyLink(r.verifyToken);
+    assert.equal(again.status, 302);
+    assert.match(again.headers.get("location") ?? "", /\/verify-email\?status=invalid$/);
+  });
+
+  test("unknown token redirects to the invalid page and verifies nothing", async () => {
+    const r = await registerAndGetToken("getbad");
+
+    const res = await openVerifyLink("nope");
+    assert.equal(res.status, 302);
+    assert.match(res.headers.get("location") ?? "", /\/verify-email\?status=invalid$/);
+
+    const me = await req("GET", "/v1/user", { token: r.token });
+    assert.equal(me.body.emailVerified, false);
+  });
+
+  test("missing token redirects to the invalid page", async () => {
+    const res = await openVerifyLink(null);
+    assert.equal(res.status, 302);
+    assert.match(res.headers.get("location") ?? "", /\/verify-email\?status=invalid$/);
   });
 });
 

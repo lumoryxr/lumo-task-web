@@ -76,3 +76,24 @@ export function appBaseUrl(c: Context | { req: HeaderSource }): string {
   if (configured) return configured.replace(/\/+$/, "");
   return requestOrigin(c);
 }
+
+/**
+ * Absolute base URL of the API itself — the origin that emailed verification
+ * links point at, so the click lands on the very server that minted the token
+ * (always reachable, no cross-origin SPA load / CORS in the critical path). This
+ * is why the click reliably completes verification even when the SPA origin
+ * (LUMO_APP_BASE_URL) is misconfigured.
+ *
+ * Resolution order mirrors appBaseUrl:
+ *   1. `LUMO_API_BASE_URL` when set — the authoritative public API origin,
+ *      REQUIRED only when the request-derived origin can't be trusted or is
+ *      wrong (e.g. behind an untrusted proxy). No trailing slash.
+ *   2. Otherwise derive from the incoming request origin — correct for both the
+ *      single-origin (SPA + API same host) and the split deployment, since the
+ *      request that mints the token always arrives at the public API host.
+ */
+export function apiBaseUrl(c: Context | { req: HeaderSource }): string {
+  const configured = process.env.LUMO_API_BASE_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  return requestOrigin(c);
+}
