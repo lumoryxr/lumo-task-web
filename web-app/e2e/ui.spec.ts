@@ -754,12 +754,10 @@ test("TC23 – Today: 'Start focus' button is present on conviction card", async
   });
 });
 
-test("TC24 – Today: Quick Add modal opens from topbar button", async ({ page }) => {
+test("TC24 – Today: Quick Add modal opens from the Today page", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
   await mockAPIWithData(page);
   await page.goto("/#/today");
-  // Multiple create entry points now exist (top bar + in-page); the top-bar
-  // button is first in the DOM, matching this test's "from topbar" intent.
   await page.getByRole("button", { name: /new task/i }).first().click();
   await expect(page.getByPlaceholder(/what needs doing/i)).toBeVisible({ timeout: 10_000 });
 });
@@ -768,8 +766,6 @@ test("TC25 – Today: Quick Add Cancel button closes the modal", async ({ page }
   await skipOnboardingAndSignIn(page);
   await mockAPIWithData(page);
   await page.goto("/#/today");
-  // Multiple create entry points now exist (top bar + in-page); the top-bar
-  // button is first in the DOM, matching this test's "from topbar" intent.
   await page.getByRole("button", { name: /new task/i }).first().click();
   await expect(page.getByPlaceholder(/what needs doing/i)).toBeVisible({ timeout: 10_000 });
   await page.getByRole("button", { name: /cancel/i }).click();
@@ -780,8 +776,6 @@ test("TC26 – Today: Quick Add Create submits and closes modal", async ({ page 
   await skipOnboardingAndSignIn(page);
   await mockAPIWithData(page);
   await page.goto("/#/today");
-  // Multiple create entry points now exist (top bar + in-page); the top-bar
-  // button is first in the DOM, matching this test's "from topbar" intent.
   await page.getByRole("button", { name: /new task/i }).first().click();
   await page.getByPlaceholder(/what needs doing/i).fill("Brand new test task");
   await page.getByRole("button", { name: /^create$/i }).click();

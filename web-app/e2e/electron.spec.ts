@@ -272,9 +272,7 @@ test.describe("Electron app", () => {
     ).toBeVisible({ timeout: 8_000 });
   });
 
-  test("TODAY02 – Quick Add modal opens from topbar", async () => {
-    // Top bar + in-page create buttons share the "New task" name; the top-bar
-    // one is first in the DOM, matching this test's "from topbar" intent.
+  test("TODAY02 – Quick Add modal opens from the Today page", async () => {
     await expect(page.getByRole("button", { name: /new task/i }).first()).toBeVisible({ timeout: 5_000 });
     await page.getByRole("button", { name: /new task/i }).first().click();
     await expect(page.getByPlaceholder(/what needs doing/i)).toBeVisible({ timeout: 5_000 });

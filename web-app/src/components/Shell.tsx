@@ -51,7 +51,7 @@ export function Shell() {
 
   // Open the Quick Create modal, optionally preset to a quadrant. Handed to
   // routed pages via the outlet context so Today / Matrix can surface an
-  // explicit "create task" button in-page (not only the top-bar action).
+  // explicit "create task" button in-page.
   const openQuickCreate = useCallback((quadrant?: Quadrant) => {
     setQuickQuadrant(quadrant);
     setQuickOpen(true);
@@ -104,7 +104,6 @@ export function Shell() {
             <Topbar
               title={meta.title}
               subtitle={meta.sub}
-              onQuickAdd={() => openQuickCreate()}
               onOpenSearch={openSearch}
             />
           )}
