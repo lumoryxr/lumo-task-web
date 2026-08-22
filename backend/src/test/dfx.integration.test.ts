@@ -949,20 +949,21 @@ describe("DFX · Security — cross-tenant id-collision guard on /v1/habits/migr
       token: attacker.token,
     });
     assert.equal(aStatus, 200);
-    assert.ok(Array.isArray(attackerList), "habits list must be an array");
+    // GET /v1/habits is keyset-paginated ({ items, nextCursor }).
+    assert.ok(Array.isArray(attackerList.items), "habits list must be a keyset page");
     assert.ok(
-      attackerList.some((h: any) => h.id === ownId),
+      attackerList.items.some((h: any) => h.id === ownId),
       "attacker's own migrated habit must be imported",
     );
     // Load-bearing teeth #1: OR REPLACE would rewrite the row's user_id → attacker gains it.
     assert.ok(
-      !attackerList.some((h: any) => h.id === foreignId),
+      !attackerList.items.some((h: any) => h.id === foreignId),
       "attacker must NOT acquire the victim's habit by colliding id (OR REPLACE would leak it)",
     );
 
     // Victim's list: the row must survive UNMUTATED (same title, not the attacker's "STOLEN").
     const { body: victimList } = await api("GET", "/v1/habits", { token: victim.token });
-    const survivor = victimList.find((h: any) => h.id === foreignId);
+    const survivor = victimList.items.find((h: any) => h.id === foreignId);
     // Load-bearing teeth #2: OR REPLACE moves the row to the attacker → it vanishes here.
     assert.ok(survivor, "victim's habit must survive the colliding import");
     assert.equal(survivor.title, "Victim Habit", "victim's habit content must be unmutated");
@@ -2698,7 +2699,7 @@ describe("DFX · Robustness — habit frequency-scheduling fields are range-boun
 
   test("over-range `frequencyDays` element (7) on POST /v1/habits → 400 naming frequencyDays, no habit written", async () => {
     const before = await api("GET", "/v1/habits", { token: hf.token });
-    const beforeCount = (before.body as unknown[]).length;
+    const beforeCount = (before.body as { items: unknown[] }).items.length;
 
     const { status, body } = await api("POST", "/v1/habits", {
       token: hf.token,
@@ -2715,7 +2716,7 @@ describe("DFX · Robustness — habit frequency-scheduling fields are range-boun
 
     // No poison: the rejected create must not have persisted a habit.
     const after = await api("GET", "/v1/habits", { token: hf.token });
-    assert.equal((after.body as unknown[]).length, beforeCount, "a rejected create must not persist a habit row");
+    assert.equal((after.body as { items: unknown[] }).items.length, beforeCount, "a rejected create must not persist a habit row");
   });
 
   test("over-range `frequencyTimes` (8) → 400 naming frequencyTimes; server recovers", async () => {
@@ -2774,7 +2775,7 @@ describe("DFX · Robustness — habit frequency-scheduling fields are range-boun
     // The scheduling inputs must survive storage and be readable back.
     const list = await api("GET", "/v1/habits", { token: hf.token });
     assert.equal(list.status, 200);
-    const found = (list.body as Array<{ id: string; frequencyDays?: number[]; frequencyTimes?: number; frequencyInterval?: number }>)
+    const found = (list.body as { items: Array<{ id: string; frequencyDays?: number[]; frequencyTimes?: number; frequencyInterval?: number }> }).items
       .find((h) => h.id === body.id);
     assert.ok(found, "a subsequent read must reflect the persisted habit");
     assert.deepEqual(found?.frequencyDays, [0, 6], "weekday indices must round-trip intact");
@@ -2804,7 +2805,7 @@ describe("DFX · Robustness — habit frequency-scheduling fields are range-boun
 
     // No poison: the rejected PATCH must leave the stored interval intact.
     const list = await api("GET", "/v1/habits", { token: hf.token });
-    const found = (list.body as Array<{ id: string; frequencyInterval?: number }>).find((h) => h.id === id);
+    const found = (list.body as { items: Array<{ id: string; frequencyInterval?: number }> }).items.find((h) => h.id === id);
     assert.equal(found?.frequencyInterval, 14, "a rejected PATCH must leave the stored interval unmutated");
   });
 });

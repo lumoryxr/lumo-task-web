@@ -84,7 +84,7 @@ describe("useHabitsStore", () => {
     localStorage.setItem("lumo.habits.migrated.v1." + UID, "1");
 
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [makeHabit()] } as Response)
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [makeHabit()], nextCursor: null }) } as Response)
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -110,7 +110,7 @@ describe("useHabitsStore", () => {
       // POST /habits/migrate
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) } as Response)
       // GET /habits
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [makeHabit({ id: "habit_old1" })] } as Response)
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [makeHabit({ id: "habit_old1" })], nextCursor: null }) } as Response)
       // GET /habits/logs
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as Response);
     vi.stubGlobal("fetch", fetchMock);
@@ -129,7 +129,7 @@ describe("useHabitsStore", () => {
       // POST /habits/migrate rejects
       .mockRejectedValueOnce(new Error("network error"))
       // GET /habits
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as Response)
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [], nextCursor: null }) } as Response)
       // GET /habits/logs
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as Response);
     vi.stubGlobal("fetch", fetchMock);
@@ -148,7 +148,7 @@ describe("useHabitsStore", () => {
       // POST /habits/migrate rejects (e.g. permanent 4xx)
       .mockRejectedValueOnce(new Error("400 bad request"))
       // GET /habits — server has nothing yet
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as Response)
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [], nextCursor: null }) } as Response)
       // GET /habits/logs
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as Response);
     vi.stubGlobal("fetch", fetchMock);
@@ -163,7 +163,7 @@ describe("useHabitsStore", () => {
   it("load skips the migrate request entirely when there is no local data", async () => {
     const fetchMock = vi.fn()
       // GET /habits
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as Response)
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [], nextCursor: null }) } as Response)
       // GET /habits/logs
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as Response);
     vi.stubGlobal("fetch", fetchMock);
