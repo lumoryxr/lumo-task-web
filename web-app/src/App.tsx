@@ -81,6 +81,7 @@ import { useNotificationStore } from "@/store/useNotificationStore";
 import { useNotificationScheduler } from "@/hooks/useNotificationScheduler";
 import { useSyncEngine } from "@/hooks/useSyncEngine";
 import { useReducedMotionClass } from "@/hooks/useReducedMotionClass";
+import { useDocumentLang } from "@/hooks/useDocumentLang";
 import { ToastStack } from "@/components/ToastStack";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { toast } from "@/store/useToastStore";
@@ -97,6 +98,7 @@ export default function App() {
   const accent = useAppStore((s) => s.accent);
   const onboarded = useAppStore((s) => s.onboarded);
   useReducedMotionClass();
+  useDocumentLang();
   const loadTasks = useTasksStore((s) => s.load);
   const clearTasks = useTasksStore((s) => s.clear);
   const loadPeople = usePeopleStore((s) => s.load);
