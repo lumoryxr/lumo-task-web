@@ -29,14 +29,22 @@ Every line carries a base envelope plus the caller's fields:
 | `service` | `lumo-backend`                                                 |
 | `env`     | `NODE_ENV` (`production` / `development` / `test`)             |
 | `version` | `LUMO_VERSION` (default `1.0.0`)                                |
-| …fields   | caller-supplied (e.g. `requestId`, `route`, `status`, `msg`)   |
+| `requestId` | Per-request correlation id (auto, from the request scope)    |
+| `traceId` | W3C trace id, 32 hex (auto, from the request scope)            |
+| `spanId`  | W3C span id for this hop, 16 hex (auto, from the request scope) |
+| …fields   | caller-supplied (e.g. `route`, `status`, `msg`)                |
 
 `error`-level lines go to **stderr**; everything else to **stdout**.
 
+`requestId`/`traceId`/`spanId` are injected automatically on **every** line
+emitted during a request via an `AsyncLocalStorage` scope set in the correlation
+middleware — routes and `audit()` don't pass them by hand. An explicitly-passed
+field of the same name still wins.
+
 ### Request access log
 The correlation middleware (`app.ts`) emits one line per request:
-`{ level:"info", requestId, method, path, status, durationMs, … }`. It is
-suppressed under `NODE_ENV=test` to keep test output clean.
+`{ level:"info", requestId, traceId, spanId, method, path, status, durationMs }`.
+It is suppressed under `NODE_ENV=test` to keep test output clean.
 
 ### Error log
 `app.onError` logs unhandled faults with the `requestId`, method, path, message,

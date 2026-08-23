@@ -20,7 +20,7 @@ import templatesRoutes from "./routes/templates.js";
 import projectsRoutes from "./routes/projects.js";
 import { feedbackRoutes, adminFeedbackRoutes } from "./routes/feedback.js";
 import { queryOne } from "./db/client.js";
-import { log, resolveRequestId } from "./lib/logger.js";
+import { log, resolveRequestId, resolveTraceContext, runWithCorrelation } from "./lib/logger.js";
 import { bodySizeLimit } from "./lib/bodyLimit.js";
 import { metricsMiddleware, registerMetricsRoute } from "./lib/metrics.js";
 import { STATUS_PAGE_HTML } from "./lib/statusPage.js";
@@ -33,7 +33,7 @@ const allowedOrigins = (process.env.LUMO_ALLOWED_ORIGINS ?? "")
 const exactOrigins = allowedOrigins.filter((o) => !o.startsWith("."));
 const suffixPatterns = allowedOrigins.filter((o) => o.startsWith("."));
 
-type AppVariables = { requestId: string };
+type AppVariables = { requestId: string; traceId: string; spanId: string };
 export const app = new Hono<{ Variables: AppVariables }>();
 
 // Request correlation + structured access log. Assigns each request a trace id
@@ -42,13 +42,26 @@ export const app = new Hono<{ Variables: AppVariables }>();
 const QUIET_LOG = process.env.NODE_ENV === "test";
 app.use("/*", async (c, next) => {
   const requestId = resolveRequestId(c.req.header("x-request-id"));
+  // W3C trace context: continue an inbound traceparent (same trace_id) or start
+  // a fresh trace; always mint a new span_id for this hop.
+  const tc = resolveTraceContext(c.req.header("traceparent"));
   c.set("requestId", requestId);
+  c.set("traceId", tc.traceId);
+  c.set("spanId", tc.spanId);
   const start = Date.now();
-  await next();
+  // Run the whole downstream chain inside the correlation scope so every log
+  // line it emits (route logs, audit, the error handler) auto-carries trace_id.
+  await runWithCorrelation({ requestId, traceId: tc.traceId, spanId: tc.spanId }, () => next());
   c.header("x-request-id", requestId);
+  // Echo the trace context so a caller/proxy can correlate; x-trace-id is a
+  // convenience mirror of the trace_id for quick lookup. Not secrets.
+  c.header("traceparent", tc.traceparent);
+  c.header("x-trace-id", tc.traceId);
   if (!QUIET_LOG) {
     log("info", {
       requestId,
+      traceId: tc.traceId,
+      spanId: tc.spanId,
       method: c.req.method,
       path: c.req.path,
       status: c.res.status,
