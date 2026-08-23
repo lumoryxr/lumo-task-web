@@ -339,8 +339,8 @@ npm audit fix              # 尝试自动修复
 
 - **问题在线讨论**：在 Issue 中提出具体问题
 - **代码审查建议**：查看 PR 评论和建议
-- **架构决策讨论**：参考 [.github/adr](adr/) 中的决策记录
-- **项目规范**：查看 [CLAUDE.md](/CLAUDE.md) 和 [ARCHITECTURE.md](/ARCHITECTURE.md)
+- **架构决策讨论**：参考 [docs/architecture/adr](../docs/architecture/adr/) 中的决策记录
+- **项目规范**：查看 [CLAUDE.md](/CLAUDE.md) 和 [docs/architecture/overview.md](/docs/architecture/overview.md)
 
 ---
 

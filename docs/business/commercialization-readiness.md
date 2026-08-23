@@ -1,7 +1,7 @@
 # Lumo — 商用就绪评估 / Commercialization Readiness
 
 > 目标：从"免费公测就绪"推进到"**可收费商用**（有付费用户、可持续运营）"。
-> 本文承接并**更新** `docs/LAUNCH_CHECKLIST.md`（那份是**免费公测**范围，明确把
+> 本文承接并**更新** `docs/business/launch-checklist.md`（那份是**免费公测**范围，明确把
 > billing 排除在外）。本次会话已把公测清单里的多个 P0 关闭，下面重新盘点，并补上
 > 免费清单**未覆盖的商用层**（收费/订阅、可靠性、支持、合规）。
 >
@@ -86,7 +86,7 @@
 
 ## 5. 法务与合规（收费版）/ Legal & Compliance
 
-- **[partial] 服务条款 / 隐私政策**：页面与中英文**初稿**已上线（`docs/legal/legal-drafts.md`
+- **[partial] 服务条款 / 隐私政策**：页面与中英文**初稿**已上线（`docs/business/legal/legal-drafts.md`
   是更完整草稿），但**必须经法务审阅**并补全：公司主体、联系邮箱、子处理方清单、管辖法律、
   生效日期。**收费还需新增**：订阅/自动续费条款、**退款政策**、消费者撤销权（部分辖区）。 · 法务 + **S**
 - **[todo] 营销措辞对账** · **S**。落地页宣称"不追踪、不收集分析、不上传服务器"——那是本地
@@ -112,7 +112,7 @@
 ## 7. 增长 / 打磨（可上线后再做，P2）
 
 - **[todo] 隐私友好分析**（Plausible/PostHog）· **S**——量化 注册→激活→留存 漏斗（与 §5 对账）。
-- **[todo] `ARCHITECTURE.md` 纠偏** · **S**——文档写的是 Drizzle+Postgres+services，实际是
+- **[todo] `docs/architecture/overview.md` 纠偏** · **S**——文档写的是 Drizzle+Postgres+services，实际是
   libSQL 上的参数化 SQL，误导新贡献者。
 - **[todo] 桌面安装包签名** · **S–M**——Windows 未签名（SmartScreen 警告），推广前 code-sign。
 - **[done] 合并两个营销站** · **S**——已以 Astro `website/` 为唯一营销站（经 `deploy-website.yml`

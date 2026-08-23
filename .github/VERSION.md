@@ -157,5 +157,5 @@ Not currently applicable. Future versions may have LTS support.
 
 Refer to:
 - [CHANGELOG.md](/CHANGELOG.md) for release history
-- [.github/workflows/release.yml](.github/workflows/release.yml) for automation
+- [.github/workflows/release.yml](workflows/release.yml) for automation
 - [Semantic Versioning](https://semver.org/) for detailed spec

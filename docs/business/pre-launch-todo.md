@@ -27,7 +27,7 @@
 - 🟠 §五.1 限流器共享存储(需 Redis/Upstash,规模化/多实例前)。(§二.6 Outlook per-user OAuth —— **已随集成移除(2026-08-10)解决**,不再是待办。)
 
 **监控/告警/运维 —— 已落地(自托管,无对外集成):**
-- ✅ §二.5 → **自托管 Prometheus exporter**(取代 Sentry 方案):后端暴露 token 门禁的 `GET /metrics`(`LUMO_METRICS_TOKEN` 未设=404 默认关闭),含默认进程指标 + `lumo_http_*`(请求量/错误率/延迟直方图/在途并发);告警走 Prometheus/Alertmanager 规则。见 `docs/OPERATIONS.md`。无 SaaS、无 DSN、数据不出机房。
+- ✅ §二.5 → **自托管 Prometheus exporter**(取代 Sentry 方案):后端暴露 token 门禁的 `GET /metrics`(`LUMO_METRICS_TOKEN` 未设=404 默认关闭),含默认进程指标 + `lumo_http_*`(请求量/错误率/延迟直方图/在途并发);告警走 Prometheus/Alertmanager 规则。见 `docs/ops/overview.md`。无 SaaS、无 DSN、数据不出机房。
 
 
 ---
@@ -54,7 +54,7 @@
 
 ### 4. 法律页目前是"草稿模板"
 - **为什么**:隐私/条款页面**无条件**渲染"这是模板,上线前请律师审阅并填公司实体/联系/管辖"横幅;联系邮箱是 `[your-contact-email]` 占位;责任条款写着"Replace this section with counsel-reviewed language before launch";`{{EFFECTIVE_DATE}}` 未填。收费产品不能带这些上线。
-- **证据**:`web-app/src/pages/legal/LegalLayout.tsx:53-61,80-81`、`web-app/src/pages/legal/content.ts:88-89`、`docs/legal/legal-drafts.md:19`。(注:路由守卫已正确把 `/legal/*` 列为登出可访问,这点没问题。)
+- **证据**:`web-app/src/pages/legal/LegalLayout.tsx:53-61,80-81`、`web-app/src/pages/legal/content.ts:88-89`、`docs/business/legal/legal-drafts.md:19`。(注:路由守卫已正确把 `/legal/*` 列为登出可访问,这点没问题。)
 - **最终方案**:律师审阅定稿 → 填公司实体/联系邮箱/管辖/生效日期 → **补订阅/自动续费/退款/消费者撤回权/子处理方清单/适用法律** → 删除草稿横幅(或仅 `import.meta.env.DEV` 下显示)。
 - **工作量**:法务主导,工程 0.5 天替换文案。
 
@@ -158,7 +158,7 @@
 
 ## 六、🟢 文档漂移修正(与实现不符,会误导贡献者/自己)
 
-1. `ARCHITECTURE.md` 称 Drizzle + Postgres + services,实际是**裸参数化 SQL over libSQL**——更正。
+1. `docs/architecture/overview.md` 称 Drizzle + Postgres + services,实际是**裸参数化 SQL over libSQL**——更正。
 2. `COMMERCIALIZATION_READINESS.md` 把"CI 加 npm audit"标 `[todo]`,实际**已在 CI 跑**(前后端,`ci.yml:381,386`)——更新。
 3. `LAUNCH_CHECKLIST` 说"吊销令牌缓存易失/重启即丢"——实际**source of truth 是 DB `revoked_tokens` 表 + `session_version`**,跨重启/多实例持久;只有限流器是真易失。更正,别低估自己的鉴权设计。
 4. `web-app/CLAUDE.md` 提到的 `src/mocks/tasks.ts` 是**过期文档**(无此上线代码)——删除引用。
@@ -184,4 +184,4 @@
 - **M2 · 开始收费**(约 3–5 周):§一.1 Billing 全链路(依赖 M1 的 subscriptions 表)+ plan-gating + 落地页定价。
 - **M3 · 规模化**:§五 限流共享化、优雅关闭、staging/回滚、滥用控制。(§二.6 Outlook per-user OAuth —— 已随集成移除(2026-08-10)解决,从此里程碑移除。)
 
-> 每一项都遵循仓库的契约优先 + TDD + 四层测试规范(见 `CLAUDE.md` / `TESTING.md`)。
+> 每一项都遵循仓库的契约优先 + TDD + 四层测试规范(见 `CLAUDE.md` / `docs/testing/strategy.md`)。

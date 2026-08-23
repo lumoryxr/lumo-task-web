@@ -134,7 +134,7 @@ app.route("/docs", docsRoutes);
 app.get("/health", (c) => c.json({ ok: true }));
 
 // Prometheus scrape endpoint (GET /metrics). Off unless LUMO_METRICS_TOKEN is
-// set; when set, requires a matching Bearer token. See docs/OPERATIONS.md.
+// set; when set, requires a matching Bearer token. See docs/ops/overview.md.
 registerMetricsRoute(app);
 
 // Readiness: can the process actually serve (DB reachable)? For load-balancer

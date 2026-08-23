@@ -1,10 +1,10 @@
 # Growth Opportunities — 增长向需求建议(给 Jalen 决策)
 
-> Drafted 2026-07-13 (overnight). 与 `docs/ROADMAP.md`(工程 loop 的 single source of truth)**互补**:
+> Drafted 2026-07-13 (overnight). 与 `docs/product/roadmap.md`(工程 loop 的 single source of truth)**互补**:
 > ROADMAP 管"精致→安全→创新"的执行顺序;本文只提**能拉新/留存/传播**的候选,供你在 Phase 3
 > "propose-only" 里挑。**均为产品决策,不自动开发。** 每条给出:价值假设、粗略工作量、传播/留存杠杆。
 >
-> **Hand-off status (2026-08-20):** 已把本文中**属于产品功能**的增长杠杆登记进 `docs/ROADMAP.md` Phase 3 的 "Growth-lever candidates" 小节(single source of truth),供 loop/Jalen 采纳。映射:A1→扩展 #171;A2/A3/C1→新增 propose-only 候选;B1→归口 #170(Web Push);B2→归口 #174+#171。**B3(3 步激活流)属 Phase-1 打磨(非创新功能),不进 Phase 3**,留给 Jalen 决定是否排进现有 polish lane。均仍为提案,未开发。
+> **Hand-off status (2026-08-20):** 已把本文中**属于产品功能**的增长杠杆登记进 `docs/product/roadmap.md` Phase 3 的 "Growth-lever candidates" 小节(single source of truth),供 loop/Jalen 采纳。映射:A1→扩展 #171;A2/A3/C1→新增 propose-only 候选;B1→归口 #170(Web Push);B2→归口 #174+#171。**B3(3 步激活流)属 Phase-1 打磨(非创新功能),不进 Phase 3**,留给 Jalen 决定是否排进现有 polish lane。均仍为提案,未开发。
 
 ---
 

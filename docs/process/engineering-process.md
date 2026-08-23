@@ -12,7 +12,7 @@ PM → Architect(含契约) → Engineer(全栈) → Reviewer(审+改) → QA(E2
 
 ## 端到端流程（一个需求一条龙）
 
-1. **PM** — 把需求写成 Issue（用 `Story` 模板）或 `docs/prd/<feature>.md`：用户故事 + 可测 AC + 优先级 + 成功指标。
+1. **PM** — 把需求写成 Issue（用 `Story` 模板）或 `docs/product/specs/<feature>.md`：用户故事 + 可测 AC + 优先级 + 成功指标。
 2. **Architect** — 涉及 API 先改 `@lumo/contracts`（Zod schema），必要时加 ADR。
 3. **Engineer** — 建分支 `feat/<slug>`，TDD 红→绿→重构，遵守 i18n 双语、CSS token、`httpError` 规范、conventional commits。
 4. **QA** — 单元测试 + Playwright E2E 覆盖每条 AC；安全检查（鉴权/输入/密钥）。后端覆盖率 ≥80%。

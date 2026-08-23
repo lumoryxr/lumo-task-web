@@ -342,12 +342,12 @@ Set `LUMO_DB_PATH` to a path on your mounted disk (e.g.
       (`LUMO_EMAIL_PROVIDER=resend` + `LUMO_EMAIL_FROM` + `LUMO_RESEND_API_KEY`)
       and a verified sender domain.
 - [ ] **Legal pages current** — Terms/Privacy reflect this hosted deployment
-      (data stored on your server, subprocessors you actually use). See `docs/legal/`.
+      (data stored on your server, subprocessors you actually use). See `docs/business/legal/`.
 - [ ] **Marketing claims match reality** — site copy is the reconciled wording
-      (`docs/legal/landing-copy-reconciliation.md`).
+      (`docs/business/legal/landing-copy-reconciliation.md`).
 - [ ] **Admin list scoped** — `LUMO_ADMIN_EMAILS` contains only operators.
 - [ ] **Metrics locked down** — `/metrics` is disabled unless you set
       `LUMO_METRICS_TOKEN`.
 
 See also [`docs/security/pre-launch-security-review.md`](../security/pre-launch-security-review.md)
-and [`docs/LAUNCH_CHECKLIST.md`](../LAUNCH_CHECKLIST.md).
+and [`docs/business/launch-checklist.md`](../business/launch-checklist.md).

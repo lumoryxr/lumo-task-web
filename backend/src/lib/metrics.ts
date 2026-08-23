@@ -1,7 +1,7 @@
 /**
  * Self-hosted Prometheus metrics — a plain `/metrics` scrape endpoint, no
  * outward SaaS integration. Your Prometheus scrapes it; alerting lives in
- * Prometheus/Alertmanager rules (see docs/OPERATIONS.md), not in the app. This
+ * Prometheus/Alertmanager rules (see docs/ops/overview.md), not in the app. This
  * keeps monitoring in-process with nothing to onboard and no data leaving the box.
  *
  * Exposed series:

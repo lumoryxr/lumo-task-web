@@ -1,7 +1,7 @@
 # PRD · M1 — Task Search / 任务搜索
 
 > Owner: Product Manager · Status: Draft · Milestone: M1
-> Source: `docs/ROADMAP.md` → Near-Term → "Task search (full-text, within user's task list)"
+> Source: `docs/product/roadmap.md` → Near-Term → "Task search (full-text, within user's task list)"
 
 这是用新角色流程跑通的**第一个里程碑**——范围小、纯增量、零数据迁移，适合做一次完整的"PM → Architect → Engineer → Reviewer → QA → Release"演习。
 
@@ -74,4 +74,4 @@ These are **HOW** questions — PM flags, Architect decides (likely via a short 
 - [ ] typecheck + lint + tests green; coverage ≥80% backend (if touched) / 100% new frontend behavior.
 - [ ] Bilingual strings + CSS tokens + loading/empty states verified.
 - [ ] Security pass: query input validated, no injection if server-backed (parameterized SQL).
-- [ ] `CHANGELOG.md` + `docs/ROADMAP.md` updated (Release).
+- [ ] `CHANGELOG.md` + `docs/product/roadmap.md` updated (Release).

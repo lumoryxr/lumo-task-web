@@ -130,7 +130,7 @@ lumo-task-web/
 │   └── hooks/                        # Pre/post-commit hooks
 │
 ├── CLAUDE.md                         # Engineering standards
-├── ARCHITECTURE.md                   # This file
+├── docs/architecture/overview.md                   # This file
 ├── CHANGELOG.md                      # Release notes
 ├── README.md                         # Project overview
 └── Makefile                          # Convenience commands
@@ -426,9 +426,9 @@ GitHub Actions CI pipeline
 ## Related Documents
 
 - **[CLAUDE.md](/CLAUDE.md)** - Engineering standards and mandatory rules
-- **[CONTRIBUTING.md](.github/CONTRIBUTING.md)** - How to contribute
-- **[Architecture Decision Records](.github/adr/)** - Why we chose specific technologies
-- **[PR Review Checklist](.github/PR_REVIEW_CHECKLIST.md)** - Code review standards
+- **[CONTRIBUTING.md](../../.github/CONTRIBUTING.md)** - How to contribute
+- **[Architecture Decision Records](adr/)** - Why we chose specific technologies
+- **[PR Review Checklist](../../.github/PR_REVIEW_CHECKLIST.md)** - Code review standards
 
 ---
 

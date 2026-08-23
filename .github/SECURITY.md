@@ -45,7 +45,7 @@ To help us triage quickly, please include where you can:
 ## What to expect
 
 - **Acknowledgement:** within 48 hours (a security bug is treated as at least P1
-  per our [contributing guide](.github/CONTRIBUTING.md)).
+  per our [contributing guide](CONTRIBUTING.md)).
 - **Assessment:** we'll confirm the issue, determine severity, and share a rough
   timeline.
 - **Fix & disclosure:** we'll work on a fix and coordinate disclosure with you.

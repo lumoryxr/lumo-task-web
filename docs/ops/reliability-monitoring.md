@@ -1,6 +1,6 @@
 # Reliability: error tracking, uptime & alerting
 
-> Runbook for the P0 reliability items in `docs/COMMERCIALIZATION_READINESS.md` §3
+> Runbook for the P0 reliability items in `docs/business/commercialization-readiness.md` §3
 > and issue #471. Backup/restore is covered separately in
 > [`database-backup.md`](./database-backup.md).
 >

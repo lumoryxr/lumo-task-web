@@ -110,7 +110,7 @@ without waiting for user confirmation.** Report findings AND apply fixes in the 
 
 Coverage targets: backend ≥ 80% lines (gated by `npm run test:coverage`),
 frontend new components 100% of public behavior. `make ci` runs every layer
-above except E2E. **See `TESTING.md` for the full pyramid and the "add a feature
+above except E2E. **See `docs/testing/strategy.md` for the full pyramid and the "add a feature
 → add four layers" template.**
 
 ---

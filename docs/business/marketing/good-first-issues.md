@@ -1,13 +1,13 @@
 # Good First Issues — starter set for contributors
 
 > Drafted 2026-07-13 (overnight). Purpose: seed the `good first issue` / `help wanted` labels so
-> new contributors have an on-ramp (see `docs/marketing/launch-plan.md` §4). **Before filing each
+> new contributors have an on-ramp (see `docs/business/marketing/launch-plan.md` §4). **Before filing each
 > one to GitHub, re-verify it's still open** (the autonomous loop may have shipped it) and confirm
 > the file pointers on current `main`. Each is intentionally small, isolated, and testable.
 >
 > Labels available: see `.github/labels.json`. Suggested per-issue labels below.
 > House rules a contributor must follow: `.github/CONTRIBUTING.md`, `CLAUDE.md`, and the local
-> gates in `TESTING.md` (typecheck + tests before commit; `web-app` vitest with `--maxWorkers=2`
+> gates in `docs/testing/strategy.md` (typecheck + tests before commit; `web-app` vitest with `--maxWorkers=2`
 > and `NODE_ENV=test`).
 
 ## Re-verification status — 2026-08-21

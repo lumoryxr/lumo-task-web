@@ -91,7 +91,7 @@ about **operating a product for real people**, not code quality.
   token cache are per-process in-memory — they reset on restart and don't share state
   across instances. For a single instance this is fine; before horizontal scaling,
   move them to shared storage (Turso/Upstash) or pin to one instance.
-- **[todo] Fix `ARCHITECTURE.md` drift.** It claims Drizzle ORM + Postgres + a
+- **[todo] Fix `docs/architecture/overview.md` drift.** It claims Drizzle ORM + Postgres + a
   services layer; the real backend is raw parameterized SQL over libSQL. Correct it so
   new contributors aren't misled.
 - **[todo] Support & feedback channel.** No in-app support/feedback path. At minimum,
