@@ -58,8 +58,9 @@ without waiting for user confirmation.** Report findings AND apply fixes in the 
 - Backend route handlers validate with the contract schema (`zValidator(...)`) and
   type their responses against the contract's wire type (e.g. `TaskWire`).
 - **OpenAPI is generated from the contract**, never hand-edited. The backend serves
-  the live spec at `GET /docs/openapi.json`; `docs/openapi.generated.json` is built
-  by `npm run gen:openapi -w @lumo/contracts`. Do not edit generated specs by hand.
+  the live spec at `GET /docs/openapi.json`; `docs/api/openapi.json` is written by
+  `npm run gen:openapi -w @lumo/contracts` and both come from the same builder. Do
+  not edit generated specs by hand.
 - This is enforced, not advisory: a **contract-conformance test** parses real backend
   responses with the contract schema, and the frontend infers its types from it — so
   any drift fails `make ci`. A PR that changes an API without changing the contract

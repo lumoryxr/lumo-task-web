@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { validate } from "../lib/validate.js";
+import { SettingsPatchBodySchema } from "@lumo/contracts";
 import { z } from "zod";
 import { queryOne, execute, dbMode } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
@@ -14,31 +15,6 @@ app.use("/*", authMiddleware);
 
 const PROVIDERS = ["openai", "deepseek", "claude", "custom"] as const;
 type Provider = typeof PROVIDERS[number];
-
-const SettingsPatch = z.object({
-  locale: z.enum(["en", "zh"]).optional(),
-  accent: z.enum(["green", "cyan", "amber", "graphite"]).optional(),
-  density: z.enum(["comfortable", "compact"]).optional(),
-  reduced_motion: z.boolean().optional(),
-  ai_enabled: z.boolean().optional(),
-  pomodoro_duration: z.number().int().min(1).optional(),
-  short_break: z.number().int().min(1).optional(),
-  long_break: z.number().int().min(1).optional(),
-  long_break_interval: z.number().int().min(1).optional(),
-  auto_start_breaks: z.boolean().optional(),
-  notifications_enabled: z.boolean().optional(),
-  morning_reminder_time: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
-  evening_reminder_time: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
-  due_alerts_enabled: z.boolean().optional(),
-  onboarding_complete: z.boolean().optional(),
-  ai_provider: z.enum(PROVIDERS).optional(),
-  ai_configs_update: z.object({
-    provider: z.enum(PROVIDERS),
-    key: z.string().max(500).nullable().optional(),
-    model: z.string().max(100).nullable().optional(),
-    baseUrl: z.union([z.string().url().max(500), z.literal(""), z.null()]).optional(),
-  }).optional(),
-});
 
 function parseAiConfigs(raw: string | null): Record<Provider, { key: string; model: string; baseUrl: string }> {
   let parsed: Record<string, any> = {};
@@ -105,7 +81,7 @@ app.get("/", async (c) => {
 });
 
 // PATCH /settings
-app.patch("/", validate("json", SettingsPatch), async (c) => {
+app.patch("/", validate("json", SettingsPatchBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const body = c.req.valid("json");
 

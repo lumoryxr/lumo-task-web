@@ -552,7 +552,8 @@ The frontend is complete and running against a mock API (`src/api/client.ts`). T
 Replace each function in `src/api/client.ts` with a `fetch()` call to the corresponding endpoint. **No other files change.** The store layer and all components are already wired correctly.
 
 ### Required Endpoints
-All endpoints are fully specified in `docs/openapi.yaml`. Summary of backend responsibilities:
+All endpoints are fully specified in `docs/api/openapi.json`, generated from the
+route registry in `@lumo/contracts`. Summary of backend responsibilities:
 
 | Endpoint | Key backend behavior |
 |----------|---------------------|

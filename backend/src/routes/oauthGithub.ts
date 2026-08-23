@@ -14,6 +14,7 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { randomBytes } from "node:crypto";
 import { validate } from "../lib/validate.js";
+import { GithubExchangeBodySchema } from "@lumo/contracts";
 import { query, queryOne, execute, dbMode } from "../db/client.js";
 import { signToken } from "../lib/jwt.js";
 import { issueRefreshToken } from "../lib/refreshToken.js";
@@ -237,13 +238,9 @@ app.get("/callback", oauthRateLimit, async (c) => {
   }
 });
 
-const ExchangeBody = z.object({
-  code: z.string().min(1).max(128),
-});
-
 // POST /exchange — public, rate-limited. The SPA trades the one-time handoff
 // code for its Lumo session ({ token, refreshToken, user }). Single-use.
-app.post("/exchange", oauthRateLimit, validate("json", ExchangeBody), async (c) => {
+app.post("/exchange", oauthRateLimit, validate("json", GithubExchangeBodySchema), async (c) => {
   const { code } = c.req.valid("json");
   const row = await queryOne<{ user_id: string; token: string; refresh_token: string; created_at: string; used_at: string | null }>(
     "SELECT user_id, token, refresh_token, created_at, used_at FROM oauth_handoffs WHERE code = :code",

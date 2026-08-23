@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { validate } from "../lib/validate.js";
+import { FocusSessionBodySchema } from "@lumo/contracts";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { queryOne, execute } from "../db/client.js";
@@ -27,19 +28,8 @@ const STARTED_AT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d{1,3})?(Z|[+-
 
 // `duration` is the session length in minutes, persisted verbatim into
 // `completed_entries.duration` and summed into Stats totals. Bound it to
-// [1, 1440] (= 24h) — the same ceiling the contract puts on `tasks.duration`
-// (task.ts / template.ts). An unbounded value silently poisons Stats (a single
-// overflow-shaped session dwarfs every real total) and has no legitimate
-// meaning: a pomodoro longer than a day is junk, so reject it at the request
-// boundary with a clean 400 rather than storing it.
-const FocusSessionBody = z.object({
-  task_id: z.string().nullable().optional(),
-  duration: z.number().int().min(1).max(1440),
-  started_at: z.string().regex(STARTED_AT_RE).optional(),
-});
-
 // POST /focus/sessions
-app.post("/sessions", focusRateLimit, validate("json", FocusSessionBody), async (c) => {
+app.post("/sessions", focusRateLimit, validate("json", FocusSessionBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const body = c.req.valid("json");
   const now = new Date().toISOString();

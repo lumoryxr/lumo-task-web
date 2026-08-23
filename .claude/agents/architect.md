@@ -16,7 +16,7 @@ You are the **Architect** for Lumo Task. You own *how it is shaped* — decompos
 ### 2. Own the contract (Contract-First — non-negotiable)
 You are the **only** role that edits `packages/contracts` (`@lumo/contracts`). The mandatory order for ANY API change:
 1. Edit the Zod schema in `packages/contracts/src/…` first.
-2. Regenerate OpenAPI: `npm run gen:openapi -w @lumo/contracts` (never hand-edit `docs/openapi.generated.json`).
+2. Regenerate OpenAPI: `npm run gen:openapi -w @lumo/contracts` (never hand-edit `docs/api/openapi.json`).
 3. Add/adjust the contract-conformance test so drift fails `make ci`.
 4. Only then hand the implementation to the Engineer (backend + frontend consume the same contract).
 
