@@ -15,7 +15,7 @@ CONTRACTS := packages/contracts
 .DEFAULT_GOAL := dev
 .PHONY: dev install build preview typecheck lint ci clean reset \
         backend-install backend-build backend-dev backend-migrate backend-seed \
-        backend-ci contracts-build contracts-ci web-test \
+        backend-ci contracts-build contracts-ci web-test openapi-check \
         dev-full package-win package-web \
         test-integration test-integration-backend test-integration-web test-integration-electron \
         help
@@ -78,8 +78,22 @@ backend-ci: $(BACKEND)/node_modules contracts-build  ## Backend typecheck + unit
 web-test: $(APP)/node_modules contracts-build   ## Frontend unit + standards tests (Vitest)
 	cd $(APP) && npm test
 
+# The committed OpenAPI document must match what the route registry generates.
+# It is regenerated here and the working tree checked: a contract change that
+# skipped `npm run gen:openapi` leaves docs/api/openapi.json behind, and this is
+# what says so — otherwise the committed spec silently drifts from the served
+# one, which is the exact failure the registry exists to prevent.
+openapi-check: $(CONTRACTS)/node_modules contracts-build   ## Fail if docs/api/openapi.json is stale
+	@echo ">>> Checking the generated OpenAPI document is up to date..."
+	@cd $(CONTRACTS) && npm run --silent gen:openapi
+	@git diff --exit-code -- docs/api/openapi.json || ( \
+	  echo ""; \
+	  echo "ERROR: docs/api/openapi.json is out of date."; \
+	  echo "       Run: npm run gen:openapi -w @lumo/contracts   and commit the result."; \
+	  exit 1 )
+
 # Full gate: contract → backend → frontend. Catches front/back protocol drift.
-ci: contracts-ci backend-ci typecheck lint web-test build   ## Run all CI checks locally (mirrors GitHub Actions)
+ci: contracts-ci openapi-check backend-ci typecheck lint web-test build   ## Run all CI checks locally (mirrors GitHub Actions)
 	@echo ""
 	@echo ">>> All CI checks passed (contracts + backend + web-app)."
 
