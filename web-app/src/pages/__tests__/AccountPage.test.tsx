@@ -39,6 +39,7 @@ const mockDeleteAccount = vi.fn();
 const mockSignOut = vi.fn();
 const mockBindEmail = vi.fn();
 const mockRegenerate = vi.fn();
+const mockRefreshUser = vi.fn();
 
 const USER = {
   id: "u_1",
@@ -60,6 +61,7 @@ function state() {
     deleteAccount: mockDeleteAccount,
     bindEmail: mockBindEmail,
     regenerateRecoveryCode: mockRegenerate,
+    refreshUser: mockRefreshUser,
   };
 }
 
@@ -88,6 +90,11 @@ describe("AccountPage — data & danger zone", () => {
     render(<AccountPage />);
     expect(screen.getByRole("button", { name: "account.export.btn" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "account.delete.btn" })).toBeInTheDocument();
+  });
+
+  it("re-fetches the user on mount so a verification done elsewhere is reflected", () => {
+    render(<AccountPage />);
+    expect(mockRefreshUser).toHaveBeenCalled();
   });
 
   it("shows a secure GitHub support/donate link and no purchasable-tier stub", () => {

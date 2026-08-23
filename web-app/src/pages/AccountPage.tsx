@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { IconArrowRight, IconCheck } from "@/components/icons";
@@ -39,7 +39,27 @@ export function AccountPage() {
   const isSignedIn = useAuthStore(selectIsSignedIn);
   const signOut = useAuthStore((s) => s.signOut);
   const exportData = useAuthStore((s) => s.exportData);
+  const refreshUser = useAuthStore((s) => s.refreshUser);
   const [exporting, setExporting] = useState(false);
+
+  // The email is verified server-side, often on ANOTHER device/tab (the link
+  // typically opens on a phone). This page's cached user would otherwise stay
+  // frozen at "Unverified" until a reload. Re-fetch on mount and whenever the
+  // tab regains focus, so returning here reflects the real verified state.
+  // refreshUser is a no-op for local (signed-out) users, so it's safe to call
+  // unconditionally before the signed-in guard below.
+  useEffect(() => {
+    refreshUser();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshUser();
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshUser]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
