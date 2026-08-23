@@ -28,6 +28,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -106,6 +108,31 @@ function appendToFile(line: string): void {
   }
 }
 
+// ── Per-request correlation context (AsyncLocalStorage) ──────────────────────
+// The correlation middleware runs each request inside a store carrying its
+// requestId + W3C trace ids. `log()` reads the store and stamps every line —
+// access log, route logs, audit, and the error log — with the same trace_id /
+// span_id WITHOUT threading them through every call site. External log systems
+// pull the lines and reconstruct the call chain by trace_id. Zero egress: we
+// only propagate ids in headers and logs; nothing is pushed anywhere.
+export interface Correlation {
+  requestId?: string;
+  traceId?: string;
+  spanId?: string;
+}
+
+const correlationStore = new AsyncLocalStorage<Correlation>();
+
+/** Run `fn` (and everything it awaits) with the given correlation ids in scope. */
+export function runWithCorrelation<T>(ctx: Correlation, fn: () => T): T {
+  return correlationStore.run(ctx, fn);
+}
+
+/** The correlation ids for the current async scope, if any. */
+export function currentCorrelation(): Correlation | undefined {
+  return correlationStore.getStore();
+}
+
 /** Emit one structured log line at `level` with the given fields. */
 export function log(level: LogLevel, fields: Record<string, unknown>): void {
   if (LEVEL_WEIGHT[level] < minWeight()) return;
@@ -117,10 +144,13 @@ export function log(level: LogLevel, fields: Record<string, unknown>): void {
     env: process.env.NODE_ENV || "development",
     version: VERSION,
   };
+  // Correlation ids from the request scope (if any). Placed after the base and
+  // before caller fields so an explicit field of the same name still wins.
+  const corr = correlationStore.getStore() ?? {};
 
   let line: string;
   try {
-    line = JSON.stringify({ ...base, ...(redactForLog(fields) as Record<string, unknown>) });
+    line = JSON.stringify({ ...base, ...corr, ...(redactForLog(fields) as Record<string, unknown>) });
   } catch {
     // Never let a non-serializable field (circular ref, BigInt) crash a request.
     line = JSON.stringify({ ...base, msg: "log serialization failed" });
@@ -142,4 +172,41 @@ const REQUEST_ID_RE = /^[A-Za-z0-9_.-]{1,128}$/;
 export function resolveRequestId(incoming: string | undefined | null): string {
   if (incoming && REQUEST_ID_RE.test(incoming)) return incoming;
   return crypto.randomUUID();
+}
+
+// ── W3C Trace Context (traceparent) ──────────────────────────────────────────
+// OpenTelemetry's standard context-propagation format, so the correlation is
+// OTel-compatible without pulling in the SDK: `00-<32hex traceId>-<16hex spanId>-<2hex flags>`.
+const TRACEPARENT_RE = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/i;
+const ZERO_TRACE = "0".repeat(32);
+const ZERO_SPAN = "0".repeat(16);
+
+export interface TraceContext {
+  /** 16-byte trace id (32 hex). Reused from a valid inbound traceparent. */
+  traceId: string;
+  /** Fresh 8-byte span id (16 hex) minted for THIS service's span. */
+  spanId: string;
+  /** 1-byte trace-flags (2 hex); "01" = sampled. */
+  flags: string;
+  /** Outgoing traceparent header value carrying our spanId. */
+  traceparent: string;
+}
+
+/**
+ * Resolve the W3C trace context for a request. A well-formed, non-zero inbound
+ * `traceparent` continues the same trace (its traceId is reused); otherwise a
+ * fresh trace is started. A new spanId is always minted for this hop. An unsafe
+ * or malformed header is never trusted — it's replaced, like x-request-id.
+ */
+export function resolveTraceContext(incoming: string | undefined | null): TraceContext {
+  const spanId = randomBytes(8).toString("hex");
+  const m = incoming ? incoming.match(TRACEPARENT_RE) : null;
+  if (m && m[1].toLowerCase() !== ZERO_TRACE && m[2].toLowerCase() !== ZERO_SPAN) {
+    const traceId = m[1].toLowerCase();
+    const flags = m[3].toLowerCase();
+    return { traceId, spanId, flags, traceparent: `00-${traceId}-${spanId}-${flags}` };
+  }
+  const traceId = randomBytes(16).toString("hex");
+  const flags = "01";
+  return { traceId, spanId, flags, traceparent: `00-${traceId}-${spanId}-${flags}` };
 }

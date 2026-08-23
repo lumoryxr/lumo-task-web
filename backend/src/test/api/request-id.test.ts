@@ -4,7 +4,7 @@
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
 import { req, setupDb } from "../helpers/index.js";
-import { resolveRequestId, log } from "../../lib/logger.js";
+import { resolveRequestId, resolveTraceContext, runWithCorrelation, log } from "../../lib/logger.js";
 
 before(async () => {
   await setupDb();
@@ -30,6 +30,88 @@ describe("request correlation", () => {
     const id = headers.get("x-request-id");
     assert.notEqual(id, evil);
     assert.ok(id && /^[A-Za-z0-9_.-]+$/.test(id), "replacement id should be a safe token");
+  });
+});
+
+describe("W3C trace context propagation", () => {
+  const TP_RE = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
+
+  test("every response carries a well-formed traceparent + x-trace-id", async () => {
+    const { headers } = await req("GET", "/health");
+    const tp = headers.get("traceparent") ?? "";
+    const m = tp.match(TP_RE);
+    assert.ok(m, `traceparent should be well-formed, got: ${tp}`);
+    // x-trace-id mirrors the trace id inside traceparent.
+    assert.equal(headers.get("x-trace-id"), m![1]);
+  });
+
+  test("a valid inbound traceparent continues the trace (same trace id, new span id)", async () => {
+    const traceId = "0af7651916cd43dd8448eb211c80319c";
+    const parentSpan = "b7ad6b7169203331";
+    const inbound = `00-${traceId}-${parentSpan}-01`;
+    const { headers } = await req("GET", "/health", { headers: { traceparent: inbound } });
+    const m = (headers.get("traceparent") ?? "").match(TP_RE)!;
+    assert.equal(m[1], traceId, "trace id is continued from the inbound header");
+    assert.notEqual(m[2], parentSpan, "a fresh span id is minted for this hop");
+    assert.equal(headers.get("x-trace-id"), traceId);
+  });
+
+  test("a malformed traceparent is not trusted — a fresh trace is started", async () => {
+    const { headers } = await req("GET", "/health", { headers: { traceparent: "garbage" } });
+    const m = (headers.get("traceparent") ?? "").match(TP_RE);
+    assert.ok(m, "a fresh, well-formed traceparent is emitted");
+    assert.notEqual(m![1], "garbage");
+  });
+});
+
+describe("resolveTraceContext", () => {
+  test("continues a valid inbound traceparent with a new span id", () => {
+    const tc = resolveTraceContext("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+    assert.equal(tc.traceId, "0af7651916cd43dd8448eb211c80319c");
+    assert.notEqual(tc.spanId, "b7ad6b7169203331");
+    assert.match(tc.spanId, /^[0-9a-f]{16}$/);
+    assert.equal(tc.flags, "01");
+  });
+
+  test("starts a fresh trace for absent/malformed/all-zero input", () => {
+    for (const bad of [undefined, "", "nope", "00-" + "0".repeat(32) + "-" + "0".repeat(16) + "-01"]) {
+      const tc = resolveTraceContext(bad as string | undefined);
+      assert.match(tc.traceId, /^[0-9a-f]{32}$/);
+      assert.notEqual(tc.traceId, "0".repeat(32));
+      assert.match(tc.spanId, /^[0-9a-f]{16}$/);
+    }
+  });
+});
+
+describe("log() correlation via AsyncLocalStorage", () => {
+  test("auto-stamps trace_id/span_id/requestId from the request scope", () => {
+    const lines: string[] = [];
+    const orig = console.log;
+    console.log = (l: string) => lines.push(l);
+    try {
+      runWithCorrelation({ requestId: "r9", traceId: "t".repeat(32), spanId: "s".repeat(16) }, () => {
+        log("info", { msg: "inside scope" });
+      });
+    } finally {
+      console.log = orig;
+    }
+    const o = JSON.parse(lines[0]);
+    assert.equal(o.requestId, "r9");
+    assert.equal(o.traceId, "t".repeat(32));
+    assert.equal(o.spanId, "s".repeat(16));
+    assert.equal(o.msg, "inside scope");
+  });
+
+  test("an explicit field overrides the scoped value", () => {
+    const lines: string[] = [];
+    const orig = console.log;
+    console.log = (l: string) => lines.push(l);
+    try {
+      runWithCorrelation({ requestId: "scoped" }, () => log("info", { requestId: "explicit" }));
+    } finally {
+      console.log = orig;
+    }
+    assert.equal(JSON.parse(lines[0]).requestId, "explicit");
   });
 });
 
