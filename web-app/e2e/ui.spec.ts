@@ -243,10 +243,13 @@ async function mockAPI(page: Page) {
       });
     }
     if (url.includes("/v1/user")) {
+      // GET /v1/user returns the profile object DIRECTLY (api.getUser →
+      // req<User>), not wrapped in { user }. AccountPage now calls refreshUser()
+      // on mount, so a wrapped shape would blank out name/email/initials.
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ user: MOCK_USER }),
+        body: JSON.stringify(MOCK_USER),
       });
     }
     return route.fulfill({
@@ -483,10 +486,13 @@ async function mockAPIWithData(page: Page) {
       });
     }
     if (url.includes("/v1/user")) {
+      // GET /v1/user returns the profile object DIRECTLY (api.getUser →
+      // req<User>), not wrapped in { user }. AccountPage now calls refreshUser()
+      // on mount, so a wrapped shape would blank out name/email/initials.
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ user: MOCK_USER }),
+        body: JSON.stringify(MOCK_USER),
       });
     }
     if (method === "POST" && url.includes("/v1/focus")) {
