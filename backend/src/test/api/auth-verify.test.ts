@@ -94,7 +94,7 @@ describe("GET /v1/auth/verify-email (the emailed link)", () => {
 
     const res = await openVerifyLink(r.verifyToken);
     assert.equal(res.status, 302);
-    assert.match(res.headers.get("location") ?? "", /\/verify-email\?status=success$/);
+    assert.match(res.headers.get("location") ?? "", /\/#\/verify-email\?status=success$/);
 
     // The account is verified purely from the GET click — no SPA POST involved.
     const me = await req("GET", "/v1/user", { token: r.token });
@@ -103,7 +103,7 @@ describe("GET /v1/auth/verify-email (the emailed link)", () => {
     // Single-use: opening the (now consumed) link again lands on the invalid page.
     const again = await openVerifyLink(r.verifyToken);
     assert.equal(again.status, 302);
-    assert.match(again.headers.get("location") ?? "", /\/verify-email\?status=invalid$/);
+    assert.match(again.headers.get("location") ?? "", /\/#\/verify-email\?status=invalid$/);
   });
 
   test("unknown token redirects to the invalid page and verifies nothing", async () => {
@@ -111,7 +111,7 @@ describe("GET /v1/auth/verify-email (the emailed link)", () => {
 
     const res = await openVerifyLink("nope");
     assert.equal(res.status, 302);
-    assert.match(res.headers.get("location") ?? "", /\/verify-email\?status=invalid$/);
+    assert.match(res.headers.get("location") ?? "", /\/#\/verify-email\?status=invalid$/);
 
     const me = await req("GET", "/v1/user", { token: r.token });
     assert.equal(me.body.emailVerified, false);
@@ -120,7 +120,7 @@ describe("GET /v1/auth/verify-email (the emailed link)", () => {
   test("missing token redirects to the invalid page", async () => {
     const res = await openVerifyLink(null);
     assert.equal(res.status, 302);
-    assert.match(res.headers.get("location") ?? "", /\/verify-email\?status=invalid$/);
+    assert.match(res.headers.get("location") ?? "", /\/#\/verify-email\?status=invalid$/);
   });
 });
 

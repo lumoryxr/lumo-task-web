@@ -47,7 +47,9 @@ describe("POST /v1/auth/forgot-password", () => {
     const mails = drainOutbox();
     assert.equal(mails.length, 1);
     assert.equal(mails[0].to, u.email);
-    assert.match(mails[0].text, /reset-password\?token=/);
+    // HashRouter SPA route — the emailed link must carry the '#', else it never
+    // routes to /reset-password in the app.
+    assert.match(mails[0].text, /\/#\/reset-password\?token=/);
   });
 
   test("400 on a malformed email", async () => {

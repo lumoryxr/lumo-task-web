@@ -10,7 +10,7 @@ import { issueResetToken, consumeResetToken } from "../lib/passwordReset.js";
 import { issueVerificationToken, consumeVerificationToken } from "../lib/emailVerification.js";
 import { issueRecoveryCode, verifyAndConsumeRecoveryCode } from "../lib/recoveryCode.js";
 import { sendEmail } from "../lib/email.js";
-import { appBaseUrl, apiBaseUrl } from "../lib/appBaseUrl.js";
+import { appBaseUrl, apiBaseUrl, spaRouteUrl } from "../lib/appBaseUrl.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
@@ -384,7 +384,9 @@ app.post("/forgot-password", authRateLimit, validate("json", ForgotPasswordBody)
 
   if (user) {
     const rawToken = await issueResetToken(user.id);
-    const link = `${appBaseUrl(c)}/reset-password?token=${encodeURIComponent(rawToken)}`;
+    // HashRouter SPA route — the '#' is mandatory (see spaRouteUrl). Without it
+    // the reset link loads the app shell but never routes to /reset-password.
+    const link = spaRouteUrl(appBaseUrl(c), `/reset-password?token=${encodeURIComponent(rawToken)}`);
     const intro = "We received a request to reset your Lumo password. Use the link below to choose a new one. It expires in 30 minutes and can be used once.";
     const footer = "If you didn't request this, you can safely ignore this email — your password won't change.";
     await sendEmail({
@@ -472,7 +474,8 @@ app.get("/verify-email", authRateLimit, async (c) => {
 
   const base = appBaseUrl(c);
   if (base) {
-    return c.redirect(`${base}/verify-email?status=${ok ? "success" : "invalid"}`, 302);
+    // HashRouter SPA route — the '#' is mandatory (see spaRouteUrl).
+    return c.redirect(spaRouteUrl(base, `/verify-email?status=${ok ? "success" : "invalid"}`), 302);
   }
   return c.html(verifyResultPage(ok), ok ? 200 : 400);
 });

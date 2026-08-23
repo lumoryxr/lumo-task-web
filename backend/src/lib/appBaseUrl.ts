@@ -78,6 +78,28 @@ export function appBaseUrl(c: Context | { req: HeaderSource }): string {
 }
 
 /**
+ * Build an absolute URL to a CLIENT-SIDE SPA route. The web app uses HashRouter
+ * (so one build works under Electron's file:// origin too), which means every
+ * in-app route lives AFTER the '#'. A path-based URL like `${base}/verify-email`
+ * is NOT routable: the browser loads index.html, HashRouter sees an empty hash,
+ * resolves the default route (→ /today → the auth guard bounces to /login), and
+ * the intended page — plus its `?query`, which sits before the '#' where
+ * useSearchParams can't see it — is silently lost. Always link to an SPA route
+ * through this helper so the '#' is never forgotten. (OAuth already does this.)
+ *
+ * NOTE: this is only for SPA routes. Links to a backend endpoint (e.g. the
+ * verification link `${apiBaseUrl}/v1/auth/verify-email?token=…`) are real HTTP
+ * paths and must NOT be hash-prefixed.
+ *
+ * @param base  absolute origin, no trailing slash (from appBaseUrl)
+ * @param route in-app route starting with '/', optionally with a query string,
+ *              e.g. "/verify-email?status=success"
+ */
+export function spaRouteUrl(base: string, route: string): string {
+  return `${base}/#${route}`;
+}
+
+/**
  * Absolute base URL of the API itself — the origin that emailed verification
  * links point at, so the click lands on the very server that minted the token
  * (always reachable, no cross-origin SPA load / CORS in the critical path). This
