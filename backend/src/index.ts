@@ -7,6 +7,15 @@ import { assertStartupEmailConfig } from "./lib/email-policy.js";
 import { dbMode } from "./db/client.js";
 import { mountWebStatic } from "./lib/webStatic.js";
 import { log } from "./lib/logger.js";
+import { installCrashHandlers } from "./lib/crashHandler.js";
+
+// Catch process-level crashes FIRST, before anything else can throw: an
+// unhandled rejection or an uncaught exception would otherwise print a raw
+// stack trace to stderr and exit, bypassing the structured logger entirely —
+// no JSON line, no redaction, nothing in the LUMO_LOG_FILE sink an operator is
+// tailing. The handler records the crash and still exits non-zero, so the
+// platform restarts the instance exactly as before.
+installCrashHandlers();
 
 // Render/Heroku/most PaaS inject the bind port via PORT; LUMO_PORT is the local override.
 const port = parseInt(process.env.PORT ?? process.env.LUMO_PORT ?? "47291");

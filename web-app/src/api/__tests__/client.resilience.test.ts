@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // Builds a minimal Response-like object the client's `req` understands.
-function makeRes(status: number, body: unknown): Response {
+function makeRes(status: number, body: unknown, headers: Record<string, string> = {}): Response {
+  const lower = new Map(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText: String(status),
+    headers: { get: (name: string) => lower.get(name.toLowerCase()) ?? null },
     json: () => Promise.resolve(body),
-  } as Response;
+  } as unknown as Response;
 }
 
 const TASK_PAGE = { items: [], nextCursor: null };
@@ -134,5 +136,91 @@ describe("API client — request resilience (timeout / retry)", () => {
     const { api } = await import("../client");
     await expect(api.listTasks()).resolves.toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * `Retry-After` handling.
+ *
+ * The client retried a 429 on the same fixed 300ms/600ms backoff it uses for a
+ * network blip. Against the backend's 60-second auth window that spent both
+ * retries inside a second — both certain to fail — and then surfaced an error
+ * the user need never have seen. The server now states the deadline; the client
+ * has to actually wait for it.
+ */
+describe("API client — Retry-After", () => {
+  it("waits the server-stated delay before retrying a 429", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const fetchMock = vi.fn(() => {
+      calls++;
+      if (calls === 1) return Promise.resolve(makeRes(429, {}, { "Retry-After": "3" }));
+      return Promise.resolve(makeRes(200, TASK_PAGE));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("../client");
+    const p = api.listTasks();
+
+    // The default backoff would have fired the retry by now; Retry-After says 3s.
+    await vi.advanceTimersByTimeAsync(900);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2200);
+    await p;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back to exponential backoff when the header is absent", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const fetchMock = vi.fn(() => {
+      calls++;
+      if (calls === 1) return Promise.resolve(makeRes(503, {}));
+      return Promise.resolve(makeRes(200, TASK_PAGE));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("../client");
+    const p = api.listTasks();
+    await vi.advanceTimersByTimeAsync(400);
+    await p;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a malformed or absurd Retry-After rather than stalling the UI", async () => {
+    // A hostile or broken proxy could send "Retry-After: 86400". Honouring that
+    // literally would hang the request for a day behind a spinner.
+    vi.useFakeTimers();
+    let calls = 0;
+    const fetchMock = vi.fn(() => {
+      calls++;
+      if (calls === 1) return Promise.resolve(makeRes(429, {}, { "Retry-After": "86400" }));
+      return Promise.resolve(makeRes(200, TASK_PAGE));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("../client");
+    const p = api.listTasks();
+    await vi.advanceTimersByTimeAsync(31_000);
+    await p;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats a non-numeric Retry-After as absent", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const fetchMock = vi.fn(() => {
+      calls++;
+      if (calls === 1) return Promise.resolve(makeRes(429, {}, { "Retry-After": "soon" }));
+      return Promise.resolve(makeRes(200, TASK_PAGE));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("../client");
+    const p = api.listTasks();
+    await vi.advanceTimersByTimeAsync(400);
+    await p;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

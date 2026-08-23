@@ -80,7 +80,65 @@ canonical "is it down?" answer during incidents.
 
 ---
 
-## 3. Checklist (turns §3 todos into actions)
+## 3. Built-in reliability behaviour
+
+Three behaviours the service provides on its own, independent of any external
+monitoring you attach. Worth knowing when reading logs or tuning a probe.
+
+### The readiness probe is bounded
+
+`GET /ready` races its `SELECT 1` against a **2-second deadline**
+(`READINESS_TIMEOUT_MS` in `backend/src/lib/readiness.ts`) and answers `503
+{ ok: false, db: "down" }` if the deadline wins.
+
+This matters because an unreachable database usually does not *refuse* the
+connection — it hangs. An unbounded probe would hang with it, until the
+platform's own request timeout fired, and a load balancer reading a timeout
+rather than a clean 503 keeps sending real user traffic to a dead instance in
+the meantime. The deadline is deliberately far below any platform request
+timeout so that it is the thing that answers first.
+
+`GET /health` stays shallow (no database call) on purpose: it is what the
+platform health check polls, and coupling it to the database would let a
+transient blip restart-loop an otherwise-healthy instance.
+
+### Crashes are logged before the process exits
+
+An unhandled promise rejection or an uncaught exception is written to the
+structured log as `{"level":"error","fatal":true,"signal":…,"reason":…,"stack":…}`
+and *then* exits non-zero so the platform restarts the instance.
+
+Without this the most important event in the life of the process produced the
+one record the log pipeline never saw: Node's default prints a raw stack trace
+to stderr, so it is unstructured (an aggregator can't index it), un-redacted (a
+secret caught in an error message goes out in the clear), and absent from the
+`LUMO_LOG_FILE` sink a self-hosted operator is tailing.
+
+Grep production logs for `"fatal":true` to find every crash.
+
+### Rate limits state their own deadline
+
+Every response from a rate-limited endpoint carries the caller's budget, and a
+rejected one carries the deadline:
+
+| Header | On | Meaning |
+|--------|-----|---------|
+| `RateLimit-Limit` | all | Requests permitted per window |
+| `RateLimit-Remaining` | all | Requests left in this window |
+| `RateLimit-Reset` | all | Seconds until the window rolls over |
+| `Retry-After` | 429 only | Seconds to wait, rounded up |
+
+`web-app`'s API client honours `Retry-After` (capped at 30s, so a hostile proxy
+cannot park a request behind a spinner). Any other client should too.
+
+**Scope limit:** limiter state is per-process and in memory. Behind more than
+one instance the effective limit multiplies by the instance count. That is
+acceptable for the current single-instance deployment, and it is the thing to
+replace with a shared store *before* scaling horizontally.
+
+---
+
+## 4. Checklist
 
 - [ ] Decide aggregator + provision `SENTRY_DSN` / `VITE_SENTRY_DSN` → then add the
       `reportError` seam + SDK (§1).

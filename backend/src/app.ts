@@ -24,6 +24,7 @@ import { log, resolveRequestId, resolveTraceContext, runWithCorrelation } from "
 import { bodySizeLimit } from "./lib/bodyLimit.js";
 import { metricsMiddleware, registerMetricsRoute } from "./lib/metrics.js";
 import { STATUS_PAGE_HTML } from "./lib/statusPage.js";
+import { checkReadiness } from "./lib/readiness.js";
 
 const allowedOrigins = (process.env.LUMO_ALLOWED_ORIGINS ?? "")
   .split(",")
@@ -139,14 +140,21 @@ registerMetricsRoute(app);
 
 // Readiness: can the process actually serve (DB reachable)? For load-balancer
 // draining / external monitoring — returns 503 when the DB is unreachable.
+//
+// The probe is bounded (see lib/readiness.ts): an unreachable database does not
+// refuse the connection, it hangs, and a readiness endpoint that hangs is worse
+// than useless — the balancer sees a timeout instead of a clean "drain me" and
+// keeps routing user traffic here in the meantime. Losing the race is reported
+// as down, promptly.
 app.get("/ready", async (c) => {
-  try {
-    await queryOne("SELECT 1 AS ok");
-    return c.json({ ok: true, db: "up" });
-  } catch (err) {
-    log("error", { msg: "ready: db check failed", requestId: c.get("requestId"), error: (err as Error)?.message ?? String(err) });
-    return c.json({ ok: false, db: "down" }, 503);
-  }
+  const result = await checkReadiness(() => queryOne("SELECT 1 AS ok"));
+  if (result.ok) return c.json({ ok: true, db: "up" });
+  log("error", {
+    msg: "ready: db check failed",
+    requestId: c.get("requestId"),
+    error: result.error,
+  });
+  return c.json({ ok: false, db: "down" }, 503);
 });
 
 // Public status page (#473): a lightweight, dependency-free HTML page that polls
