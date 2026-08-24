@@ -1,7 +1,13 @@
 import { Hono } from "hono";
 import { validate } from "../lib/validate.js";
 import { z } from "zod";
-import { BreakdownRequestSchema } from "@lumo/contracts";
+import {
+  BreakdownRequestSchema,
+  ClassifyRequestSchema,
+  RecommendRequestSchema,
+  ParseRequestSchema,
+  ChatRequestSchema,
+} from "@lumo/contracts";
 import { query, queryOne, execute, batch } from "../db/client.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { httpError } from "../lib/errors.js";
@@ -138,7 +144,7 @@ function heuristicQuadrant(task: any, today: string): { q: string; confidence: n
 }
 
 // POST /ai/classify — LLM-powered semantic classification (heuristic fallback)
-app.post("/classify", classifyRateLimit, validate("json", z.object({}).strict()), async (c) => {
+app.post("/classify", classifyRateLimit, validate("json", ClassifyRequestSchema), async (c) => {
   const userId = c.get("userId") as string;
   try {
   const today = new Date().toISOString().slice(0, 10);
@@ -255,7 +261,7 @@ Return ONLY a JSON array, no markdown:
 });
 
 // POST /ai/recommend — LLM-reasoned recommendation (SQL sort fallback)
-app.post("/recommend", classifyRateLimit, validate("json", z.object({}).strict()), async (c) => {
+app.post("/recommend", classifyRateLimit, validate("json", RecommendRequestSchema), async (c) => {
   const userId = c.get("userId") as string;
   try {
   const q1Tasks = await query<any>(
@@ -335,13 +341,7 @@ Choose the single most critical task to work on RIGHT NOW. Return ONLY valid JSO
   }
 });
 
-// POST /ai/parse — natural language task parser
-const ParseBody = z.object({
-  text: z.string().min(1).max(500),
-  locale: z.enum(["en", "zh"]).optional(),
-});
-
-app.post("/parse", classifyRateLimit, validate("json", ParseBody), async (c) => {
+app.post("/parse", classifyRateLimit, validate("json", ParseRequestSchema), async (c) => {
   const userId = c.get("userId") as string;
   const { text, locale } = c.req.valid("json");
 
@@ -388,33 +388,6 @@ Input: "${text}"`;
 });
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
-
-const ChatBody = z.object({
-  messages: z.array(z.object({
-    role: z.enum(["user", "assistant"]),
-    content: z.string().max(5000),
-  })).max(20),
-  context: z.object({
-    page: z.string().max(200).optional(),
-    todayTasks: z.array(z.object({
-      id: z.string(),
-      title: z.string().max(500),
-      quadrant: z.string().max(20),
-    })).max(50).optional(),
-    q1Count: z.number().int().optional(),
-    recentCompleted: z.array(z.object({
-      title: z.string().max(500),
-      completedAt: z.string(),
-    })).max(20).optional(),
-    locale: z.enum(["en", "zh"]).optional(),
-    userName: z.string().max(100).optional(),
-    species: z.enum(["dog", "cat", "fox", "panda", "robot"]).optional(),
-    petName: z.string().max(50).optional(),
-    // Hours booked in the user's imported calendar today (#172 V2). Bounded so a
-    // malformed client value can't distort planning; feeds generate_today_plan.
-    calendarBusyHours: z.number().nonnegative().max(24).optional(),
-  }).optional(),
-});
 
 // Fallback canned responses when no LLM is configured
 function fallbackReply(ctx: {
@@ -744,7 +717,7 @@ Return ONLY a JSON array of strings, no markdown, no explanation:
 });
 
 // POST /ai/chat
-app.post("/chat", chatRateLimit, validate("json", ChatBody), async (c) => {
+app.post("/chat", chatRateLimit, validate("json", ChatRequestSchema), async (c) => {
   const userId = c.get("userId") as string;
   const { messages, context } = c.req.valid("json");
 

@@ -1,5 +1,11 @@
 import { Hono } from "hono";
 import { validate } from "../lib/validate.js";
+import {
+  ProjectCreateBodySchema,
+  ProjectUpdateBodySchema,
+  ProjectMigrateBodySchema,
+  type Goal,
+} from "@lumo/contracts";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute, batch } from "../db/client.js";
@@ -20,64 +26,7 @@ const MAX_LIMIT = 500;
 
 const IdParam = z.object({ id: z.string().min(1).max(64) });
 
-// A single key objective inside a project. Optional target/current/unit turn a
-// goal into a numeric KPI (e.g. "Sales" 42/100 万) shown with a progress bar.
-// `confidence` is the OKR-style check-in health signal (on track / at risk /
-// off track); all KPI/OKR fields are optional so plain checkbox goals and
-// pre-existing goals keep validating unchanged (no migration).
-const GoalSchema = z.object({
-  text: z.string().min(1).max(200),
-  done: z.boolean().default(false),
-  target: z.number().finite().nonnegative().optional(),
-  current: z.number().finite().nonnegative().optional(),
-  // `start` is the KR baseline (e.g. a metric that already sits at 20 on the
-  // way to 100); progress is measured from start→target, not 0→target.
-  start: z.number().finite().nonnegative().optional(),
-  unit: z.string().max(12).optional(),
-  confidence: z.enum(["on_track", "at_risk", "off_track"]).optional(),
-});
-
-// `content` is the rich-text document (TipTap JSON / markdown) serialized to a
-// string. The 1MB cap is a deliberate V1 tradeoff: it leaves room for a few
-// inline-base64 images without letting a row grow unbounded (V2 moves images to
-// object storage). `goals` is stored as a JSON array in the goals_json column.
-const ProjectBody = z.object({
-  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
-  name: z.string().min(1).max(200),
-  category: z.string().max(60).optional().nullable(),
-  color: z.enum(["green", "cyan", "amber", "red"]).default("green"),
-  emoji: z.string().max(10).optional().nullable(),
-  goals: z.array(GoalSchema).max(50).default([]),
-  content: z.string().max(1_000_000).optional().nullable(),
-  status: z.enum(["active", "archived"]).default("active"),
-  pinned: z.boolean().default(false),
-});
-
-const ProjectUpdateBody = ProjectBody.partial();
-
-// Bulk-import array is bounded so a single /migrate call can't force
-// unbounded memory/CPU. Each project may carry up to 1MB of `content`, so an
-// unbounded array is the dominant memory vector here. The cap sits well above
-// any realistic export (a heavy user has at most low-hundreds of projects) so
-// no genuine migration is rejected; only pathological payloads are.
-const MIGRATE_MAX_PROJECTS = 10_000;
-
-const MigrateBody = z.object({
-  projects: z.array(z.object({
-    id: z.string().min(1).max(64),
-    name: z.string().min(1).max(200),
-    category: z.string().max(60).optional().nullable(),
-    color: z.enum(["green", "cyan", "amber", "red"]),
-    emoji: z.string().max(10).optional().nullable(),
-    goals: z.array(GoalSchema).max(50).default([]),
-    content: z.string().max(1_000_000).optional().nullable(),
-    status: z.enum(["active", "archived"]).default("active"),
-    pinned: z.boolean().default(false),
-    createdAt: z.string(),
-  })).max(MIGRATE_MAX_PROJECTS),
-});
-
-function parseGoals(raw: string | null): Array<z.infer<typeof GoalSchema>> {
+function parseGoals(raw: string | null): Goal[] {
   if (!raw) return [];
   try {
     const v = JSON.parse(raw);
@@ -148,7 +97,7 @@ app.get("/", async (c) => {
 });
 
 // POST /projects/migrate — idempotent bulk import; must be before /:id
-app.post("/migrate", validate("json", MigrateBody), async (c) => {
+app.post("/migrate", validate("json", ProjectMigrateBodySchema), async (c) => {
   const userId = c.get("userId");
   const { projects } = c.req.valid("json");
 
@@ -181,7 +130,7 @@ app.post("/migrate", validate("json", MigrateBody), async (c) => {
 });
 
 // POST /projects
-app.post("/", validate("json", ProjectBody), async (c) => {
+app.post("/", validate("json", ProjectCreateBodySchema), async (c) => {
   const userId = c.get("userId");
   const body = c.req.valid("json");
   const id = body.id ?? ("prj_" + nanoid(10));
@@ -217,7 +166,7 @@ app.post("/", validate("json", ProjectBody), async (c) => {
 });
 
 // PATCH /projects/:id
-app.patch("/:id", validate("param", IdParam), validate("json", ProjectUpdateBody), async (c) => {
+app.patch("/:id", validate("param", IdParam), validate("json", ProjectUpdateBodySchema), async (c) => {
   const userId = c.get("userId");
   const projectId = c.req.param("id");
   const body = c.req.valid("json");

@@ -138,7 +138,7 @@ Each feature has explicit ACs the Playwright spec will assert.
 
 - ≥7 features asserted (target met → 8).
 - Every reproducible failure has a filed issue on `lumoryxr/lumo-task-web` with: title, severity, repro steps, expected vs actual, screenshot, environment.
-- This test plan + the spec are merged via PR following [lumo-engineering-discipline](../../memory/lumo-engineering-discipline.md): QA can write its own E2E; PR must pass CI and at least one reviewer.
+- This test plan + the spec are merged via PR following [the engineering process](../process/engineering-process.md): QA can write its own E2E; PR must pass CI and at least one reviewer.
 
 ---
 

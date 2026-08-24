@@ -251,6 +251,35 @@ jobs:
       - name: Run contract schema tests
         run: npm test
 
+  # ── 6e. Contracts — Generated OpenAPI is committed and current ──────────────
+  # The route registry generates both the live spec (GET /docs/openapi.json) and
+  # the committed docs/api/openapi.json. If a contract change lands without
+  # regenerating, the committed spec silently drifts from the served one — the
+  # exact failure the registry exists to prevent. Regenerate and fail on a diff.
+  openapi-current:
+    name: OpenAPI Up To Date (@lumo/contracts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/contracts/package-lock.json
+      - name: Install dependencies
+        working-directory: packages/contracts
+        run: npm ci
+      - name: Regenerate the OpenAPI document
+        working-directory: packages/contracts
+        run: npm run gen:openapi
+      - name: Fail if the committed document is stale
+        run: |
+          if ! git diff --exit-code -- docs/api/openapi.json; then
+            echo ""
+            echo "::error file=docs/api/openapi.json::Generated OpenAPI document is out of date. Run 'npm run gen:openapi -w @lumo/contracts' and commit the result."
+            exit 1
+          fi
+
   # ── 7. Backend — Integration Tests (real HTTP + real SQLite) ────────────────
   backend-integration:
     name: Integration Tests (backend)

@@ -1,7 +1,7 @@
 # Pre-launch security review checklist
 
 > Scope + checklist for the external security review / self-audit before charging
-> (`docs/COMMERCIALIZATION_READINESS.md` §6, issue #474). Use it two ways: (1) as
+> (`docs/business/commercialization-readiness.md` §6, issue #474). Use it two ways: (1) as
 > the brief handed to an external reviewer, and (2) as a self-audit gate.
 >
 > **Baseline already in place:** 104 built-in security tests (authn / authz /

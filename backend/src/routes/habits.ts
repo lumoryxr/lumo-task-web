@@ -1,5 +1,11 @@
 import { Hono } from "hono";
 import { validate } from "../lib/validate.js";
+import {
+  HabitCreateBodySchema,
+  HabitUpdateBodySchema,
+  HabitLogBodySchema,
+  HabitMigrateBodySchema,
+} from "@lumo/contracts";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
@@ -25,50 +31,6 @@ const IdParam = z.object({ id: z.string().min(1).max(64) });
 const LogParam = z.object({
   id: z.string().min(1).max(64),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-});
-
-const HabitBody = z.object({
-  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
-  title: z.string().min(1).max(200),
-  emoji: z.string().max(10).optional().nullable(),
-  color: z.enum(["green", "cyan", "amber", "red", "purple"]).default("green"),
-  frequency: z.enum(["daily", "weekdays", "weekend", "days_of_week", "times_per_week", "interval"]).default("daily"),
-  frequencyDays: z.array(z.number().int().min(0).max(6)).optional().nullable(),
-  frequencyTimes: z.number().int().min(1).max(7).optional().nullable(),
-  frequencyInterval: z.number().int().min(2).max(30).optional().nullable(),
-  note: z.string().max(2000).optional().nullable(),
-});
-
-const HabitUpdateBody = HabitBody.partial();
-
-// Bulk-import arrays are bounded so a single /migrate call can't force
-// unbounded memory/CPU. Caps sit well above any realistic export — a heavy
-// user has dozens of habits, and `logs` is high-cardinality (one row per
-// habit per completed day, so years of daily habits still fit under 200k) —
-// so no genuine migration is rejected; only pathological payloads are.
-const MIGRATE_MAX_HABITS = 10_000;
-const MIGRATE_MAX_LOGS = 200_000;
-
-const MigrateBody = z.object({
-  habits: z.array(z.object({
-    id: z.string().min(1).max(64),
-    title: z.string().min(1).max(200),
-    emoji: z.string().max(10).optional().nullable(),
-    color: z.enum(["green", "cyan", "amber", "red", "purple"]),
-    frequency: z.enum(["daily", "weekdays", "weekend", "days_of_week", "times_per_week", "interval"]),
-    // Weekday indices only (0–6), and at most 7 — matches HabitBody and keeps
-    // this nested array from being an unbounded vector on bulk import.
-    frequencyDays: z.array(z.number().int().min(0).max(6)).max(7).optional().nullable(),
-    frequencyTimes: z.number().optional().nullable(),
-    frequencyInterval: z.number().optional().nullable(),
-    note: z.string().optional().nullable(),
-    createdAt: z.string(),
-  })).max(MIGRATE_MAX_HABITS),
-  logs: z.array(z.object({
-    habitId: z.string().min(1).max(64),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    completedAt: z.string(),
-  })).max(MIGRATE_MAX_LOGS),
 });
 
 export function rowToHabit(row: HabitRow) {
@@ -153,7 +115,7 @@ app.get("/logs", async (c) => {
 });
 
 // POST /habits/migrate — idempotent bulk import; must be before /:id
-app.post("/migrate", validate("json", MigrateBody), async (c) => {
+app.post("/migrate", validate("json", HabitMigrateBodySchema), async (c) => {
   const userId = c.get("userId");
   const { habits, logs } = c.req.valid("json");
 
@@ -207,7 +169,7 @@ app.post("/migrate", validate("json", MigrateBody), async (c) => {
 });
 
 // POST /habits
-app.post("/", validate("json", HabitBody), async (c) => {
+app.post("/", validate("json", HabitCreateBodySchema), async (c) => {
   const userId = c.get("userId");
   const body = c.req.valid("json");
   const id = body.id ?? ("habit_" + nanoid(10));
@@ -240,7 +202,7 @@ app.post("/", validate("json", HabitBody), async (c) => {
 });
 
 // PATCH /habits/:id
-app.patch("/:id", validate("param", IdParam), validate("json", HabitUpdateBody), async (c) => {
+app.patch("/:id", validate("param", IdParam), validate("json", HabitUpdateBodySchema), async (c) => {
   const userId = c.get("userId");
   const habitId = c.req.param("id");
   const body = c.req.valid("json");
@@ -306,7 +268,7 @@ app.delete("/:id", validate("param", IdParam), async (c) => {
 app.post(
   "/:id/log",
   validate("param", IdParam),
-  validate("json", z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })),
+  validate("json", HabitLogBodySchema),
   async (c) => {
     const userId = c.get("userId");
     const habitId = c.req.param("id");

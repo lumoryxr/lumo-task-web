@@ -1,6 +1,16 @@
 import { Hono } from "hono";
 import { validate } from "../lib/validate.js";
-import { z } from "zod";
+import {
+  RegisterBodySchema,
+  SigninBodySchema,
+  BindEmailBodySchema,
+  RecoveryResetBodySchema,
+  ChangePasswordBodySchema,
+  RefreshBodySchema,
+  ForgotPasswordBodySchema,
+  ResetPasswordBodySchema,
+  VerifyEmailBodySchema,
+} from "@lumo/contracts";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
 import { signToken } from "../lib/jwt.js";
@@ -30,75 +40,6 @@ const app = new Hono<{ Variables: Variables }>();
 // 10 auth attempts per IP per minute, keyed on the trusted-proxy-resolved IP so
 // a spoofed X-Forwarded-For prefix can't be rotated to bypass the limit.
 const authRateLimit = createRateLimiter<{ Variables: Variables }>(10, 60_000, getClientIp);
-
-// Reject weak passwords everywhere a new password is set (register / change).
-const strongPassword = z
-  .string()
-  .min(8)
-  .max(256)
-  .refine((p) => /[A-Za-z]/.test(p) && /\d/.test(p), {
-    message: "Password must include at least one letter and one number",
-  });
-
-// Usernames the platform reserves for its own use — never claimable.
-const RESERVED_USERNAMES = new Set(["admin", "root", "lumo", "support", "system"]);
-
-// Username rules: 3–32 chars from [A-Za-z0-9_-], not starting/ending with a
-// separator, and not a reserved word. All violations surface as VALIDATION_ERROR
-// via the inline zod validator (so the frontend gets a per-field message).
-const usernameField = z
-  .string()
-  .min(3, "Username must be at least 3 characters")
-  .max(32, "Username must be at most 32 characters")
-  .regex(/^[A-Za-z0-9_-]+$/, "Username may only use letters, numbers, hyphens and underscores")
-  .refine((u) => !/^[-_]/.test(u) && !/[-_]$/.test(u), {
-    message: "Username can't start or end with a hyphen or underscore",
-  })
-  .refine((u) => !RESERVED_USERNAMES.has(u.toLowerCase()), {
-    message: "That username is reserved",
-  });
-
-const RegisterBody = z.object({
-  username: usernameField,
-  password: strongPassword,
-});
-
-const SigninBody = z.object({
-  username: z.string().min(1).max(32),
-  password: z.string(),
-});
-
-const BindEmailBody = z.object({
-  email: z.string().email().max(255),
-});
-
-const RecoveryResetBody = z.object({
-  username: z.string().min(1).max(32),
-  code: z.string().min(1).max(64),
-  new_password: strongPassword,
-});
-
-const ChangePasswordBody = z.object({
-  current_password: z.string().max(256),
-  new_password: strongPassword,
-});
-
-const RefreshBody = z.object({
-  refreshToken: z.string().min(1).max(512),
-});
-
-const ForgotPasswordBody = z.object({
-  email: z.string().email().max(255),
-});
-
-const ResetPasswordBody = z.object({
-  token: z.string().min(1).max(512),
-  new_password: strongPassword,
-});
-
-const VerifyEmailBody = z.object({
-  token: z.string().min(1).max(512),
-});
 
 // Escape text interpolated into the HTML email body. Names come from user input;
 // the link is our own same-origin URL built from a URL-safe base64url token, but
@@ -164,7 +105,7 @@ function initialsFromUsername(username: string) {
   return (compact.slice(0, 2) || username.slice(0, 2) || "U").toUpperCase();
 }
 
-app.post("/register", authRateLimit, validate("json", RegisterBody), async (c) => {
+app.post("/register", authRateLimit, validate("json", RegisterBodySchema), async (c) => {
   const { username, password } = c.req.valid("json");
   const usernameLower = username.toLowerCase();
 
@@ -209,7 +150,7 @@ app.post("/register", authRateLimit, validate("json", RegisterBody), async (c) =
   }, 201);
 });
 
-app.post("/signin", authRateLimit, validate("json", SigninBody), async (c) => {
+app.post("/signin", authRateLimit, validate("json", SigninBodySchema), async (c) => {
   const { username, password } = c.req.valid("json");
   const usernameLower = username.toLowerCase();
 
@@ -262,7 +203,7 @@ app.post("/signin", authRateLimit, validate("json", SigninBody), async (c) => {
 // Bind (or change) the signed-in account's email. The email is set UNVERIFIED
 // and a verification link is sent via the existing flow — an unverified/absent
 // email never blocks usage. EMAIL_TAKEN (409) if another account already owns it.
-app.post("/bind-email", authRateLimit, authMiddleware, validate("json", BindEmailBody), async (c) => {
+app.post("/bind-email", authRateLimit, authMiddleware, validate("json", BindEmailBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const { email } = c.req.valid("json");
 
@@ -298,7 +239,7 @@ app.post("/bind-email", authRateLimit, authMiddleware, validate("json", BindEmai
 // the password exactly like /reset-password (bump session_version + revoke all
 // refresh tokens). Wrong/used/again → INVALID_RECOVERY_CODE (constant-time,
 // non-enumerable — the same error whether the username or the code is at fault).
-app.post("/recovery/reset", authRateLimit, validate("json", RecoveryResetBody), async (c) => {
+app.post("/recovery/reset", authRateLimit, validate("json", RecoveryResetBodySchema), async (c) => {
   const { username, code, new_password } = c.req.valid("json");
 
   const userId = await verifyAndConsumeRecoveryCode(username, code);
@@ -329,7 +270,7 @@ app.post("/recovery-code/regenerate", authRateLimit, authMiddleware, async (c) =
   return c.json({ recoveryCode });
 });
 
-app.post("/change-password", authRateLimit, authMiddleware, validate("json", ChangePasswordBody), async (c) => {
+app.post("/change-password", authRateLimit, authMiddleware, validate("json", ChangePasswordBodySchema), async (c) => {
   const userId = c.get("userId") as string;
   const { current_password, new_password } = c.req.valid("json");
 
@@ -358,7 +299,7 @@ app.post("/change-password", authRateLimit, authMiddleware, validate("json", Cha
 // Exchange a valid refresh token for a fresh access token + a rotated refresh
 // token. No access token required (the access token may already be expired —
 // that is the whole point). Rate-limited like the other auth endpoints.
-app.post("/refresh", authRateLimit, validate("json", RefreshBody), async (c) => {
+app.post("/refresh", authRateLimit, validate("json", RefreshBodySchema), async (c) => {
   const { refreshToken } = c.req.valid("json");
   const rotated = await rotateRefreshToken(refreshToken);
   if (!rotated) {
@@ -375,7 +316,7 @@ app.post("/refresh", authRateLimit, validate("json", RefreshBody), async (c) => 
 // have accounts (enumeration). If the user exists, a single-use, short-lived
 // token is minted and emailed as a reset link; delivery failures are logged but
 // do not change the response.
-app.post("/forgot-password", authRateLimit, validate("json", ForgotPasswordBody), async (c) => {
+app.post("/forgot-password", authRateLimit, validate("json", ForgotPasswordBodySchema), async (c) => {
   const { email } = c.req.valid("json");
   const user = await queryOne<Pick<UserRow, "id" | "name">>(
     "SELECT id, name FROM users WHERE email = :email",
@@ -408,7 +349,7 @@ app.post("/forgot-password", authRateLimit, validate("json", ForgotPasswordBody)
 // password is replaced, `session_version` is bumped (invalidating every existing
 // access token), and all refresh tokens are revoked — so a reset also logs the
 // account out everywhere, which is the safe behavior for a recovery flow.
-app.post("/reset-password", authRateLimit, validate("json", ResetPasswordBody), async (c) => {
+app.post("/reset-password", authRateLimit, validate("json", ResetPasswordBodySchema), async (c) => {
   const { token, new_password } = c.req.valid("json");
 
   const userId = await consumeResetToken(token);
@@ -486,7 +427,7 @@ app.get("/verify-email", authRateLimit, async (c) => {
 // straight at the SPA (which POSTs the token here), and for programmatic clients.
 // Idempotent-ish: a valid token flips the flag once; reusing it (now consumed)
 // returns the invalid-token error.
-app.post("/verify-email", authRateLimit, validate("json", VerifyEmailBody), async (c) => {
+app.post("/verify-email", authRateLimit, validate("json", VerifyEmailBodySchema), async (c) => {
   const { token } = c.req.valid("json");
   const result = await consumeVerificationToken(token);
   if (!result.ok) {

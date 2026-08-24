@@ -91,7 +91,7 @@ services:
       # ── Prometheus metrics (optional — the GET /metrics scrape endpoint). ───
       # Unset → /metrics is disabled (404), so it's never public by accident.
       # Set a random secret to enable it; Prometheus scrapes with a matching
-      # `Authorization: Bearer <token>`. See docs/OPERATIONS.md. No SaaS involved.
+      # `Authorization: Bearer <token>`. See docs/ops/overview.md. No SaaS involved.
       - key: LUMO_METRICS_TOKEN
         generateValue: true    # random token; point your Prometheus scrape at it
 

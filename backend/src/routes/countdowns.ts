@@ -1,5 +1,10 @@
 import { Hono } from "hono";
 import { validate } from "../lib/validate.js";
+import {
+  CountdownCreateBodySchema,
+  CountdownUpdateBodySchema,
+  CountdownMigrateBodySchema,
+} from "@lumo/contracts";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { query, queryOne, execute } from "../db/client.js";
@@ -22,41 +27,6 @@ const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 500;
 
 const IdParam = z.object({ id: z.string().min(1).max(64) });
-
-const CountdownBody = z.object({
-  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
-  title: z.string().min(1).max(200),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  emoji: z.string().max(10).optional().nullable(),
-  color: z.enum(["green", "cyan", "amber", "red"]).default("green"),
-  repeat: z.enum(["none", "yearly"]).default("none"),
-  note: z.string().max(2000).optional().nullable(),
-  // `date` is always a solar (Gregorian) ISO anchor; `calendar` only records
-  // which calendar the user authored in (affects display + lunar recurrence).
-  calendar: z.enum(["solar", "lunar"]).default("solar"),
-});
-
-const CountdownUpdateBody = CountdownBody.partial();
-
-// Bulk-import arrays are bounded so a single /migrate call can't force
-// unbounded memory/CPU. The cap is set well above any realistic export
-// (dozens of countdowns for even a heavy user) so no genuine migration is
-// ever rejected — it only stops pathological millions-of-items payloads.
-const MIGRATE_MAX_EVENTS = 10_000;
-
-const MigrateBody = z.object({
-  events: z.array(z.object({
-    id: z.string().min(1).max(64),
-    title: z.string().min(1).max(200),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    emoji: z.string().max(10).optional().nullable(),
-    color: z.enum(["green", "cyan", "amber", "red"]),
-    repeat: z.enum(["none", "yearly"]),
-    note: z.string().optional().nullable(),
-    calendar: z.enum(["solar", "lunar"]).default("solar"),
-    createdAt: z.string(),
-  })).max(MIGRATE_MAX_EVENTS),
-});
 
 export function rowToEvent(row: CountdownEventRow): CountdownWire {
   return {
@@ -121,7 +91,7 @@ app.get("/", async (c) => {
 });
 
 // POST /countdowns/migrate — idempotent bulk import; must be before /:id
-app.post("/migrate", validate("json", MigrateBody), async (c) => {
+app.post("/migrate", validate("json", CountdownMigrateBodySchema), async (c) => {
   const userId = c.get("userId");
   const { events } = c.req.valid("json");
 
@@ -154,7 +124,7 @@ app.post("/migrate", validate("json", MigrateBody), async (c) => {
 });
 
 // POST /countdowns
-app.post("/", validate("json", CountdownBody), async (c) => {
+app.post("/", validate("json", CountdownCreateBodySchema), async (c) => {
   const userId = c.get("userId");
   const body = c.req.valid("json");
   const id = body.id ?? ("cd_" + nanoid(10));
@@ -189,7 +159,7 @@ app.post("/", validate("json", CountdownBody), async (c) => {
 });
 
 // PATCH /countdowns/:id
-app.patch("/:id", validate("param", IdParam), validate("json", CountdownUpdateBody), async (c) => {
+app.patch("/:id", validate("param", IdParam), validate("json", CountdownUpdateBodySchema), async (c) => {
   const userId = c.get("userId");
   const eventId = c.req.param("id");
   const body = c.req.valid("json");

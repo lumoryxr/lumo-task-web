@@ -2,7 +2,7 @@
 
 > Incident response, rollback, secret rotation, and data recovery for the hosted
 > Lumo backend (Render + Turso). Covers the runbook / status-page items in
-> `docs/COMMERCIALIZATION_READINESS.md` §4 (#473) and the key-rotation item in
+> `docs/business/commercialization-readiness.md` §4 (#473) and the key-rotation item in
 > §6 (#474). Monitoring/alerting setup is in
 > [`reliability-monitoring.md`](./reliability-monitoring.md); backup/restore in
 > [`database-backup.md`](./database-backup.md).

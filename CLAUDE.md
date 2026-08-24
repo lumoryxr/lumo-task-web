@@ -58,14 +58,29 @@ without waiting for user confirmation.** Report findings AND apply fixes in the 
 - Backend route handlers validate with the contract schema (`zValidator(...)`) and
   type their responses against the contract's wire type (e.g. `TaskWire`).
 - **OpenAPI is generated from the contract**, never hand-edited. The backend serves
-  the live spec at `GET /docs/openapi.json`; `docs/openapi.generated.json` is built
-  by `npm run gen:openapi -w @lumo/contracts`. Do not edit generated specs by hand.
-- This is enforced, not advisory: a **contract-conformance test** parses real backend
-  responses with the contract schema, and the frontend infers its types from it — so
-  any drift fails `make ci`. A PR that changes an API without changing the contract
-  first is non-compliant.
-- Migrating a not-yet-migrated domain into `@lumo/contracts`? Follow the Task domain
-  as the reference pattern (schema → backend → frontend → conformance test → OpenAPI).
+  the live spec at `GET /docs/openapi.json`; `docs/api/openapi.json` is written by
+  `npm run gen:openapi -w @lumo/contracts` and both come from the same builder. Do
+  not edit generated specs by hand.
+- **The endpoint list is a contract too.** `packages/contracts/src/registry.ts`
+  (`API_ROUTES`) declares every endpoint — method, path, auth mode, request and
+  response schemas. It is what the OpenAPI document is generated from, and what the
+  live router is diffed against. Adding an endpoint means: schema → registry entry →
+  backend route → frontend consumer. In that order.
+- This is enforced, not advisory. Four gates fail `make ci`:
+  1. **Contract conformance** — real backend responses are parsed with the contract
+     schema, so a response that drifts from its declared shape fails.
+  2. **Contract-first scan** — a repo-wide, deny-by-default check that no route file
+     passes an inline `z.object()` as a JSON body validator. There is no allow-list;
+     every domain is migrated, so there is nothing to exempt.
+  3. **Registry ↔ router parity** — the registry is diffed against the routes Hono
+     actually mounts, failing in **both** directions: an endpoint mounted without a
+     registry entry is undocumented, and a registry entry with no route means the
+     published docs promise a 404.
+  4. **OpenAPI freshness** — `make openapi-check` regenerates the document and fails
+     if `docs/api/openapi.json` differs from what is committed.
+- A PR that changes an API without changing the contract first is non-compliant.
+- Adding a domain to `@lumo/contracts`? Follow the Task domain as the reference
+  pattern (schema → registry entry → backend → frontend → conformance test).
 
 ### Frontend (`web-app/`)
 - Types live in `src/types/`. Never redefine `Task`, `User`, etc.
@@ -109,7 +124,7 @@ without waiting for user confirmation.** Report findings AND apply fixes in the 
 
 Coverage targets: backend ≥ 80% lines (gated by `npm run test:coverage`),
 frontend new components 100% of public behavior. `make ci` runs every layer
-above except E2E. **See `TESTING.md` for the full pyramid and the "add a feature
+above except E2E. **See `docs/testing/strategy.md` for the full pyramid and the "add a feature
 → add four layers" template.**
 
 ---

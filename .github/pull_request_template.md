@@ -88,4 +88,4 @@ _此部分由 Reviewer 填写 (Filled by Reviewer)_
 - [ ] 向后兼容或标记为 Breaking Change
 - [ ] CHANGELOG 已更新
 
-参考 [PR_REVIEW_CHECKLIST.md](.github/PR_REVIEW_CHECKLIST.md) 获取完整的审查标准。
+参考 [PR_REVIEW_CHECKLIST.md](PR_REVIEW_CHECKLIST.md) 获取完整的审查标准。

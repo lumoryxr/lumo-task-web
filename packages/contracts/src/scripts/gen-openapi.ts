@@ -1,44 +1,31 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import {
-  taskComponentSchemas,
-  personComponentSchemas,
-  errorComponentSchemas,
-  userComponentSchemas,
-  feedbackComponentSchemas,
-} from "../openapi.js";
+import { buildOpenApiDocument } from "../openapi.js";
 
 /**
- * Emits the contract-generated portion of the OpenAPI document.
+ * Writes the OpenAPI document to `docs/api/openapi.json`.
  *
- * This is the seed that will progressively replace the hand-maintained
- * `docs/openapi.yaml`: as each domain migrates to `@lumo/contracts`, its schemas
- * appear here automatically. The backend already serves the live, generated spec
- * (with this Task schema) at `GET /docs/openapi.json`.
+ * The bytes are identical to what the backend serves at `GET /docs/openapi.json`
+ * — both call {@link buildOpenApiDocument} over the same route registry. The
+ * committed file exists so the spec is diffable in code review: an API change
+ * shows up as a spec change in the same pull request.
+ *
+ * `make ci` regenerates it and fails if the result differs from what is
+ * committed, so a contract edit that skips this step cannot merge.
  */
 
-const doc = {
-  openapi: "3.0.3",
-  info: {
-    title: "Lumo Task API — generated component schemas",
-    version: "1.0.0",
-    description:
-      "Auto-generated from @lumo/contracts Zod schemas. Do not edit by hand — " +
-      "edit the contract and re-run `npm run gen:openapi -w @lumo/contracts`.",
-  },
-  components: {
-    schemas: {
-      ...taskComponentSchemas(),
-      ...personComponentSchemas(),
-      ...errorComponentSchemas(),
-      ...userComponentSchemas(),
-      ...feedbackComponentSchemas(),
-    },
-  },
-};
+const doc = buildOpenApiDocument();
 
 const here = dirname(fileURLToPath(import.meta.url));
-const out = resolve(here, "../../../../docs/openapi.generated.json");
+const outDir = resolve(here, "../../../../docs/api");
+const out = resolve(outDir, "openapi.json");
+
+mkdirSync(outDir, { recursive: true });
 writeFileSync(out, JSON.stringify(doc, null, 2) + "\n");
-console.log(`Wrote generated OpenAPI schemas → ${out}`);
+
+const operations = Object.values(doc.paths as Record<string, object>).reduce(
+  (n, methods) => n + Object.keys(methods).length,
+  0,
+);
+console.log(`Wrote OpenAPI document (${operations} operations) → ${out}`);

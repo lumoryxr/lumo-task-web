@@ -90,5 +90,5 @@ npm run typecheck  # tsc --noEmit only
 - Standards guards (`src/test/standards/`): i18n en/zh parity, no raw hex on
   themeable surfaces (`css-tokens`), app root stays wrapped in `ErrorBoundary`
 - E2E tests (Playwright): auth flow, task CRUD, focus session, stats
-- `npm test` (Vitest) runs in CI and via `make ci`. See root `TESTING.md` for
+- `npm test` (Vitest) runs in CI and via `make ci`. See root `docs/testing/strategy.md` for
   the full cross-package test pyramid and how to add tests for a new feature.

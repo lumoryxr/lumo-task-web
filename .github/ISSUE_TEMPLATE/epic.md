@@ -71,4 +71,4 @@ labels: ["feature", "needs-triage"]
 
 **Epic Owner**: @username
 
-> Note: Epic 应该由 Issue Triage 团队分解为多个 Story，每个 Story 再分解为 Task。详见 [CONTRIBUTING.md](../.github/CONTRIBUTING.md)
+> Note: Epic 应该由 Issue Triage 团队分解为多个 Story，每个 Story 再分解为 Task。详见 [CONTRIBUTING.md](../CONTRIBUTING.md)

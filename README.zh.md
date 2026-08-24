@@ -148,12 +148,27 @@ lumo-task-web/
 │       ├── routes/       # tasks、auth、users、health
 │       ├── middleware/   # JWT 鉴权、CORS、错误处理
 │       └── lib/          # errors、jwt、validation
-├── docs/             # PRD、工程原则、路线图
-├── .github/          # CI 工作流、issue 模板、贡献指南
+├── packages/
+│   └── contracts/    # @lumo/contracts —— API 的唯一事实来源
+│       └── src/
+│           ├── registry.ts   # 全部端点：路径、鉴权方式、请求/响应 schema
+│           └── *.ts          # 各领域的 Zod schema
+├── docs/             # 全部文档，索引见 docs/README.md
+│   ├── architecture/     # 架构概览、工程原则、ADR
+│   ├── api/              # 自动生成的 OpenAPI 文档
+│   ├── product/          # PRD、路线图、需求规格、提案
+│   ├── ops/              # 运维手册、部署、监控
+│   ├── security/         # 安全评审记录
+│   ├── testing/          # 测试策略与覆盖率
+│   └── process/、business/
+├── .github/          # CI 工作流、issue 模板、贡献指南、
+│                     # 安全政策、行为准则
 ├── CLAUDE.md         # 工程标准（请勿修改）
-├── ARCHITECTURE.md   # 架构概览
 └── CHANGELOG.md      # 发布历史
 ```
+
+文档索引：[`docs/README.md`](docs/README.md)。
+架构说明：[`docs/architecture/overview.md`](docs/architecture/overview.md)。
 
 ---
 
@@ -211,7 +226,7 @@ NODE_VERSION=22
 3. 用任意 AI（Claude、GPT、Gemini……）生成改动，遵循 [`CLAUDE.md`](CLAUDE.md) 的工程标准与 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) 的流程（契约先行、验收标准即测试、本地门禁全绿）。
 4. 提交 PR，并在描述里**注明你用了哪个 AI**。
 
-我们力争在 48 小时内对每个新 PR 做出首次回应。分支命名、提交规范、本地门禁怎么跑见 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)，架构心智模型见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
+我们力争在 48 小时内对每个新 PR 做出首次回应。分支命名、提交规范、本地门禁怎么跑见 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)，架构心智模型见 [`docs/architecture/overview.md`](docs/architecture/overview.md)。
 
 ---
 

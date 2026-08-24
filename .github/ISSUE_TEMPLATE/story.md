@@ -132,4 +132,4 @@ labels: ["feature", "needs-triage"]
 
 ---
 
-> Note: Story 应该由开发者创建 Task（如果工作量较大）。详见 [CONTRIBUTING.md](../.github/CONTRIBUTING.md)
+> Note: Story 应该由开发者创建 Task（如果工作量较大）。详见 [CONTRIBUTING.md](../CONTRIBUTING.md)

@@ -164,12 +164,27 @@ lumo-task-web/
 │       ├── routes/       # tasks, auth, users, health
 │       ├── middleware/   # auth, CORS, error handler
 │       └── lib/          # errors, jwt, validation
-├── docs/             # PRD, principles, roadmap
-├── .github/          # CI workflows, issue templates, CONTRIBUTING
+├── packages/
+│   └── contracts/    # @lumo/contracts — the API source of truth
+│       └── src/
+│           ├── registry.ts   # every endpoint: path, auth, schemas
+│           └── *.ts          # per-domain Zod schemas
+├── docs/             # All documentation — see docs/README.md
+│   ├── architecture/     # Overview, principles, ADRs
+│   ├── api/              # Generated OpenAPI document
+│   ├── product/          # PRD, roadmap, specs, proposals
+│   ├── ops/              # Runbooks, deployment, monitoring
+│   ├── security/         # Review records
+│   ├── testing/          # Test strategy and coverage
+│   └── process/, business/
+├── .github/          # CI workflows, issue templates, CONTRIBUTING,
+│                     # SECURITY, CODE_OF_CONDUCT
 ├── CLAUDE.md         # Engineering standards (do not edit)
-├── ARCHITECTURE.md   # Architecture overview
 └── CHANGELOG.md      # Release history
 ```
+
+Documentation index: [`docs/README.md`](docs/README.md).
+Architecture: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 
 ---
 
@@ -227,7 +242,7 @@ Merge to main
 3. Generate the change with any AI (Claude, GPT, Gemini, …), following the standards in [`CLAUDE.md`](CLAUDE.md) and the workflow in [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) (contract-first, tests as acceptance criteria, local gates green).
 4. Open a PR and **note which AI you used** in the description.
 
-We aim to give every new PR a first response within 48h. See [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) for branch naming, commit conventions, and how to run the local gates, and [`ARCHITECTURE.md`](ARCHITECTURE.md) for the mental model.
+We aim to give every new PR a first response within 48h. See [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) for branch naming, commit conventions, and how to run the local gates, and [`docs/architecture/overview.md`](docs/architecture/overview.md) for the mental model.
 
 ---
 

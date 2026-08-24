@@ -14,10 +14,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "& 'E:\\9. Codex\\lumo-task-web\\.claude\\run-tests-on-save.ps1'",
-            "shell": "powershell",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/run-tests-on-save.js\"",
             "timeout": 120,
-            "statusMessage": "Running ECC tests..."
+            "statusMessage": "Running ECC typecheck..."
           }
         ]
       }

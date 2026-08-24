@@ -140,13 +140,37 @@ const MAX_RETRIES = 2; // total attempts = 1 + MAX_RETRIES
 const RETRY_BASE_DELAY_MS = 300; // exponential backoff base (300ms, 600ms)
 const RETRYABLE_STATUS = new Set([408, 429, 502, 503, 504]);
 
+// Longest server-stated delay we will actually wait. A hostile or misconfigured
+// proxy can send `Retry-After: 86400`; honouring that literally would park the
+// request behind a spinner for a day. Past this ceiling we fall back to our own
+// backoff and let the attempt fail normally, which the UI can report.
+const MAX_RETRY_AFTER_MS = 30_000;
+
 function isIdempotent(method: string): boolean {
   return method === "GET";
 }
 
-function backoff(attempt: number): Promise<void> {
+/**
+ * The server's own answer to "when should I come back?", in ms.
+ *
+ * Returns null when the header is absent, unparseable, or beyond
+ * MAX_RETRY_AFTER_MS — in each case the caller falls back to exponential
+ * backoff. Only the delta-seconds form is handled: that is what our backend
+ * sends, and the HTTP-date form buys nothing here.
+ */
+function retryAfterMs(res: Response): number | null {
+  const raw = res.headers?.get?.("Retry-After");
+  if (!raw) return null;
+  const seconds = Number(raw.trim());
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
+  const ms = seconds * 1000;
+  return ms > MAX_RETRY_AFTER_MS ? null : ms;
+}
+
+function backoff(attempt: number, overrideMs?: number | null): Promise<void> {
   // attempt is 1-based for the first retry.
-  return new Promise((resolve) => setTimeout(resolve, RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)));
+  const delay = overrideMs ?? RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+  return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
 // ── Fetch helper ──────────────────────────────────────────────────────────────
@@ -201,7 +225,11 @@ async function req<T>(
       // Retry transient (gateway/overload) statuses for idempotent reads before
       // consuming the body or surfacing the error.
       if (retryable && RETRYABLE_STATUS.has(res.status) && attempt < MAX_RETRIES) {
-        await backoff(attempt + 1);
+        // Prefer the server's stated deadline over our guess. Against a
+        // 60-second rate-limit window the default backoff retries twice inside a
+        // second, both attempts certain to fail; Retry-After makes the wait
+        // match the window that is actually open.
+        await backoff(attempt + 1, retryAfterMs(res));
         continue;
       }
       // 401 with a token present (not during login/register) means session expired.
