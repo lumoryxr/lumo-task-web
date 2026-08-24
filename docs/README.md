@@ -106,8 +106,10 @@ fails `make ci`.
 - [**process/engineering-process.md**](process/engineering-process.md) — how a
   change moves from idea to production.
 - [**business/commercial-plan-post-launch.md**](business/commercial-plan-post-launch.md)
-  — the current plan. Written after launch, ordered by what a marketing push
-  actually stresses first. **Start here**; the two documents below predate launch.
+  — the current plan. Written after launch and scoped to **capability** —
+  reliability, capacity, observability, abuse — not billing. Calibrated to the
+  VPS deployment that actually serves users. **Start here**; the two documents
+  below predate launch.
 - [**business/commercialization-readiness.md**](business/commercialization-readiness.md)
   — the pre-launch gap assessment. Its monetization section (§2) is still the
   reference for the billing work.
