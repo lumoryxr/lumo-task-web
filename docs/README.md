@@ -105,8 +105,15 @@ fails `make ci`.
 
 - [**process/engineering-process.md**](process/engineering-process.md) — how a
   change moves from idea to production.
-- [**business/**](business/) — launch checklist, go-to-market, commercialization
-  readiness, plus `legal/`, `marketing/`, and `planning/` material.
+- [**business/commercial-plan-post-launch.md**](business/commercial-plan-post-launch.md)
+  — the current plan. Written after launch, ordered by what a marketing push
+  actually stresses first. **Start here**; the two documents below predate launch.
+- [**business/commercialization-readiness.md**](business/commercialization-readiness.md)
+  — the pre-launch gap assessment. Its monetization section (§2) is still the
+  reference for the billing work.
+- [**business/go-to-market.md**](business/go-to-market.md) — channel plan, scoped
+  to the free beta.
+- [**business/**](business/) — plus `legal/`, `marketing/`, and `planning/` material.
 
 ---
 
