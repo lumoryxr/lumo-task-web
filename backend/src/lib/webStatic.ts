@@ -19,6 +19,8 @@ import { serveStatic } from "@hono/node-server/serve-static";
 
 // Reserved server prefixes that must keep their API/JSON behavior and never be
 // shadowed by the SPA fallback (an unknown /v1 path is a 404 JSON, not the app).
+// ALSO reserved: static assets (never fall back to index.html — a missing chunk
+// is a real 404, not a client route).
 function isReservedApiPath(path: string): boolean {
   return (
     path === "/health" ||
@@ -26,7 +28,8 @@ function isReservedApiPath(path: string): boolean {
     path === "/v1" ||
     path.startsWith("/v1/") ||
     path === "/docs" ||
-    path.startsWith("/docs/")
+    path.startsWith("/docs/") ||
+    path.startsWith("/assets/")  // Static assets: 404, never SPA fallback
   );
 }
 
