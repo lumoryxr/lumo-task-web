@@ -65,5 +65,18 @@ describe("GET /metrics", () => {
         "the raw task id leaked into a metric label (cardinality/PII risk)",
       );
     });
+
+    test("exposes lumo_ai_cloud_global_used so ops can alert at 80 % of LUMO_AI_CLOUD_GLOBAL_CAP (§3.6)", async () => {
+      // The metric must be in the scrape output so a Prometheus rule like
+      //   lumo_ai_cloud_global_used / LUMO_AI_CLOUD_GLOBAL_CAP > 0.8
+      // can fire BEFORE the cap trips. Without this, the first signal is
+      // users seeing AI request failures — too late.
+      const r = await scrape({ Authorization: `Bearer ${TOKEN}` });
+      assert.equal(r.status, 200);
+      assert.match(
+        r.text,
+        /^lumo_ai_cloud_global_used\{[^}]*month="\d{4}-\d{2}"[^}]*\}\s+0$/m,
+      );
+    });
   });
 });

@@ -50,6 +50,36 @@ const httpInFlight = new Gauge({
   registers: [register],
 });
 
+// Shared AI cloud-key usage this month (label = YYYY-MM). Lets Prometheus
+// alert at e.g. 80% of LUMO_AI_CLOUD_GLOBAL_CAP before the cap trips
+// and starts returning limitReached to users. See
+// docs/ops/vps-deployment.md §3.6. Lazy-aggregate on scrape (cheap,
+// avoids a per-call counter.set() in the AI hot path). On any error
+// (DB unreachable, schema missing, etc.) reports 0 with the current
+// month label rather than failing the whole scrape — Prometheus can
+// alarm on "absence of this series" separately if desired.
+export const aiCloudGlobalUsed = new Gauge({
+  name: "lumo_ai_cloud_global_used",
+  help: "Cumulative calls against the shared Lumo Cloud AI key this month (YYYY-MM).",
+  labelNames: ["month"] as const,
+  registers: [register],
+  async collect() {
+    const month = new Date().toISOString().slice(0, 7);
+    try {
+      // Lazy-import to avoid a circular dep at module-load: db/client.js
+      // pulls in lib/logger.js which we do not want at metrics-import time.
+      const { queryOne } = await import("../db/client.js");
+      const row = await queryOne<{ used: number }>(
+        'SELECT used FROM ai_cloud_global WHERE month = :m',
+        { m: month }
+      );
+      this.set({ month }, row?.used ?? 0);
+    } catch {
+      this.set({ month }, 0);
+    }
+  },
+});
+
 /**
  * Label the request by its MATCHED ROUTE PATTERN (e.g. /v1/tasks/:id), never the
  * raw path — otherwise ids/tokens would explode label cardinality and could leak
