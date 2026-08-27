@@ -1,3 +1,13 @@
+# NOT this project's production environment.
+#
+# Lumo's own production runs on a self-hosted VPS — see deploy/vps/ and
+# docs/ops/vps-deployment.md. This blueprint exists for Render-based
+# deployments (customer self-hosting, and the deploy/render.customer.template.yaml
+# variant), so `plan: free` below describes THAT shape, not what serves users.
+#
+# Read a value here as production and you will draw the wrong conclusion —
+# which is exactly what happened once already.
+
 services:
   # ── Backend API (Node web service) ─────────────────────────────────────────
   - type: web

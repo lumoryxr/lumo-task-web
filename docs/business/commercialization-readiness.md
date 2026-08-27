@@ -1,5 +1,9 @@
 # Lumo — 商用就绪评估 / Commercialization Readiness
 
+> **⚠️ 本文写于上线前。** 产品已上线、开始投放后的优先级重排见
+> [`commercial-plan-post-launch.md`](commercial-plan-post-launch.md)——那份是当前主文档。
+> 本文的 **§2 变现层** 仍是收费工作的参考底稿，其余章节请以后者为准。
+
 > 目标：从"免费公测就绪"推进到"**可收费商用**（有付费用户、可持续运营）"。
 > 本文承接并**更新** `docs/business/launch-checklist.md`（那份是**免费公测**范围，明确把
 > billing 排除在外）。本次会话已把公测清单里的多个 P0 关闭，下面重新盘点，并补上
