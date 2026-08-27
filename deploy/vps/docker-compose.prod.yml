@@ -27,10 +27,35 @@ services:
       # SQLite on the mounted cloud disk. LUMO_DATA_DIR is the host mount (.env);
       # it must be writable by uid 1000 (bootstrap.sh chowns it).
       - ${LUMO_DATA_DIR:-/mnt/lumo-data}:/data
+      # NOTE: the `lumo-logs` named volume is currently a no-op — the app only
+      # writes to stdout/stderr (container's json-file driver, capped below).
+      # `LUMO_LOG_FILE` is not in the rendered .env. Keep the volume defined in
+      # case the file-sink is re-enabled (see docs/ops/logging.md); a stray
+      # mount would be a silent change. Don't remove without that discussion.
       - lumo-logs:/var/log/lumo
     expose:
       - "8080"
     # No published ports: only Caddy talks to the app over the internal network.
+    #
+    # P0 hardening (see docs/business/commercial-plan-post-launch.md §3.1):
+    # bound the json-file driver's size. The app logs one JSON line per request
+    # in production; without this cap, sustained traffic fills the host disk,
+    # which takes SQLite (and every write) down with it. 10m x 3 = 30m per
+    # service, rotated by Docker — enough headroom to investigate, low enough
+    # to never threaten the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # P1 hardening (see §4.1): an unbounded OOM would otherwise be picked up
+    # by the host OOM killer, which can pick Caddy or Docker — taking the
+    # whole box offline. Capping at the service level means only the app dies,
+    # and `restart: unless-stopped` brings it straight back. "Down for one
+    # restart" beats "down until a human intervenes". 512m is generous for the
+    # current workload (the Hono + libsql process measured well under 200m on
+    # staging); raise in step with §5's scale work.
+    mem_limit: 512m
 
   caddy:
     image: caddy:2
@@ -46,6 +71,14 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    # Same log cap as app: edge access logs (added in §4.4) would otherwise
+    # share the unbounded-disk failure mode. Caddy itself is small but a 30-day
+    # access log at viral traffic still grows fast.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   lumo-logs:

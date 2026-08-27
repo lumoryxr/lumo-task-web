@@ -107,7 +107,7 @@ reverse-proxies to the app. Watch it come up:
 
 ```bash
 docker compose -f docker-compose.prod.yml logs -f app     # app boot + JSON access logs
-docker compose -f docker-compose.prod.yml logs -f caddy   # certificate issuance
+docker compose -f docker-compose.prod.yml logs -f caddy   # certificate issuance + edge access logs (filter by `lumo_access`)
 curl -fsS https://$LUMO_DOMAIN/health && echo ok
 ```
 

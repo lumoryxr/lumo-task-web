@@ -5,6 +5,26 @@
 # Requirements: LUMO_DOMAIN's A/AAAA record points at this server, and ports
 # 80 + 443 are open. Caddy needs port 80 reachable for the ACME challenge.
 
+{
+	# P1 hardening (see docs/business/commercial-plan-post-launch.md §4.4).
+	# Without an access log at the edge, we only see requests that the app
+	# handled — nothing about requests Caddy rejected upstream, real 4xx/5xx
+	# rates (vs app-emitted ones), or geographic / TLS-version breakdowns.
+	# `output stdout` lands these lines in the container's json-file driver,
+	# which the compose file caps at 10m x 3 — see docker-compose.prod.yml.
+	#
+	# `log_name lumo_access` keeps the lines filterable in the logs panel:
+	# `docker compose logs caddy | grep lumo_access`. `sensitive` strips
+	# cookies/authorization headers before the line is written — defense in
+	# depth on top of the app's structured-log redaction.
+	log default {
+		output stdout
+		level INFO
+		log_name lumo_access
+		sensitive
+	}
+}
+
 {$LUMO_DOMAIN} {
 	encode zstd gzip
 
