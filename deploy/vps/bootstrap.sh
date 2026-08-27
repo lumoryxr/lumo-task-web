@@ -53,6 +53,52 @@ install_docker() {
   fi
 }
 
+# 1b. Backup tooling ─────────────────────────────────────────────────────────────
+install_backup_deps() {
+  # `backup.sh` uses `sqlite3 .backup` for a consistent online snapshot. It also
+  # uses `gzip` + `find` (busybox-utils on Debian). Cron is the scheduler.
+  # Close §3.2 of docs/business/commercial-plan-post-launch.md: without these
+  # installed, the on-box backup path silently does nothing (see that doc).
+  local missing=()
+  command -v sqlite3   >/dev/null 2>&1 || missing+=("sqlite3")
+  command -v gzip      >/dev/null 2>&1 || missing+=("gzip")
+  command -v crontab   >/dev/null 2>&1 || missing+=("cron")
+  if [ "${#missing[@]}" -gt 0 ]; then
+    log "Installing backup tooling: ${missing[*]}…"
+    if command -v apt-get >/dev/null 2>&1; then
+      $SUDO apt-get update -y
+      $SUDO apt-get install -y --no-install-recommends "${missing[@]}"
+    elif command -v dnf >/dev/null 2>&1; then
+      $SUDO dnf install -y "${missing[@]}"
+    elif command -v yum >/dev/null 2>&1; then
+      $SUDO yum install -y "${missing[@]}"
+    else
+      warn "No known package manager found. Please install ${missing[*]} manually before relying on backup.sh."
+    fi
+  else
+    log "Backup tooling already present (sqlite3, gzip, cron)."
+  fi
+}
+
+# 1c. Backup schedule ───────────────────────────────────────────────────────────
+install_backup_cron() {
+  # Daily 03:15 (off-peak) — see deploy/vps/backup.sh for the cron example.
+  # Idempotent: re-runs of bootstrap.sh rewrite the same line.
+  local marker="# lumo: nightly sqlite backup (added by bootstrap.sh — do not edit)"
+  local line="15 3 * * * /opt/lumo/deploy/vps/backup.sh >> /var/log/lumo/backup.log 2>&1"
+  local tmp
+  tmp="$(mktemp)"
+  # Strip any previous entry we wrote (so the schedule stays ours), then append.
+  ( crontab -l 2>/dev/null | grep -vF "$marker" || true ) > "$tmp"
+  printf '%s\n%s\n' "$marker" "$line" >> "$tmp"
+  if crontab "$tmp"; then
+    log "Installed nightly backup cron (03:15) → /var/log/lumo/backup.log."
+  else
+    warn "Failed to install backup cron. Run \`crontab -l\` to inspect, or add the line manually."
+  fi
+  rm -f "$tmp"
+}
+
 # 2. Data disk ──────────────────────────────────────────────────────────────────
 prepare_data_dir() {
   log "Preparing SQLite data dir at $DATA_DIR (owner ${APP_UID}:${APP_GID})…"
@@ -113,6 +159,8 @@ EOF
 main() {
   require_sudo
   install_docker
+  install_backup_deps
+  install_backup_cron
   prepare_data_dir
   clone_repo
   prepare_env
@@ -130,6 +178,13 @@ $(log "Bootstrap complete.")
          docker compose -f docker-compose.prod.yml up -d
     5. Add repo secrets VPS_HOST (host or host:port) / VPS_USER / VPS_PASSWORD
        so pushes auto-deploy.
+    6. Backups: a nightly 03:15 cron was installed (writes to
+       /var/log/lumo/backup.log). Confirm with `crontab -l` after login.
+       For off-box durability install rclone and set RCLONE_REMOTE in .env
+       (e.g. `RCLONE_REMOTE=r2:lumo-backups` — see docs/ops/vps-deployment.md).
+       Do a one-time restore drill now: run `bash deploy/vps/backup.sh` and
+       then verify the produced `lumo-*.db.gz` opens with sqlite3 (gunzip + open
+       in a throwaway container). An unverified backup is not a backup.
 
   Full guide: docs/ops/vps-deployment.md
 EOF
