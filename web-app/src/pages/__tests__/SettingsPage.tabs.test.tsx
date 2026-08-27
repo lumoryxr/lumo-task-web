@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { TestRouter } from "@/test/TestRouter";
 import { SettingsPage } from "../SettingsPage";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
@@ -72,9 +72,9 @@ vi.mock("@/store/usePetStore", () => ({
 
 function renderPage() {
   render(
-    <MemoryRouter>
+    <TestRouter>
       <SettingsPage />
-    </MemoryRouter>
+    </TestRouter>
   );
 }
 

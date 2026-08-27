@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useToastStore, type Toast, type ToastType } from "@/store/useToastStore";
 import { useT } from "@/i18n/useT";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -105,6 +105,11 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     return () => clearTimeout(enterTimer);
   }, []);
 
+  const handleDismiss = useCallback(() => {
+    setVisible(false);
+    setTimeout(onDismiss, 260); // wait for exit animation
+  }, [onDismiss]);
+
   useEffect(() => {
     if (toast.duration === 0) return;
 
@@ -122,12 +127,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
 
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [toast.duration]);
-
-  const handleDismiss = () => {
-    setVisible(false);
-    setTimeout(onDismiss, 260); // wait for exit animation
-  };
+  }, [toast.duration, handleDismiss]);
 
   return (
     <div

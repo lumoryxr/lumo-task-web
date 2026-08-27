@@ -122,6 +122,12 @@ export function FloatingPet() {
   const localeRef = useRef(locale);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { localeRef.current = locale; }, [locale]);
+  // `toggleChat` is a Zustand action (stable reference), but ESLint can't see
+  // that and would flag the mouseup handler below. Read it through a ref so
+  // the drag effect's dep list stays lint-clean
+  // (CLAUDE.md §"use useRef instead of // eslint-disable stale closure warnings").
+  const toggleChatRef = useRef(toggleChat);
+  toggleChatRef.current = toggleChat;
   const isSignedIn = useAuthStore(selectIsSignedIn);
   const userId = useAuthStore((s) => s.user.id);
   const dogLevel = useDogStore((s) => s.level);
@@ -201,7 +207,7 @@ export function FloatingPet() {
       cancelAnimationFrame(rafRef.current);
       if (!dragMoved.current) {
         // Short click — toggle chat
-        toggleChat();
+        toggleChatRef.current();
         setMood("happy");
         setTimeout(() => setMood("idle"), 1200);
       } else {

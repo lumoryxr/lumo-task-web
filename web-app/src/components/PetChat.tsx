@@ -72,7 +72,7 @@ export function PetChat({ petPos, species = "dog", petName = "" }: Props) {
       petName: petName || undefined,
       ...(busy > 0 ? { calendarBusyHours: Math.round(busy * 100) / 100 } : {}),
     };
-  }, [tasks, completed, importedEvents, location.pathname, locale, user, species, petName]);
+  }, [tasks, completed, importedEvents, location.pathname, locale, user, species, petName, ls]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

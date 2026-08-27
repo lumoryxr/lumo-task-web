@@ -13,7 +13,20 @@ captureAttribution();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <HashRouter>
+    <HashRouter
+      future={{
+        // Opt in to React Router v7's behaviour now so the upgrade is a
+        // pure package bump (no behaviour change at runtime). v7_startTransition
+        // wraps navigation state updates in React.startTransition, eliminating
+        // the per-test "React Router Future Flag Warning" spam and aligning
+        // route transitions with the rest of our React 18 concurrent
+        // features; v7_relativeSplatPath changes how `*` splat segments resolve
+        // relative to their parent — keeping the v7 semantics from day one
+        // means no path-resolution surprises when we upgrade react-router.
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <App />
     </HashRouter>
   </StrictMode>
