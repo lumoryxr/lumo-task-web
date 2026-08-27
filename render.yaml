@@ -126,7 +126,12 @@ services:
       - key: VITE_API_BASE
         sync: false            # e.g. https://lumo-task-backend.onrender.com/v1
     # SPA fallback: serve real files first, route everything else to index.html.
+    # Critical: assets/* must NOT rewrite — they need to return JS/CSS/etc with correct MIME.
+    # Route order matters: specific patterns first, then the catch-all.
     routes:
+      - type: rewrite
+        source: /assets/*
+        destination: /assets/$1
       - type: rewrite
         source: /*
         destination: /index.html

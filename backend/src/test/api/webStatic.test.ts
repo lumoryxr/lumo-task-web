@@ -74,4 +74,11 @@ describe("Web static hosting", () => {
     const body = (await res.json()) as { error?: { code?: string } };
     assert.equal(body.error?.code, "NOT_FOUND");
   });
+
+  test("missing static asset returns 404 JSON, never SPA shell", async () => {
+    const res = await app.request("/assets/missing-chunk.js");
+    assert.equal(res.status, 404);
+    const body = (await res.json()) as { error?: { code?: string } };
+    assert.equal(body.error?.code, "NOT_FOUND");
+  });
 });
