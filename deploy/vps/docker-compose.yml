@@ -34,6 +34,19 @@ services:
     expose:
       - "8080"
     # No published ports: only Caddy talks to the app, over the internal network.
+    # P0 hardening (see docs/business/commercial-plan-post-launch.md §3.1):
+    # bound the json-file driver's size. Same as docker-compose.prod.yml so
+    # the local-build and prebuilt-image paths stay aligned. Without this,
+    # sustained traffic fills the host disk, taking SQLite (and every write)
+    # down. 10m x 3 = 30m rotated per service.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # P1 hardening (see §4.1): cap app memory so a leak/OOM can't trigger
+    # the host OOM killer (which can take Caddy/Docker with it).
+    mem_limit: 512m
 
   caddy:
     image: caddy:2
@@ -49,6 +62,13 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    # Same log cap as app (see P0 §3.1 above).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 
 volumes:
   lumo-logs:
