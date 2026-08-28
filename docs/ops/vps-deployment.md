@@ -200,7 +200,7 @@ tabs are on the same *Secrets and variables → Actions* page):
 | Variable | `LUMO_DATA_DIR` | no | host path of the mounted data disk; defaults to `/mnt/lumo-data` |
 | Variable | `LUMO_ALLOWED_ORIGINS` / `LUMO_ADMIN_EMAILS` / `LUMO_LOG_LEVEL` | no | see [`.env.example`](../../deploy/vps/.env.example) |
 | Variable | `LUMO_EMAIL_PROVIDER` / `LUMO_EMAIL_FROM` · Secret `LUMO_RESEND_API_KEY` | no | transactional email (Resend) |
-| Secret | `LUMO_AI_KEY` · Variable `LUMO_AI_CLOUD_GLOBAL_CAP` | no | shared server-side AI key + monthly cap |
+| Secret | `LUMO_AI_KEY` · Variable `LUMO_AI_CLOUD_GLOBAL_CAP` | no | shared server-side AI key + **strongly recommended** monthly cap (see §3.6 below) |
 | Variable | `LUMO_GITHUB_CLIENT_ID` / `LUMO_GITHUB_CALLBACK_URL` · Secret `LUMO_GITHUB_CLIENT_SECRET` | no | GitHub login |
 | Secret | `LUMO_METRICS_TOKEN` | no | bearer token for `/metrics` |
 | Variable `TURSO_DATABASE_URL` · Secret `TURSO_AUTH_TOKEN` | no | hosted Turso DB instead of the local disk — set **both or neither** |
@@ -222,6 +222,49 @@ The deploy connects over SSH with **password auth** (`VPS_PASSWORD`) — no keyp
 manage. Use a long, unique password and consider `fail2ban` + a non-default SSH port
 on the box; if you'd rather use a key later, swap `password:` for `key:` in the
 workflow's SSH step.
+
+### 3.6 Set the AI cloud cap **before opening the marketing valves**
+
+The shared `LUMO_AI_KEY` (if set) is a single key on **your** provider bill that
+every Lumo user without their own AI key calls through. The backend enforces:
+
+- per-user monthly quota (100 calls for free plan, "Pro" effectively unlimited —
+  see `CLOUD_FREE_LIMIT` in `backend/src/routes/ai.ts`), AND
+- an **aggregate monthly cap** across all users via `LUMO_AI_CLOUD_GLOBAL_CAP`
+  (a `Variable`, rendered into `.env` by this workflow).
+
+The aggregate cap is the safety net for the *burst-of-signups* failure mode: a
+viral post plus a misconfigured provider-quota can otherwise run a four-figure
+bill in a single night. The cap is enforced by atomic row updates against the
+`ai_cloud_global` table (see `routes/ai.ts:39` and the migration that creates
+the table). Per-user limits still apply on top.
+
+**Set it before marketing-open**, even if conservatively. Rough starter values:
+
+| Spend budget / month | Suggested `LUMO_AI_CLOUD_GLOBAL_CAP` |
+|---|---|
+| Tight (you'll sleep better) | `500` calls |
+| Balanced (most early-stage launches) | `2_000` calls |
+| Aggressive (you've checked provider quotas) | `10_000` calls |
+
+`unset` or `0` ⇒ **no global cap** ⇒ per-user limits only. That is the default
+and the failure mode described in
+[`commercial-plan-post-launch.md` §3.6](../business/commercial-plan-post-launch.md).
+The 100-call free quota means 500 global covers 5 free users' full month — fine
+for pre-launch, not fine the moment a link goes out.
+
+**How to alert at 80 %:** there isn't yet a Prometheus metric for
+`ai_cloud_global.used` (the existing `/metrics` exposes only HTTP series — see
+`backend/src/lib/metrics.ts`). Two pragmatic paths:
+
+- **Quickest (today):** add a one-liner cron job that runs
+  `sqlite3 $LUMO_DATA_DIR/lumo.db 'SELECT used FROM ai_cloud_global WHERE month = strftime(''%Y-%m'', ''now'')'`
+  and emails / pages when the value crosses 80 % of `LUMO_AI_CLOUD_GLOBAL_CAP`.
+  Five-minute cadence is fine.
+- **Better (follow-up):** add a Prometheus gauge for current-month cloud-key
+  usage and let Prometheus scrape it. Tracked in
+  `docs/business/commercial-plan-post-launch.md` §6 as part of the
+  "observability is paid-grade" work.
 
 ---
 
