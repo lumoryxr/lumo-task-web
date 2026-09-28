@@ -79,10 +79,15 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
 
   // Keep refs to the latest callbacks so the keydown listener is registered
   // only once but always calls the current version (avoids stale closures).
+  // The refs are updated DURING render — not in an effect — so the latest
+  // closure is in place before any subsequent event fires, with no extra
+  // re-render and no `react-hooks/exhaustive-deps` warnings about `submit` /
+  // `onClose` changing identity on every render (CLAUDE.md §"useRef instead
+  // of // eslint-disable stale closure warnings").
   const onCloseRef = useRef(onClose);
   const submitRef = useRef(submit);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
-  useEffect(() => { submitRef.current = submit; }, [submit]);
+  onCloseRef.current = onClose;
+  submitRef.current = submit;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

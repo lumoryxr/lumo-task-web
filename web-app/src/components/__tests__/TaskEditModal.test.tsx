@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { TestRouter } from "@/test/TestRouter";
 import { TaskEditModal } from "../TaskEditModal";
 import type { Task } from "@/types/task";
 
@@ -43,9 +43,9 @@ const TASK: Task = {
 function setup(task = TASK) {
   const onClose = vi.fn();
   render(
-    <MemoryRouter>
+    <TestRouter>
       <TaskEditModal task={task} onClose={onClose} />
-    </MemoryRouter>
+    </TestRouter>
   );
   return { onClose };
 }

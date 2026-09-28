@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { TestRouter } from "@/test/TestRouter";
 import { QuickCreate } from "../QuickCreate";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -36,9 +36,9 @@ function setup(props: { onCreated?: () => void; projectId?: string } = {}) {
   const onClose = vi.fn();
   const onCreated = props.onCreated ?? vi.fn();
   render(
-    <MemoryRouter>
+    <TestRouter>
       <QuickCreate onClose={onClose} onCreated={onCreated} projectId={props.projectId} />
-    </MemoryRouter>
+    </TestRouter>
   );
   return { onClose, onCreated };
 }

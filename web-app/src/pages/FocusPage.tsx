@@ -114,7 +114,7 @@ export function FocusPage() {
         }).catch(() => {});
       }
     }, 1000);
-  }, [task?.id, taskDuration]);
+  }, [task, taskDuration]);
 
   // Keep pausedRef in sync so the interval callback reads the latest value.
   useEffect(() => {

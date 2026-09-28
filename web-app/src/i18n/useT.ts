@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { STRINGS } from "@/i18n/strings";
 import type { LocalizedString, Locale } from "@/types/task";
@@ -20,8 +21,21 @@ export function pickLocale(value: LocalizedString | undefined, locale: Locale): 
   return value[locale] ?? value.en ?? "";
 }
 
-/** Hook variant of `pickLocale`. */
+/**
+ * Hook variant of `pickLocale`.
+ *
+ * Returns a STABLE reference: the returned function identity only changes when
+ * the active `locale` changes. This matters for downstream `useEffect` /
+ * `useMemo` dependency arrays — a freshly-allocated arrow on every render
+ * would force every consumer to either drop `ls` from its deps (hiding bugs
+ * the next time `pickLocale` learns to depend on more than `locale`) or pin
+ * to a ref to placate the linter. Stable-by-locale keeps both call sites
+ * correct and lint-clean.
+ */
 export function useLocaleString() {
   const locale = useAppStore((s) => s.locale);
-  return (value: LocalizedString | undefined) => pickLocale(value, locale);
+  return useCallback(
+    (value: LocalizedString | undefined) => pickLocale(value, locale),
+    [locale]
+  );
 }

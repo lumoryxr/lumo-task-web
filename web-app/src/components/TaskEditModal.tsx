@@ -88,7 +88,12 @@ export function TaskEditModal({ task, onClose }: Props) {
   const dialogRef = useModalA11y<HTMLDivElement>(onClose);
 
   const handleSaveRef = useRef(handleSave);
-  useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
+  // Update the ref during render (not in an effect) so the latest `handleSave`
+  // closure is in place before any subsequent Cmd/Ctrl+Enter keypress fires,
+  // with no extra re-render and no `react-hooks/exhaustive-deps` warning about
+  // `handleSave` changing identity on every render (CLAUDE.md §"use useRef
+  // instead of // eslint-disable stale closure warnings").
+  handleSaveRef.current = handleSave;
 
   // Esc / focus-trap / focus-return come from the shared hook; this keeps the
   // Cmd/Ctrl+Enter save shortcut.

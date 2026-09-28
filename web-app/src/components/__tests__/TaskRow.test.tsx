@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { TestRouter } from "@/test/TestRouter";
 import { TaskRow } from "../TaskRow";
 import type { Task } from "@/types/task";
 
@@ -49,9 +49,9 @@ const TASK: Task = {
 
 function renderRow(task = TASK) {
   return render(
-    <MemoryRouter>
+    <TestRouter>
       <TaskRow task={task} />
-    </MemoryRouter>
+    </TestRouter>
   );
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { TestRouter } from "@/test/TestRouter";
 import { OAuthGithubPage } from "../OAuthGithubPage";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -41,9 +41,9 @@ vi.mock("react-router-dom", async () => {
 function setup(query: string) {
   search = query;
   render(
-    <MemoryRouter>
+    <TestRouter initialEntries={["/oauth/github" + query]}>
       <OAuthGithubPage />
-    </MemoryRouter>,
+    </TestRouter>,
   );
 }
 

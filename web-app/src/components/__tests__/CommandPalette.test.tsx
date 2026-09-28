@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { TestRouter } from "@/test/TestRouter";
 import { CommandPalette } from "../CommandPalette";
 import type { Task } from "@/types/task";
 
@@ -92,9 +92,9 @@ vi.mock("@/components/QuickCreate", () => ({
 function setup(open = true) {
   const onClose = vi.fn();
   render(
-    <MemoryRouter>
+    <TestRouter>
       <CommandPalette open={open} onClose={onClose} />
-    </MemoryRouter>,
+    </TestRouter>,
   );
   return { onClose };
 }

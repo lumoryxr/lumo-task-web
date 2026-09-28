@@ -53,14 +53,20 @@ export function AIClassifyModal({ onClose }: AIClassifyModalProps) {
   const [busy, setBusy] = useState(false);
 
   // Call classify API once on mount if there are unclassified tasks.
-  // Using a ref guard so candidates changes (during LLM streaming) don't re-trigger.
+  // The classify function comes from a Zustand store action (stable reference),
+  // and we want to fire exactly once — so we read it through a ref and gate
+  // the call on a `classifyCalledRef`. That lets the effect's dep list stay
+  // on `unclassifiedCount` without suppressing the linter
+  // (CLAUDE.md §"use useRef instead of // eslint-disable stale closure warnings").
+  const classifyTasksRef = useRef(classifyTasks);
+  classifyTasksRef.current = classifyTasks;
   const classifyCalledRef = useRef(false);
   useEffect(() => {
     if (classifyCalledRef.current || unclassifiedCount === 0) return;
     classifyCalledRef.current = true;
     setIsClassifying(true);
 
-    classifyTasks()
+    classifyTasksRef.current()
       .then((suggestions) => {
         setAssign((prev) => {
           const next = { ...prev };
