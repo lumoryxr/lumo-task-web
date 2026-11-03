@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { patchBodyOf } from "./primitives.js";
 
 /**
  * Project contract — single source of truth for the `/v1/projects` protocol.
@@ -58,7 +59,7 @@ export const ProjectCreateBodySchema = z.object({
   pinned: z.boolean().default(false),
 });
 
-export const ProjectUpdateBodySchema = ProjectCreateBodySchema.partial();
+export const ProjectUpdateBodySchema = patchBodyOf(ProjectCreateBodySchema);
 
 /**
  * Bulk-import array is bounded so a single /migrate call can't force unbounded

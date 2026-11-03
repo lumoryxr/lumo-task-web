@@ -65,73 +65,80 @@ import { API_ROUTES, type RouteDef, type ResponseDef, type AuthMode } from "./re
 
 type OpenApiSchema = Record<string, unknown>;
 
-function toOpenApi(schema: z.ZodTypeAny): { schema: OpenApiSchema; optional: boolean } {
-  const def: any = (schema as any)._def;
-  const typeName: string = def?.typeName;
+function toOpenApi(schema: z.ZodType): { schema: OpenApiSchema; optional: boolean } {
+  // Zod 4 keeps a schema's definition at `_zod.def`, discriminated by `type`.
+  const def: any = (schema as any)._zod?.def;
+  const type: string | undefined = def?.type;
 
-  switch (typeName) {
-    case "ZodOptional": {
+  switch (type) {
+    case "optional": {
       const inner = toOpenApi(def.innerType);
       return { schema: inner.schema, optional: true };
     }
-    case "ZodDefault": {
+    case "default": {
       const inner = toOpenApi(def.innerType);
       return { schema: inner.schema, optional: true };
     }
-    case "ZodNullable": {
+    case "nullable": {
       const inner = toOpenApi(def.innerType);
       return { schema: { ...inner.schema, nullable: true }, optional: inner.optional };
     }
-    case "ZodObject": {
-      const shape = def.shape();
+    case "object": {
       const properties: Record<string, OpenApiSchema> = {};
       const required: string[] = [];
-      for (const [key, value] of Object.entries(shape)) {
-        const child = toOpenApi(value as z.ZodTypeAny);
+      for (const [key, value] of Object.entries(def.shape as Record<string, z.ZodType>)) {
+        const child = toOpenApi(value);
         properties[key] = child.schema;
         if (!child.optional) required.push(key);
       }
       const out: OpenApiSchema = { type: "object", properties };
       if (required.length) out.required = required;
-      // `.strict()` — an unknown key is a client bug, so say so in the docs.
-      if (def.unknownKeys === "strict") out.additionalProperties = false;
+      // `.strict()` sets a `never` catchall — an unknown key is a client bug,
+      // so say so in the docs.
+      if (def.catchall?._zod?.def?.type === "never") out.additionalProperties = false;
       return { schema: out, optional: false };
     }
-    case "ZodArray":
-      return { schema: { type: "array", items: toOpenApi(def.type).schema }, optional: false };
-    case "ZodRecord":
+    case "array":
+      return { schema: { type: "array", items: toOpenApi(def.element).schema }, optional: false };
+    case "record":
       return {
         schema: { type: "object", additionalProperties: toOpenApi(def.valueType).schema },
         optional: false,
       };
-    case "ZodUnion": {
-      const options: z.ZodTypeAny[] = def.options;
+    case "union": {
+      const options: z.ZodType[] = def.options;
       return { schema: { oneOf: options.map((o) => toOpenApi(o).schema) }, optional: false };
     }
-    case "ZodEnum":
-      return { schema: { type: "string", enum: def.values }, optional: false };
-    case "ZodLiteral": {
-      const v = def.value;
+    case "enum":
+      return { schema: { type: "string", enum: Object.values(def.entries) }, optional: false };
+    case "literal": {
+      const values: unknown[] = def.values;
+      const v = values[0];
       const t = typeof v === "number" ? "number" : typeof v === "boolean" ? "boolean" : "string";
-      return { schema: { type: t, enum: [v] }, optional: false };
+      return { schema: { type: t, enum: values }, optional: false };
     }
-    case "ZodString":
+    case "string":
       return { schema: { type: "string" }, optional: false };
-    case "ZodNumber":
-      return {
-        schema: { type: def.checks?.some((c: any) => c.kind === "int") ? "integer" : "number" },
-        optional: false,
-      };
-    case "ZodBoolean":
+    case "number": {
+      // `.int()` adds a `number_format` check with an integer format (and
+      // `z.int()` is itself that check).
+      const isIntFormat = (d: any) =>
+        d?.check === "number_format" && /int/.test(String(d.format ?? ""));
+      const isInt =
+        isIntFormat(def) || (def.checks ?? []).some((c: any) => isIntFormat(c?._zod?.def));
+      return { schema: { type: isInt ? "integer" : "number" }, optional: false };
+    }
+    case "boolean":
       return { schema: { type: "boolean" }, optional: false };
-    case "ZodUnknown":
-    case "ZodAny":
+    case "unknown":
+    case "any":
       return { schema: {}, optional: false };
-    case "ZodEffects":
-      // `.refine()` / `.transform()` — document the underlying shape. The
-      // refinement itself is a runtime rule with no OpenAPI equivalent.
-      return toOpenApi(def.schema);
-    case "ZodCatch": {
+    case "pipe":
+      // `.transform()` — document the input shape. The transform itself is a
+      // runtime rule with no OpenAPI equivalent. (`.refine()` no longer wraps
+      // the schema in Zod 4, so it needs no case of its own.)
+      return toOpenApi(def.in);
+    case "catch": {
       // ZodCatch wraps a fallback value — treat the inner type as optional so
       // the field is not listed as required (the catch means it always has one).
       const inner = toOpenApi(def.innerType);
@@ -144,7 +151,7 @@ function toOpenApi(schema: z.ZodTypeAny): { schema: OpenApiSchema; optional: boo
 }
 
 /** Convert a Zod schema to an OpenAPI 3 schema object. */
-export function zodToOpenApi(schema: z.ZodTypeAny): OpenApiSchema {
+export function zodToOpenApi(schema: z.ZodType): OpenApiSchema {
   return toOpenApi(schema).schema;
 }
 
@@ -158,7 +165,7 @@ export function zodToOpenApi(schema: z.ZodTypeAny): OpenApiSchema {
  * exported schema automatically gets the `$ref` — there is no name string to
  * keep in sync.
  */
-const NAMED_SCHEMAS: ReadonlyArray<readonly [string, z.ZodTypeAny]> = [
+const NAMED_SCHEMAS: ReadonlyArray<readonly [string, z.ZodType]> = [
   ["LocalizedString", LocalizedStringSchema],
   ["LongLocalizedString", LongLocalizedStringSchema],
   ["ApiError", ApiErrorSchema],
@@ -212,12 +219,12 @@ const NAMED_SCHEMAS: ReadonlyArray<readonly [string, z.ZodTypeAny]> = [
   ["FeedbackListResponse", FeedbackListResponseSchema],
 ];
 
-const schemaNames = new Map<z.ZodTypeAny, string>(
+const schemaNames = new Map<z.ZodType, string>(
   NAMED_SCHEMAS.map(([name, schema]) => [schema, name] as const),
 );
 
 /** `$ref` if the schema is a named component, otherwise the inlined schema. */
-function refOrInline(schema: z.ZodTypeAny): OpenApiSchema {
+function refOrInline(schema: z.ZodType): OpenApiSchema {
   const name = schemaNames.get(schema);
   return name ? { $ref: `#/components/schemas/${name}` } : zodToOpenApi(schema);
 }

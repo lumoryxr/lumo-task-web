@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { patchBodyOf } from "./primitives.js";
 
 /**
  * Habit contract — single source of truth for the `/v1/habits` protocol.
@@ -40,7 +41,7 @@ export const HabitCreateBodySchema = z.object({
   note: z.string().max(2000).optional().nullable(),
 });
 
-export const HabitUpdateBodySchema = HabitCreateBodySchema.partial();
+export const HabitUpdateBodySchema = patchBodyOf(HabitCreateBodySchema);
 
 /** POST /v1/habits/:id/log — mark the habit done on a given calendar day. */
 export const HabitLogBodySchema = z.object({

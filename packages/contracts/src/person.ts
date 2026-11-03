@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { patchBodyOf } from "./primitives.js";
 
 /**
  * Person contract — single source of truth for the `/v1/people` protocol.
@@ -21,7 +22,7 @@ export const PersonCreateBodySchema = z.object({
   email: z.string().email().max(255).nullable().optional(),
 });
 
-export const PersonUpdateBodySchema = PersonCreateBodySchema.partial();
+export const PersonUpdateBodySchema = patchBodyOf(PersonCreateBodySchema);
 
 // ── Wire response ─────────────────────────────────────────────────────────────
 // Lenient on read (plain strings) to tolerate legacy rows; strict on write above.

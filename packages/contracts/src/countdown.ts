@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { patchBodyOf } from "./primitives.js";
 
 /**
  * Countdown contract — the `/v1/countdowns` list-response envelope.
@@ -39,7 +40,7 @@ export const CountdownCreateBodySchema = z.object({
   calendar: CountdownCalendarSchema.default("solar"),
 });
 
-export const CountdownUpdateBodySchema = CountdownCreateBodySchema.partial();
+export const CountdownUpdateBodySchema = patchBodyOf(CountdownCreateBodySchema);
 
 /** Bulk-import cap — bounds memory/CPU for a single /migrate call. */
 export const MIGRATE_MAX_COUNTDOWNS = 10_000;
