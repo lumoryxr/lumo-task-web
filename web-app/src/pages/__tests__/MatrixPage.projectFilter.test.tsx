@@ -33,7 +33,7 @@ function task(id: string, quadrant: string, project_id: string, title: string) {
 }
 
 const TASKS = [
-  task("t1", "Q1", "p1", "Alpha-Q1"),
+  { ...task("t1", "Q1", "p1", "Alpha-Q1"), assignee_ids: ["u1"] },
   task("t2", "Q2", "p2", "Beta-Q2"),
 ];
 
@@ -77,7 +77,10 @@ vi.mock("@/store/useAppStore", () => ({
 }));
 
 vi.mock("@/store/usePeopleStore", () => ({
-  usePeopleStore: (selector: (s: any) => unknown) => selector({ byId: () => undefined }),
+  usePeopleStore: (selector: (s: any) => unknown) => selector({
+      byId: (id: string) =>
+        id === "u1" ? { id: "u1", name: "Zed Owner", initials: "ZO", color: "var(--accent-primary)" } : undefined,
+    }),
 }));
 
 vi.mock("@/components/AIClassifyModal", () => ({ AIClassifyModal: () => null }));
@@ -97,6 +100,11 @@ describe("MatrixPage project filter", () => {
     // Both tasks visible before any filter.
     expect(screen.getByText("Alpha-Q1")).toBeTruthy();
     expect(screen.getByText("Beta-Q2")).toBeTruthy();
+  });
+
+  it("spells out the assignee's name on the matrix card", () => {
+    render(<MatrixPage />);
+    expect(screen.getByText("Zed Owner")).toBeTruthy();
   });
 
   it("filters quadrant cards to the selected project", () => {

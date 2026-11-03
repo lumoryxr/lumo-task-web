@@ -18,7 +18,7 @@ import { TaskEditModal } from "@/components/TaskEditModal";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
-import { PersonAvatar } from "@/components/PersonAvatar";
+import { AssigneeChip } from "@/components/AssigneeChip";
 import { FilterChip } from "@/components/FilterChip";
 import { CalendarView } from "@/components/CalendarView";
 import { MatrixSkeleton } from "@/components/skeletons";
@@ -425,14 +425,22 @@ function MatrixTaskCard({ task }: { task: Task }) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted tabular-nums">
-            {due && <span style={{ color: dueColor }}>{due}</span>}
-            {task.duration > 0 && <span>{fmtDuration(task.duration, locale)}</span>}
-            <span className="pip">
+          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted tabular-nums min-w-0">
+            {due && <span className="flex-shrink-0" style={{ color: dueColor }}>{due}</span>}
+            {task.duration > 0 && <span className="flex-shrink-0">{fmtDuration(task.duration, locale)}</span>}
+            <span className="pip flex-shrink-0">
               {Array.from({ length: task.pomos_total }).map((_, i) => (
                 <i key={i} className={i < task.pomos_done ? "on" : ""} />
               ))}
             </span>
+            {/* Assignee name lives in the meta line so it never steals width from the title */}
+            <AssigneeChip
+              people={assignees}
+              size={14}
+              maxNames={1}
+              variant="inline"
+              nameMaxWidthClass="max-w-[120px]"
+            />
           </div>
         </div>
 
@@ -499,25 +507,6 @@ function MatrixTaskCard({ task }: { task: Task }) {
             <IconMore size={12} />
           </button>
         </div>
-
-        {/* Assignee avatars — stacked */}
-        {assignees.length > 0 && (
-          <div className="flex items-center" style={{ gap: 0 }}>
-            {assignees.slice(0, 2).map((p, i) => (
-              <div key={p.id} style={{ marginLeft: i > 0 ? -5 : 0, zIndex: 2 - i, position: "relative" }}>
-                <PersonAvatar person={p} size={18} />
-              </div>
-            ))}
-            {assignees.length > 2 && (
-              <div
-                className="flex items-center justify-center rounded-full text-[9px] font-semibold"
-                style={{ width: 18, height: 18, marginLeft: -5, background: "var(--bg-subtle)", border: "1px solid var(--border-default)", color: "var(--text-faint)", flexShrink: 0 }}
-              >
-                +{assignees.length - 2}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {moreAnchor && (

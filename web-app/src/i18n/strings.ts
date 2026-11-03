@@ -636,6 +636,8 @@ export const STRINGS: Record<Locale, Dict> = {
     "detail.ai.breakdown.error": "AI breakdown failed. Please try again.",
     "row.complete": "Complete task",
     "row.startfocus": "Start focus",
+    "assignee.label": "Assigned to {names}",
+    "assignee.separator": ", ",
 
     "error.task.load": "Failed to load tasks",
     "error.task.create": "Failed to create task",
@@ -1753,6 +1755,8 @@ export const STRINGS: Record<Locale, Dict> = {
     "detail.ai.breakdown.error": "AI 拆解失败，请重试",
     "row.complete": "完成任务",
     "row.startfocus": "开始专注",
+    "assignee.label": "责任人：{names}",
+    "assignee.separator": "、",
 
     "error.task.load": "加载任务失败",
     "error.task.create": "创建任务失败",
