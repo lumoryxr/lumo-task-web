@@ -12,6 +12,7 @@ import { usePeopleStore } from "@/store/usePeopleStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { AssigneeChip } from "@/components/AssigneeChip";
+import { TaskProgressBar } from "@/components/TaskProgress";
 import { IconArrowRight, IconCheck, IconMore, IconRepeat } from "@/components/icons";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 import { TaskTitle } from "@/components/TaskTitle";
@@ -145,6 +146,7 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
                 <i key={i} className={i < task.pomos_done ? "on" : ""} />
               ))}
             </span>
+            {(task.progress ?? 0) > 0 && <TaskProgressBar value={task.progress} />}
             {(task.subtasks?.length ?? 0) > 0 && (
               <span className="flex items-center gap-0.5" style={{ color: "var(--text-faint)" }}>
                 <IconCheck size={9} strokeWidth={2} />

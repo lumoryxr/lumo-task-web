@@ -19,6 +19,7 @@ import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { AssigneeChip } from "@/components/AssigneeChip";
+import { TaskProgressBar } from "@/components/TaskProgress";
 import { FilterChip } from "@/components/FilterChip";
 import { CalendarView } from "@/components/CalendarView";
 import { MatrixSkeleton } from "@/components/skeletons";
@@ -433,6 +434,7 @@ function MatrixTaskCard({ task }: { task: Task }) {
                 <i key={i} className={i < task.pomos_done ? "on" : ""} />
               ))}
             </span>
+            {(task.progress ?? 0) > 0 && <TaskProgressBar value={task.progress} className="flex-shrink-0" />}
             {/* Assignee name lives in the meta line so it never steals width from the title */}
             <AssigneeChip
               people={assignees}

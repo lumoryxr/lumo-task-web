@@ -205,3 +205,32 @@ describe("API client — listAllCompleted pagination", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("API client — task progress", () => {
+  it("includes progress in a PATCH body only when it is set", async () => {
+    const { buildTaskUpdateBody } = await import("../client");
+    expect(buildTaskUpdateBody({ progress: 60 })).toEqual({ progress: 60 });
+    expect(buildTaskUpdateBody({ progress: 0 })).toEqual({ progress: 0 });
+    expect("progress" in buildTaskUpdateBody({ today: true })).toBe(false);
+  });
+
+  it("sends progress on create, defaulting to 0", async () => {
+    const { buildTaskCreateBody } = await import("../client");
+    const base = { title: { en: "x" }, quadrant: "Q1" as const, today: false, duration: 0, pomos_total: 0 };
+    expect(buildTaskCreateBody({ ...base, progress: 25 }).progress).toBe(25);
+    expect(buildTaskCreateBody(base).progress).toBe(0);
+  });
+
+  it("maps progress from the wire task, defaulting to 0 when absent", async () => {
+    const wire = {
+      id: "t1", title: { en: "x" }, quadrant: "Q1", today: false, duration: 0,
+      pomos_done: 0, pomos_total: 0, completed: false,
+    };
+    mockFetch(200, { items: [{ ...wire, progress: 70 }, { ...wire, id: "t2" }], nextCursor: null });
+    localStorage.setItem("lumo.token", "jwt");
+    const { api } = await import("../client");
+    const tasks = await api.listTasks();
+    expect(tasks.find((t) => t.id === "t1")?.progress).toBe(70);
+    expect(tasks.find((t) => t.id === "t2")?.progress).toBe(0);
+  });
+});

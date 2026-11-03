@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconClose } from "@/components/icons";
+import { TaskProgressEditor } from "@/components/TaskProgress";
+import { clampProgress } from "@/lib/progress";
 import { Spinner } from "@/components/Spinner";
 import { TagInput } from "@/components/TagInput";
 import { derivePlanTags } from "@/utils/planFilters";
@@ -79,6 +81,7 @@ export function TaskEditModal({ task, onClose }: Props) {
   const [assigneeIds, setAssigneeIds] = useState<string[]>(task.assignee_ids ?? []);
   const [tags, setTags] = useState<string[]>(task.tags ?? []);
   const [projectId, setProjectId] = useState<string | null>(task.project_id ?? null);
+  const [progress, setProgress] = useState<number>(clampProgress(task.progress));
   function toggleAssignee(id: string) {
     setAssigneeIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   }
@@ -117,6 +120,7 @@ export function TaskEditModal({ task, onClose }: Props) {
         assignee_ids: assigneeIds,
         tags,
         project_id: projectId,
+        progress,
       });
       onClose();
     } finally {
@@ -239,6 +243,19 @@ export function TaskEditModal({ task, onClose }: Props) {
               className="input resize-none"
               style={{ fontSize: 13, paddingTop: 8, paddingBottom: 8, lineHeight: "1.5" }}
             />
+          </div>
+
+          {/* Progress */}
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
+              {t("progress.label")}
+            </div>
+            <div
+              className="rounded-lg border px-3 pt-2.5 pb-3"
+              style={{ background: "var(--bg-surface)", borderColor: "var(--border-faint)" }}
+            >
+              <TaskProgressEditor value={progress} onChange={setProgress} subtasks={task.subtasks} />
+            </div>
           </div>
 
           {/* Due + Duration */}

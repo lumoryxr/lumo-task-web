@@ -82,6 +82,17 @@ describe("TaskRow", () => {
     expect(screen.queryByLabelText(/Assigned to/)).toBeNull();
   });
 
+  it("shows a progress bar once the task has progress", () => {
+    renderRow({ ...TASK, progress: 60 });
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
+    expect(screen.getByText("60%")).toBeInTheDocument();
+  });
+
+  it("shows no progress bar for an untouched task", () => {
+    renderRow({ ...TASK, progress: 0 });
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
   it("renders the task title", () => {
     renderRow();
     expect(screen.getByText("Test task")).toBeInTheDocument();

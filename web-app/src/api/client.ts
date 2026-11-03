@@ -310,6 +310,7 @@ export function buildTaskUpdateBody(patch: TaskUpdateInput) {
     ...(patch.project_id !== undefined && { project_id: patch.project_id }),
     ...(patch.scheduled_start !== undefined && { scheduled_start: patch.scheduled_start }),
     ...(patch.remind_at !== undefined && { remind_at: patch.remind_at }),
+    ...(patch.progress !== undefined && { progress: patch.progress }),
   };
 }
 
@@ -364,6 +365,7 @@ export function buildTaskCreateBody(input: TaskCreateInput, id?: string) {
     ...(input.project_id !== undefined && { project_id: input.project_id }),
     scheduled_start: input.scheduled_start ?? null,
     remind_at: input.remind_at ?? null,
+    progress: input.progress ?? 0,
   };
 }
 
@@ -392,6 +394,7 @@ function adaptTask(raw: any): Task {
     project_id: raw.project_id ?? null,
     scheduled_start: raw.scheduled_start ?? null,
     remind_at: raw.remind_at ?? null,
+    progress: raw.progress ?? 0,
     created_at: raw.created_at ?? undefined,
     updated_at: raw.updated_at ?? undefined,
   };

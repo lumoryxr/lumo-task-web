@@ -265,6 +265,12 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE tasks ADD COLUMN scheduled_start TEXT");
   }
 
+  // Migrate: user-set completion percentage (0..100). Existing tasks start at 0.
+  const taskColsProgress = await query<{ name: string }>("PRAGMA table_info(tasks)");
+  if (!taskColsProgress.some((c) => c.name === "progress")) {
+    await execRaw("ALTER TABLE tasks ADD COLUMN progress INTEGER NOT NULL DEFAULT 0");
+  }
+
   // Migrate: free-form task tags (JSON array of strings).
   const taskColsV4 = await query<{ name: string }>("PRAGMA table_info(tasks)");
   if (!taskColsV4.some((c) => c.name === "tags_json")) {

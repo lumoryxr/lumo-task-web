@@ -336,6 +336,9 @@
             "type": "string",
             "nullable": true
           },
+          "progress": {
+            "type": "integer"
+          },
           "created_at": {
             "type": "string"
           },
@@ -363,6 +366,7 @@
           "subtasks",
           "scheduled_start",
           "remind_at",
+          "progress",
           "created_at",
           "updated_at"
         ]
@@ -539,6 +543,9 @@
                 "completed"
               ]
             }
+          },
+          "progress": {
+            "type": "integer"
           },
           "tags": {
             "type": "array",
@@ -735,6 +742,9 @@
                 "completed"
               ]
             }
+          },
+          "progress": {
+            "type": "integer"
           },
           "tags": {
             "type": "array",
@@ -976,6 +986,9 @@
                   "type": "string",
                   "nullable": true
                 },
+                "progress": {
+                  "type": "integer"
+                },
                 "created_at": {
                   "type": "string"
                 },
@@ -1003,6 +1016,7 @@
                 "subtasks",
                 "scheduled_start",
                 "remind_at",
+                "progress",
                 "created_at",
                 "updated_at"
               ]

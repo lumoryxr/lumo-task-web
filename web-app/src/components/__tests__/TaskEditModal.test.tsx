@@ -289,4 +289,23 @@ describe("TaskEditModal", () => {
       )
     );
   });
+
+  it("pre-fills progress from the task and saves an adjusted value", async () => {
+    setup({ ...TASK, progress: 40 });
+    const slider = screen.getByRole("slider", { name: "progress.label" });
+    expect(slider).toHaveValue("40");
+    fireEvent.change(slider, { target: { value: "65" } });
+    fireEvent.click(getSaveBtn());
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ progress: 65 })),
+    );
+  });
+
+  it("saves progress 0 for a task that has none yet", async () => {
+    setup();
+    fireEvent.click(getSaveBtn());
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ progress: 0 })),
+    );
+  });
 });

@@ -70,6 +70,7 @@ export function rowToTask(row: TaskRow): TaskWire {
     project_id: row.project_id ?? null,
     scheduled_start: row.scheduled_start ?? null,
     remind_at: row.remind_at ?? null,
+    progress: row.progress ?? 0,
     created_at: row.created_at,
     updated_at: row.updated_at,
   });
@@ -163,12 +164,12 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
       id, user_id, assignee_ids, title_en, title_zh, desc_en, desc_zh,
       quadrant, today, week_focus, due, duration, pomos_done, pomos_total, conviction,
       next_step_en, next_step_zh, reason_en, reason_zh, ai_suggest, not_now_json,
-      recurrence, subtasks_json, tags_json, project_id, scheduled_start, remind_at, created_at, updated_at
+      recurrence, subtasks_json, tags_json, project_id, scheduled_start, remind_at, progress, created_at, updated_at
     ) VALUES (
       :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
       :quadrant, :today, :week_focus, :due, :duration, 0, :pomos_total, :conviction,
       :next_step_en, :next_step_zh, :reason_en, :reason_zh, :ai_suggest, :not_now_json,
-      :recurrence, :subtasks_json, :tags_json, :project_id, :scheduled_start, :remind_at, :now, :sync_ts
+      :recurrence, :subtasks_json, :tags_json, :project_id, :scheduled_start, :remind_at, :progress, :now, :sync_ts
     )
   `, {
     id, user_id: userId,
@@ -192,6 +193,7 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
     project_id: body.project_id ?? null,
     scheduled_start: body.scheduled_start ?? null,
     remind_at: body.remind_at ?? null,
+    progress: body.progress ?? 0,
     now, sync_ts: syncTs,
   });
 
@@ -253,6 +255,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
     project_id: "project_id" in body ? (body.project_id ?? null) : existing.project_id,
     scheduled_start: "scheduled_start" in body ? (body.scheduled_start ?? null) : existing.scheduled_start,
     remind_at: "remind_at" in body ? (body.remind_at ?? null) : existing.remind_at,
+    progress: body.progress ?? existing.progress ?? 0,
   };
 
   await execute(`
@@ -263,7 +266,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
       conviction = :conviction, next_step_en = :next_step_en, next_step_zh = :next_step_zh,
       reason_en = :reason_en, reason_zh = :reason_zh, ai_suggest = :ai_suggest,
       not_now_json = :not_now_json, recurrence = :recurrence,
-      subtasks_json = :subtasks_json, tags_json = :tags_json, project_id = :project_id, scheduled_start = :scheduled_start, remind_at = :remind_at, updated_at = :now
+      subtasks_json = :subtasks_json, tags_json = :tags_json, project_id = :project_id, scheduled_start = :scheduled_start, remind_at = :remind_at, progress = :progress, updated_at = :now
     WHERE id = :id AND user_id = :uid
   `, { ...merged, id: taskId, uid: userId, now });
 

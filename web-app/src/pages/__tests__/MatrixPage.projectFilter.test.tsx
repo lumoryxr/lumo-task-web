@@ -34,7 +34,7 @@ function task(id: string, quadrant: string, project_id: string, title: string) {
 
 const TASKS = [
   { ...task("t1", "Q1", "p1", "Alpha-Q1"), assignee_ids: ["u1"] },
-  task("t2", "Q2", "p2", "Beta-Q2"),
+  { ...task("t2", "Q2", "p2", "Beta-Q2"), progress: 45 },
 ];
 
 vi.mock("@/store/useTasksStore", () => ({
@@ -105,6 +105,13 @@ describe("MatrixPage project filter", () => {
   it("spells out the assignee's name on the matrix card", () => {
     render(<MatrixPage />);
     expect(screen.getByText("Zed Owner")).toBeTruthy();
+  });
+
+  it("shows a progress bar only on cards that have progress", () => {
+    render(<MatrixPage />);
+    const bars = screen.getAllByRole("progressbar");
+    expect(bars).toHaveLength(1);
+    expect(bars[0]).toHaveAttribute("aria-valuenow", "45");
   });
 
   it("filters quadrant cards to the selected project", () => {

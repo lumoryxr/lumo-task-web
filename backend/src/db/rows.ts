@@ -50,6 +50,7 @@ export interface TaskRow {
   project_id: string | null;
   scheduled_start: string | null;
   remind_at: string | null;
+  progress: number;
   created_at: string;
   updated_at: string;
 }
