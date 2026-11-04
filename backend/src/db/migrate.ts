@@ -265,6 +265,13 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE tasks ADD COLUMN scheduled_start TEXT");
   }
 
+  // Migrate: the task's custom group inside its project (a sections_json id).
+  // NULL = ungrouped. Existing tasks start ungrouped.
+  const taskColsSection = await query<{ name: string }>("PRAGMA table_info(tasks)");
+  if (!taskColsSection.some((c) => c.name === "section_id")) {
+    await execRaw("ALTER TABLE tasks ADD COLUMN section_id TEXT");
+  }
+
   // Migrate: user-set completion percentage (0..100). Existing tasks start at 0.
   const taskColsProgress = await query<{ name: string }>("PRAGMA table_info(tasks)");
   if (!taskColsProgress.some((c) => c.name === "progress")) {
@@ -468,6 +475,13 @@ export async function runMigrations() {
   const projectCols = await query<{ name: string }>("PRAGMA table_info(projects)");
   if (!projectCols.some((c) => c.name === "pinned")) {
     await execRaw("ALTER TABLE projects ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0");
+  }
+
+  // Migrate: custom task groups ("sections") per project, stored as an ordered
+  // JSON list of { id, name }. Existing projects start with none.
+  const projectColsSections = await query<{ name: string }>("PRAGMA table_info(projects)");
+  if (!projectColsSections.some((c) => c.name === "sections_json")) {
+    await execRaw("ALTER TABLE projects ADD COLUMN sections_json TEXT NOT NULL DEFAULT '[]'");
   }
 
   // Migrate: per-user session version. Tokens embed the version they were minted

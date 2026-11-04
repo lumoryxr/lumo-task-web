@@ -311,6 +311,7 @@ export function buildTaskUpdateBody(patch: TaskUpdateInput) {
     ...(patch.scheduled_start !== undefined && { scheduled_start: patch.scheduled_start }),
     ...(patch.remind_at !== undefined && { remind_at: patch.remind_at }),
     ...(patch.progress !== undefined && { progress: patch.progress }),
+    ...(patch.section_id !== undefined && { section_id: patch.section_id }),
   };
 }
 
@@ -363,6 +364,7 @@ export function buildTaskCreateBody(input: TaskCreateInput, id?: string) {
     subtasks: input.subtasks ?? [],
     tags: input.tags ?? [],
     ...(input.project_id !== undefined && { project_id: input.project_id }),
+    ...(input.section_id !== undefined && { section_id: input.section_id }),
     scheduled_start: input.scheduled_start ?? null,
     remind_at: input.remind_at ?? null,
     progress: input.progress ?? 0,
@@ -395,6 +397,7 @@ function adaptTask(raw: any): Task {
     scheduled_start: raw.scheduled_start ?? null,
     remind_at: raw.remind_at ?? null,
     progress: raw.progress ?? 0,
+    section_id: raw.section_id ?? null,
     created_at: raw.created_at ?? undefined,
     updated_at: raw.updated_at ?? undefined,
   };
@@ -1092,6 +1095,7 @@ function adaptProject(raw: any): Project {
     content: raw.content ?? undefined,
     status: raw.status ?? "active",
     pinned: raw.pinned ?? false,
+    sections: Array.isArray(raw.sections) ? raw.sections : [],
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
@@ -1099,7 +1103,10 @@ function adaptProject(raw: any): Project {
 
 // `pinned` is optional on create (defaults false server-side), so existing
 // create call sites need not pass it.
-export type ProjectCreateInput = Omit<Project, "id" | "createdAt" | "updatedAt" | "pinned"> & { pinned?: boolean };
+export type ProjectCreateInput = Omit<Project, "id" | "createdAt" | "updatedAt" | "pinned" | "sections"> & {
+  pinned?: boolean;
+  sections?: Project["sections"];
+};
 export type ProjectUpdateInput = Partial<Omit<Project, "id" | "createdAt" | "updatedAt">>;
 
 export const projectApi = {
@@ -1132,6 +1139,7 @@ export const projectApi = {
       content: input.content ?? null,
       status: input.status ?? "active",
       pinned: input.pinned ?? false,
+      sections: input.sections ?? [],
     });
     return adaptProject(raw);
   },
@@ -1146,6 +1154,7 @@ export const projectApi = {
       ...("content" in patch && { content: patch.content ?? null }),
       ...(patch.status !== undefined && { status: patch.status }),
       ...(patch.pinned !== undefined && { pinned: patch.pinned }),
+      ...(patch.sections !== undefined && { sections: patch.sections }),
     });
     return adaptProject(raw);
   },

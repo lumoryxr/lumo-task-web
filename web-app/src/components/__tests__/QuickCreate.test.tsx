@@ -32,12 +32,12 @@ vi.mock("@/i18n/useT", () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function setup(props: { onCreated?: () => void; projectId?: string } = {}) {
+function setup(props: { onCreated?: () => void; projectId?: string; sectionId?: string } = {}) {
   const onClose = vi.fn();
   const onCreated = props.onCreated ?? vi.fn();
   render(
     <MemoryRouter>
-      <QuickCreate onClose={onClose} onCreated={onCreated} projectId={props.projectId} />
+      <QuickCreate onClose={onClose} onCreated={onCreated} projectId={props.projectId} sectionId={props.sectionId} />
     </MemoryRouter>
   );
   return { onClose, onCreated };
@@ -132,6 +132,24 @@ describe("QuickCreate", () => {
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
     expect(mockCreate.mock.calls[0][0]).toMatchObject({ project_id: "prj_abc" });
+  });
+
+  it("files the task into the given project group", async () => {
+    setup({ projectId: "prj_abc", sectionId: "sec_1" });
+    fireEvent.change(getTitleInput(), { target: { value: "Grouped task" } });
+    fireEvent.click(getCreateBtn());
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ project_id: "prj_abc", section_id: "sec_1" });
+  });
+
+  it("omits section_id when no group is given", async () => {
+    setup({ projectId: "prj_abc" });
+    fireEvent.change(getTitleInput(), { target: { value: "Loose task" } });
+    fireEvent.click(getCreateBtn());
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("section_id");
   });
 
   it("omits project_id when no projectId is given (global create)", async () => {

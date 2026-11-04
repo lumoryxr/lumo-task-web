@@ -4,7 +4,9 @@ import {
   ProjectCreateBodySchema,
   ProjectUpdateBodySchema,
   ProjectMigrateBodySchema,
+  ProjectSectionSchema,
   type Goal,
+  type ProjectSection,
 } from "@lumo/contracts";
 import { z } from "zod";
 import { nanoid } from "nanoid";
@@ -36,6 +38,21 @@ function parseGoals(raw: string | null): Goal[] {
   }
 }
 
+/** Stored sections, dropping any malformed entry rather than failing the read. */
+export function parseSections(raw: string | null | undefined): ProjectSection[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    return v.flatMap((s) => {
+      const r = ProjectSectionSchema.safeParse(s);
+      return r.success ? [r.data] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
 export function rowToProject(row: ProjectRow) {
   return {
     id: row.id,
@@ -47,6 +64,7 @@ export function rowToProject(row: ProjectRow) {
     content: row.content ?? undefined,
     status: row.status,
     pinned: row.pinned === 1,
+    sections: parseSections(row.sections_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -104,9 +122,9 @@ app.post("/migrate", validate("json", ProjectMigrateBodySchema), async (c) => {
   for (const p of projects) {
     await execute(
       `INSERT OR IGNORE INTO projects
-         (id, user_id, name, category, color, emoji, goals_json, content, status, pinned, created_at, updated_at)
+         (id, user_id, name, category, color, emoji, goals_json, sections_json, content, status, pinned, created_at, updated_at)
        VALUES
-         (:id, :user_id, :name, :category, :color, :emoji, :goals_json, :content, :status, :pinned, :created_at, :updated_at)`,
+         (:id, :user_id, :name, :category, :color, :emoji, :goals_json, :sections_json, :content, :status, :pinned, :created_at, :updated_at)`,
       {
         id: p.id,
         user_id: userId,
@@ -115,6 +133,7 @@ app.post("/migrate", validate("json", ProjectMigrateBodySchema), async (c) => {
         color: p.color,
         emoji: p.emoji ?? null,
         goals_json: JSON.stringify(p.goals ?? []),
+        sections_json: JSON.stringify(p.sections ?? []),
         content: p.content ?? null,
         status: p.status,
         pinned: p.pinned ? 1 : 0,
@@ -140,9 +159,9 @@ app.post("/", validate("json", ProjectCreateBodySchema), async (c) => {
 
   await execute(
     `INSERT INTO projects
-       (id, user_id, name, category, color, emoji, goals_json, content, status, pinned, created_at, updated_at)
+       (id, user_id, name, category, color, emoji, goals_json, sections_json, content, status, pinned, created_at, updated_at)
      VALUES
-       (:id, :user_id, :name, :category, :color, :emoji, :goals_json, :content, :status, :pinned, :now, :sync_ts)`,
+       (:id, :user_id, :name, :category, :color, :emoji, :goals_json, :sections_json, :content, :status, :pinned, :now, :sync_ts)`,
     {
       id,
       user_id: userId,
@@ -151,6 +170,7 @@ app.post("/", validate("json", ProjectCreateBodySchema), async (c) => {
       color: body.color,
       emoji: body.emoji ?? null,
       goals_json: JSON.stringify(body.goals ?? []),
+      sections_json: JSON.stringify(body.sections ?? []),
       content: body.content ?? null,
       status: body.status,
       pinned: body.pinned ? 1 : 0,
@@ -179,25 +199,48 @@ app.patch("/:id", validate("param", IdParam), validate("json", ProjectUpdateBody
   );
   if (!existing) return httpError(c, 404, "NOT_FOUND", "Project not found");
 
-  await execute(
-    `UPDATE projects SET
+  const updateProject = {
+    sql: `UPDATE projects SET
        name = :name, category = :category, color = :color, emoji = :emoji,
-       goals_json = :goals_json, content = :content, status = :status, pinned = :pinned, updated_at = :now
+       goals_json = :goals_json, sections_json = :sections_json, content = :content, status = :status, pinned = :pinned, updated_at = :now
      WHERE id = :id AND user_id = :uid`,
-    {
+    args: {
       name: body.name ?? existing.name,
       category: "category" in body ? (body.category ?? null) : existing.category,
       color: body.color ?? existing.color,
       emoji: "emoji" in body ? (body.emoji ?? null) : existing.emoji,
       goals_json: body.goals !== undefined ? JSON.stringify(body.goals) : existing.goals_json,
+      sections_json: body.sections !== undefined ? JSON.stringify(body.sections) : (existing.sections_json ?? "[]"),
       content: "content" in body ? (body.content ?? null) : existing.content,
       status: body.status ?? existing.status,
       pinned: body.pinned !== undefined ? (body.pinned ? 1 : 0) : existing.pinned,
       now,
       id: projectId,
       uid: userId,
-    }
-  );
+    },
+  };
+
+  if (body.sections === undefined) {
+    await execute(updateProject.sql, updateProject.args);
+  } else {
+    // A removed group must not leave tasks pointing at it: ungroup them in the
+    // same atomic batch, stamped with the same HLC so the change syncs.
+    await batch([
+      updateProject,
+      {
+        sql: `UPDATE tasks SET section_id = NULL, updated_at = :now
+              WHERE project_id = :id AND user_id = :uid AND deleted_at IS NULL
+                AND section_id IS NOT NULL
+                AND section_id NOT IN (SELECT value FROM json_each(:section_ids))`,
+        args: {
+          id: projectId,
+          uid: userId,
+          now,
+          section_ids: JSON.stringify(body.sections.map((s) => s.id)),
+        },
+      },
+    ]);
+  }
 
   const row = await queryOne<ProjectRow>(
     "SELECT * FROM projects WHERE id = :id AND deleted_at IS NULL",

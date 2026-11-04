@@ -32,6 +32,7 @@ const wireTask = {
   scheduled_start: null,
   remind_at: null,
   progress: 40,
+  section_id: null,
   created_at: "2026-06-20T10:00:00.000Z",
   updated_at: "2026-06-20T10:00:00.000Z",
 };
@@ -169,5 +170,26 @@ describe("task progress (completion percentage)", () => {
   test("a patch rejects an out-of-range or fractional progress", () => {
     assert.equal(TaskUpdateBodySchema.safeParse({ progress: 150 }).success, false);
     assert.equal(TaskUpdateBodySchema.safeParse({ progress: 33.3 }).success, false);
+  });
+});
+
+describe("task section (custom group inside a project)", () => {
+  test("the wire task carries a nullable section_id", () => {
+    assert.equal(TaskWireSchema.parse(wireTask).section_id, null);
+    assert.equal(TaskWireSchema.parse({ ...wireTask, section_id: "sec_a" }).section_id, "sec_a");
+    const { section_id: _omit, ...missing } = wireTask;
+    assert.throws(() => TaskWireSchema.parse(missing));
+  });
+
+  test("create accepts a section id or null, and rejects a malformed id", () => {
+    assert.equal(TaskCreateBodySchema.parse({ title: { en: "x" }, section_id: "sec_a" }).section_id, "sec_a");
+    assert.equal(TaskCreateBodySchema.parse({ title: { en: "x" }, section_id: null }).section_id, null);
+    assert.equal(TaskCreateBodySchema.safeParse({ title: { en: "x" }, section_id: "no spaces" }).success, false);
+  });
+
+  test("a patch can move a task to a group or out of all groups", () => {
+    assert.deepEqual(TaskUpdateBodySchema.parse({ section_id: "sec_b" }), { section_id: "sec_b" });
+    assert.deepEqual(TaskUpdateBodySchema.parse({ section_id: null }), { section_id: null });
+    assert.equal("section_id" in TaskUpdateBodySchema.parse({ today: true }), false);
   });
 });

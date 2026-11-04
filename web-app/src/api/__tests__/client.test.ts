@@ -234,3 +234,42 @@ describe("API client — task progress", () => {
     expect(tasks.find((t) => t.id === "t2")?.progress).toBe(0);
   });
 });
+
+describe("API client — project groups", () => {
+  it("sends section_id on task create and update only when it is set", async () => {
+    const { buildTaskCreateBody, buildTaskUpdateBody } = await import("../client");
+    const base = { title: { en: "x" }, quadrant: "Q1" as const, today: false, duration: 0, pomos_total: 0 };
+    expect(buildTaskCreateBody({ ...base, section_id: "s1" }).section_id).toBe("s1");
+    expect("section_id" in buildTaskCreateBody(base)).toBe(false);
+    expect(buildTaskUpdateBody({ section_id: null })).toEqual({ section_id: null });
+    expect("section_id" in buildTaskUpdateBody({ today: true })).toBe(false);
+  });
+
+  it("maps section_id from the wire task, defaulting to null", async () => {
+    const wire = {
+      id: "t1", title: { en: "x" }, quadrant: "Q1", today: false, duration: 0,
+      pomos_done: 0, pomos_total: 0, completed: false,
+    };
+    mockFetch(200, { items: [{ ...wire, section_id: "s1" }, { ...wire, id: "t2" }], nextCursor: null });
+    localStorage.setItem("lumo.token", "jwt");
+    const { api } = await import("../client");
+    const tasks = await api.listTasks();
+    expect(tasks.find((t) => t.id === "t1")?.section_id).toBe("s1");
+    expect(tasks.find((t) => t.id === "t2")?.section_id).toBeNull();
+  });
+
+  it("maps project sections (default []) and sends them on update", async () => {
+    const wire = { id: "p1", name: "P", color: "green", goals: [], status: "active", pinned: false, createdAt: "a", updatedAt: "b" };
+    mockFetch(200, { items: [{ ...wire, sections: [{ id: "s1", name: "A" }] }, { ...wire, id: "p2" }], nextCursor: null });
+    localStorage.setItem("lumo.token", "jwt");
+    const { projectApi } = await import("../client");
+    const list = await projectApi.list();
+    expect(list.find((p) => p.id === "p1")?.sections).toEqual([{ id: "s1", name: "A" }]);
+    expect(list.find((p) => p.id === "p2")?.sections).toEqual([]);
+
+    mockFetch(200, { ...wire, sections: [] });
+    await projectApi.update("p1", { sections: [] });
+    const call = (globalThis.fetch as any).mock.calls[0];
+    expect(JSON.parse(call[1].body)).toEqual({ sections: [] });
+  });
+});

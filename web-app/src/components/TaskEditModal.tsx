@@ -82,6 +82,11 @@ export function TaskEditModal({ task, onClose }: Props) {
   const [tags, setTags] = useState<string[]>(task.tags ?? []);
   const [projectId, setProjectId] = useState<string | null>(task.project_id ?? null);
   const [progress, setProgress] = useState<number>(clampProgress(task.progress));
+  const [sectionId, setSectionId] = useState<string | null>(task.section_id ?? null);
+  // Groups belong to a project: offer the selected project's groups, and drop
+  // the chosen group when the task moves to a project that doesn't have it.
+  const projectSections = projects.find((p) => p.id === projectId)?.sections ?? [];
+  const effectiveSectionId = projectSections.some((s) => s.id === sectionId) ? sectionId : null;
   function toggleAssignee(id: string) {
     setAssigneeIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   }
@@ -120,6 +125,7 @@ export function TaskEditModal({ task, onClose }: Props) {
         assignee_ids: assigneeIds,
         tags,
         project_id: projectId,
+        section_id: effectiveSectionId,
         progress,
       });
       onClose();
@@ -453,6 +459,27 @@ export function TaskEditModal({ task, onClose }: Props) {
                 onChange={setProjectId}
                 projects={projects}
               />
+            </div>
+          )}
+
+          {/* Group inside the project — also the touch-friendly way to move a task */}
+          {projectSections.length > 0 && (
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
+                {t("edit.section")}
+              </div>
+              <select
+                value={effectiveSectionId ?? ""}
+                onChange={(e) => setSectionId(e.target.value || null)}
+                aria-label={t("edit.section")}
+                className="input"
+                style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13 }}
+              >
+                <option value="">{t("edit.section.none")}</option>
+                {projectSections.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
             </div>
           )}
 

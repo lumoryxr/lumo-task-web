@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TaskEditModal } from "../TaskEditModal";
 import type { Task } from "@/types/task";
+import { useProjectsStore } from "@/store/useProjectsStore";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -307,5 +308,50 @@ describe("TaskEditModal", () => {
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ progress: 0 })),
     );
+  });
+
+  describe("project group", () => {
+    const projectWithGroups = {
+      id: "p1", name: "Launch", color: "green" as const, goals: [], status: "active" as const, pinned: false,
+      createdAt: "", updatedAt: "",
+      sections: [{ id: "s_a", name: "Design" }, { id: "s_b", name: "Build" }],
+    };
+
+    beforeEach(() => {
+      useProjectsStore.setState({ projects: [projectWithGroups] });
+    });
+
+    it("offers the project's groups and saves the chosen one", async () => {
+      setup({ ...TASK, project_id: "p1", section_id: "s_a" });
+      const select = screen.getByRole("combobox", { name: "edit.section" });
+      expect(select).toHaveValue("s_a");
+      fireEvent.change(select, { target: { value: "s_b" } });
+      fireEvent.click(getSaveBtn());
+      await waitFor(() =>
+        expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ project_id: "p1", section_id: "s_b" })),
+      );
+    });
+
+    it("can move the task out of every group", async () => {
+      setup({ ...TASK, project_id: "p1", section_id: "s_a" });
+      fireEvent.change(screen.getByRole("combobox", { name: "edit.section" }), { target: { value: "" } });
+      fireEvent.click(getSaveBtn());
+      await waitFor(() =>
+        expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ section_id: null })),
+      );
+    });
+
+    it("hides the group picker when the task has no project with groups", () => {
+      setup();
+      expect(screen.queryByRole("combobox", { name: "edit.section" })).toBeNull();
+    });
+
+    it("never saves a group the selected project does not have", async () => {
+      setup({ ...TASK, project_id: "p1", section_id: "s_gone" });
+      fireEvent.click(getSaveBtn());
+      await waitFor(() =>
+        expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ section_id: null })),
+      );
+    });
   });
 });

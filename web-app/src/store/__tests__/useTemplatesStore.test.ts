@@ -169,6 +169,7 @@ const PROJECT: Project = {
   content: "notes",
   status: "active",
   pinned: false,
+  sections: [],
   createdAt: "t",
   updatedAt: "t",
 };

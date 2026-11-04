@@ -228,6 +228,27 @@ describe("task progress over sync", () => {
   });
 });
 
+// ── Project groups over sync ───────────────────────────────────────────────────
+describe("project groups over sync", () => {
+  test("a task's section_id round-trips on pull", async () => {
+    const res = await push({ tasks: [taskRow("sec-rt", "Grouped", now(), { section_id: "s_a" })] });
+    assert.equal(res.status, 200);
+    const { body } = await pull();
+    assert.equal(body.entities.tasks.find((r: any) => r.id === "sec-rt")?.section_id, "s_a");
+  });
+
+  test("a project's sections_json round-trips on pull", async () => {
+    const t = now();
+    const sections = JSON.stringify([{ id: "s_a", name: "A" }]);
+    const res = await push({
+      projects: [{ id: "prj-sec", user_id: "x", name: "P", created_at: t, updated_at: t, sections_json: sections }],
+    });
+    assert.equal(res.status, 200);
+    const { body } = await pull();
+    assert.equal(body.entities.projects.find((r: any) => r.id === "prj-sec")?.sections_json, sections);
+  });
+});
+
 // ── F4 · per-entity schemas reject missing NOT NULL columns as a 400 ──────────
 describe("F4 · push validates required NOT NULL columns (400, not 500)", () => {
   test("a task row missing title_en → 400 INVALID_ROW, nothing applied", async () => {

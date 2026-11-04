@@ -59,7 +59,7 @@ describe("ProjectFormModal", () => {
         onClose={onClose}
         project={{
           id: "prj_9", name: "Old name", emoji: "📁", category: "Work", color: "green",
-          goals: [], status: "active", pinned: false, createdAt: "", updatedAt: "",
+          goals: [], status: "active", pinned: false, sections: [], createdAt: "", updatedAt: "",
         }}
       />,
     );
