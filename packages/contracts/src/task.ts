@@ -8,6 +8,7 @@ import {
   type LongLocalizedString,
   type Quadrant,
   type TaskRecurrence,
+  patchBodyOf,
 } from "./primitives.js";
 
 /**
@@ -109,7 +110,7 @@ export const TaskCreateBodySchema = z.object({
     .optional(),
 });
 
-export const TaskUpdateBodySchema = TaskCreateBodySchema.partial();
+export const TaskUpdateBodySchema = patchBodyOf(TaskCreateBodySchema);
 
 // ── List query params ─────────────────────────────────────────────────────────
 // GET /tasks query string. `q` is an optional case-insensitive keyword that the
