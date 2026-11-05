@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { IconClose, IconCalendar, IconClock, IconArrowRight, IconCheck } from "@/components/icons";
@@ -11,6 +11,8 @@ import { usePeopleStore } from "@/store/usePeopleStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { TaskEditModal } from "@/components/TaskEditModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { TaskProgressEditor } from "@/components/TaskProgress";
+import { clampProgress } from "@/lib/progress";
 import { fmtDuration, fmtScheduledStart, getDueLabel, getDueColor } from "@/lib/format";
 import { toast } from "@/store/useToastStore";
 import type { Subtask, Task } from "@/types/task";
@@ -54,6 +56,7 @@ export function TaskDetailModal({ task, onClose }: Props) {
   const toggleSubtask = useTasksStore((s) => s.toggleSubtask);
   const deleteSubtask = useTasksStore((s) => s.deleteSubtask);
   const breakdownSubtasks = useTasksStore((s) => s.breakdownSubtasks);
+  const update = useTasksStore((s) => s.update);
   const liveTask = useTasksStore((s) => s.tasks.find((tk) => tk.id === task.id) ?? task);
   const byId = usePeopleStore((s) => s.byId);
   const [editOpen, setEditOpen] = useState(false);
@@ -73,6 +76,26 @@ export function TaskDetailModal({ task, onClose }: Props) {
   const qLabel = locale === "zh" ? Q_LABEL_ZH[liveTask.quadrant] : Q_LABEL_EN[liveTask.quadrant];
   const subtasks: Subtask[] = liveTask.subtasks ?? [];
   const subtasksDone = subtasks.filter((s) => s.completed).length;
+
+  // Progress is edited in place: the draft follows the slider, and a finished
+  // edit (release / preset / shortcut) saves it. A failed save reverts.
+  const savedProgress = clampProgress(liveTask.progress);
+  const [progressDraft, setProgressDraft] = useState(savedProgress);
+  const [progressSaving, setProgressSaving] = useState(false);
+  useEffect(() => { setProgressDraft(savedProgress); }, [savedProgress]);
+
+  async function commitProgress(value: number) {
+    if (value === savedProgress || progressSaving) return;
+    setProgressSaving(true);
+    try {
+      await update(liveTask.id, { progress: value });
+    } catch {
+      // The store already surfaced the error toast; snap back to the saved value.
+      setProgressDraft(savedProgress);
+    } finally {
+      setProgressSaving(false);
+    }
+  }
 
   async function handleAddSubtask() {
     const title = subtaskInput.trim();
@@ -250,6 +273,24 @@ export function TaskDetailModal({ task, onClose }: Props) {
           )}
 
         </div>
+
+        {/* Progress */}
+        <section
+          aria-label={t("progress.label")}
+          className="mx-5 mb-4 rounded-xl border px-3.5 pt-3 pb-3.5"
+          style={{ background: "var(--bg-surface)", borderColor: "var(--border-faint)" }}
+        >
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-2" style={{ color: "var(--text-faint)" }}>
+            {t("progress.label")}
+          </div>
+          <TaskProgressEditor
+            value={progressDraft}
+            onChange={setProgressDraft}
+            onCommit={commitProgress}
+            subtasks={subtasks}
+            busy={progressSaving}
+          />
+        </section>
 
         {/* Subtasks */}
         <div className="mx-5 mb-4">

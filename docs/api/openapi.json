@@ -336,6 +336,13 @@
             "type": "string",
             "nullable": true
           },
+          "progress": {
+            "type": "integer"
+          },
+          "section_id": {
+            "type": "string",
+            "nullable": true
+          },
           "created_at": {
             "type": "string"
           },
@@ -363,6 +370,8 @@
           "subtasks",
           "scheduled_start",
           "remind_at",
+          "progress",
+          "section_id",
           "created_at",
           "updated_at"
         ]
@@ -540,6 +549,9 @@
               ]
             }
           },
+          "progress": {
+            "type": "integer"
+          },
           "tags": {
             "type": "array",
             "items": {
@@ -547,6 +559,10 @@
             }
           },
           "project_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "section_id": {
             "type": "string",
             "nullable": true
           },
@@ -736,6 +752,9 @@
               ]
             }
           },
+          "progress": {
+            "type": "integer"
+          },
           "tags": {
             "type": "array",
             "items": {
@@ -743,6 +762,10 @@
             }
           },
           "project_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "section_id": {
             "type": "string",
             "nullable": true
           },
@@ -976,6 +999,13 @@
                   "type": "string",
                   "nullable": true
                 },
+                "progress": {
+                  "type": "integer"
+                },
+                "section_id": {
+                  "type": "string",
+                  "nullable": true
+                },
                 "created_at": {
                   "type": "string"
                 },
@@ -1003,6 +1033,8 @@
                 "subtasks",
                 "scheduled_start",
                 "remind_at",
+                "progress",
+                "section_id",
                 "created_at",
                 "updated_at"
               ]
@@ -1209,6 +1241,24 @@
           "pinned": {
             "type": "boolean"
           },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          },
           "createdAt": {
             "type": "string"
           },
@@ -1223,6 +1273,7 @@
           "goals",
           "status",
           "pinned",
+          "sections",
           "createdAt",
           "updatedAt"
         ]
@@ -1303,6 +1354,24 @@
           },
           "pinned": {
             "type": "boolean"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
           }
         },
         "required": [
@@ -1385,6 +1454,24 @@
           },
           "pinned": {
             "type": "boolean"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
           }
         }
       },
@@ -1457,6 +1544,24 @@
                 "pinned": {
                   "type": "boolean"
                 },
+                "sections": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ]
+                  }
+                },
                 "createdAt": {
                   "type": "string"
                 },
@@ -1471,6 +1576,7 @@
                 "goals",
                 "status",
                 "pinned",
+                "sections",
                 "createdAt",
                 "updatedAt"
               ]
@@ -5754,6 +5860,24 @@
                         },
                         "pinned": {
                           "type": "boolean"
+                        },
+                        "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name"
+                            ]
+                          }
                         },
                         "createdAt": {
                           "type": "string"

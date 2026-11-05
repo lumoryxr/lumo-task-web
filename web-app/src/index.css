@@ -915,3 +915,91 @@ input[type="number"] { -moz-appearance: textfield; }
   border-radius: var(--radius-md, 8px);
   margin: 0.25rem 0;
 }
+
+/* ── Task progress (completion %) ───────────────────────────────────────────
+   Shared by TaskProgressBar (read-only) and TaskProgressEditor (slider).
+   `--pct` is the fill (0..100) and `--progress-color` the state color, both set
+   inline by the component; everything else is a theme token. */
+.progress-track {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  box-shadow: inset 0 0 0 1px var(--border-faint);
+}
+.progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--pct, 0) * 1%);
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--progress-color) 70%, transparent),
+    var(--progress-color)
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--progress-color) 45%, transparent);
+  transition: width 260ms var(--ease-default, ease);
+}
+
+.progress-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.progress-range:disabled { cursor: progress; opacity: 0.7; }
+.progress-range:focus-visible { outline: none; }
+.progress-range::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--progress-color) 0%,
+    var(--progress-color) calc(var(--pct, 0) * 1%),
+    var(--bg-subtle) calc(var(--pct, 0) * 1%),
+    var(--bg-subtle) 100%
+  );
+  box-shadow: inset 0 0 0 1px var(--border-faint);
+}
+.progress-range::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  box-shadow: inset 0 0 0 1px var(--border-faint);
+}
+.progress-range::-moz-range-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--progress-color);
+}
+.progress-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--progress-color);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--progress-color) 18%, transparent), var(--shadow-card);
+  transition: transform 120ms var(--ease-default, ease), box-shadow 120ms var(--ease-default, ease);
+}
+.progress-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--progress-color);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--progress-color) 18%, transparent);
+}
+.progress-range:hover:not(:disabled)::-webkit-slider-thumb,
+.progress-range:active:not(:disabled)::-webkit-slider-thumb { transform: scale(1.12); }
+.progress-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px var(--focus-ring, var(--accent-glow)), var(--shadow-card);
+}
+.progress-range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px var(--focus-ring, var(--accent-glow));
+}

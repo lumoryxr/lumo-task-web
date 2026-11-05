@@ -26,6 +26,8 @@ interface QuickCreateProps {
   initialDue?: string;
   /** When set, the created task is filed under this project. */
   projectId?: string;
+  /** Group inside `projectId` to file the task into (only while that project stays selected). */
+  sectionId?: string;
   onClose: () => void;
   onCreated?: () => void;
 }
@@ -44,7 +46,7 @@ const Q_META: Record<Quadrant, { en: string; zh: string; descEn: string; descZh:
  * Modal for creating a task quickly. Per design: centered, dismiss via X or
  * Escape. Escape is a convenience but the X button is always the primary affordance.
  */
-export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, projectId, onClose, onCreated }: QuickCreateProps) {
+export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, projectId, sectionId, onClose, onCreated }: QuickCreateProps) {
   const t = useT();
   const locale = useAppStore((s) => s.locale);
   const create = useTasksStore((s) => s.create);
@@ -132,6 +134,8 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
         recurrence,
         tags,
         ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
+        // The group belongs to the project the dialog was opened from.
+        ...(sectionId && selectedProjectId === projectId ? { section_id: sectionId } : {}),
       });
       onCreated?.();
     } finally {

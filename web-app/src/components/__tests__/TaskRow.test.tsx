@@ -20,8 +20,10 @@ vi.mock("@/store/useTasksStore", () => ({
     }),
 }));
 
+const mockPeople: Record<string, any> = {};
 vi.mock("@/store/usePeopleStore", () => ({
-  usePeopleStore: (sel: any) => sel({ people: [], byId: () => undefined }),
+  usePeopleStore: (sel: any) =>
+    sel({ people: Object.values(mockPeople), byId: (id: string) => mockPeople[id] }),
 }));
 
 // Mutable so individual tests can flip reduced-motion (name must start with
@@ -60,6 +62,35 @@ describe("TaskRow", () => {
     mockComplete.mockReset();
     mockComplete.mockResolvedValue(undefined);
     mockAppState.reducedMotion = true; // default: instant, deterministic
+  });
+
+  it("shows the assignee's name: trailing pill on wide screens, meta line on narrow ones", () => {
+    mockPeople.p1 = { id: "p1", name: "Alice Wonderland", initials: "AW", color: "var(--accent-primary)" };
+    renderRow({ ...TASK, assignee_ids: ["p1"] });
+    const chips = screen.getAllByLabelText("Assigned to Alice Wonderland");
+    // jsdom ignores media queries, so both breakpoint variants are in the DOM;
+    // exactly one is visible at any viewport width.
+    expect(chips).toHaveLength(2);
+    expect(chips.map((c) => c.className.match(/\b(hidden sm:flex|sm:hidden)\b/)?.[0]).sort())
+      .toEqual(["hidden sm:flex", "sm:hidden"]);
+    for (const chip of chips) expect(chip).toHaveTextContent("Alice Wonderland");
+    delete mockPeople.p1;
+  });
+
+  it("renders no assignee chip when the task is unassigned", () => {
+    renderRow();
+    expect(screen.queryByLabelText(/Assigned to/)).toBeNull();
+  });
+
+  it("shows a progress bar once the task has progress", () => {
+    renderRow({ ...TASK, progress: 60 });
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
+    expect(screen.getByText("60%")).toBeInTheDocument();
+  });
+
+  it("shows no progress bar for an untouched task", () => {
+    renderRow({ ...TASK, progress: 0 });
+    expect(screen.queryByRole("progressbar")).toBeNull();
   });
 
   it("renders the task title", () => {

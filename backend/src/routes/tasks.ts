@@ -10,7 +10,8 @@ import { createRateLimiter } from "../lib/rateLimit.js";
 import { hlcNow } from "../lib/hlc.js";
 import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
 import type { Variables } from "../env.js";
-import type { TaskRow } from "../db/rows.js";
+import type { ProjectRow, TaskRow } from "../db/rows.js";
+import { parseSections } from "./projects.js";
 
 const app = new Hono<{ Variables: Variables }>();
 app.use("/*", authMiddleware);
@@ -70,6 +71,8 @@ export function rowToTask(row: TaskRow): TaskWire {
     project_id: row.project_id ?? null,
     scheduled_start: row.scheduled_start ?? null,
     remind_at: row.remind_at ?? null,
+    progress: row.progress ?? 0,
+    section_id: row.section_id ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   });
@@ -86,6 +89,23 @@ async function projectIsOwned(userId: string, projectId: string | null | undefin
     { pid: projectId, uid: userId }
   );
   return Boolean(owned);
+}
+
+// A task's group must be one of its own project's sections. Null (ungrouped)
+// is always allowed; a group without a project, or a group the caller's project
+// does not define, is not. The project lookup is tenant-scoped.
+async function sectionBelongsToProject(
+  userId: string,
+  projectId: string | null | undefined,
+  sectionId: string | null | undefined,
+): Promise<boolean> {
+  if (sectionId == null) return true;
+  if (projectId == null) return false;
+  const project = await queryOne<Pick<ProjectRow, "sections_json">>(
+    "SELECT sections_json FROM projects WHERE id = :pid AND user_id = :uid AND deleted_at IS NULL",
+    { pid: projectId, uid: userId }
+  );
+  return Boolean(project) && parseSections(project!.sections_json).some((s) => s.id === sectionId);
 }
 
 // GET /tasks?q=<keyword>
@@ -157,18 +177,21 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
   if (!(await projectIsOwned(userId, body.project_id))) {
     return httpError(c, 400, "INVALID_PROJECT", "Project not found");
   }
+  if (!(await sectionBelongsToProject(userId, body.project_id, body.section_id))) {
+    return httpError(c, 400, "INVALID_SECTION", "Group not found in this project");
+  }
 
   await execute(`
     INSERT INTO tasks (
       id, user_id, assignee_ids, title_en, title_zh, desc_en, desc_zh,
       quadrant, today, week_focus, due, duration, pomos_done, pomos_total, conviction,
       next_step_en, next_step_zh, reason_en, reason_zh, ai_suggest, not_now_json,
-      recurrence, subtasks_json, tags_json, project_id, scheduled_start, remind_at, created_at, updated_at
+      recurrence, subtasks_json, tags_json, project_id, section_id, scheduled_start, remind_at, progress, created_at, updated_at
     ) VALUES (
       :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
       :quadrant, :today, :week_focus, :due, :duration, 0, :pomos_total, :conviction,
       :next_step_en, :next_step_zh, :reason_en, :reason_zh, :ai_suggest, :not_now_json,
-      :recurrence, :subtasks_json, :tags_json, :project_id, :scheduled_start, :remind_at, :now, :sync_ts
+      :recurrence, :subtasks_json, :tags_json, :project_id, :section_id, :scheduled_start, :remind_at, :progress, :now, :sync_ts
     )
   `, {
     id, user_id: userId,
@@ -190,8 +213,10 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
     subtasks_json: JSON.stringify(body.subtasks ?? []),
     tags_json: JSON.stringify(body.tags ?? []),
     project_id: body.project_id ?? null,
+    section_id: body.section_id ?? null,
     scheduled_start: body.scheduled_start ?? null,
     remind_at: body.remind_at ?? null,
+    progress: body.progress ?? 0,
     now, sync_ts: syncTs,
   });
 
@@ -228,6 +253,17 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
     return httpError(c, 400, "INVALID_PROJECT", "Project not found");
   }
 
+  // Group follows the project: an explicit section_id wins; otherwise moving the
+  // task to a different project drops its old group (it belongs to the old one).
+  const nextProjectId = "project_id" in body ? (body.project_id ?? null) : existing.project_id;
+  const nextSectionId =
+    "section_id" in body
+      ? (body.section_id ?? null)
+      : nextProjectId === existing.project_id ? (existing.section_id ?? null) : null;
+  if (!(await sectionBelongsToProject(userId, nextProjectId, nextSectionId))) {
+    return httpError(c, 400, "INVALID_SECTION", "Group not found in this project");
+  }
+
   const merged = {
     assignee_ids: "assignee_ids" in body ? JSON.stringify(body.assignee_ids ?? []) : existing.assignee_ids,
     title_en: body.title?.en ?? existing.title_en,
@@ -250,9 +286,11 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
     recurrence: body.recurrence ?? existing.recurrence ?? "none",
     subtasks_json: "subtasks" in body ? JSON.stringify(body.subtasks) : (existing.subtasks_json ?? "[]"),
     tags_json: "tags" in body ? JSON.stringify(body.tags) : (existing.tags_json ?? "[]"),
-    project_id: "project_id" in body ? (body.project_id ?? null) : existing.project_id,
+    project_id: nextProjectId,
+    section_id: nextSectionId,
     scheduled_start: "scheduled_start" in body ? (body.scheduled_start ?? null) : existing.scheduled_start,
     remind_at: "remind_at" in body ? (body.remind_at ?? null) : existing.remind_at,
+    progress: body.progress ?? existing.progress ?? 0,
   };
 
   await execute(`
@@ -263,7 +301,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
       conviction = :conviction, next_step_en = :next_step_en, next_step_zh = :next_step_zh,
       reason_en = :reason_en, reason_zh = :reason_zh, ai_suggest = :ai_suggest,
       not_now_json = :not_now_json, recurrence = :recurrence,
-      subtasks_json = :subtasks_json, tags_json = :tags_json, project_id = :project_id, scheduled_start = :scheduled_start, remind_at = :remind_at, updated_at = :now
+      subtasks_json = :subtasks_json, tags_json = :tags_json, project_id = :project_id, section_id = :section_id, scheduled_start = :scheduled_start, remind_at = :remind_at, progress = :progress, updated_at = :now
     WHERE id = :id AND user_id = :uid
   `, { ...merged, id: taskId, uid: userId, now });
 
@@ -334,12 +372,12 @@ app.post("/:id/complete", validate("param", IdParam), async (c) => {
               id, user_id, assignee_ids, title_en, title_zh, desc_en, desc_zh,
               quadrant, today, due, duration, pomos_done, pomos_total, conviction,
               next_step_en, next_step_zh, reason_en, reason_zh, ai_suggest, not_now_json,
-              recurrence, tags_json, project_id, created_at, updated_at
+              recurrence, tags_json, project_id, section_id, created_at, updated_at
             ) VALUES (
               :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
               :quadrant, 0, :due, :duration, 0, :pomos_total, NULL,
               NULL, NULL, NULL, NULL, NULL, '[]',
-              :recurrence, :tags_json, :project_id, :now, :sync_ts
+              :recurrence, :tags_json, :project_id, :section_id, :now, :sync_ts
             )`,
       args: {
         id: nextId, user_id: userId,
@@ -354,6 +392,7 @@ app.post("/:id/complete", validate("param", IdParam), async (c) => {
         // carry them to the next occurrence (subtasks intentionally reset).
         tags_json: task.tags_json ?? "[]",
         project_id: task.project_id ?? null,
+        section_id: task.section_id ?? null,
         now, sync_ts: syncTs,
       },
     });

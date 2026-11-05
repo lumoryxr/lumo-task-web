@@ -11,7 +11,8 @@ import { TaskEditModal } from "@/components/TaskEditModal";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { useTemplatesStore } from "@/store/useTemplatesStore";
-import { PersonAvatar } from "@/components/PersonAvatar";
+import { AssigneeChip } from "@/components/AssigneeChip";
+import { TaskProgressBar } from "@/components/TaskProgress";
 import { IconArrowRight, IconCheck, IconMore, IconRepeat } from "@/components/icons";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 import { TaskTitle } from "@/components/TaskTitle";
@@ -145,6 +146,7 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
                 <i key={i} className={i < task.pomos_done ? "on" : ""} />
               ))}
             </span>
+            {(task.progress ?? 0) > 0 && <TaskProgressBar value={task.progress} />}
             {(task.subtasks?.length ?? 0) > 0 && (
               <span className="flex items-center gap-0.5" style={{ color: "var(--text-faint)" }}>
                 <IconCheck size={9} strokeWidth={2} />
@@ -172,6 +174,13 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
                 {stagTag}
               </span>
             )}
+            <AssigneeChip
+              people={assignees}
+              size={14}
+              variant="inline"
+              nameMaxWidthClass="max-w-[160px]"
+              className="sm:hidden"
+            />
             {(task.tags ?? []).map((tag) => (
               <span
                 key={tag}
@@ -255,24 +264,13 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
           </button>
         </div>
 
-        {/* Assignee avatars — stacked */}
-        {assignees.length > 0 && (
-          <div className="flex items-center" style={{ gap: 0 }}>
-            {assignees.slice(0, 3).map((p, i) => (
-              <div key={p.id} style={{ marginLeft: i > 0 ? -6 : 0, zIndex: 3 - i, position: "relative" }}>
-                <PersonAvatar person={p} size={20} />
-              </div>
-            ))}
-            {assignees.length > 3 && (
-              <div
-                className="flex items-center justify-center rounded-full text-[9px] font-semibold"
-                style={{ width: 20, height: 20, marginLeft: -6, background: "var(--bg-subtle)", border: "1px solid var(--border-default)", color: "var(--text-faint)", flexShrink: 0 }}
-              >
-                +{assignees.length - 3}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Assignees — avatar + name so ownership reads at a glance; truncates to keep the row stable.
+            On narrow screens it moves into the meta line instead (see above) so the title keeps its width. */}
+        <AssigneeChip
+          people={assignees}
+          size={18}
+          className="hidden sm:flex"
+        />
 
         {/* Quadrant chip — always visible */}
         {task.quadrant !== "unclassified" && (

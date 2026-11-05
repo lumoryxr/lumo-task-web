@@ -61,6 +61,9 @@ function requiringNotNull(shape: Record<string, z.ZodTypeAny>): z.ZodType {
 // (which a missing value would crash on) are required here.
 const taskRowSchema = requiringNotNull({
   title_en: z.string(),
+  // NOT NULL with a DEFAULT, so it may be omitted (older clients) — but when
+  // present it must be a whole 0..100, never null, so it can't crash the INSERT.
+  progress: z.number().int().min(0).max(100).optional(),
 });
 const personRowSchema = requiringNotNull({
   name: z.string(),
@@ -101,7 +104,7 @@ export const SYNC_MANIFEST: SyncEntity[] = [
       "pomos_total", "conviction", "next_step_en", "next_step_zh", "reason_en",
       "reason_zh", "ai_suggest", "completed", "not_now_json", "created_at",
       "updated_at", "recurrence", "week_focus", "subtasks_json",
-      "tags_json", "project_id", "scheduled_start", "remind_at", "deleted_at",
+      "tags_json", "project_id", "section_id", "scheduled_start", "remind_at", "progress", "deleted_at",
     ],
   },
   {
@@ -151,7 +154,7 @@ export const SYNC_MANIFEST: SyncEntity[] = [
     schema: projectRowSchema,
     columns: [
       "id", "user_id", "name", "category", "color", "emoji", "goals_json",
-      "content", "status", "pinned", "created_at", "updated_at", "deleted_at",
+      "sections_json", "content", "status", "pinned", "created_at", "updated_at", "deleted_at",
     ],
   },
 ];

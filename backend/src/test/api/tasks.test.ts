@@ -161,6 +161,80 @@ describe("POST /v1/tasks", () => {
   });
 });
 
+describe("task progress (completion percentage)", () => {
+  test("201 → a new task starts at 0% and is contract-conformant", async () => {
+    const { status, body } = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Progress default" } },
+    });
+    assert.equal(status, 201);
+    assert.equal(body.progress, 0);
+    TaskWireSchema.parse(body);
+  });
+
+  test("201 → create with a progress persists and round-trips on GET", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Half done" }, progress: 50 },
+    });
+    assert.equal(created.status, 201);
+    assert.equal(created.body.progress, 50);
+    const got = await req("GET", `/v1/tasks/${created.body.id}`, { token: demoToken });
+    assert.equal(got.body.progress, 50);
+  });
+
+  test("200 → PATCH sets progress and the list reflects it", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Progress patch" } },
+    });
+    const { status, body } = await req("PATCH", `/v1/tasks/${created.body.id}`, {
+      token: demoToken,
+      body: { progress: 80 },
+    });
+    assert.equal(status, 200);
+    assert.equal(body.progress, 80);
+    TaskWireSchema.parse(body);
+  });
+
+  test("200 → PATCH of another field leaves progress untouched", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Keep progress" }, progress: 30 },
+    });
+    const { body } = await req("PATCH", `/v1/tasks/${created.body.id}`, {
+      token: demoToken,
+      body: { title: { en: "Keep progress (renamed)" } },
+    });
+    assert.equal(body.progress, 30);
+  });
+
+  test("400 → progress outside 0..100 or fractional is rejected", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Bounds" } },
+    });
+    for (const progress of [101, -5, 12.5]) {
+      const r = await req("PATCH", `/v1/tasks/${created.body.id}`, { token: demoToken, body: { progress } });
+      assert.equal(r.status, 400, `progress ${progress} should be rejected`);
+    }
+    const bad = await req("POST", "/v1/tasks", { token: demoToken, body: { title: { en: "x" }, progress: 200 } });
+    assert.equal(bad.status, 400);
+  });
+
+  test("201 → completing a recurring task spawns the next occurrence at 0%", async () => {
+    const created = await req("POST", "/v1/tasks", {
+      token: demoToken,
+      body: { title: { en: "Weekly progress" }, recurrence: "weekly", progress: 90 },
+    });
+    await req("POST", `/v1/tasks/${created.body.id}/complete`, { token: demoToken, body: {} });
+    const list = await req("GET", "/v1/tasks?q=Weekly%20progress", { token: demoToken });
+    const next = list.body.items.find((t: any) => t.id !== created.body.id);
+    assert.ok(next, "next occurrence spawned");
+    assert.equal(next.progress, 0);
+  });
+});
+
 describe("task tags", () => {
   test("201 → create with tags persists and round-trips on GET", async () => {
     const { status, body } = await req("POST", "/v1/tasks", {

@@ -31,6 +31,8 @@ const wireTask = {
   subtasks: [{ id: "s_1", title: "stub", completed: false }],
   scheduled_start: null,
   remind_at: null,
+  progress: 40,
+  section_id: null,
   created_at: "2026-06-20T10:00:00.000Z",
   updated_at: "2026-06-20T10:00:00.000Z",
 };
@@ -132,5 +134,62 @@ describe("TaskUpdateBodySchema (partial request contract)", () => {
   test("de-duplicates tags when they are present in a patch", () => {
     const parsed = TaskUpdateBodySchema.parse({ tags: ["a", "A", "b"] });
     assert.deepEqual(parsed.tags, ["a", "b"]);
+  });
+});
+
+describe("task progress (completion percentage)", () => {
+  test("the wire task carries an integer 0..100 progress", () => {
+    assert.equal(TaskWireSchema.parse(wireTask).progress, 40);
+  });
+
+  test("the wire task rejects a missing, fractional or out-of-range progress", () => {
+    const { progress: _omit, ...missing } = wireTask;
+    assert.throws(() => TaskWireSchema.parse(missing));
+    assert.throws(() => TaskWireSchema.parse({ ...wireTask, progress: 12.5 }));
+    assert.throws(() => TaskWireSchema.parse({ ...wireTask, progress: 101 }));
+    assert.throws(() => TaskWireSchema.parse({ ...wireTask, progress: -1 }));
+  });
+
+  test("a created task defaults to 0% progress", () => {
+    assert.equal(TaskCreateBodySchema.parse({ title: { en: "New" } }).progress, 0);
+  });
+
+  test("create accepts the bounds 0 and 100", () => {
+    assert.equal(TaskCreateBodySchema.parse({ title: { en: "x" }, progress: 0 }).progress, 0);
+    assert.equal(TaskCreateBodySchema.parse({ title: { en: "x" }, progress: 100 }).progress, 100);
+  });
+
+  test("a patch can set progress on its own", () => {
+    assert.deepEqual(TaskUpdateBodySchema.parse({ progress: 75 }), { progress: 75 });
+  });
+
+  test("a patch that omits progress does not touch it", () => {
+    assert.equal("progress" in TaskUpdateBodySchema.parse({ title: { en: "Renamed" } }), false);
+  });
+
+  test("a patch rejects an out-of-range or fractional progress", () => {
+    assert.equal(TaskUpdateBodySchema.safeParse({ progress: 150 }).success, false);
+    assert.equal(TaskUpdateBodySchema.safeParse({ progress: 33.3 }).success, false);
+  });
+});
+
+describe("task section (custom group inside a project)", () => {
+  test("the wire task carries a nullable section_id", () => {
+    assert.equal(TaskWireSchema.parse(wireTask).section_id, null);
+    assert.equal(TaskWireSchema.parse({ ...wireTask, section_id: "sec_a" }).section_id, "sec_a");
+    const { section_id: _omit, ...missing } = wireTask;
+    assert.throws(() => TaskWireSchema.parse(missing));
+  });
+
+  test("create accepts a section id or null, and rejects a malformed id", () => {
+    assert.equal(TaskCreateBodySchema.parse({ title: { en: "x" }, section_id: "sec_a" }).section_id, "sec_a");
+    assert.equal(TaskCreateBodySchema.parse({ title: { en: "x" }, section_id: null }).section_id, null);
+    assert.equal(TaskCreateBodySchema.safeParse({ title: { en: "x" }, section_id: "no spaces" }).success, false);
+  });
+
+  test("a patch can move a task to a group or out of all groups", () => {
+    assert.deepEqual(TaskUpdateBodySchema.parse({ section_id: "sec_b" }), { section_id: "sec_b" });
+    assert.deepEqual(TaskUpdateBodySchema.parse({ section_id: null }), { section_id: null });
+    assert.equal("section_id" in TaskUpdateBodySchema.parse({ today: true }), false);
   });
 });

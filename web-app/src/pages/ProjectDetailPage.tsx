@@ -6,8 +6,8 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { Project, ProjectColor, ProjectGoal, GoalConfidence } from "@/types/task";
-import { TaskRow } from "@/components/TaskRow";
 import { ProjectBoard } from "@/components/ProjectBoard";
+import { ProjectTaskGroups } from "@/components/ProjectTaskGroups";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectNotesModal } from "@/components/ProjectNotesModal";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
@@ -57,7 +57,8 @@ export function ProjectDetailPage() {
   const [taskView, setTaskView] = useState<"list" | "board">("list");
   const [notesOpen, setNotesOpen] = useState(false);
   const [addExistingOpen, setAddExistingOpen] = useState(false);
-  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  // Closed = null; open = { sectionId } (null files the task ungrouped).
+  const [addTaskFor, setAddTaskFor] = useState<{ sectionId: string | null } | null>(null);
 
   const [newGoal, setNewGoal] = useState("");
   const [newGoalStart, setNewGoalStart] = useState("");
@@ -410,6 +411,22 @@ export function ProjectDetailPage() {
         title={t("project.tasks.title")}
         extra={
           <div className="flex items-center gap-2 normal-case tracking-normal">
+            <button
+              type="button"
+              onClick={() => setAddExistingOpen(true)}
+              className="text-[11px] font-medium text-text-muted hover:text-text-primary transition-colors"
+            >
+              {t("project.tasks.addExisting")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddTaskFor({ sectionId: null })}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors"
+              style={{ color: "var(--accent-primary)", background: "var(--accent-fog)", border: "1px solid var(--accent-edge)" }}
+            >
+              <IconPlus size={11} />
+              {t("project.tasks.add")}
+            </button>
             <div className="flex items-center rounded-md overflow-hidden" style={{ border: "1px solid var(--border-default)" }}>
               {(["list", "board"] as const).map((v) => (
                 <button
@@ -433,29 +450,12 @@ export function ProjectDetailPage() {
         {projectTasks.length > 0 && taskView === "board" ? (
           <ProjectBoard tasks={projectTasks} />
         ) : (
-          <div className="flex flex-col gap-2">
-            {projectTasks.map((task) => (
-              <TaskRow key={task.id} task={task} />
-            ))}
-          </div>
+          <ProjectTaskGroups
+            project={project}
+            tasks={projectTasks}
+            onAddTask={(sectionId) => setAddTaskFor({ sectionId })}
+          />
         )}
-        <button
-          type="button"
-          onClick={() => setAddTaskOpen(true)}
-          className="mt-2 w-full flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors"
-          style={{ color: "var(--accent-primary)", background: "var(--accent-fog)", border: "1px solid var(--accent-edge)" }}
-        >
-          <IconPlus size={14} />
-          {t("project.tasks.add")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setAddExistingOpen(true)}
-          className="mt-1.5 flex items-center gap-1 text-[11px] text-text-muted hover:text-text-primary transition-colors"
-        >
-          <IconPlus size={12} />
-          {t("project.tasks.addExisting")}
-        </button>
       </Section>
 
       {recapOpen && (
@@ -471,11 +471,12 @@ export function ProjectDetailPage() {
         <AddExistingTaskModal projectId={pid} onClose={() => setAddExistingOpen(false)} />
       )}
 
-      {addTaskOpen && (
+      {addTaskFor && (
         <QuickCreate
           projectId={pid}
-          onClose={() => setAddTaskOpen(false)}
-          onCreated={() => setAddTaskOpen(false)}
+          sectionId={addTaskFor.sectionId ?? undefined}
+          onClose={() => setAddTaskFor(null)}
+          onCreated={() => setAddTaskFor(null)}
         />
       )}
 
@@ -666,7 +667,7 @@ function OverviewStat({ label, value, icon }: { label: string; value: string; ic
 function Section({ title, children, extra }: { title: string; children: React.ReactNode; extra?: React.ReactNode }) {
   return (
     <section className="mt-7">
-      <div className="flex items-center justify-between mb-2.5">
+      <div data-section-header className="flex items-center justify-between gap-2 mb-2.5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-faint">{title}</div>
         {extra}
       </div>

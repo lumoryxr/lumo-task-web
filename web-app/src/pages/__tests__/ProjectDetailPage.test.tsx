@@ -177,4 +177,14 @@ describe("ProjectDetailPage polish", () => {
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByTestId("content-editor").textContent).toBe("edit");
   });
+
+  it("puts a compact Add task button in the Tasks header, not a full-width bar below the list", () => {
+    renderPage();
+    const add = screen.getByRole("button", { name: "project.tasks.add" });
+    expect(add.className).not.toContain("w-full");
+    // It sits in the section header, ahead of the task list.
+    const header = add.closest("[data-section-header]");
+    expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).getByText("project.tasks.title")).toBeTruthy();
+  });
 });

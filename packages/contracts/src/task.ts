@@ -64,6 +64,10 @@ function dedupeTags(tags: string[]): string[] {
 // de-duplicated case-insensitively at the boundary.
 const TagsFieldSchema = z.array(TagSchema).max(20).default([]).transform(dedupeTags);
 
+// Completion percentage set by the user: a whole number from 0 (not started)
+// to 100 (done). Independent of `completed`, which still marks the task done.
+const ProgressSchema = z.number().int().min(0).max(100);
+
 // ── Request bodies ────────────────────────────────────────────────────────────
 
 export const TaskCreateBodySchema = z.object({
@@ -87,10 +91,14 @@ export const TaskCreateBodySchema = z.object({
   ai_suggest: QuadrantSchema.nullable().optional(),
   not_now: z.array(NotNowItemSchema).default([]),
   subtasks: z.array(SubtaskSchema).default([]),
+  progress: ProgressSchema.default(0),
   tags: TagsFieldSchema,
   // Optional owning project (#211). Null/absent = unfiled. The backend verifies
   // the referenced project belongs to the same user before persisting.
   project_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).nullable().optional(),
+  // Optional custom group inside the owning project (a ProjectSection id).
+  // Null/absent = ungrouped. The backend verifies it exists in the project.
+  section_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).nullable().optional(),
   scheduled_start: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)
@@ -146,6 +154,8 @@ export const TaskWireSchema = z.object({
   project_id: z.string().nullable().catch(null),
   scheduled_start: z.string().nullable(),
   remind_at: z.string().nullable(),
+  progress: ProgressSchema,
+  section_id: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -231,6 +241,10 @@ export interface Task {
   scheduled_start?: string | null;
   /** ISO datetime (YYYY-MM-DDTHH:MM) at which to surface a reminder notification. */
   remind_at?: string | null;
+  /** Completion percentage, a whole number 0..100 set by the user. */
+  progress?: number;
+  /** Custom group inside the owning project (ProjectSection id), or null when ungrouped. */
+  section_id?: string | null;
   /** ISO 8601 server timestamp — when the task was created. Read-only. */
   created_at?: string;
   /** ISO 8601 server timestamp — last write (edit, AI classify, focus). Read-only. Powers Q2 stagnation. */

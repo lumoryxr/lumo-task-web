@@ -202,6 +202,53 @@ describe("AC8 · migrations idempotent", () => {
   });
 });
 
+// ── Task progress over sync ────────────────────────────────────────────────────
+describe("task progress over sync", () => {
+  test("a pushed task's progress round-trips on pull", async () => {
+    const t = now();
+    const res = await push({ tasks: [taskRow("prog-rt", "Progress", t, { progress: 65 })] });
+    assert.equal(res.status, 200);
+    const { body } = await pull();
+    assert.equal(body.entities.tasks.find((r: any) => r.id === "prog-rt")?.progress, 65);
+  });
+
+  test("an older client that omits progress gets the 0 default", async () => {
+    const t = now();
+    await push({ tasks: [taskRow("prog-legacy", "Legacy", t)] });
+    const { body } = await pull();
+    assert.equal(body.entities.tasks.find((r: any) => r.id === "prog-legacy")?.progress, 0);
+  });
+
+  test("a null or out-of-range progress → 400 INVALID_ROW, nothing applied", async () => {
+    for (const [id, progress] of [["prog-null", null], ["prog-big", 150], ["prog-frac", 2.5]] as const) {
+      const res = await push({ tasks: [taskRow(id, "Bad", now(), { progress })] });
+      assert.equal(res.status, 400, `progress ${progress} must be rejected`);
+      assert.equal(res.body.error?.code, "INVALID_ROW");
+    }
+  });
+});
+
+// ── Project groups over sync ───────────────────────────────────────────────────
+describe("project groups over sync", () => {
+  test("a task's section_id round-trips on pull", async () => {
+    const res = await push({ tasks: [taskRow("sec-rt", "Grouped", now(), { section_id: "s_a" })] });
+    assert.equal(res.status, 200);
+    const { body } = await pull();
+    assert.equal(body.entities.tasks.find((r: any) => r.id === "sec-rt")?.section_id, "s_a");
+  });
+
+  test("a project's sections_json round-trips on pull", async () => {
+    const t = now();
+    const sections = JSON.stringify([{ id: "s_a", name: "A" }]);
+    const res = await push({
+      projects: [{ id: "prj-sec", user_id: "x", name: "P", created_at: t, updated_at: t, sections_json: sections }],
+    });
+    assert.equal(res.status, 200);
+    const { body } = await pull();
+    assert.equal(body.entities.projects.find((r: any) => r.id === "prj-sec")?.sections_json, sections);
+  });
+});
+
 // ── F4 · per-entity schemas reject missing NOT NULL columns as a 400 ──────────
 describe("F4 · push validates required NOT NULL columns (400, not 500)", () => {
   test("a task row missing title_en → 400 INVALID_ROW, nothing applied", async () => {

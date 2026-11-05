@@ -27,6 +27,7 @@ export const ERROR_CODES = {
   WRONG_PASSWORD: { status: 400, about: "Supplied current password was incorrect" },
   INVALID_RECOVERY_CODE: { status: 400, about: "Recovery code is unknown, malformed, or already used" },
   INVALID_PROJECT: { status: 400, about: "Referenced project does not exist or is not owned by the caller" },
+  INVALID_SECTION: { status: 400, about: "Referenced group does not exist in the task's project" },
   NO_CLOUD_BASE: { status: 400, about: "Cloud API base URL is not configured" },
   // 401 — auth
   UNAUTHORIZED: { status: 401, about: "Missing, invalid, or revoked access token" },

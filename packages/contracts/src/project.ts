@@ -44,6 +44,25 @@ export const MAX_GOALS_PER_PROJECT = 50;
  */
 export const MAX_PROJECT_CONTENT_BYTES = 1_000_000;
 
+/** Max custom task groups per project — bounds sections_json and the UI. */
+export const MAX_SECTIONS_PER_PROJECT = 30;
+
+/**
+ * A user-defined group ("section") inside a project, e.g. "Design" / "Build" /
+ * "QA". Tasks point at one by `section_id`; list order is display order.
+ */
+export const ProjectSectionSchema = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+  name: z.string().trim().min(1).max(60),
+});
+
+const SectionsFieldSchema = z
+  .array(ProjectSectionSchema)
+  .max(MAX_SECTIONS_PER_PROJECT)
+  .refine((list) => new Set(list.map((s) => s.id)).size === list.length, {
+    message: "Section ids must be unique",
+  });
+
 // ── Request bodies ────────────────────────────────────────────────────────────
 
 export const ProjectCreateBodySchema = z.object({
@@ -57,6 +76,7 @@ export const ProjectCreateBodySchema = z.object({
   content: z.string().max(MAX_PROJECT_CONTENT_BYTES).optional().nullable(),
   status: ProjectStatusSchema.default("active"),
   pinned: z.boolean().default(false),
+  sections: SectionsFieldSchema.default([]),
 });
 
 export const ProjectUpdateBodySchema = patchBodyOf(ProjectCreateBodySchema);
@@ -83,6 +103,7 @@ export const ProjectMigrateBodySchema = z.object({
         content: z.string().max(MAX_PROJECT_CONTENT_BYTES).optional().nullable(),
         status: ProjectStatusSchema.default("active"),
         pinned: z.boolean().default(false),
+        sections: SectionsFieldSchema.default([]),
         createdAt: z.string(),
       }),
     )
@@ -103,6 +124,7 @@ export const ProjectWireSchema = z.object({
   content: z.string().optional(),
   status: z.string(),
   pinned: z.boolean(),
+  sections: z.array(ProjectSectionSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -121,6 +143,7 @@ export const ProjectMigrateResponseSchema = z.object({
 // ── Inferred types ────────────────────────────────────────────────────────────
 
 export type Goal = z.infer<typeof GoalSchema>;
+export type ProjectSection = z.infer<typeof ProjectSectionSchema>;
 export type ProjectColor = z.infer<typeof ProjectColorSchema>;
 export type ProjectStatus = z.infer<typeof ProjectStatusSchema>;
 export type ProjectCreateInput = z.input<typeof ProjectCreateBodySchema>;
