@@ -312,6 +312,7 @@ export function buildTaskUpdateBody(patch: TaskUpdateInput) {
     ...(patch.remind_at !== undefined && { remind_at: patch.remind_at }),
     ...(patch.progress !== undefined && { progress: patch.progress }),
     ...(patch.section_id !== undefined && { section_id: patch.section_id }),
+    ...(patch.stage_id !== undefined && { stage_id: patch.stage_id }),
   };
 }
 
@@ -365,6 +366,7 @@ export function buildTaskCreateBody(input: TaskCreateInput, id?: string) {
     tags: input.tags ?? [],
     ...(input.project_id !== undefined && { project_id: input.project_id }),
     ...(input.section_id !== undefined && { section_id: input.section_id }),
+    ...(input.stage_id !== undefined && { stage_id: input.stage_id }),
     scheduled_start: input.scheduled_start ?? null,
     remind_at: input.remind_at ?? null,
     progress: input.progress ?? 0,
@@ -398,6 +400,7 @@ function adaptTask(raw: any): Task {
     remind_at: raw.remind_at ?? null,
     progress: raw.progress ?? 0,
     section_id: raw.section_id ?? null,
+    stage_id: raw.stage_id ?? null,
     created_at: raw.created_at ?? undefined,
     updated_at: raw.updated_at ?? undefined,
   };
@@ -1096,6 +1099,7 @@ function adaptProject(raw: any): Project {
     status: raw.status ?? "active",
     pinned: raw.pinned ?? false,
     sections: Array.isArray(raw.sections) ? raw.sections : [],
+    stages: Array.isArray(raw.stages) ? raw.stages : [],
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
@@ -1103,9 +1107,10 @@ function adaptProject(raw: any): Project {
 
 // `pinned` is optional on create (defaults false server-side), so existing
 // create call sites need not pass it.
-export type ProjectCreateInput = Omit<Project, "id" | "createdAt" | "updatedAt" | "pinned" | "sections"> & {
+export type ProjectCreateInput = Omit<Project, "id" | "createdAt" | "updatedAt" | "pinned" | "sections" | "stages"> & {
   pinned?: boolean;
   sections?: Project["sections"];
+  stages?: Project["stages"];
 };
 export type ProjectUpdateInput = Partial<Omit<Project, "id" | "createdAt" | "updatedAt">>;
 
@@ -1140,6 +1145,7 @@ export const projectApi = {
       status: input.status ?? "active",
       pinned: input.pinned ?? false,
       sections: input.sections ?? [],
+      stages: input.stages ?? [],
     });
     return adaptProject(raw);
   },
@@ -1155,6 +1161,7 @@ export const projectApi = {
       ...(patch.status !== undefined && { status: patch.status }),
       ...(patch.pinned !== undefined && { pinned: patch.pinned }),
       ...(patch.sections !== undefined && { sections: patch.sections }),
+      ...(patch.stages !== undefined && { stages: patch.stages }),
     });
     return adaptProject(raw);
   },

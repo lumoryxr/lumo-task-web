@@ -87,6 +87,9 @@ export function TaskEditModal({ task, onClose }: Props) {
   // the chosen group when the task moves to a project that doesn't have it.
   const projectSections = projects.find((p) => p.id === projectId)?.sections ?? [];
   const effectiveSectionId = projectSections.some((s) => s.id === sectionId) ? sectionId : null;
+  const [stageId, setStageId] = useState<string | null>(task.stage_id ?? null);
+  const projectStages = projects.find((p) => p.id === projectId)?.stages ?? [];
+  const effectiveStageId = projectStages.some((s) => s.id === stageId) ? stageId : null;
   function toggleAssignee(id: string) {
     setAssigneeIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   }
@@ -126,6 +129,7 @@ export function TaskEditModal({ task, onClose }: Props) {
         tags,
         project_id: projectId,
         section_id: effectiveSectionId,
+        stage_id: effectiveStageId,
         progress,
       });
       onClose();
@@ -459,6 +463,27 @@ export function TaskEditModal({ task, onClose }: Props) {
                 onChange={setProjectId}
                 projects={projects}
               />
+            </div>
+          )}
+
+          {/* Stage in the project's workflow */}
+          {projectStages.length > 0 && (
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
+                {t("edit.stage")}
+              </div>
+              <select
+                value={effectiveStageId ?? ""}
+                onChange={(e) => setStageId(e.target.value || null)}
+                aria-label={t("edit.stage")}
+                className="input"
+                style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13 }}
+              >
+                <option value="">{t("edit.stage.none")}</option>
+                {projectStages.map((s, i) => (
+                  <option key={s.id} value={s.id}>{`${i + 1}. ${s.name}`}</option>
+                ))}
+              </select>
             </div>
           )}
 

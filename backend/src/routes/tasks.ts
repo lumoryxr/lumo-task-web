@@ -11,7 +11,7 @@ import { hlcNow } from "../lib/hlc.js";
 import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
 import type { Variables } from "../env.js";
 import type { ProjectRow, TaskRow } from "../db/rows.js";
-import { parseSections } from "./projects.js";
+import { parseSections, parseStages } from "./projects.js";
 
 const app = new Hono<{ Variables: Variables }>();
 app.use("/*", authMiddleware);
@@ -73,6 +73,7 @@ export function rowToTask(row: TaskRow): TaskWire {
     remind_at: row.remind_at ?? null,
     progress: row.progress ?? 0,
     section_id: row.section_id ?? null,
+    stage_id: row.stage_id ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   });
@@ -106,6 +107,23 @@ async function sectionBelongsToProject(
     { pid: projectId, uid: userId }
   );
   return Boolean(project) && parseSections(project!.sections_json).some((s) => s.id === sectionId);
+}
+
+// A task's stage must be one of its own project's stages. Null (unstaged) is
+// always allowed; a stage without a project, or one the caller's project does
+// not define, is not. The project lookup is tenant-scoped.
+async function stageBelongsToProject(
+  userId: string,
+  projectId: string | null | undefined,
+  stageId: string | null | undefined,
+): Promise<boolean> {
+  if (stageId == null) return true;
+  if (projectId == null) return false;
+  const project = await queryOne<Pick<ProjectRow, "stages_json">>(
+    "SELECT stages_json FROM projects WHERE id = :pid AND user_id = :uid AND deleted_at IS NULL",
+    { pid: projectId, uid: userId }
+  );
+  return Boolean(project) && parseStages(project!.stages_json).some((s) => s.id === stageId);
 }
 
 // GET /tasks?q=<keyword>
@@ -180,18 +198,21 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
   if (!(await sectionBelongsToProject(userId, body.project_id, body.section_id))) {
     return httpError(c, 400, "INVALID_SECTION", "Group not found in this project");
   }
+  if (!(await stageBelongsToProject(userId, body.project_id, body.stage_id))) {
+    return httpError(c, 400, "INVALID_STAGE", "Stage not found in this project");
+  }
 
   await execute(`
     INSERT INTO tasks (
       id, user_id, assignee_ids, title_en, title_zh, desc_en, desc_zh,
       quadrant, today, week_focus, due, duration, pomos_done, pomos_total, conviction,
       next_step_en, next_step_zh, reason_en, reason_zh, ai_suggest, not_now_json,
-      recurrence, subtasks_json, tags_json, project_id, section_id, scheduled_start, remind_at, progress, created_at, updated_at
+      recurrence, subtasks_json, tags_json, project_id, section_id, stage_id, scheduled_start, remind_at, progress, created_at, updated_at
     ) VALUES (
       :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
       :quadrant, :today, :week_focus, :due, :duration, 0, :pomos_total, :conviction,
       :next_step_en, :next_step_zh, :reason_en, :reason_zh, :ai_suggest, :not_now_json,
-      :recurrence, :subtasks_json, :tags_json, :project_id, :section_id, :scheduled_start, :remind_at, :progress, :now, :sync_ts
+      :recurrence, :subtasks_json, :tags_json, :project_id, :section_id, :stage_id, :scheduled_start, :remind_at, :progress, :now, :sync_ts
     )
   `, {
     id, user_id: userId,
@@ -214,6 +235,7 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
     tags_json: JSON.stringify(body.tags ?? []),
     project_id: body.project_id ?? null,
     section_id: body.section_id ?? null,
+    stage_id: body.stage_id ?? null,
     scheduled_start: body.scheduled_start ?? null,
     remind_at: body.remind_at ?? null,
     progress: body.progress ?? 0,
@@ -263,6 +285,14 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
   if (!(await sectionBelongsToProject(userId, nextProjectId, nextSectionId))) {
     return httpError(c, 400, "INVALID_SECTION", "Group not found in this project");
   }
+  // Stage follows the project the same way.
+  const nextStageId =
+    "stage_id" in body
+      ? (body.stage_id ?? null)
+      : nextProjectId === existing.project_id ? (existing.stage_id ?? null) : null;
+  if (!(await stageBelongsToProject(userId, nextProjectId, nextStageId))) {
+    return httpError(c, 400, "INVALID_STAGE", "Stage not found in this project");
+  }
 
   const merged = {
     assignee_ids: "assignee_ids" in body ? JSON.stringify(body.assignee_ids ?? []) : existing.assignee_ids,
@@ -288,6 +318,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
     tags_json: "tags" in body ? JSON.stringify(body.tags) : (existing.tags_json ?? "[]"),
     project_id: nextProjectId,
     section_id: nextSectionId,
+    stage_id: nextStageId,
     scheduled_start: "scheduled_start" in body ? (body.scheduled_start ?? null) : existing.scheduled_start,
     remind_at: "remind_at" in body ? (body.remind_at ?? null) : existing.remind_at,
     progress: body.progress ?? existing.progress ?? 0,
@@ -301,7 +332,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
       conviction = :conviction, next_step_en = :next_step_en, next_step_zh = :next_step_zh,
       reason_en = :reason_en, reason_zh = :reason_zh, ai_suggest = :ai_suggest,
       not_now_json = :not_now_json, recurrence = :recurrence,
-      subtasks_json = :subtasks_json, tags_json = :tags_json, project_id = :project_id, section_id = :section_id, scheduled_start = :scheduled_start, remind_at = :remind_at, progress = :progress, updated_at = :now
+      subtasks_json = :subtasks_json, tags_json = :tags_json, project_id = :project_id, section_id = :section_id, stage_id = :stage_id, scheduled_start = :scheduled_start, remind_at = :remind_at, progress = :progress, updated_at = :now
     WHERE id = :id AND user_id = :uid
   `, { ...merged, id: taskId, uid: userId, now });
 

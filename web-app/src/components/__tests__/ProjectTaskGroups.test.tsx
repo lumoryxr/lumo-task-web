@@ -30,7 +30,7 @@ const task = (id: string, section_id: string | null): Task => ({
 
 const baseProject: Project = {
   id: "p1", name: "Launch", color: "green", goals: [], status: "active", pinned: false,
-  createdAt: "", updatedAt: "",
+  createdAt: "", updatedAt: "", stages: [],
   sections: [{ id: "s_design", name: "Design" }, { id: "s_build", name: "Build" }],
 };
 

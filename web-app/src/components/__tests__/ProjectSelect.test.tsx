@@ -14,6 +14,7 @@ function project(partial: Partial<Project> & Pick<Project, "id" | "name">): Proj
     status: "active",
     pinned: false,
     sections: [],
+    stages: [],
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...partial,

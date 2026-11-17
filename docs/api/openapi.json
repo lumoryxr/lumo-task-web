@@ -343,6 +343,10 @@
             "type": "string",
             "nullable": true
           },
+          "stage_id": {
+            "type": "string",
+            "nullable": true
+          },
           "created_at": {
             "type": "string"
           },
@@ -372,6 +376,7 @@
           "remind_at",
           "progress",
           "section_id",
+          "stage_id",
           "created_at",
           "updated_at"
         ]
@@ -563,6 +568,10 @@
             "nullable": true
           },
           "section_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "stage_id": {
             "type": "string",
             "nullable": true
           },
@@ -766,6 +775,10 @@
             "nullable": true
           },
           "section_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "stage_id": {
             "type": "string",
             "nullable": true
           },
@@ -1006,6 +1019,10 @@
                   "type": "string",
                   "nullable": true
                 },
+                "stage_id": {
+                  "type": "string",
+                  "nullable": true
+                },
                 "created_at": {
                   "type": "string"
                 },
@@ -1035,6 +1052,7 @@
                 "remind_at",
                 "progress",
                 "section_id",
+                "stage_id",
                 "created_at",
                 "updated_at"
               ]
@@ -1259,6 +1277,24 @@
               ]
             }
           },
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          },
           "createdAt": {
             "type": "string"
           },
@@ -1274,6 +1310,7 @@
           "status",
           "pinned",
           "sections",
+          "stages",
           "createdAt",
           "updatedAt"
         ]
@@ -1356,6 +1393,24 @@
             "type": "boolean"
           },
           "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          },
+          "stages": {
             "type": "array",
             "items": {
               "type": "object",
@@ -1472,6 +1527,24 @@
                 "name"
               ]
             }
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
           }
         }
       },
@@ -1562,6 +1635,24 @@
                     ]
                   }
                 },
+                "stages": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ]
+                  }
+                },
                 "createdAt": {
                   "type": "string"
                 },
@@ -1577,6 +1668,7 @@
                 "status",
                 "pinned",
                 "sections",
+                "stages",
                 "createdAt",
                 "updatedAt"
               ]
@@ -5862,6 +5954,24 @@
                           "type": "boolean"
                         },
                         "sections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name"
+                            ]
+                          }
+                        },
+                        "stages": {
                           "type": "array",
                           "items": {
                             "type": "object",

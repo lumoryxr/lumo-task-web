@@ -272,6 +272,13 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE tasks ADD COLUMN section_id TEXT");
   }
 
+  // Migrate: the task's current stage in its project's stage track (a
+  // stages_json id). NULL = not staged. Existing tasks start unstaged.
+  const taskColsStage = await query<{ name: string }>("PRAGMA table_info(tasks)");
+  if (!taskColsStage.some((c) => c.name === "stage_id")) {
+    await execRaw("ALTER TABLE tasks ADD COLUMN stage_id TEXT");
+  }
+
   // Migrate: user-set completion percentage (0..100). Existing tasks start at 0.
   const taskColsProgress = await query<{ name: string }>("PRAGMA table_info(tasks)");
   if (!taskColsProgress.some((c) => c.name === "progress")) {
@@ -482,6 +489,13 @@ export async function runMigrations() {
   const projectColsSections = await query<{ name: string }>("PRAGMA table_info(projects)");
   if (!projectColsSections.some((c) => c.name === "sections_json")) {
     await execRaw("ALTER TABLE projects ADD COLUMN sections_json TEXT NOT NULL DEFAULT '[]'");
+  }
+
+  // Migrate: custom workflow stages per project, an ordered JSON list of
+  // { id, name }. Existing projects start with none.
+  const projectColsStages = await query<{ name: string }>("PRAGMA table_info(projects)");
+  if (!projectColsStages.some((c) => c.name === "stages_json")) {
+    await execRaw("ALTER TABLE projects ADD COLUMN stages_json TEXT NOT NULL DEFAULT '[]'");
   }
 
   // Migrate: per-user session version. Tokens embed the version they were minted

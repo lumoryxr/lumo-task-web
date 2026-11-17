@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import type { Project, ProjectColor, ProjectGoal, GoalConfidence } from "@/types/task";
 import { ProjectBoard } from "@/components/ProjectBoard";
 import { ProjectTaskGroups } from "@/components/ProjectTaskGroups";
+import { ProjectStagesEditor } from "@/components/ProjectStagesEditor";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectNotesModal } from "@/components/ProjectNotesModal";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
@@ -404,6 +405,11 @@ export function ProjectDetailPage() {
             <IconPlus size={16} />
           </button>
         </div>
+      </Section>
+
+      {/* Stages — the project's workflow, with how many tasks sit in each */}
+      <Section title={t("stage.section")}>
+        <ProjectStagesEditor project={project} tasks={projectTasks} />
       </Section>
 
       {/* Tasks */}

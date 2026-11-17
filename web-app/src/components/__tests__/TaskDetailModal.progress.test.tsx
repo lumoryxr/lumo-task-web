@@ -20,6 +20,11 @@ vi.mock("@/store/useTasksStore", () => ({
     }),
 }));
 
+let mockProjects: any[] = [];
+vi.mock("@/store/useProjectsStore", () => ({
+  useProjectsStore: (sel: any) => sel({ projects: mockProjects }),
+}));
+
 vi.mock("@/store/usePeopleStore", () => ({
   usePeopleStore: (sel: any) => sel({ people: [], byId: () => undefined }),
 }));
@@ -107,5 +112,40 @@ describe("TaskDetailModal · progress", () => {
     reject(new Error("offline"));
     await waitFor(() => expect(screen.getByRole("slider", { name: "Progress" })).toHaveValue("20"));
     expect(screen.getByRole("slider", { name: "Progress" })).not.toBeDisabled();
+  });
+});
+
+describe("TaskDetailModal · stage", () => {
+  const STAGES = [{ id: "plan", name: "Plan" }, { id: "build", name: "Build" }, { id: "ship", name: "Ship" }];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdate.mockResolvedValue(undefined);
+    mockProjects = [{ id: "p1", name: "Launch", sections: [], stages: STAGES }];
+  });
+
+  it("shows the project's full stage track with the task's current stage", () => {
+    setup({ ...TASK, project_id: "p1", stage_id: "build" });
+    expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("Build");
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  it("moves the task to the stage that is clicked", async () => {
+    setup({ ...TASK, project_id: "p1", stage_id: "plan" });
+    fireEvent.click(screen.getByRole("button", { name: "Set stage to Ship" }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith("t1", { stage_id: "ship" }));
+  });
+
+  it("can clear the stage", async () => {
+    setup({ ...TASK, project_id: "p1", stage_id: "plan" });
+    fireEvent.click(screen.getByRole("button", { name: "Clear stage" }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith("t1", { stage_id: null }));
+  });
+
+  it("hides the stage track when the task's project has no stages", () => {
+    mockProjects = [{ id: "p1", name: "Launch", sections: [], stages: [] }];
+    setup({ ...TASK, project_id: "p1" });
+    expect(screen.queryByRole("listitem", { current: "step" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Set stage to/ })).toBeNull();
   });
 });

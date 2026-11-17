@@ -63,6 +63,26 @@ const SectionsFieldSchema = z
     message: "Section ids must be unique",
   });
 
+/** Max custom stages per project — a stage track stays readable at this size. */
+export const MAX_STAGES_PER_PROJECT = 12;
+
+/**
+ * A user-defined phase in the project's workflow, e.g. Plan → Build → Review →
+ * Launch. List order is the track order; each task sits in one stage at a time
+ * (`stage_id`), so the track shows where every task is in the workflow.
+ */
+export const ProjectStageSchema = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+  name: z.string().trim().min(1).max(30),
+});
+
+const StagesFieldSchema = z
+  .array(ProjectStageSchema)
+  .max(MAX_STAGES_PER_PROJECT)
+  .refine((list) => new Set(list.map((s) => s.id)).size === list.length, {
+    message: "Stage ids must be unique",
+  });
+
 // ── Request bodies ────────────────────────────────────────────────────────────
 
 export const ProjectCreateBodySchema = z.object({
@@ -77,6 +97,7 @@ export const ProjectCreateBodySchema = z.object({
   status: ProjectStatusSchema.default("active"),
   pinned: z.boolean().default(false),
   sections: SectionsFieldSchema.default([]),
+  stages: StagesFieldSchema.default([]),
 });
 
 export const ProjectUpdateBodySchema = patchBodyOf(ProjectCreateBodySchema);
@@ -104,6 +125,7 @@ export const ProjectMigrateBodySchema = z.object({
         status: ProjectStatusSchema.default("active"),
         pinned: z.boolean().default(false),
         sections: SectionsFieldSchema.default([]),
+        stages: StagesFieldSchema.default([]),
         createdAt: z.string(),
       }),
     )
@@ -125,6 +147,7 @@ export const ProjectWireSchema = z.object({
   status: z.string(),
   pinned: z.boolean(),
   sections: z.array(ProjectSectionSchema),
+  stages: z.array(ProjectStageSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -144,6 +167,7 @@ export const ProjectMigrateResponseSchema = z.object({
 
 export type Goal = z.infer<typeof GoalSchema>;
 export type ProjectSection = z.infer<typeof ProjectSectionSchema>;
+export type ProjectStage = z.infer<typeof ProjectStageSchema>;
 export type ProjectColor = z.infer<typeof ProjectColorSchema>;
 export type ProjectStatus = z.infer<typeof ProjectStatusSchema>;
 export type ProjectCreateInput = z.input<typeof ProjectCreateBodySchema>;

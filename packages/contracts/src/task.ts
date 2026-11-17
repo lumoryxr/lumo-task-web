@@ -99,6 +99,9 @@ export const TaskCreateBodySchema = z.object({
   // Optional custom group inside the owning project (a ProjectSection id).
   // Null/absent = ungrouped. The backend verifies it exists in the project.
   section_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).nullable().optional(),
+  // Optional current stage within the owning project's stage track (a
+  // ProjectStage id). Null/absent = not staged. Verified against the project.
+  stage_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).nullable().optional(),
   scheduled_start: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)
@@ -156,6 +159,7 @@ export const TaskWireSchema = z.object({
   remind_at: z.string().nullable(),
   progress: ProgressSchema,
   section_id: z.string().nullable(),
+  stage_id: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -245,6 +249,8 @@ export interface Task {
   progress?: number;
   /** Custom group inside the owning project (ProjectSection id), or null when ungrouped. */
   section_id?: string | null;
+  /** Current stage in the owning project's stage track (ProjectStage id), or null. */
+  stage_id?: string | null;
   /** ISO 8601 server timestamp — when the task was created. Read-only. */
   created_at?: string;
   /** ISO 8601 server timestamp — last write (edit, AI classify, focus). Read-only. Powers Q2 stagnation. */
