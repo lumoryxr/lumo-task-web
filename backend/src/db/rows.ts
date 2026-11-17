@@ -52,6 +52,7 @@ export interface TaskRow {
   remind_at: string | null;
   progress: number;
   section_id: string | null;
+  stage_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -164,6 +165,7 @@ export interface ProjectRow {
   emoji: string | null;
   goals_json: string;
   sections_json: string;
+  stages_json: string;
   content: string | null;
   status: string;
   pinned: number;

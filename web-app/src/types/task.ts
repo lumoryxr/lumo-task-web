@@ -32,6 +32,7 @@ import type {
   ProjectTemplatePayload,
   TemplateCreateInput,
   ProjectSection,
+  ProjectStage,
 } from "@lumo/contracts";
 
 export type {
@@ -54,6 +55,7 @@ export type {
   ProjectTemplatePayload,
   TemplateCreateInput,
   ProjectSection,
+  ProjectStage,
 };
 
 export type Locale = "en" | "zh";
@@ -204,6 +206,8 @@ export interface Project {
   pinned: boolean;
   /** Custom task groups, in display order. Tasks reference one by `section_id`. */
   sections: ProjectSection[];
+  /** Custom workflow stages, in track order. Tasks reference one by `stage_id`. */
+  stages: ProjectStage[];
   createdAt: string;
   updatedAt: string;
 }

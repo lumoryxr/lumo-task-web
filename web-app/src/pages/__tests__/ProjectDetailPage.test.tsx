@@ -187,4 +187,14 @@ describe("ProjectDetailPage polish", () => {
     expect(header).not.toBeNull();
     expect(within(header as HTMLElement).getByText("project.tasks.title")).toBeTruthy();
   });
+
+  it("shows a Stages section above the task list", () => {
+    const { container } = renderPage();
+    const headers = Array.from(container.querySelectorAll("[data-section-header]")).map(
+      (h) => h.firstElementChild?.textContent,
+    );
+    expect(headers.indexOf("stage.section")).toBeGreaterThan(-1);
+    expect(headers.indexOf("stage.section")).toBeLessThan(headers.indexOf("project.tasks.title"));
+    expect(screen.getByRole("button", { name: "stage.edit" })).toBeInTheDocument();
+  });
 });

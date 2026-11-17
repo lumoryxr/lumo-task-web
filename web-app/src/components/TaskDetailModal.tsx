@@ -12,6 +12,8 @@ import { PersonAvatar } from "@/components/PersonAvatar";
 import { TaskEditModal } from "@/components/TaskEditModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TaskProgressEditor } from "@/components/TaskProgress";
+import { StageTrack } from "@/components/StageTrack";
+import { useProjectsStore } from "@/store/useProjectsStore";
 import { clampProgress } from "@/lib/progress";
 import { fmtDuration, fmtScheduledStart, getDueLabel, getDueColor } from "@/lib/format";
 import { toast } from "@/store/useToastStore";
@@ -83,6 +85,24 @@ export function TaskDetailModal({ task, onClose }: Props) {
   const [progressDraft, setProgressDraft] = useState(savedProgress);
   const [progressSaving, setProgressSaving] = useState(false);
   useEffect(() => { setProgressDraft(savedProgress); }, [savedProgress]);
+
+  // Stage: the owning project's track, clicked to move the task along it.
+  const projectStages =
+    useProjectsStore((s) => s.projects.find((p) => p.id === liveTask.project_id)?.stages) ?? [];
+  const currentStageId = projectStages.some((s) => s.id === liveTask.stage_id) ? liveTask.stage_id ?? null : null;
+  const [stageSaving, setStageSaving] = useState(false);
+
+  async function commitStage(stageId: string | null) {
+    if (stageId === currentStageId || stageSaving) return;
+    setStageSaving(true);
+    try {
+      await update(liveTask.id, { stage_id: stageId });
+    } catch {
+      // The store already surfaced the error toast; the track keeps the saved stage.
+    } finally {
+      setStageSaving(false);
+    }
+  }
 
   async function commitProgress(value: number) {
     if (value === savedProgress || progressSaving) return;
@@ -274,14 +294,50 @@ export function TaskDetailModal({ task, onClose }: Props) {
 
         </div>
 
-        {/* Progress */}
+        {/* Progress: the stage in the project's workflow, then the completion % */}
         <section
-          aria-label={t("progress.label")}
+          aria-label={t("progress.card")}
           className="mx-5 mb-4 rounded-xl border px-3.5 pt-3 pb-3.5"
           style={{ background: "var(--bg-surface)", borderColor: "var(--border-faint)" }}
         >
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-2" style={{ color: "var(--text-faint)" }}>
-            {t("progress.label")}
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-2.5" style={{ color: "var(--text-faint)" }}>
+            {t("progress.card")}
+          </div>
+          {projectStages.length > 0 && (
+            <div className="mb-3.5 pb-3.5" style={{ borderBottom: "1px solid var(--border-faint)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11.5px] font-medium" style={{ color: "var(--text-muted)" }}>
+                  {t("stage.label")}
+                  {stageSaving && (
+                    <span className="ml-2 text-[11px]" style={{ color: "var(--text-faint)" }} aria-live="polite">
+                      {t("progress.saving")}
+                    </span>
+                  )}
+                </span>
+                {currentStageId && (
+                  <button
+                    type="button"
+                    disabled={stageSaving}
+                    onClick={() => commitStage(null)}
+                    className="text-[11px] text-text-faint hover:text-text-primary transition-colors disabled:opacity-50"
+                  >
+                    {t("stage.clear")}
+                  </button>
+                )}
+              </div>
+              {!currentStageId && (
+                <p className="text-[11.5px] mb-2" style={{ color: "var(--text-faint)" }}>{t("stage.none")}</p>
+              )}
+              <StageTrack
+                stages={projectStages}
+                currentId={currentStageId}
+                onSelect={commitStage}
+                busy={stageSaving}
+              />
+            </div>
+          )}
+          <div className="text-[11.5px] font-medium mb-2" style={{ color: "var(--text-muted)" }}>
+            {t("progress.completion")}
           </div>
           <TaskProgressEditor
             value={progressDraft}

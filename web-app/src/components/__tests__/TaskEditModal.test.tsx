@@ -313,7 +313,7 @@ describe("TaskEditModal", () => {
   describe("project group", () => {
     const projectWithGroups = {
       id: "p1", name: "Launch", color: "green" as const, goals: [], status: "active" as const, pinned: false,
-      createdAt: "", updatedAt: "",
+      createdAt: "", updatedAt: "", stages: [],
       sections: [{ id: "s_a", name: "Design" }, { id: "s_b", name: "Build" }],
     };
 
@@ -351,6 +351,37 @@ describe("TaskEditModal", () => {
       fireEvent.click(getSaveBtn());
       await waitFor(() =>
         expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ section_id: null })),
+      );
+    });
+  });
+
+  describe("project stage", () => {
+    const stagedProject = {
+      id: "p2", name: "Staged", color: "green" as const, goals: [], status: "active" as const, pinned: false,
+      createdAt: "", updatedAt: "", sections: [],
+      stages: [{ id: "plan", name: "Plan" }, { id: "ship", name: "Ship" }],
+    };
+
+    beforeEach(() => {
+      useProjectsStore.setState({ projects: [stagedProject] });
+    });
+
+    it("offers the project's stages and saves the chosen one", async () => {
+      setup({ ...TASK, project_id: "p2", stage_id: "plan" });
+      const select = screen.getByRole("combobox", { name: "edit.stage" });
+      expect(select).toHaveValue("plan");
+      fireEvent.change(select, { target: { value: "ship" } });
+      fireEvent.click(getSaveBtn());
+      await waitFor(() =>
+        expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ stage_id: "ship" })),
+      );
+    });
+
+    it("never saves a stage the selected project does not have", async () => {
+      setup({ ...TASK, project_id: "p2", stage_id: "gone" });
+      fireEvent.click(getSaveBtn());
+      await waitFor(() =>
+        expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ stage_id: null })),
       );
     });
   });

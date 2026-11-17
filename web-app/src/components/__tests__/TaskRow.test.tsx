@@ -21,6 +21,10 @@ vi.mock("@/store/useTasksStore", () => ({
 }));
 
 const mockPeople: Record<string, any> = {};
+let mockProjects: any[] = [];
+vi.mock("@/store/useProjectsStore", () => ({
+  useProjectsStore: (sel: any) => sel({ projects: mockProjects }),
+}));
 vi.mock("@/store/usePeopleStore", () => ({
   usePeopleStore: (sel: any) =>
     sel({ people: Object.values(mockPeople), byId: (id: string) => mockPeople[id] }),
@@ -91,6 +95,20 @@ describe("TaskRow", () => {
   it("shows no progress bar for an untouched task", () => {
     renderRow({ ...TASK, progress: 0 });
     expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("shows the task's stage among all of its project's stages", () => {
+    mockProjects = [{ id: "p1", stages: [{ id: "a", name: "Plan" }, { id: "b", name: "Build" }, { id: "c", name: "Ship" }] }];
+    renderRow({ ...TASK, project_id: "p1", stage_id: "b" });
+    expect(screen.getByRole("img", { name: "Stage Build, 2 of 3" })).toBeInTheDocument();
+    mockProjects = [];
+  });
+
+  it("shows no stage track for an unstaged task", () => {
+    mockProjects = [{ id: "p1", stages: [{ id: "a", name: "Plan" }] }];
+    renderRow({ ...TASK, project_id: "p1", stage_id: null });
+    expect(screen.queryByRole("img", { name: /^Stage / })).toBeNull();
+    mockProjects = [];
   });
 
   it("renders the task title", () => {

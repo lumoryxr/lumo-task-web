@@ -273,3 +273,37 @@ describe("API client — project groups", () => {
     expect(JSON.parse(call[1].body)).toEqual({ sections: [] });
   });
 });
+
+describe("API client — project stages", () => {
+  it("sends stage_id on task create and update only when it is set", async () => {
+    const { buildTaskCreateBody, buildTaskUpdateBody } = await import("../client");
+    const base = { title: { en: "x" }, quadrant: "Q1" as const, today: false, duration: 0, pomos_total: 0 };
+    expect(buildTaskCreateBody({ ...base, stage_id: "stg_a" }).stage_id).toBe("stg_a");
+    expect("stage_id" in buildTaskCreateBody(base)).toBe(false);
+    expect(buildTaskUpdateBody({ stage_id: null })).toEqual({ stage_id: null });
+    expect("stage_id" in buildTaskUpdateBody({ today: true })).toBe(false);
+  });
+
+  it("maps stage_id (default null) and project stages (default [])", async () => {
+    const wireTask = {
+      id: "t1", title: { en: "x" }, quadrant: "Q1", today: false, duration: 0,
+      pomos_done: 0, pomos_total: 0, completed: false,
+    };
+    mockFetch(200, { items: [{ ...wireTask, stage_id: "stg_a" }, { ...wireTask, id: "t2" }], nextCursor: null });
+    localStorage.setItem("lumo.token", "jwt");
+    const { api, projectApi } = await import("../client");
+    const tasks = await api.listTasks();
+    expect(tasks.find((t) => t.id === "t1")?.stage_id).toBe("stg_a");
+    expect(tasks.find((t) => t.id === "t2")?.stage_id).toBeNull();
+
+    const wireProject = { id: "p1", name: "P", color: "green", goals: [], status: "active", pinned: false, createdAt: "a", updatedAt: "b" };
+    mockFetch(200, { items: [{ ...wireProject, stages: [{ id: "stg_a", name: "A" }] }, { ...wireProject, id: "p2" }], nextCursor: null });
+    const list = await projectApi.list();
+    expect(list.find((p) => p.id === "p1")?.stages).toEqual([{ id: "stg_a", name: "A" }]);
+    expect(list.find((p) => p.id === "p2")?.stages).toEqual([]);
+
+    mockFetch(200, { ...wireProject, stages: [] });
+    await projectApi.update("p1", { stages: [] });
+    expect(JSON.parse((globalThis.fetch as any).mock.calls[0][1].body)).toEqual({ stages: [] });
+  });
+});

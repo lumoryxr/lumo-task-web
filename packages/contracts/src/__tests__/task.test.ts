@@ -33,6 +33,7 @@ const wireTask = {
   remind_at: null,
   progress: 40,
   section_id: null,
+  stage_id: null,
   created_at: "2026-06-20T10:00:00.000Z",
   updated_at: "2026-06-20T10:00:00.000Z",
 };
@@ -191,5 +192,26 @@ describe("task section (custom group inside a project)", () => {
     assert.deepEqual(TaskUpdateBodySchema.parse({ section_id: "sec_b" }), { section_id: "sec_b" });
     assert.deepEqual(TaskUpdateBodySchema.parse({ section_id: null }), { section_id: null });
     assert.equal("section_id" in TaskUpdateBodySchema.parse({ today: true }), false);
+  });
+});
+
+describe("task stage (current phase within the project's stages)", () => {
+  test("the wire task carries a nullable stage_id", () => {
+    assert.equal(TaskWireSchema.parse(wireTask).stage_id, null);
+    assert.equal(TaskWireSchema.parse({ ...wireTask, stage_id: "stg_build" }).stage_id, "stg_build");
+    const { stage_id: _omit, ...missing } = wireTask;
+    assert.throws(() => TaskWireSchema.parse(missing));
+  });
+
+  test("create accepts a stage id or null, and rejects a malformed id", () => {
+    assert.equal(TaskCreateBodySchema.parse({ title: { en: "x" }, stage_id: "stg_a" }).stage_id, "stg_a");
+    assert.equal(TaskCreateBodySchema.parse({ title: { en: "x" }, stage_id: null }).stage_id, null);
+    assert.equal(TaskCreateBodySchema.safeParse({ title: { en: "x" }, stage_id: "bad id" }).success, false);
+  });
+
+  test("a patch can set or clear the stage, and omitting it leaves it alone", () => {
+    assert.deepEqual(TaskUpdateBodySchema.parse({ stage_id: "stg_b" }), { stage_id: "stg_b" });
+    assert.deepEqual(TaskUpdateBodySchema.parse({ stage_id: null }), { stage_id: null });
+    assert.equal("stage_id" in TaskUpdateBodySchema.parse({ today: true }), false);
   });
 });

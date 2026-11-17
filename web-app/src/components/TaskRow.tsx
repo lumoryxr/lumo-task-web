@@ -13,6 +13,8 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { AssigneeChip } from "@/components/AssigneeChip";
 import { TaskProgressBar } from "@/components/TaskProgress";
+import { StageTrack } from "@/components/StageTrack";
+import { useProjectsStore } from "@/store/useProjectsStore";
 import { IconArrowRight, IconCheck, IconMore, IconRepeat } from "@/components/icons";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 import { TaskTitle } from "@/components/TaskTitle";
@@ -52,6 +54,7 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
   const moreRef = useRef<HTMLButtonElement>(null);
 
   const assignees = (task.assignee_ids ?? []).map(byId).filter(Boolean) as import("@/types/task").Person[];
+  const projectStages = useProjectsStore((s) => s.projects.find((p) => p.id === task.project_id)?.stages);
   const q = task.quadrant === "unclassified" ? "un" : task.quadrant.toLowerCase();
   const due = getDueLabel(task.due, locale);
   const dueColor = getDueColor(task.due);
@@ -146,6 +149,9 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
                 <i key={i} className={i < task.pomos_done ? "on" : ""} />
               ))}
             </span>
+            {task.stage_id && projectStages && projectStages.length > 0 && (
+              <StageTrack variant="compact" stages={projectStages} currentId={task.stage_id} />
+            )}
             {(task.progress ?? 0) > 0 && <TaskProgressBar value={task.progress} />}
             {(task.subtasks?.length ?? 0) > 0 && (
               <span className="flex items-center gap-0.5" style={{ color: "var(--text-faint)" }}>

@@ -170,6 +170,7 @@ const PROJECT: Project = {
   status: "active",
   pinned: false,
   sections: [],
+  stages: [],
   createdAt: "t",
   updatedAt: "t",
 };
