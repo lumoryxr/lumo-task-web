@@ -10,16 +10,12 @@
 import { create } from "zustand";
 import { templateApi } from "@/api/client";
 import { useTasksStore } from "@/store/useTasksStore";
-import { useProjectsStore } from "@/store/useProjectsStore";
 import type {
-  Project,
   Task,
   TaskCreateInput,
   Template,
   TaskTemplate,
-  ProjectTemplate,
   TemplatePayload,
-  ProjectTemplatePayload,
 } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t, pickLocale } from "@/i18n/useT";
@@ -74,35 +70,14 @@ export function inputFromPayload(payload: TemplatePayload): TaskCreateInput {
   };
 }
 
-/**
- * Build a project template payload from a live project + its active tasks
- * (#211 V2 ⭐3). Goal completion and per-task progress are dropped — a template
- * is a clean blueprint, reset on instantiate.
- */
-export function projectPayloadFromProject(project: Project, tasks: Task[]): ProjectTemplatePayload {
-  return {
-    name: project.name,
-    category: project.category ?? undefined,
-    color: project.color,
-    emoji: project.emoji ?? undefined,
-    goals: project.goals.map((g) => ({ text: g.text })),
-    content: project.content ?? undefined,
-    tasks: tasks.map(payloadFromTask),
-  };
-}
-
 interface TemplatesState {
   templates: Template[];
   load: () => Promise<void>;
   clear: () => void;
   /** Save an existing task as a template. Name defaults to the task's title. */
   saveFromTask: (task: Task, name?: string) => Promise<TaskTemplate | undefined>;
-  /** Save a project (its fields + active tasks) as a reusable template. */
-  saveFromProject: (project: Project, tasks: Task[], name?: string) => Promise<ProjectTemplate | undefined>;
   /** Create a fresh task from a task template (returns the new task). */
   instantiate: (id: string) => Promise<Task | undefined>;
-  /** Create a fresh project (+ its tasks) from a project template (returns it). */
-  instantiateProject: (id: string) => Promise<Project | undefined>;
   rename: (id: string, name: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
@@ -143,25 +118,11 @@ export const useTemplatesStore = create<TemplatesState>((set, get) => ({
     }
   },
 
-  async saveFromProject(project, tasks, name) {
-    const id = clientId("tpl");
-    const resolved = name?.trim() || project.name.trim() || t("template.library.title");
-    try {
-      const tpl = await templateApi.createProject(resolved, projectPayloadFromProject(project, tasks), id);
-      set((s) => ({ templates: [tpl, ...s.templates] }));
-      toast.success(t("template.saved"));
-      return tpl;
-    } catch (e) {
-      toast.error(t("template.error.create"), e instanceof Error ? e.message : String(e));
-      return undefined;
-    }
-  },
-
   async instantiate(id) {
     const tpl = get().templates.find((x) => x.id === id);
     if (!tpl) throw new Error("template not found");
-    // A project template can't become a single task — callers should route to
-    // instantiateProject. Guard defensively so a mixed list never mis-creates.
+    // Project templates are no longer offered, but old ones may still come back
+    // from the server: they can't become a single task, so skip them.
     if (tpl.kind !== "task") return undefined;
     // Reuse the tasks store create path so the new task lands in the cache and
     // fires all the usual side effects, exactly like Duplicate. Self-contained
@@ -173,37 +134,6 @@ export const useTemplatesStore = create<TemplatesState>((set, get) => ({
       return task;
     } catch (e) {
       toast.error(t("template.error.instantiate"), e instanceof Error ? e.message : String(e));
-      return undefined;
-    }
-  },
-
-  async instantiateProject(id) {
-    const tpl = get().templates.find((x) => x.id === id);
-    if (!tpl || tpl.kind !== "project") return undefined;
-    const p = tpl.payload;
-    try {
-      // Create the project first (goals reset to not-done), then file one fresh
-      // task per blueprint under it. A task failure is per-task best-effort so a
-      // single bad scaffold doesn't abort the whole project.
-      const project = await useProjectsStore.getState().create({
-        name: p.name,
-        category: p.category ?? undefined,
-        color: p.color,
-        emoji: p.emoji ?? undefined,
-        goals: p.goals.map((g) => ({ text: g.text, done: false })),
-        content: p.content ?? undefined,
-        status: "active",
-      });
-      const createTask = useTasksStore.getState().create;
-      await Promise.allSettled(
-        p.tasks.map((tp) => createTask({ ...inputFromPayload(tp), project_id: project.id }))
-      );
-      toast.success(t("template.instantiated"));
-      return project;
-    } catch (e) {
-      // create() already toasts a project error; swallow so the caller (a
-      // fire-and-forget button) never sees an unhandled rejection.
-      void e;
       return undefined;
     }
   },

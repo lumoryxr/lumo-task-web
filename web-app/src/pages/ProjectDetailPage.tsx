@@ -3,18 +3,15 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useT } from "@/i18n/useT";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { useTasksStore } from "@/store/useTasksStore";
-import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import type { Project, ProjectColor, ProjectGoal, GoalConfidence } from "@/types/task";
+import type { ProjectColor, ProjectGoal, GoalConfidence } from "@/types/task";
 import { ProjectBoard } from "@/components/ProjectBoard";
 import { ProjectTaskGroups } from "@/components/ProjectTaskGroups";
 import { ProjectStagesEditor } from "@/components/ProjectStagesEditor";
-import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectNotesModal } from "@/components/ProjectNotesModal";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { TaskHistoryButton } from "@/components/TaskHistory";
 import { ProgressRing } from "@/components/ProgressRing";
-import { Spinner } from "@/components/Spinner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { QuickCreate } from "@/components/QuickCreate";
 import { AddExistingTaskModal } from "@/components/AddExistingTaskModal";
@@ -22,7 +19,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ProjectDetailSkeleton } from "@/components/skeletons";
 import { computeProjectRecap } from "@/utils/projectRecap";
 import { isKpiGoal, goalPct, parseTarget, nextConfidence } from "@/utils/goalKpi";
-import { IconArrowLeft, IconBookmark, IconCheck, IconClose, IconPlus, IconProject, IconShare, IconStages, IconTrash } from "@/components/icons";
+import { IconArrowLeft, IconCheck, IconEdit, IconClose, IconPlus, IconProject, IconShare, IconStages, IconTrash } from "@/components/icons";
 
 const COLORS: ProjectColor[] = ["green", "cyan", "amber", "red"];
 // OKR check-in status → token color (green on track, amber at risk, red off track).
@@ -46,13 +43,11 @@ export function ProjectDetailPage() {
   const update = useProjectsStore((s) => s.update);
   const remove = useProjectsStore((s) => s.remove);
   const tasks = useTasksStore((s) => s.tasks);
-  const saveFromProject = useTemplatesStore((s) => s.saveFromProject);
   const doneCount = useProjectsStore((s) => (id ? s.doneCounts[id] ?? 0 : 0));
   const focusMinutes = useProjectsStore((s) => (id ? s.focusMinutes[id] ?? 0 : 0));
   const loadProgress = useProjectsStore((s) => s.loadProgress);
   const loaded = useProjectsStore((s) => s.loaded);
   const userName = useAuthStore((s) => s.user.name);
-  const [savingTemplate, setSavingTemplate] = useState(false);
   const [confirmKind, setConfirmKind] = useState<null | "archive" | "delete">(null);
   const [pendingGoalRemove, setPendingGoalRemove] = useState<number | null>(null);
   const [recapOpen, setRecapOpen] = useState(false);
@@ -161,16 +156,6 @@ export function ProjectDetailPage() {
     if (e.key === "Enter") { e.preventDefault(); fn(); }
   }
 
-  async function handleSaveTemplate(p: Project) {
-    if (savingTemplate) return;
-    setSavingTemplate(true);
-    try {
-      await saveFromProject(p, projectTasks);
-    } finally {
-      setSavingTemplate(false);
-    }
-  }
-
   const primary = COLOR_PRIMARY[project.color];
   const totalTasks = doneCount + projectTasks.length;
   const pct = totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0;
@@ -246,6 +231,27 @@ export function ProjectDetailPage() {
           />
         ))}
         <div className="flex-1" />
+        {/* Notes live behind this button (no section on the page); a dot marks
+            a project that has some. */}
+        <button
+          type="button"
+          onClick={() => setNotesOpen(true)}
+          aria-haspopup="dialog"
+          aria-label={t("project.content.title")}
+          data-has-notes={project.content ? "true" : "false"}
+          className="relative flex items-center gap-1 text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
+          style={{ border: "1px solid var(--border-default)" }}
+        >
+          <IconEdit size={12} />
+          {t("project.content.title")}
+          {project.content && (
+            <span
+              aria-hidden="true"
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: "var(--accent-primary)" }}
+            />
+          )}
+        </button>
         <button
           type="button"
           onClick={() => setStagesOpen((v) => !v)}
@@ -277,16 +283,6 @@ export function ProjectDetailPage() {
         >
           <IconShare size={12} />
           {t("project.recap.button")}
-        </button>
-        <button
-          onClick={() => void handleSaveTemplate(project)}
-          disabled={savingTemplate}
-          aria-busy={savingTemplate}
-          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
-          style={{ border: "1px solid var(--border-default)" }}
-        >
-          {savingTemplate ? <Spinner size={12} /> : <IconBookmark size={12} />}
-          {t("project.saveAsTemplate")}
         </button>
         <button
           onClick={() => {
@@ -336,44 +332,6 @@ export function ProjectDetailPage() {
         />
       </div>
 
-      {/* Notes — collapsed to a compact preview here; viewed/edited in a modal so
-          the detail page stays scannable (#215 follow-up). */}
-      <Section
-        title={t("project.content.title")}
-        extra={
-          <button
-            onClick={() => setNotesOpen(true)}
-            className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md normal-case tracking-normal transition-colors"
-            style={{ border: "1px solid var(--border-default)", color: "var(--text-muted)" }}
-          >
-            {project.content ? t("project.content.edit") : t("project.content.add")}
-          </button>
-        }
-      >
-        {project.content ? (
-          // Clamped read-only preview with a transparent overlay button for the
-          // click/keyboard affordance — the editor stays a sibling (not nested
-          // inside an interactive element, which would be invalid a11y).
-          <div className="relative surface-card surface-card--interactive overflow-hidden" style={{ maxHeight: 120, padding: "10px 12px" }}>
-            <ProjectContentEditor value={project.content} editable={false} onChange={() => {}} />
-            <button
-              type="button"
-              onClick={() => setNotesOpen(true)}
-              aria-label={t("project.content.open")}
-              className="absolute inset-0 cursor-pointer"
-              style={{ background: "transparent", border: "none" }}
-            />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setNotesOpen(true)}
-            className="text-xs text-text-faint hover:text-text-secondary transition-colors"
-          >
-            {t("project.content.empty")}
-          </button>
-        )}
-      </Section>
 
       {/* Key goals */}
       <Section title={t("project.goals.title")}>

@@ -10,7 +10,7 @@
  * JWT token is stored in localStorage and attached to every request.
  */
 
-import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, ProjectTemplate, Template, TemplatePayload, ProjectTemplatePayload, User } from "@/types/task";
+import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, Template, TemplatePayload, ProjectTemplatePayload, User } from "@/types/task";
 import type { SyncStatusResponse, SyncCycleResponse, DataExportWire } from "@lumo/contracts";
 import type {
   FeedbackListResponse,
@@ -1077,17 +1077,6 @@ export const templateApi = {
       payload,
     });
     return adaptTemplate(raw) as TaskTemplate;
-  },
-
-  // Project templates (#211 V2 ⭐3): stored on the same entity with kind="project".
-  async createProject(name: string, payload: ProjectTemplatePayload, id?: string): Promise<ProjectTemplate> {
-    const raw = await req<any>("POST", "/templates", {
-      ...(id ? { id } : {}),
-      name,
-      kind: "project",
-      payload,
-    });
-    return adaptTemplate(raw) as ProjectTemplate;
   },
 
   async rename(id: string, name: string): Promise<Template> {

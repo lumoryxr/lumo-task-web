@@ -40,10 +40,6 @@ vi.mock("@/store/useTasksStore", () => ({
   useTasksStore: (sel: any) => sel({ tasks: [], create: vi.fn() }),
 }));
 
-vi.mock("@/store/useTemplatesStore", () => ({
-  useTemplatesStore: (sel: any) => sel({ saveFromProject: vi.fn() }),
-}));
-
 vi.mock("@/store/useAuthStore", () => ({
   useAuthStore: (sel: any) => sel({ user: { name: "Jalen" } }),
 }));
@@ -57,8 +53,8 @@ vi.mock("react-router-dom", async () => {
 
 // TipTap doesn't render cleanly under jsdom — stub the editor with a marker.
 vi.mock("@/components/ProjectContentEditor", () => ({
-  ProjectContentEditor: ({ editable }: { editable?: boolean }) => (
-    <div data-testid="content-editor">{editable === false ? "display" : "edit"}</div>
+  ProjectContentEditor: ({ editable, fill }: { editable?: boolean; fill?: boolean }) => (
+    <div data-testid="content-editor" data-fill={fill ? "true" : "false"}>{editable === false ? "display" : "edit"}</div>
   ),
 }));
 vi.mock("@/components/TaskRow", () => ({ TaskRow: () => null }));
@@ -146,22 +142,25 @@ describe("ProjectDetailPage polish", () => {
     expect(mockUpdate).toHaveBeenCalledWith("p1", { goals: [] });
   });
 
-  it("collapses notes to a preview and opens/closes the edit modal", () => {
+  it("keeps notes off the page: a header button opens them in a large editor", () => {
     project.content = '{"type":"doc","content":[]}';
     renderPage();
-    // Collapsed on the page: a read-only preview, no modal yet.
-    expect(screen.getByTestId("content-editor").textContent).toBe("display");
-    expect(screen.queryByRole("dialog")).toBeNull();
+    // Nothing of the notes on the page itself.
+    expect(screen.queryByTestId("content-editor")).toBeNull();
+    expect(screen.queryByText("project.content.empty")).toBeNull();
 
-    // Header Edit button opens the modal, which renders the editable editor.
-    fireEvent.click(screen.getByText("project.content.edit"));
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByTestId("content-editor").textContent).toBe("edit");
+    const btn = screen.getByRole("button", { name: "project.content.title" });
+    expect(btn).toHaveAttribute("aria-haspopup", "dialog");
+    expect(btn).toHaveAttribute("data-has-notes", "true");
+    fireEvent.click(btn);
+    const dialog = screen.getByRole("dialog", { name: "project.content.title" });
+    const editor = within(dialog).getByTestId("content-editor");
+    expect(editor.textContent).toBe("edit");
+    expect(editor).toHaveAttribute("data-fill", "true");
 
-    // Done closes the modal; the page shows only the preview again.
     fireEvent.click(within(dialog).getByText("project.content.done"));
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByTestId("content-editor").textContent).toBe("display");
+    expect(screen.queryByTestId("content-editor")).toBeNull();
   });
 
   it("cycles a KPI goal's OKR confidence pill (unset → on_track) and persists it", () => {
@@ -174,13 +173,17 @@ describe("ProjectDetailPage polish", () => {
     });
   });
 
-  it("shows an empty-notes button with no content, and opens the modal from it", () => {
+  it("the notes button works with no notes yet, and shows they are empty", () => {
     renderPage();
-    // No preview editor when empty; the empty hint is the affordance.
-    expect(screen.queryByTestId("content-editor")).toBeNull();
-    fireEvent.click(screen.getByText("project.content.empty"));
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByTestId("content-editor").textContent).toBe("edit");
+    const btn = screen.getByRole("button", { name: "project.content.title" });
+    expect(btn).toHaveAttribute("data-has-notes", "false");
+    fireEvent.click(btn);
+    expect(within(screen.getByRole("dialog")).getByTestId("content-editor").textContent).toBe("edit");
+  });
+
+  it("no longer offers saving the project as a template", () => {
+    renderPage();
+    expect(screen.queryByText("project.saveAsTemplate")).toBeNull();
   });
 
   it("puts a compact Add task button in the Tasks header, not a full-width bar below the list", () => {

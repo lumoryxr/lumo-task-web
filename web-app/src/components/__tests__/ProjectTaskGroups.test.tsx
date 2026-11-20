@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ProjectTaskGroups } from "../ProjectTaskGroups";
 import { DND_MIME } from "@/lib/taskDnd";
-import { SECTION_DND_MIME } from "../ProjectTaskGroups";
+import { SECTION_DND_MIME } from "@/lib/sectionDnd";
 import type { Project, Task } from "@/types/task";
 
 const mockProjectUpdate = vi.fn();

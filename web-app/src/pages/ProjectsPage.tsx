@@ -6,12 +6,11 @@ import { useTasksStore } from "@/store/useTasksStore";
 import type { Project, ProjectColor } from "@/types/task";
 import { EmptyState } from "@/components/EmptyState";
 import { ProjectListSkeleton } from "@/components/skeletons";
-import { ProjectTemplatePicker } from "@/components/ProjectTemplatePicker";
 import { ProjectFormModal } from "@/components/ProjectFormModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ProgressRing } from "@/components/ProgressRing";
 import { sortProjects, type ProjectSort } from "@/utils/projectSort";
-import { IconProject, IconPlus, IconBookmark, IconMore, IconEdit, IconTrash, IconArrowRight } from "@/components/icons";
+import { IconProject, IconPlus, IconMore, IconEdit, IconTrash, IconArrowRight } from "@/components/icons";
 
 const COLOR_PRIMARY: Record<ProjectColor, string> = {
   green: "var(--accent-primary)",
@@ -31,7 +30,6 @@ export function ProjectsPage() {
   const tasks = useTasksStore((s) => s.tasks);
   const [category, setCategory] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [sort, setSort] = useState<ProjectSort>("recent");
   const [showArchived, setShowArchived] = useState(false);
   const [editTarget, setEditTarget] = useState<Project | null>(null);
@@ -82,18 +80,12 @@ export function ProjectsPage() {
   if (!loaded && projects.length === 0) {
     return (
       <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
-        <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} t={t} />
+        <Header onNew={handleNew} t={t} />
         <div className="mt-4">
           <ProjectListSkeleton />
         </div>
-        {/* Mount the create modals here too so a New / From-template click during
-            the brief loading window isn't silently dropped (Header wires them). */}
-        {pickerOpen && (
-          <ProjectTemplatePicker
-            onClose={() => setPickerOpen(false)}
-            onCreated={(p) => navigate(`/projects/${p.id}`)}
-          />
-        )}
+        {/* Mount the create modal here too so a New click during the brief
+            loading window isn't silently dropped (Header wires it). */}
         {createOpen && (
           <ProjectFormModal
             onClose={() => setCreateOpen(false)}
@@ -107,19 +99,13 @@ export function ProjectsPage() {
   if (projects.length === 0) {
     return (
       <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
-        <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} t={t} />
+        <Header onNew={handleNew} t={t} />
         <EmptyState
           icon={<IconProject size={28} />}
           title={t("project.empty.title")}
           subtitle={t("project.empty.subtitle")}
           cta={{ label: t("project.new"), onClick: handleNew }}
         />
-        {pickerOpen && (
-          <ProjectTemplatePicker
-            onClose={() => setPickerOpen(false)}
-            onCreated={(p) => navigate(`/projects/${p.id}`)}
-          />
-        )}
         {createOpen && (
           <ProjectFormModal
             onClose={() => setCreateOpen(false)}
@@ -132,7 +118,7 @@ export function ProjectsPage() {
 
   return (
     <div className="fade-in px-4 sm:px-7 py-6 sm:py-7">
-      <Header onNew={handleNew} onFromTemplate={() => setPickerOpen(true)} t={t} />
+      <Header onNew={handleNew} t={t} />
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {categories.length > 0 && (
@@ -189,12 +175,6 @@ export function ProjectsPage() {
         </section>
       )}
 
-      {pickerOpen && (
-        <ProjectTemplatePicker
-          onClose={() => setPickerOpen(false)}
-          onCreated={(p) => navigate(`/projects/${p.id}`)}
-        />
-      )}
       {createOpen && (
         <ProjectFormModal
           onClose={() => setCreateOpen(false)}
@@ -221,19 +201,11 @@ export function ProjectsPage() {
   );
 }
 
-function Header({ onNew, onFromTemplate, t }: { onNew: () => void; onFromTemplate: () => void; t: (k: string) => string }) {
+function Header({ onNew, t }: { onNew: () => void; t: (k: string) => string }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
       <h1 className="text-xl font-semibold text-text-primary">{t("project.page.title")}</h1>
       <div className="flex items-center gap-2">
-        <button
-          onClick={onFromTemplate}
-          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
-          style={{ border: "1px solid var(--border-default)" }}
-        >
-          <IconBookmark size={14} />
-          {t("project.fromTemplate")}
-        </button>
         <button
           onClick={onNew}
           className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
