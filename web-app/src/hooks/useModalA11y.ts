@@ -40,12 +40,28 @@ const FOCUSABLE_SELECTOR = [
   "[contenteditable]:not([contenteditable='false'])",
 ].join(",");
 
-export function useModalA11y<T extends HTMLElement = HTMLDivElement>(onClose: () => void, isOpen = true) {
+export interface ModalA11yOptions {
+  /**
+   * Escape closes the dialog (default). Set false for dialogs that hold
+   * unsaved input and close only from their own X — Escape then does nothing.
+   */
+  closeOnEscape?: boolean;
+}
+
+export function useModalA11y<T extends HTMLElement = HTMLDivElement>(
+  onClose: () => void,
+  isOpen = true,
+  { closeOnEscape = true }: ModalA11yOptions = {},
+) {
   const ref = useRef<T>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+  const closeOnEscapeRef = useRef(closeOnEscape);
+  useEffect(() => {
+    closeOnEscapeRef.current = closeOnEscape;
+  }, [closeOnEscape]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -71,7 +87,7 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(onClose: ()
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onCloseRef.current();
+        if (closeOnEscapeRef.current) onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !node) return;

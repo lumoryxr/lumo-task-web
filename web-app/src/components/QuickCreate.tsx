@@ -8,6 +8,8 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { DraftExitDialog } from "@/components/DraftExitDialog";
+import { useTaskDraftsStore, type CreateDraft } from "@/store/useTaskDraftsStore";
 import { ProjectSelect } from "@/components/ProjectSelect";
 import { TagInput } from "@/components/TagInput";
 import { derivePlanTags } from "@/utils/planFilters";
@@ -43,8 +45,11 @@ const Q_META: Record<Quadrant, { en: string; zh: string; descEn: string; descZh:
 };
 
 /**
- * Modal for creating a task quickly. Per design: centered, dismiss via X or
- * Escape. Escape is a convenience but the X button is always the primary affordance.
+ * Modal for creating a task quickly. It closes only from its X (or Cancel):
+ * Escape and clicks outside are ignored, so typed input is never lost by
+ * accident. What is typed is saved as a draft as you go; closing with input
+ * asks whether to keep it, and a kept draft is restored the next time the
+ * form opens (even after a reload).
  */
 export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, projectId, sectionId, onClose, onCreated }: QuickCreateProps) {
   const t = useT();
@@ -60,18 +65,75 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   const tomorrowISO = toISODate(new Date(Date.now() + 86400000));
   const nextWeekISO = getNextMonday();
 
-  const [title, setTitle] = useState(initialTitle ?? "");
+  // What a fresh form holds in this context (where it was opened from).
+  const defaults: CreateDraft = {
+    title: initialTitle ?? "",
+    quadrant: initialQuadrant,
+    duration: 30,
+    dueDate: initialDue ?? todayISO,
+    assigneeIds: [],
+    recurrence: "none",
+    tags: [],
+    projectId: projectId ?? null,
+  };
+  const saveCreateDraft = useTaskDraftsStore((s) => s.saveCreateDraft);
+  const clearCreateDraft = useTaskDraftsStore((s) => s.clearCreateDraft);
+  // An unfinished task from last time wins over the context defaults — unless
+  // the form was opened with text of its own (e.g. typed in the command palette).
+  const [restored, setRestored] = useState<CreateDraft | null>(() =>
+    initialTitle ? null : useTaskDraftsStore.getState().createDraft,
+  );
+  const start = restored ?? defaults;
+
+  const [title, setTitle] = useState(start.title);
   const [busy, setBusy] = useState(false);
-  const [quadrant, setQuadrant] = useState<Quadrant>(initialQuadrant);
-  const [duration, setDuration] = useState(30);
-  const [durationRaw, setDurationRaw] = useState("30");
-  const [dueDate, setDueDate] = useState<string>(initialDue ?? todayISO);
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
-  const [recurrence, setRecurrence] = useState<TaskRecurrence>("none");
-  const [tags, setTags] = useState<string[]>([]);
+  const [quadrant, setQuadrant] = useState<Quadrant>(start.quadrant);
+  const [duration, setDuration] = useState(start.duration);
+  const [durationRaw, setDurationRaw] = useState(String(start.duration));
+  const [dueDate, setDueDate] = useState<string>(start.dueDate);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(start.assigneeIds);
+  const [recurrence, setRecurrence] = useState<TaskRecurrence>(start.recurrence);
+  const [tags, setTags] = useState<string[]>(start.tags);
   // Owning project — prefilled from the `projectId` prop (e.g. when opened from
   // a project detail page) but user-selectable everywhere else (#211).
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectId ?? null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(start.projectId);
+  const [exitOpen, setExitOpen] = useState(false);
+
+  const snapshot: CreateDraft = {
+    title, quadrant, duration, dueDate, assigneeIds, recurrence, tags, projectId: selectedProjectId,
+  };
+  const snapshotKey = JSON.stringify(snapshot);
+  const dirty = snapshotKey !== JSON.stringify(defaults);
+
+  // Save the draft as it changes (not on mount, so merely opening the form
+  // never overwrites or clears a draft). Back at the defaults = nothing to keep.
+  const lastSaved = useRef(snapshotKey);
+  useEffect(() => {
+    if (snapshotKey === lastSaved.current) return;
+    lastSaved.current = snapshotKey;
+    if (dirty) saveCreateDraft(JSON.parse(snapshotKey) as CreateDraft);
+    else clearCreateDraft();
+  }, [snapshotKey, dirty, saveCreateDraft, clearCreateDraft]);
+
+  /** The X / Cancel: close at once if there is nothing to keep, else ask. */
+  function requestClose() {
+    if (dirty) setExitOpen(true);
+    else onClose();
+  }
+
+  function resetToDefaults() {
+    setTitle(defaults.title);
+    setQuadrant(defaults.quadrant);
+    setDuration(defaults.duration);
+    setDurationRaw(String(defaults.duration));
+    setDueDate(defaults.dueDate);
+    setAssigneeIds(defaults.assigneeIds);
+    setRecurrence(defaults.recurrence);
+    setTags(defaults.tags);
+    setSelectedProjectId(defaults.projectId);
+    clearCreateDraft();
+    setRestored(null);
+  }
   const [aiMode, setAiMode] = useState(false);
   const [aiText, setAiText] = useState("");
   const [aiParsing, setAiParsing] = useState(false);
@@ -81,15 +143,15 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
 
   // Keep refs to the latest callbacks so the keydown listener is registered
   // only once but always calls the current version (avoids stale closures).
-  const onCloseRef = useRef(onClose);
+  // Escape deliberately does nothing here: only the X closes the form.
   const submitRef = useRef(submit);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  const exitOpenRef = useRef(exitOpen);
   useEffect(() => { submitRef.current = submit; }, [submit]);
+  useEffect(() => { exitOpenRef.current = exitOpen; }, [exitOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
-      else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitRef.current();
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !exitOpenRef.current) submitRef.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -137,6 +199,9 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
         // The group belongs to the project the dialog was opened from.
         ...(sectionId && selectedProjectId === projectId ? { section_id: sectionId } : {}),
       });
+      // Created: the draft has done its job.
+      lastSaved.current = JSON.stringify(defaults);
+      clearCreateDraft();
       onCreated?.();
     } finally {
       setBusy(false);
@@ -144,8 +209,8 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   }
 
   return createPortal(
+    // No click-outside close: a stray click must not throw away what was typed.
     <div
-      onClick={onClose}
       className="fade-in fixed inset-0 z-[150] flex items-center justify-center"
       style={{ background: "rgba(8, 11, 10, 0.6)", backdropFilter: "blur(6px)", padding: "0 32px" }}
     >
@@ -189,7 +254,7 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
             {t("qc.ai")}
           </button>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             aria-label={t("qc.close")}
             title={t("qc.close")}
             className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-text-muted border border-border-default bg-transparent hover:bg-subtle hover:text-text-primary hover:border-border-strong transition-colors"
@@ -197,6 +262,23 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
             <IconClose size={12} />
           </button>
         </header>
+
+        {restored && (
+          <div
+            role="status"
+            className="flex items-center gap-2 px-[18px] py-2 text-[11.5px] border-b border-border-faint"
+            style={{ background: "var(--accent-fog)", color: "var(--accent-primary)" }}
+          >
+            <span className="flex-1 min-w-0 truncate">{t("draft.restored")}</span>
+            <button
+              type="button"
+              onClick={resetToDefaults}
+              className="flex-shrink-0 rounded px-1.5 py-0.5 font-medium text-text-secondary hover:text-text-primary transition-colors"
+            >
+              {t("draft.clear")}
+            </button>
+          </div>
+        )}
 
         {/* Body */}
         <div className="px-[18px] py-4 flex flex-col gap-4">
@@ -484,12 +566,27 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
 
         {/* Footer */}
         <footer className="flex items-center justify-end gap-2 px-[18px] py-3 border-t border-border-faint">
-          <button className="btn btn-ghost" onClick={onClose}>{t("qc.cancel")}</button>
+          <button className="btn btn-ghost" onClick={requestClose}>{t("qc.cancel")}</button>
           <button className="btn btn-primary" style={{ minWidth: 76 }} disabled={!title.trim() || busy} aria-busy={busy} aria-label={t("qc.create")} onClick={submit}>
             {busy ? <Spinner /> : t("qc.create")}
           </button>
         </footer>
       </div>
+      <DraftExitDialog
+        open={exitOpen}
+        onKeep={() => {
+          saveCreateDraft(snapshot);
+          setExitOpen(false);
+          onClose();
+        }}
+        onDiscard={() => {
+          lastSaved.current = JSON.stringify(defaults);
+          clearCreateDraft();
+          setExitOpen(false);
+          onClose();
+        }}
+        onContinue={() => setExitOpen(false)}
+      />
     </div>,
     document.body,
   );

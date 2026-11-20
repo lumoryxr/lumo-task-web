@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { TaskEditModal } from "../TaskEditModal";
 import type { Task } from "@/types/task";
 import { useProjectsStore } from "@/store/useProjectsStore";
+import { useTaskDraftsStore } from "@/store/useTaskDraftsStore";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -43,12 +44,12 @@ const TASK: Task = {
 
 function setup(task = TASK) {
   const onClose = vi.fn();
-  render(
+  const utils = render(
     <MemoryRouter>
       <TaskEditModal task={task} onClose={onClose} />
     </MemoryRouter>
   );
-  return { onClose };
+  return { onClose, ...utils };
 }
 
 function getSaveBtn() {
@@ -61,6 +62,11 @@ function getTitleInput() {
   return screen.getByDisplayValue("Buy groceries") as HTMLInputElement;
 }
 
+/** The title field whatever it currently holds. */
+function titleField() {
+  return screen.getByPlaceholderText("qc.placeholder") as HTMLInputElement;
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("TaskEditModal", () => {
@@ -68,6 +74,8 @@ describe("TaskEditModal", () => {
     vi.clearAllMocks();
     mockUpdate.mockResolvedValue({});
     mockRemove.mockResolvedValue(undefined);
+    localStorage.clear();
+    useTaskDraftsStore.setState({ createDraft: null, editDrafts: {} });
   });
 
   it("pre-fills the title from the task prop", () => {
@@ -130,10 +138,83 @@ describe("TaskEditModal", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
-  it("calls onClose when Escape is pressed", () => {
+  it("does not close on Escape or a click outside — only the X closes it", () => {
     const { onClose } = setup();
     fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.click(screen.getByRole("dialog").parentElement!);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes straight away from the X when nothing changed", () => {
+    const { onClose } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe("unsaved changes", () => {
+    beforeEach(() => {
+      localStorage.clear();
+      useTaskDraftsStore.setState({ createDraft: null, editDrafts: {} });
+    });
+
+    it("asks before closing, and can keep editing", () => {
+      const { onClose } = setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Buy groceries and wine" } });
+      fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
+      expect(screen.getByRole("alertdialog", { name: "draft.exit.title" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "draft.exit.continue" }));
+      expect(onClose).not.toHaveBeenCalled();
+      expect(titleField().value).toBe("Buy groceries and wine");
+    });
+
+    it("keeps the changes as a draft that comes back next time, without saving the task", () => {
+      const first = setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Buy groceries and wine" } });
+      fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
+      fireEvent.click(screen.getByRole("button", { name: "draft.exit.keep" }));
+      expect(first.onClose).toHaveBeenCalled();
+      expect(mockUpdate).not.toHaveBeenCalled();
+      first.unmount();
+
+      setup();
+      expect(titleField().value).toBe("Buy groceries and wine");
+      expect(screen.getByText("draft.restoredEdit")).toBeInTheDocument();
+    });
+
+    it("discards the changes when asked", () => {
+      const first = setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Buy groceries and wine" } });
+      fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
+      fireEvent.click(screen.getByRole("button", { name: "draft.exit.discard" }));
+      expect(first.onClose).toHaveBeenCalled();
+      first.unmount();
+      setup();
+      expect(titleField().value).toBe("Buy groceries");
+    });
+
+    it("ignores a draft made against an older version of the task", () => {
+      const first = setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Buy groceries and wine" } });
+      fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
+      fireEvent.click(screen.getByRole("button", { name: "draft.exit.keep" }));
+      first.unmount();
+
+      // Someone renamed the task since: the stale draft must not overwrite it.
+      setup({ ...TASK, title: { en: "Buy flowers", zh: "买花" } });
+      expect(titleField().value).toBe("Buy flowers");
+      expect(screen.queryByText("draft.restoredEdit")).toBeNull();
+      expect(useTaskDraftsStore.getState().editDrafts.t1).toBeUndefined();
+    });
+
+    it("drops the draft once the task is saved", async () => {
+      mockUpdate.mockResolvedValue(undefined);
+      setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Buy groceries and wine" } });
+      expect(useTaskDraftsStore.getState().editDrafts.t1).toBeDefined();
+      fireEvent.click(getSaveBtn());
+      await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+      await waitFor(() => expect(useTaskDraftsStore.getState().editDrafts.t1).toBeUndefined());
+    });
   });
 
   it("pre-fills description from task.desc", () => {

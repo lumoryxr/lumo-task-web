@@ -13,6 +13,8 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
+import { DraftExitDialog } from "@/components/DraftExitDialog";
+import { useTaskDraftsStore, type EditDraftFields } from "@/store/useTaskDraftsStore";
 import { ProjectSelect } from "@/components/ProjectSelect";
 import { toISODate } from "@/lib/format";
 import type { Quadrant, Task, TaskRecurrence } from "@/types/task";
@@ -67,27 +69,53 @@ export function TaskEditModal({ task, onClose }: Props) {
     : "";
   const initialRemindAt = task.remind_at ? task.remind_at.slice(0, 16) : "";
 
-  const [title, setTitle] = useState(initialTitle);
-  const [desc, setDesc] = useState(initialDesc);
-  const [quadrant, setQuadrant] = useState<Task["quadrant"]>(task.quadrant);
-  const [duration, setDuration] = useState(task.duration);
-  const [durationRaw, setDurationRaw] = useState(String(task.duration));
-  const [dueDate, setDueDate] = useState<string>(
-    task.due === "today" ? todayISO : (task.due ?? "")
-  );
-  const [scheduledStart, setScheduledStart] = useState<string>(initialScheduledStart);
-  const [remindAt, setRemindAt] = useState<string>(initialRemindAt);
-  const [recurrence, setRecurrence] = useState<TaskRecurrence>(task.recurrence ?? "none");
-  const [assigneeIds, setAssigneeIds] = useState<string[]>(task.assignee_ids ?? []);
-  const [tags, setTags] = useState<string[]>(task.tags ?? []);
-  const [projectId, setProjectId] = useState<string | null>(task.project_id ?? null);
-  const [progress, setProgress] = useState<number>(clampProgress(task.progress));
-  const [sectionId, setSectionId] = useState<string | null>(task.section_id ?? null);
+  // The form as the task stands now. A kept draft is tied to this snapshot.
+  const base: EditDraftFields = {
+    title: initialTitle,
+    desc: initialDesc,
+    quadrant: task.quadrant,
+    duration: task.duration,
+    dueDate: task.due === "today" ? todayISO : (task.due ?? ""),
+    scheduledStart: initialScheduledStart,
+    remindAt: initialRemindAt,
+    recurrence: task.recurrence ?? "none",
+    assigneeIds: task.assignee_ids ?? [],
+    tags: task.tags ?? [],
+    projectId: task.project_id ?? null,
+    progress: clampProgress(task.progress),
+    sectionId: task.section_id ?? null,
+    stageId: task.stage_id ?? null,
+  };
+  const baseKey = JSON.stringify(base);
+  const saveEditDraft = useTaskDraftsStore((s) => s.saveEditDraft);
+  const clearEditDraft = useTaskDraftsStore((s) => s.clearEditDraft);
+  // Unsaved changes kept from last time come back — but only while the task is
+  // still as it was then, so a stale draft never overwrites newer edits.
+  const [restored, setRestored] = useState<EditDraftFields | null>(() => {
+    const draft = useTaskDraftsStore.getState().editDrafts[task.id];
+    return draft && draft.base === baseKey ? draft.fields : null;
+  });
+  const start = restored ?? base;
+
+  const [title, setTitle] = useState(start.title);
+  const [desc, setDesc] = useState(start.desc);
+  const [quadrant, setQuadrant] = useState<Task["quadrant"]>(start.quadrant);
+  const [duration, setDuration] = useState(start.duration);
+  const [durationRaw, setDurationRaw] = useState(String(start.duration));
+  const [dueDate, setDueDate] = useState<string>(start.dueDate);
+  const [scheduledStart, setScheduledStart] = useState<string>(start.scheduledStart);
+  const [remindAt, setRemindAt] = useState<string>(start.remindAt);
+  const [recurrence, setRecurrence] = useState<TaskRecurrence>(start.recurrence);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(start.assigneeIds);
+  const [tags, setTags] = useState<string[]>(start.tags);
+  const [projectId, setProjectId] = useState<string | null>(start.projectId);
+  const [progress, setProgress] = useState<number>(start.progress);
+  const [sectionId, setSectionId] = useState<string | null>(start.sectionId);
   // Groups belong to a project: offer the selected project's groups, and drop
   // the chosen group when the task moves to a project that doesn't have it.
   const projectSections = projects.find((p) => p.id === projectId)?.sections ?? [];
   const effectiveSectionId = projectSections.some((s) => s.id === sectionId) ? sectionId : null;
-  const [stageId, setStageId] = useState<string | null>(task.stage_id ?? null);
+  const [stageId, setStageId] = useState<string | null>(start.stageId);
   const projectStages = projects.find((p) => p.id === projectId)?.stages ?? [];
   const effectiveStageId = projectStages.some((s) => s.id === stageId) ? stageId : null;
   function toggleAssignee(id: string) {
@@ -95,17 +123,85 @@ export function TaskEditModal({ task, onClose }: Props) {
   }
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [exitOpen, setExitOpen] = useState(false);
 
-  const dialogRef = useModalA11y<HTMLDivElement>(onClose);
+  const snapshot: EditDraftFields = {
+    title, desc, quadrant, duration, dueDate, scheduledStart, remindAt, recurrence,
+    assigneeIds, tags, projectId, progress, sectionId, stageId,
+  };
+  const snapshotKey = JSON.stringify(snapshot);
+  const dirty = snapshotKey !== baseKey;
+
+  // A draft made against an older version of the task is dropped on open.
+  const taskId = task.id;
+  const staleOnOpen = useRef(
+    (() => {
+      const draft = useTaskDraftsStore.getState().editDrafts[taskId];
+      return Boolean(draft && draft.base !== baseKey);
+    })(),
+  );
+  useEffect(() => {
+    if (staleOnOpen.current) {
+      staleOnOpen.current = false;
+      clearEditDraft(taskId);
+    }
+  }, [clearEditDraft, taskId]);
+
+  // Keep unsaved changes as a draft while editing (not on mount, so opening
+  // alone never touches a draft). Back to the task's values = nothing to keep.
+  const lastSaved = useRef(snapshotKey);
+  useEffect(() => {
+    if (snapshotKey === lastSaved.current) return;
+    lastSaved.current = snapshotKey;
+    if (dirty) saveEditDraft(taskId, baseKey, JSON.parse(snapshotKey) as EditDraftFields);
+    else clearEditDraft(taskId);
+  }, [snapshotKey, dirty, baseKey, taskId, saveEditDraft, clearEditDraft]);
+
+  /** The X / Cancel: close at once with nothing unsaved, else ask. */
+  function requestClose() {
+    if (dirty) setExitOpen(true);
+    else onClose();
+  }
+
+  function forgetDraft() {
+    lastSaved.current = baseKey;
+    clearEditDraft(taskId);
+  }
+
+  function revertToTask() {
+    setTitle(base.title);
+    setDesc(base.desc);
+    setQuadrant(base.quadrant);
+    setDuration(base.duration);
+    setDurationRaw(String(base.duration));
+    setDueDate(base.dueDate);
+    setScheduledStart(base.scheduledStart);
+    setRemindAt(base.remindAt);
+    setRecurrence(base.recurrence);
+    setAssigneeIds(base.assigneeIds);
+    setTags(base.tags);
+    setProjectId(base.projectId);
+    setProgress(base.progress);
+    setSectionId(base.sectionId);
+    setStageId(base.stageId);
+    forgetDraft();
+    setRestored(null);
+  }
+
+  // Only the X closes this dialog: Escape is ignored (and the trap pauses
+  // while the keep/discard question is open).
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose, !exitOpen, { closeOnEscape: false });
 
   const handleSaveRef = useRef(handleSave);
   useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
+  const exitOpenRef = useRef(exitOpen);
+  useEffect(() => { exitOpenRef.current = exitOpen; }, [exitOpen]);
 
-  // Esc / focus-trap / focus-return come from the shared hook; this keeps the
+  // Focus-trap / focus-return come from the shared hook; this keeps the
   // Cmd/Ctrl+Enter save shortcut.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSaveRef.current();
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !exitOpenRef.current) handleSaveRef.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -132,6 +228,7 @@ export function TaskEditModal({ task, onClose }: Props) {
         stage_id: effectiveStageId,
         progress,
       });
+      forgetDraft();
       onClose();
     } finally {
       setBusy(false);
@@ -143,6 +240,7 @@ export function TaskEditModal({ task, onClose }: Props) {
     setBusy(true);
     try {
       await remove(task.id);
+      forgetDraft();
       onClose();
     } finally {
       setBusy(false);
@@ -150,8 +248,8 @@ export function TaskEditModal({ task, onClose }: Props) {
   }
 
   return createPortal(
+    // No click-outside close: a stray click must not throw away unsaved edits.
     <div
-      onClick={onClose}
       className="fade-in fixed inset-0 z-[200] flex items-center justify-center"
       style={{ background: "rgba(8, 11, 10, 0.65)", backdropFilter: "blur(6px)", padding: "0 32px" }}
     >
@@ -174,13 +272,30 @@ export function TaskEditModal({ task, onClose }: Props) {
         <header className="flex items-center gap-3 px-[18px] py-4 border-b border-border-faint">
           <div className="flex-1 text-[13px] font-semibold text-text-primary">{t("edit.title")}</div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             aria-label={t("qc.close")}
             className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-text-muted border border-border-default bg-transparent hover:bg-subtle hover:text-text-primary hover:border-border-strong transition-colors"
           >
             <IconClose size={12} />
           </button>
         </header>
+
+        {restored && (
+          <div
+            role="status"
+            className="flex items-center gap-2 px-[18px] py-2 text-[11.5px] border-b border-border-faint"
+            style={{ background: "var(--accent-fog)", color: "var(--accent-primary)" }}
+          >
+            <span className="flex-1 min-w-0 truncate">{t("draft.restoredEdit")}</span>
+            <button
+              type="button"
+              onClick={revertToTask}
+              className="flex-shrink-0 rounded px-1.5 py-0.5 font-medium text-text-secondary hover:text-text-primary transition-colors"
+            >
+              {t("draft.revert")}
+            </button>
+          </div>
+        )}
 
         {/* Body */}
         <div className="px-[18px] py-4 flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: "60vh" }}>
@@ -569,7 +684,7 @@ export function TaskEditModal({ task, onClose }: Props) {
           )}
           {!confirmDelete && (
             <>
-              <button className="btn btn-ghost" onClick={onClose} disabled={busy}>{t("qc.cancel")}</button>
+              <button className="btn btn-ghost" onClick={requestClose} disabled={busy}>{t("qc.cancel")}</button>
               <button
                 className="btn btn-primary"
                 disabled={!title.trim() || busy}
@@ -583,6 +698,20 @@ export function TaskEditModal({ task, onClose }: Props) {
           )}
         </footer>
       </div>
+      <DraftExitDialog
+        open={exitOpen}
+        onKeep={() => {
+          saveEditDraft(taskId, baseKey, snapshot);
+          setExitOpen(false);
+          onClose();
+        }}
+        onDiscard={() => {
+          forgetDraft();
+          setExitOpen(false);
+          onClose();
+        }}
+        onContinue={() => setExitOpen(false)}
+      />
     </div>,
     document.body
   );
