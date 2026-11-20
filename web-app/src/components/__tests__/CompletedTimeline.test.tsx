@@ -157,4 +157,9 @@ describe("CompletedTimeline", () => {
     // Only ENTRY_1 has a connector (not the last)
     expect(connectors).toHaveLength(1);
   });
+
+  it("offers a quiet link to the full history", () => {
+    render(<CompletedTimeline entries={[ENTRY_1]} locale="en" />);
+    expect(screen.getByRole("button", { name: "History" })).toHaveAttribute("aria-haspopup", "dialog");
+  });
 });

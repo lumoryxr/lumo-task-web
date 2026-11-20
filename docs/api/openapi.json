@@ -2444,6 +2444,28 @@
             "items": {
               "type": "string"
             }
+          },
+          "subtasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "completed": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "completed"
+              ]
+            }
           }
         },
         "required": [
@@ -2455,7 +2477,8 @@
           "startedAt",
           "completedAt",
           "project_id",
-          "tags"
+          "tags",
+          "subtasks"
         ]
       },
       "CompletedListResponse": {
@@ -2510,6 +2533,28 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "subtasks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "completed": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "completed"
+                    ]
+                  }
                 }
               },
               "required": [
@@ -2521,7 +2566,8 @@
                 "startedAt",
                 "completedAt",
                 "project_id",
-                "tags"
+                "tags",
+                "subtasks"
               ]
             }
           },

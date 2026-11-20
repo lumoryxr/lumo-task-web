@@ -69,6 +69,7 @@ export interface CompletedEntryRow {
   completed_at: string;
   project_id: string | null;
   tags_json: string | null;
+  subtasks_json: string | null;
 }
 
 export interface PersonRow {
@@ -118,6 +119,7 @@ export interface FocusTaskRow {
   quadrant: string;
   project_id: string | null;
   tags_json: string | null;
+  subtasks_json: string | null;
 }
 
 export interface HabitRow {

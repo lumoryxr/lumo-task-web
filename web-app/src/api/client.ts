@@ -417,6 +417,7 @@ function adaptEntry(raw: any): CompletedEntry {
     completedAt: raw.completedAt ?? undefined,
     projectId: raw.project_id ?? null,
     tags: Array.isArray(raw.tags) ? raw.tags : [],
+    subtasks: Array.isArray(raw.subtasks) ? raw.subtasks : [],
   };
 }
 
@@ -634,6 +635,15 @@ export const api = {
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const rows = await req<any[]>("GET", `/completed?date=${date}`);
     return rows.map(adaptEntry);
+  },
+
+  /** One page of the completed history, newest first (keyset-paginated). */
+  async listCompletedPage(cursor?: string, limit = 50): Promise<{ entries: CompletedEntry[]; nextCursor: string | null }> {
+    const path = cursor
+      ? `/completed?limit=${limit}&cursor=${encodeURIComponent(cursor)}`
+      : `/completed?limit=${limit}`;
+    const res = await req<{ items: any[]; nextCursor: string | null }>("GET", path);
+    return { entries: res.items.map(adaptEntry), nextCursor: res.nextCursor ?? null };
   },
 
   async listAllCompleted(): Promise<CompletedEntry[]> {

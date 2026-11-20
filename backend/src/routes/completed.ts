@@ -6,6 +6,7 @@ import type { Variables } from "../env.js";
 import { httpError } from "../lib/errors.js";
 import { hlcNow } from "../lib/hlc.js";
 import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
+import { SubtaskSchema, type Subtask } from "@lumo/contracts";
 import type { CompletedEntryRow } from "../db/rows.js";
 
 const DEFAULT_LIMIT = 200;
@@ -24,6 +25,21 @@ function parseTags(raw: string | null | undefined): string[] {
   }
 }
 
+/** Stored subtask snapshot, dropping any malformed item rather than failing the read. */
+function parseSubtasks(raw: string | null | undefined): Subtask[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    return v.flatMap((s) => {
+      const r = SubtaskSchema.safeParse(s);
+      return r.success ? [r.data] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
 export function rowToEntry(row: CompletedEntryRow) {
   return {
     id: row.id,
@@ -35,6 +51,7 @@ export function rowToEntry(row: CompletedEntryRow) {
     completedAt: row.completed_at,
     project_id: row.project_id ?? null,
     tags: parseTags(row.tags_json),
+    subtasks: parseSubtasks(row.subtasks_json),
   };
 }
 

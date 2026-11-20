@@ -1,6 +1,7 @@
 import { IconUndo } from "@/components/icons";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { TaskTitle } from "@/components/TaskTitle";
+import { TaskHistoryButton } from "@/components/TaskHistory";
 import { useTasksStore } from "@/store/useTasksStore";
 import { fmtDuration } from "@/lib/format";
 import type { CompletedEntry, Locale } from "@/types/task";
@@ -58,6 +59,7 @@ export function CompletedTimeline({ entries, locale }: Props) {
         <span className="text-[11px] tabular-nums text-text-faint">
           {t("timeline.total").replace("{x}", totalLabel)}
         </span>
+        <TaskHistoryButton />
       </div>
 
       <div className="flex flex-col">

@@ -28,7 +28,7 @@ import {
  * schema is what prevents the two from drifting across packages.
  */
 
-const SubtaskSchema = z.object({
+export const SubtaskSchema = z.object({
   id: z.string(),
   title: z.string().max(500),
   completed: z.boolean(),

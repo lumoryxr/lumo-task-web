@@ -307,3 +307,38 @@ describe("API client — project stages", () => {
     expect(JSON.parse((globalThis.fetch as any).mock.calls[0][1].body)).toEqual({ stages: [] });
   });
 });
+
+describe("API client — completed history", () => {
+  const wire = {
+    id: "c1", task_id: "t1", title: { en: "Done" }, duration: 30, quadrant: "Q1",
+    startedAt: null, completedAt: "2026-11-20T10:00:00.000Z", project_id: null, tags: [],
+    subtasks: [{ id: "s1", title: "Step", completed: true }],
+  };
+
+  it("fetches one page of history, newest first, with its cursor", async () => {
+    mockFetch(200, { items: [wire], nextCursor: "abc" });
+    localStorage.setItem("lumo.token", "jwt");
+    const { api } = await import("../client");
+    const page = await api.listCompletedPage(undefined, 50);
+    expect(page.nextCursor).toBe("abc");
+    expect(page.entries[0].subtasks).toEqual(wire.subtasks);
+    expect((globalThis.fetch as any).mock.calls[0][0]).toContain("/completed?limit=50");
+  });
+
+  it("passes the cursor for the next page", async () => {
+    mockFetch(200, { items: [], nextCursor: null });
+    localStorage.setItem("lumo.token", "jwt");
+    const { api } = await import("../client");
+    const page = await api.listCompletedPage("a b", 50);
+    expect(page.nextCursor).toBeNull();
+    expect((globalThis.fetch as any).mock.calls[0][0]).toContain("cursor=a%20b");
+  });
+
+  it("defaults subtasks to an empty list for older entries", async () => {
+    const { subtasks: _omit, ...old } = wire;
+    mockFetch(200, { items: [old], nextCursor: null });
+    localStorage.setItem("lumo.token", "jwt");
+    const { api } = await import("../client");
+    expect((await api.listCompletedPage()).entries[0].subtasks).toEqual([]);
+  });
+});

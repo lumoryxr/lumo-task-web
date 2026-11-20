@@ -270,6 +270,23 @@ describe("project stages over sync", () => {
   });
 });
 
+// ── Completed-entry subtask snapshots over sync ────────────────────────────────
+describe("completed-entry subtasks over sync", () => {
+  test("a completed entry's subtasks_json round-trips on pull", async () => {
+    const t = now();
+    const subtasks = JSON.stringify([{ id: "s1", title: "x", completed: true }]);
+    const res = await push({
+      completed_entries: [{
+        id: "ce-sub", user_id: "x", title_en: "Done", duration: 0, completed_at: t,
+        created_at: t, updated_at: t, subtasks_json: subtasks,
+      }],
+    });
+    assert.equal(res.status, 200);
+    const { body } = await pull();
+    assert.equal(body.entities.completed_entries.find((r: any) => r.id === "ce-sub")?.subtasks_json, subtasks);
+  });
+});
+
 // ── F4 · per-entity schemas reject missing NOT NULL columns as a 400 ──────────
 describe("F4 · push validates required NOT NULL columns (400, not 500)", () => {
   test("a task row missing title_en → 400 INVALID_ROW, nothing applied", async () => {

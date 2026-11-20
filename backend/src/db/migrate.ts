@@ -316,6 +316,24 @@ export async function runMigrations() {
     await execRaw("ALTER TABLE completed_entries ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'");
   }
 
+  // Migrate: snapshot of the task's subtasks at completion, for the history
+  // view. On first add, backfill existing entries from their still-linked task
+  // (a completed task keeps its subtasks); entries with no task stay '[]'.
+  // Runs once (only when the column is added), so later task edits never
+  // rewrite history.
+  const completedColsV4 = await query<{ name: string }>("PRAGMA table_info(completed_entries)");
+  if (!completedColsV4.some((c) => c.name === "subtasks_json")) {
+    await execRaw("ALTER TABLE completed_entries ADD COLUMN subtasks_json TEXT NOT NULL DEFAULT '[]'");
+    await execRaw(`
+      UPDATE completed_entries
+      SET subtasks_json = COALESCE(
+        (SELECT t.subtasks_json FROM tasks t WHERE t.id = completed_entries.task_id AND t.user_id = completed_entries.user_id),
+        '[]'
+      )
+      WHERE task_id IS NOT NULL
+    `);
+  }
+
   // Migrate: normalize due field to strict ISO YYYY-MM-DD (or null)
   {
     const now = new Date();
