@@ -14,6 +14,10 @@ vi.mock("@/store/useTasksStore", () => {
 vi.mock("@/store/useProjectsStore", () => ({
   useProjectsStore: (sel: any) => sel({ projects: [{ id: "p1", name: "Launch" }] }),
 }));
+vi.mock("@/store/usePeopleStore", () => ({
+  usePeopleStore: (sel: any) =>
+    sel({ byId: (id: string) => (id === "p_ann" ? { id, name: "Ann Lee", initials: "AL", color: "var(--accent-primary)" } : undefined) }),
+}));
 vi.mock("@/store/useAppStore", () => {
   const useAppStore: any = (sel: any) => sel({ locale: "en" });
   useAppStore.getState = () => ({ locale: "en" });
@@ -32,7 +36,7 @@ const ENTRIES = [
     id: "e1", taskId: "t1", title: { en: "Write launch post" }, duration: 45, quadrant: "Q1",
     completedAt: at(0, 14, 30), projectId: "p1", tags: ["writing"],
     subtasks: [
-      { id: "s1", title: "Outline", completed: true },
+      { id: "s1", title: "Outline", completed: true, assignee_id: "p_ann" },
       { id: "s2", title: "Proofread", completed: false },
     ],
   },
@@ -42,7 +46,7 @@ const ENTRIES = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useHistoryStore.setState({ entries: [], nextCursor: null, loaded: false, loading: false, loadingMore: false, error: false });
+  useHistoryStore.setState({ projectId: null, entries: [], nextCursor: null, loaded: false, loading: false, loadingMore: false, error: false });
   listCompletedPage.mockResolvedValue({ entries: ENTRIES, nextCursor: null });
 });
 
@@ -96,6 +100,16 @@ describe("TaskHistoryButton", () => {
     expect(within(list).getByText("Proofread").closest("li")).toHaveAttribute("data-done", "false");
   });
 
+  it("shows who owned each subtask", async () => {
+    const dialog = await openHistory();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Subtasks 1/2" }));
+    const list = within(dialog).getByRole("list", { name: "Subtasks 1/2" });
+    const outline = within(list).getByText("Outline").closest("li")!;
+    expect(within(outline).getByTitle("Ann Lee")).toBeInTheDocument();
+    const proofread = within(list).getByText("Proofread").closest("li")!;
+    expect(within(proofread).queryByTitle("Ann Lee")).toBeNull();
+  });
+
   it("shows no subtask summary for a task without subtasks", async () => {
     const dialog = await openHistory();
     const item = within(dialog).getByRole("listitem", { name: "Pay invoices" });
@@ -122,7 +136,7 @@ describe("TaskHistoryButton", () => {
     listCompletedPage.mockResolvedValueOnce({ entries: ENTRIES.slice(1), nextCursor: null });
     fireEvent.click(await within(dialog).findByRole("button", { name: "Load more" }));
     await within(dialog).findByText("Plan offsite");
-    expect(listCompletedPage).toHaveBeenLastCalledWith("next", 50);
+    expect(listCompletedPage).toHaveBeenLastCalledWith("next", 50, undefined);
     expect(within(dialog).queryByRole("button", { name: "Load more" })).toBeNull();
   });
 
@@ -154,5 +168,18 @@ describe("TaskHistoryButton", () => {
     await openHistory();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("TaskHistoryButton · one project", () => {
+  it("loads only that project's history and names the project", async () => {
+    render(<TaskHistoryButton projectId="p1" projectName="Launch" />);
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    const dialog = await screen.findByRole("dialog", { name: "Completed history" });
+    expect(listCompletedPage).toHaveBeenCalledWith(undefined, 50, "p1");
+    expect(within(dialog).getByText("Launch")).toBeInTheDocument();
+    // Every entry is in this project, so the per-item project chip is redundant.
+    const item = await within(dialog).findByRole("listitem", { name: "Write launch post" });
+    expect(within(item).queryByText("Launch")).toBeNull();
   });
 });

@@ -638,10 +638,15 @@ export const api = {
   },
 
   /** One page of the completed history, newest first (keyset-paginated). */
-  async listCompletedPage(cursor?: string, limit = 50): Promise<{ entries: CompletedEntry[]; nextCursor: string | null }> {
-    const path = cursor
-      ? `/completed?limit=${limit}&cursor=${encodeURIComponent(cursor)}`
-      : `/completed?limit=${limit}`;
+  async listCompletedPage(
+    cursor?: string,
+    limit = 50,
+    projectId?: string,
+  ): Promise<{ entries: CompletedEntry[]; nextCursor: string | null }> {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (cursor) qs.set("cursor", cursor);
+    if (projectId) qs.set("project_id", projectId);
+    const path = `/completed?${qs.toString()}`;
     const res = await req<{ items: any[]; nextCursor: string | null }>("GET", path);
     return { entries: res.items.map(adaptEntry), nextCursor: res.nextCursor ?? null };
   },

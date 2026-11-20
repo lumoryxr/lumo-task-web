@@ -88,3 +88,43 @@ describe("completed history · migration backfill", () => {
     assert.deepEqual((await historyEntryFor(loose.id)).subtasks, []);
   });
 });
+
+describe("completed history · per-project view", () => {
+  test("?project_id narrows the history to one project, contract-conformant", async () => {
+    const p1 = await req("POST", "/v1/projects", { token, body: { name: "Alpha" } });
+    const p2 = await req("POST", "/v1/projects", { token, body: { name: "Beta" } });
+    const a = await completeTask({ title: { en: "In alpha" }, project_id: p1.body.id });
+    const b = await completeTask({ title: { en: "In beta" }, project_id: p2.body.id });
+    const r = await req("GET", `/v1/completed?project_id=${p1.body.id}&limit=50`, { token });
+    assert.equal(r.status, 200);
+    CompletedListResponseSchema.parse(r.body);
+    const ids = r.body.items.map((e: any) => e.task_id);
+    assert.ok(ids.includes(a.id));
+    assert.ok(!ids.includes(b.id));
+    assert.ok(r.body.items.every((e: any) => e.project_id === p1.body.id));
+  });
+
+  test("the project filter pages with the cursor", async () => {
+    const p = await req("POST", "/v1/projects", { token, body: { name: "Paged" } });
+    for (let i = 0; i < 3; i++) await completeTask({ title: { en: `Paged ${i}` }, project_id: p.body.id });
+    const first = await req("GET", `/v1/completed?project_id=${p.body.id}&limit=2`, { token });
+    assert.equal(first.body.items.length, 2);
+    assert.ok(first.body.nextCursor);
+    const second = await req("GET", `/v1/completed?project_id=${p.body.id}&limit=2&cursor=${encodeURIComponent(first.body.nextCursor)}`, { token });
+    assert.equal(second.body.items.length, 1);
+    assert.equal(second.body.nextCursor, null);
+  });
+
+  test("400 → a malformed project id is rejected", async () => {
+    const r = await req("GET", "/v1/completed?project_id=bad%20id", { token });
+    assert.equal(r.status, 400);
+  });
+});
+
+describe("completed history · subtask assignees", () => {
+  test("a subtask's assignee is kept in the history snapshot", async () => {
+    const subtasks = [{ id: "s1", title: "Draft", completed: true, assignee_id: "p_ann" }];
+    const task = await completeTask({ subtasks });
+    assert.deepEqual((await historyEntryFor(task.id)).subtasks, subtasks);
+  });
+});

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "@/components/Spinner";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CompletedTimeline } from "@/components/CompletedTimeline";
-import { TaskHistoryButton } from "@/components/TaskHistory";
 import { EveningReviewModal } from "@/components/EveningReviewModal";
 import { MorningPlanningModal } from "@/components/MorningPlanningModal";
 import { WeeklyPlanningModal, isWeeklyPlanned } from "@/components/WeeklyPlanningModal";
@@ -921,13 +920,8 @@ export function TodayPage() {
 
       <BatchActionBar candidateIds={visibleRest.map((x) => x.id)} />
 
-      {completed.length > 0 ? (
+      {completed.length > 0 && (
         <CompletedTimeline entries={completed} locale={locale} />
-      ) : (
-        // Nothing closed today: keep the way into past history, but quietly.
-        <div className="mt-10 flex justify-end">
-          <TaskHistoryButton />
-        </div>
       )}
 
       {planningOpen && <MorningPlanningModal onClose={handlePlanningClose} />}

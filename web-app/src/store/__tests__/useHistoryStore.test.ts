@@ -16,7 +16,7 @@ const entry = (id: string) => ({ id, title: { en: id }, duration: 0, completedAt
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useHistoryStore.setState({ entries: [], nextCursor: null, loaded: false, loading: false, loadingMore: false, error: false });
+  useHistoryStore.setState({ projectId: null, entries: [], nextCursor: null, loaded: false, loading: false, loadingMore: false, error: false });
 });
 
 describe("useHistoryStore", () => {
@@ -27,7 +27,7 @@ describe("useHistoryStore", () => {
     expect(s.entries.map((e) => e.id)).toEqual(["a", "b"]);
     expect(s.nextCursor).toBe("c1");
     expect(s.loaded).toBe(true);
-    expect(listCompletedPage).toHaveBeenCalledWith(undefined, 50);
+    expect(listCompletedPage).toHaveBeenCalledWith(undefined, 50, undefined);
   });
 
   it("appends the next page with the cursor, and stops at the end", async () => {
@@ -35,7 +35,7 @@ describe("useHistoryStore", () => {
     await useHistoryStore.getState().load();
     listCompletedPage.mockResolvedValueOnce({ entries: [entry("b")], nextCursor: null });
     await useHistoryStore.getState().loadMore();
-    expect(listCompletedPage).toHaveBeenLastCalledWith("c1", 50);
+    expect(listCompletedPage).toHaveBeenLastCalledWith("c1", 50, undefined);
     expect(useHistoryStore.getState().entries.map((e) => e.id)).toEqual(["a", "b"]);
     await useHistoryStore.getState().loadMore();
     expect(listCompletedPage).toHaveBeenCalledTimes(2);
@@ -63,5 +63,40 @@ describe("useHistoryStore", () => {
     reopen.mockRejectedValueOnce(new Error("nope"));
     await useHistoryStore.getState().reopen("a");
     expect(useHistoryStore.getState().entries.map((e) => e.id)).toEqual(["a"]);
+  });
+
+  it("scopes loading and paging to one project", async () => {
+    listCompletedPage.mockResolvedValueOnce({ entries: [entry("a")], nextCursor: "c1" });
+    await useHistoryStore.getState().load("p1");
+    expect(listCompletedPage).toHaveBeenCalledWith(undefined, 50, "p1");
+    expect(useHistoryStore.getState().projectId).toBe("p1");
+    listCompletedPage.mockResolvedValueOnce({ entries: [entry("b")], nextCursor: null });
+    await useHistoryStore.getState().loadMore();
+    expect(listCompletedPage).toHaveBeenLastCalledWith("c1", 50, "p1");
+  });
+
+  it("drops another project's entries at once when switching projects", async () => {
+    listCompletedPage.mockResolvedValueOnce({ entries: [entry("a")], nextCursor: null });
+    await useHistoryStore.getState().load("p1");
+    let resolve!: (v: unknown) => void;
+    listCompletedPage.mockReturnValueOnce(new Promise((r) => { resolve = r; }));
+    const pending = useHistoryStore.getState().load("p2");
+    expect(useHistoryStore.getState().entries).toEqual([]);
+    expect(useHistoryStore.getState().loaded).toBe(false);
+    resolve({ entries: [entry("z")], nextCursor: null });
+    await pending;
+    expect(useHistoryStore.getState().entries.map((e) => e.id)).toEqual(["z"]);
+  });
+
+  it("ignores a stale response that lands after a newer load", async () => {
+    let resolveOld!: (v: unknown) => void;
+    listCompletedPage.mockReturnValueOnce(new Promise((r) => { resolveOld = r; }));
+    const first = useHistoryStore.getState().load("p1");
+    listCompletedPage.mockResolvedValueOnce({ entries: [entry("new")], nextCursor: null });
+    await useHistoryStore.getState().load("p2");
+    resolveOld({ entries: [entry("old")], nextCursor: null });
+    await first;
+    expect(useHistoryStore.getState().entries.map((e) => e.id)).toEqual(["new"]);
+    expect(useHistoryStore.getState().projectId).toBe("p2");
   });
 });

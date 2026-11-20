@@ -4,6 +4,8 @@ import { useT, useLocaleString } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { useHistoryStore } from "@/store/useHistoryStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
+import { usePeopleStore } from "@/store/usePeopleStore";
+import { PersonAvatar } from "@/components/PersonAvatar";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { useCoarsePointer } from "@/hooks/useCoarsePointer";
 import { TaskTitle } from "@/components/TaskTitle";
@@ -32,10 +34,20 @@ function fmtClock(iso: string | undefined, locale: Locale): string {
 // ── Trigger ───────────────────────────────────────────────────────────────────
 
 /**
- * A small, quiet "History" link. It loads nothing until clicked; the history
- * opens in a side drawer, so it never takes space on the page itself.
+ * A small "History" button. It loads nothing until clicked; the history opens
+ * in a side drawer, so it never takes space on the page itself. With a
+ * `projectId` the drawer shows only that project's closed tasks.
  */
-export function TaskHistoryButton({ className = "" }: { className?: string }) {
+export function TaskHistoryButton({
+  projectId,
+  projectName,
+  className,
+}: {
+  projectId?: string;
+  projectName?: string;
+  /** Replaces the default quiet-link styling. */
+  className?: string;
+}) {
   const t = useT();
   const [open, setOpen] = useState(false);
   return (
@@ -44,12 +56,13 @@ export function TaskHistoryButton({ className = "" }: { className?: string }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        className={`inline-flex items-center gap-1 text-[11px] text-text-faint hover:text-text-primary transition-colors ${className}`}
+        className={className ?? "inline-flex items-center gap-1 text-[11px] text-text-faint hover:text-text-primary transition-colors"}
+        style={className ? { border: "1px solid var(--border-default)" } : undefined}
       >
-        <IconClock size={11} />
+        <IconClock size={12} />
         {t("history.open")}
       </button>
-      {open && <TaskHistoryDrawer onClose={() => setOpen(false)} />}
+      {open && <TaskHistoryDrawer projectId={projectId} projectName={projectName} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -57,7 +70,17 @@ export function TaskHistoryButton({ className = "" }: { className?: string }) {
 // ── Drawer ────────────────────────────────────────────────────────────────────
 
 /** Closed tasks grouped by day in the home timeline's style, with their subtasks. */
-export function TaskHistoryDrawer({ onClose }: { onClose: () => void }) {
+export function TaskHistoryDrawer({
+  onClose,
+  projectId,
+  projectName: scopeName,
+}: {
+  onClose: () => void;
+  /** Only this project's history; omit for every project. */
+  projectId?: string;
+  /** Shown under the title when scoped to a project. */
+  projectName?: string;
+}) {
   const t = useT();
   const ls = useLocaleString();
   const locale = useAppStore((s) => s.locale);
@@ -75,8 +98,8 @@ export function TaskHistoryDrawer({ onClose }: { onClose: () => void }) {
 
   // Fresh on every open, so tasks closed since last time show up.
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(projectId ?? null);
+  }, [load, projectId]);
 
   const projectName = useMemo(() => new Map(projects.map((p) => [p.id, p.name])), [projects]);
 
@@ -128,9 +151,17 @@ export function TaskHistoryDrawer({ onClose }: { onClose: () => void }) {
       >
         <header className="flex items-center gap-2 px-4 pt-4 pb-3">
           <IconClock size={14} className="text-text-faint" />
-          <h2 id="task-history-title" className="flex-1 text-[15px] font-semibold text-text-primary">
-            {t("history.title")}
-          </h2>
+          <div className="flex-1 min-w-0">
+            <h2 id="task-history-title" className="text-[15px] font-semibold text-text-primary">
+              {t("history.title")}
+            </h2>
+            {projectId && scopeName && (
+              <p className="flex items-center gap-1 mt-0.5 text-[11.5px] text-text-muted min-w-0">
+                <IconProject size={11} className="flex-shrink-0" />
+                <span className="truncate">{scopeName}</span>
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -186,7 +217,7 @@ export function TaskHistoryDrawer({ onClose }: { onClose: () => void }) {
                     key={entry.id}
                     entry={entry}
                     isLast={i === group.items.length - 1}
-                    projectName={entry.projectId ? projectName.get(entry.projectId) : undefined}
+                    projectName={!projectId && entry.projectId ? projectName.get(entry.projectId) : undefined}
                     locale={locale}
                   />
                 ))}
@@ -199,7 +230,7 @@ export function TaskHistoryDrawer({ onClose }: { onClose: () => void }) {
               <p className="text-[12px] text-text-faint mb-2">{t("history.error")}</p>
               <button
                 type="button"
-                onClick={() => void (loaded ? loadMore() : load())}
+                onClick={() => void (loaded ? loadMore() : load(projectId ?? null))}
                 className="rounded-md px-2.5 py-1 text-[11.5px] font-medium text-text-secondary border border-border-default hover:text-text-primary"
               >
                 {t("history.retry")}
@@ -241,6 +272,7 @@ function HistoryItem({ entry, isLast, projectName, locale }: {
   const t = useT();
   const ls = useLocaleString();
   const reopen = useHistoryStore((s) => s.reopen);
+  const byId = usePeopleStore((s) => s.byId);
   const coarse = useCoarsePointer();
   const [expanded, setExpanded] = useState(false);
   const [reopening, setReopening] = useState(false);
@@ -327,11 +359,15 @@ function HistoryItem({ entry, isLast, projectName, locale }: {
                       {s.completed && <IconCheck size={8} strokeWidth={3} />}
                     </span>
                     <span
-                      className={s.completed ? "line-through" : ""}
+                      className={`flex-1 min-w-0 ${s.completed ? "line-through" : ""}`}
                       style={{ color: s.completed ? "var(--text-faint)" : "var(--text-secondary)" }}
                     >
                       {s.title}
                     </span>
+                    {(() => {
+                      const owner = s.assignee_id ? byId(s.assignee_id) : undefined;
+                      return owner ? <PersonAvatar person={owner} size={16} /> : null;
+                    })()}
                   </li>
                 ))}
               </ul>

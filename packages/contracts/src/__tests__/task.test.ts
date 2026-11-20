@@ -215,3 +215,28 @@ describe("task stage (current phase within the project's stages)", () => {
     assert.equal("stage_id" in TaskUpdateBodySchema.parse({ today: true }), false);
   });
 });
+
+describe("subtask assignee", () => {
+  test("a subtask may name one assignee, or none", () => {
+    const parsed = TaskUpdateBodySchema.parse({
+      subtasks: [
+        { id: "s1", title: "Draft", completed: false, assignee_id: "p_1" },
+        { id: "s2", title: "Review", completed: false, assignee_id: null },
+        { id: "s3", title: "Ship", completed: false },
+      ],
+    });
+    assert.deepEqual(parsed.subtasks?.map((s) => s.assignee_id), ["p_1", null, undefined]);
+  });
+
+  test("the wire task round-trips a subtask assignee", () => {
+    const t = { ...wireTask, subtasks: [{ id: "s1", title: "x", completed: true, assignee_id: "p_1" }] };
+    assert.equal(TaskWireSchema.parse(t).subtasks[0].assignee_id, "p_1");
+  });
+
+  test("a malformed assignee id is rejected", () => {
+    assert.equal(
+      TaskUpdateBodySchema.safeParse({ subtasks: [{ id: "s1", title: "x", completed: false, assignee_id: "" }] }).success,
+      false,
+    );
+  });
+});

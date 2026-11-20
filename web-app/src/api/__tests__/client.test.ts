@@ -331,7 +331,17 @@ describe("API client — completed history", () => {
     const { api } = await import("../client");
     const page = await api.listCompletedPage("a b", 50);
     expect(page.nextCursor).toBeNull();
-    expect((globalThis.fetch as any).mock.calls[0][0]).toContain("cursor=a%20b");
+    expect((globalThis.fetch as any).mock.calls[0][0]).toContain("cursor=a+b");
+  });
+
+  it("scopes a page to one project", async () => {
+    mockFetch(200, { items: [], nextCursor: null });
+    localStorage.setItem("lumo.token", "jwt");
+    const { api } = await import("../client");
+    await api.listCompletedPage("c 1", 50, "p_1");
+    const url = (globalThis.fetch as any).mock.calls[0][0] as string;
+    expect(url).toContain("project_id=p_1");
+    expect(url).toContain("cursor=c+1");
   });
 
   it("defaults subtasks to an empty list for older entries", async () => {

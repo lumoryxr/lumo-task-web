@@ -158,8 +158,8 @@ describe("CompletedTimeline", () => {
     expect(connectors).toHaveLength(1);
   });
 
-  it("offers a quiet link to the full history", () => {
+  it("leaves the full history to the project page", () => {
     render(<CompletedTimeline entries={[ENTRY_1]} locale="en" />);
-    expect(screen.getByRole("button", { name: "History" })).toHaveAttribute("aria-haspopup", "dialog");
+    expect(screen.queryByRole("button", { name: "History" })).toBeNull();
   });
 });

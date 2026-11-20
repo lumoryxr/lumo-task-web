@@ -12,6 +12,7 @@ import { ProjectStagesEditor } from "@/components/ProjectStagesEditor";
 import { ProjectContentEditor } from "@/components/ProjectContentEditor";
 import { ProjectNotesModal } from "@/components/ProjectNotesModal";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
+import { TaskHistoryButton } from "@/components/TaskHistory";
 import { ProgressRing } from "@/components/ProgressRing";
 import { Spinner } from "@/components/Spinner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -21,7 +22,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ProjectDetailSkeleton } from "@/components/skeletons";
 import { computeProjectRecap } from "@/utils/projectRecap";
 import { isKpiGoal, goalPct, parseTarget, nextConfidence } from "@/utils/goalKpi";
-import { IconArrowLeft, IconBookmark, IconCheck, IconClose, IconPlus, IconProject, IconShare, IconTrash } from "@/components/icons";
+import { IconArrowLeft, IconBookmark, IconCheck, IconClose, IconPlus, IconProject, IconShare, IconStages, IconTrash } from "@/components/icons";
 
 const COLORS: ProjectColor[] = ["green", "cyan", "amber", "red"];
 // OKR check-in status → token color (green on track, amber at risk, red off track).
@@ -58,6 +59,8 @@ export function ProjectDetailPage() {
   const [taskView, setTaskView] = useState<"list" | "board">("list");
   const [notesOpen, setNotesOpen] = useState(false);
   const [addExistingOpen, setAddExistingOpen] = useState(false);
+  // The workflow stages are detail most visits don't need: folded by default.
+  const [stagesOpen, setStagesOpen] = useState(false);
   // Closed = null; open = { sectionId } (null files the task ungrouped).
   const [addTaskFor, setAddTaskFor] = useState<{ sectionId: string | null } | null>(null);
 
@@ -244,6 +247,30 @@ export function ProjectDetailPage() {
         ))}
         <div className="flex-1" />
         <button
+          type="button"
+          onClick={() => setStagesOpen((v) => !v)}
+          aria-expanded={stagesOpen}
+          aria-controls="project-stages"
+          aria-label={t("stage.toggle")}
+          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md transition-colors"
+          style={{
+            color: stagesOpen ? "var(--accent-primary)" : "var(--text-secondary)",
+            background: stagesOpen ? "var(--accent-fog)" : "transparent",
+            border: `1px solid ${stagesOpen ? "var(--accent-edge)" : "var(--border-default)"}`,
+          }}
+        >
+          <IconStages size={12} />
+          {t("stage.toggle")}
+          {(project.stages?.length ?? 0) > 0 && (
+            <span className="tabular-nums text-[10.5px] opacity-70">{project.stages?.length}</span>
+          )}
+        </button>
+        <TaskHistoryButton
+          projectId={project.id}
+          projectName={project.name}
+          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
+        />
+        <button
           onClick={() => setRecapOpen(true)}
           className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
           style={{ border: "1px solid var(--border-default)" }}
@@ -408,9 +435,13 @@ export function ProjectDetailPage() {
       </Section>
 
       {/* Stages — the project's workflow, with how many tasks sit in each */}
-      <Section title={t("stage.section")}>
-        <ProjectStagesEditor project={project} tasks={projectTasks} />
-      </Section>
+      {stagesOpen && (
+        <div id="project-stages">
+          <Section title={t("stage.section")}>
+            <ProjectStagesEditor project={project} tasks={projectTasks} />
+          </Section>
+        </div>
+      )}
 
       {/* Tasks */}
       <Section

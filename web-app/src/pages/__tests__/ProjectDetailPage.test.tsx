@@ -64,6 +64,11 @@ vi.mock("@/components/ProjectContentEditor", () => ({
 vi.mock("@/components/TaskRow", () => ({ TaskRow: () => null }));
 vi.mock("@/components/ProjectBoard", () => ({ ProjectBoard: () => null }));
 vi.mock("@/components/ProjectRecapCard", () => ({ ProjectRecapCard: () => null }));
+vi.mock("@/components/TaskHistory", () => ({
+  TaskHistoryButton: ({ projectId, projectName }: { projectId?: string; projectName?: string }) => (
+    <button type="button" data-project-id={projectId} data-project-name={projectName}>history.open</button>
+  ),
+}));
 
 function renderPage() {
   return render(<ProjectDetailPage />);
@@ -188,13 +193,28 @@ describe("ProjectDetailPage polish", () => {
     expect(within(header as HTMLElement).getByText("project.tasks.title")).toBeTruthy();
   });
 
-  it("shows a Stages section above the task list", () => {
+  it("keeps the Stages section hidden until the header toggle opens it", () => {
     const { container } = renderPage();
-    const headers = Array.from(container.querySelectorAll("[data-section-header]")).map(
-      (h) => h.firstElementChild?.textContent,
-    );
-    expect(headers.indexOf("stage.section")).toBeGreaterThan(-1);
-    expect(headers.indexOf("stage.section")).toBeLessThan(headers.indexOf("project.tasks.title"));
+    const headers = () =>
+      Array.from(container.querySelectorAll("[data-section-header]")).map((h) => h.firstElementChild?.textContent);
+    expect(headers()).not.toContain("stage.section");
+    expect(screen.queryByRole("button", { name: "stage.edit" })).toBeNull();
+
+    const toggle = screen.getByRole("button", { name: "stage.toggle" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(headers().indexOf("stage.section")).toBeGreaterThan(-1);
+    expect(headers().indexOf("stage.section")).toBeLessThan(headers().indexOf("project.tasks.title"));
     expect(screen.getByRole("button", { name: "stage.edit" })).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(headers()).not.toContain("stage.section");
+  });
+
+  it("offers this project's completed history from the header", () => {
+    renderPage();
+    const btn = screen.getByRole("button", { name: "history.open" });
+    expect(btn).toHaveAttribute("data-project-id", "p1");
   });
 });

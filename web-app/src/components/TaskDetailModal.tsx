@@ -17,7 +17,7 @@ import { useProjectsStore } from "@/store/useProjectsStore";
 import { clampProgress } from "@/lib/progress";
 import { fmtDuration, fmtScheduledStart, getDueLabel, getDueColor } from "@/lib/format";
 import { toast } from "@/store/useToastStore";
-import type { Subtask, Task } from "@/types/task";
+import type { Person, Subtask, Task } from "@/types/task";
 
 const Q_COLOR: Record<string, string> = {
   Q1: "var(--q1-color)",
@@ -57,6 +57,8 @@ export function TaskDetailModal({ task, onClose }: Props) {
   const addSubtask = useTasksStore((s) => s.addSubtask);
   const toggleSubtask = useTasksStore((s) => s.toggleSubtask);
   const deleteSubtask = useTasksStore((s) => s.deleteSubtask);
+  const setSubtaskAssignee = useTasksStore((s) => s.setSubtaskAssignee);
+  const people = usePeopleStore((s) => s.people);
   const breakdownSubtasks = useTasksStore((s) => s.breakdownSubtasks);
   const update = useTasksStore((s) => s.update);
   const liveTask = useTasksStore((s) => s.tasks.find((tk) => tk.id === task.id) ?? task);
@@ -404,6 +406,19 @@ export function TaskDetailModal({ task, onClose }: Props) {
                   try { await toggleSubtask(liveTask.id, sub.id); } finally { setSubtaskBusy(false); }
                 }}
                 onDelete={() => setPendingSubtaskRemove(sub)}
+                people={people}
+                assignee={sub.assignee_id ? byId(sub.assignee_id) : undefined}
+                onAssign={async (personId) => {
+                  if (subtaskBusy) return;
+                  setSubtaskBusy(true);
+                  try {
+                    await setSubtaskAssignee(liveTask.id, sub.id, personId);
+                  } catch {
+                    toast.error(t("detail.subtask.assignError"));
+                  } finally {
+                    setSubtaskBusy(false);
+                  }
+                }}
               />
             ))}
 
@@ -596,11 +611,17 @@ function SubtaskItem({
   disabled,
   onToggle,
   onDelete,
+  people,
+  assignee,
+  onAssign,
 }: {
   subtask: Subtask;
   disabled?: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  people: Person[];
+  assignee: Person | undefined;
+  onAssign: (personId: string | null) => void;
 }) {
   const t = useT();
   const [hovered, setHovered] = useState(false);
@@ -624,7 +645,7 @@ function SubtaskItem({
         {subtask.completed && <IconCheck size={9} strokeWidth={2.5} style={{ color: "var(--accent-primary)" }} />}
       </button>
       <span
-        className="flex-1 text-[13px] leading-snug"
+        className="flex-1 min-w-0 text-[13px] leading-snug"
         style={{
           color: subtask.completed ? "var(--text-faint)" : "var(--text-secondary)",
           textDecoration: subtask.completed ? "line-through" : "none",
@@ -632,6 +653,16 @@ function SubtaskItem({
       >
         {subtask.title}
       </span>
+      {(people.length > 0 || assignee) && (
+        <SubtaskAssigneePicker
+          title={subtask.title}
+          people={people}
+          assignee={assignee}
+          disabled={disabled}
+          reveal={hovered}
+          onAssign={onAssign}
+        />
+      )}
       {hovered && !disabled && (
         <button
           onClick={onDelete}
@@ -643,6 +674,148 @@ function SubtaskItem({
         >
           <IconClose size={10} />
         </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One-person picker for a subtask: the owner's avatar (or a faint "+" slot
+ * revealed on hover) opens a small menu of people plus "Unassigned".
+ */
+function SubtaskAssigneePicker({
+  title,
+  people,
+  assignee,
+  disabled,
+  reveal,
+  onAssign,
+}: {
+  title: string;
+  people: Person[];
+  assignee: Person | undefined;
+  disabled?: boolean;
+  /** Row is hovered: show the empty slot so it can be found. */
+  reveal: boolean;
+  onAssign: (personId: string | null) => void;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  // Where the menu opens: below the avatar unless the dialog has no room there.
+  const [placement, setPlacement] = useState<{ up: boolean; maxHeight: number }>({ up: false, maxHeight: 220 });
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  function toggleOpen() {
+    if (!open && wrapRef.current) {
+      const trigger = wrapRef.current.getBoundingClientRect();
+      const bounds = wrapRef.current.closest("[role='dialog']")?.getBoundingClientRect();
+      const top = bounds?.top ?? 0;
+      const bottom = bounds?.bottom ?? window.innerHeight;
+      const wanted = Math.min(220, 12 + (people.length + 1) * 32);
+      const below = bottom - trigger.bottom - 8;
+      const above = trigger.top - top - 8;
+      const up = below < wanted && above > below;
+      // jsdom reports zero-sized rects: fall back to the full height there.
+      const room = up ? above : below;
+      setPlacement({ up, maxHeight: room > 0 ? Math.min(220, room) : 220 });
+    }
+    setOpen((o) => !o);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  function pick(personId: string | null) {
+    setOpen(false);
+    if (personId !== (assignee?.id ?? null)) onAssign(personId);
+  }
+
+  const label = assignee
+    ? t("detail.subtask.assignee").replace("{title}", title).replace("{name}", assignee.name)
+    : t("detail.subtask.assign").replace("{title}", title);
+  const visible = Boolean(assignee) || reveal || open;
+
+  return (
+    <div
+      ref={wrapRef}
+      className="relative flex-shrink-0"
+      onKeyDown={(e) => {
+        // Close just the menu, not the whole detail modal.
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={assignee?.name ?? t("detail.subtask.unassigned")}
+        onClick={toggleOpen}
+        className="flex items-center justify-center rounded-full transition-opacity disabled:opacity-50 focus-visible:opacity-100"
+        style={{ opacity: visible ? 1 : 0, width: 18, height: 18 }}
+      >
+        {assignee ? (
+          <PersonAvatar person={assignee} size={18} />
+        ) : (
+          <span
+            className="flex items-center justify-center w-[18px] h-[18px] rounded-full text-[11px] leading-none"
+            style={{ border: "1px dashed var(--border-strong)", color: "var(--text-faint)" }}
+          >
+            +
+          </span>
+        )}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label={label}
+          className={`absolute right-0 z-20 min-w-[160px] overflow-y-auto rounded-lg py-1 ${placement.up ? "bottom-[calc(100%+4px)]" : "top-[calc(100%+4px)]"}`}
+          style={{
+            maxHeight: placement.maxHeight,
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border-default)",
+            boxShadow: "var(--shadow-lifted)",
+          }}
+        >
+          {[{ id: null, person: undefined as Person | undefined }, ...people.map((p) => ({ id: p.id as string | null, person: p }))].map(
+            ({ id, person }) => {
+              const checked = (assignee?.id ?? null) === id;
+              return (
+                <button
+                  key={id ?? "__none"}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={checked}
+                  onClick={() => pick(id)}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-[12.5px] hover:bg-subtle transition-colors"
+                  style={{ color: checked ? "var(--accent-primary)" : "var(--text-secondary)" }}
+                >
+                  {person ? (
+                    <span aria-hidden="true"><PersonAvatar person={person} size={18} /></span>
+                  ) : (
+                    <span
+                      className="w-[18px] h-[18px] rounded-full flex-shrink-0"
+                      style={{ border: "1px dashed var(--border-strong)" }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className="flex-1 truncate">{person ? person.name : t("detail.subtask.unassigned")}</span>
+                  {checked && <IconCheck size={11} strokeWidth={2.5} />}
+                </button>
+              );
+            },
+          )}
+        </div>
       )}
     </div>
   );

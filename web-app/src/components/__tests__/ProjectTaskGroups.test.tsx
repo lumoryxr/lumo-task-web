@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ProjectTaskGroups } from "../ProjectTaskGroups";
 import { DND_MIME } from "@/lib/taskDnd";
+import { SECTION_DND_MIME } from "../ProjectTaskGroups";
 import type { Project, Task } from "@/types/task";
 
 const mockProjectUpdate = vi.fn();
@@ -168,5 +169,70 @@ describe("ProjectTaskGroups", () => {
     const sections = Array.from({ length: 30 }, (_, i) => ({ id: `s${i}`, name: `G${i}` }));
     setup({ ...baseProject, sections }, []);
     expect(screen.queryByRole("button", { name: "New group" })).toBeNull();
+  });
+
+  describe("reordering groups by drag", () => {
+    const three: Project = {
+      ...baseProject,
+      sections: [{ id: "s_design", name: "Design" }, { id: "s_build", name: "Build" }, { id: "s_ship", name: "Ship" }],
+    };
+
+    function dragGroup(name: string, ontoName: string) {
+      const store: Record<string, string> = {};
+      const dataTransfer = {
+        types: [SECTION_DND_MIME],
+        effectAllowed: "",
+        dropEffect: "",
+        setData: (k: string, v: string) => { store[k] = v; },
+        getData: (k: string) => store[k] ?? "",
+      };
+      const handle = screen.getByRole("button", { name: `Drag to reorder ${name}` });
+      fireEvent.dragStart(handle, { dataTransfer });
+      const target = group(ontoName);
+      fireEvent.dragOver(target, { dataTransfer });
+      fireEvent.drop(target, { dataTransfer });
+      fireEvent.dragEnd(handle, { dataTransfer });
+    }
+
+    it("each named group has a drag handle; Ungrouped does not", () => {
+      setup(three);
+      expect(within(group("Design")).getByRole("button", { name: "Drag to reorder Design" })).toHaveAttribute("draggable", "true");
+      expect(within(group("Ungrouped")).queryByRole("button", { name: /Drag to reorder/ })).toBeNull();
+    });
+
+    it("dragging a group up puts it in the target's place", () => {
+      setup(three);
+      dragGroup("Ship", "Design");
+      expect(mockProjectUpdate).toHaveBeenCalledWith("p1", {
+        sections: [{ id: "s_ship", name: "Ship" }, { id: "s_design", name: "Design" }, { id: "s_build", name: "Build" }],
+      });
+      expect(mockTaskUpdate).not.toHaveBeenCalled();
+    });
+
+    it("dragging a group down puts it in the target's place", () => {
+      setup(three);
+      dragGroup("Design", "Build");
+      expect(mockProjectUpdate).toHaveBeenCalledWith("p1", {
+        sections: [{ id: "s_build", name: "Build" }, { id: "s_design", name: "Design" }, { id: "s_ship", name: "Ship" }],
+      });
+    });
+
+    it("dropping a group on itself, or on Ungrouped, changes nothing", () => {
+      setup(three);
+      dragGroup("Build", "Build");
+      dragGroup("Build", "Ungrouped");
+      expect(mockProjectUpdate).not.toHaveBeenCalled();
+      expect(mockTaskUpdate).not.toHaveBeenCalled();
+    });
+
+    it("moves a group with the arrow keys on its handle", () => {
+      setup(three);
+      fireEvent.keyDown(screen.getByRole("button", { name: "Drag to reorder Design" }), { key: "ArrowDown" });
+      expect(mockProjectUpdate).toHaveBeenLastCalledWith("p1", {
+        sections: [{ id: "s_build", name: "Build" }, { id: "s_design", name: "Design" }, { id: "s_ship", name: "Ship" }],
+      });
+      fireEvent.keyDown(screen.getByRole("button", { name: "Drag to reorder Design" }), { key: "ArrowUp" });
+      expect(mockProjectUpdate).toHaveBeenCalledTimes(1); // already first: no-op
+    });
   });
 });

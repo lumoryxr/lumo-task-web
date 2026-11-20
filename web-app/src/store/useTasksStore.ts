@@ -58,6 +58,8 @@ interface TasksState {
   addSubtask: (taskId: string, title: string) => Promise<void>;
   toggleSubtask: (taskId: string, subtaskId: string) => Promise<void>;
   deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
+  /** Assigns one subtask to a person (null clears it). Optimistic, rolled back on failure. */
+  setSubtaskAssignee: (taskId: string, subtaskId: string, personId: string | null) => Promise<void>;
   breakdownSubtasks: (taskId: string, locale?: string) => Promise<{ subtasks: string[]; cloudLimitReached: boolean }>;
 }
 
@@ -299,6 +301,21 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     if (!task) return;
     const subtasks = (task.subtasks ?? []).map((s) =>
       s.id === subtaskId ? { ...s, completed: !s.completed } : s
+    );
+    set({ tasks: get().tasks.map((tk) => tk.id === taskId ? { ...tk, subtasks } : tk) });
+    try {
+      await api.updateTask(taskId, { subtasks });
+    } catch (e) {
+      set({ tasks: get().tasks.map((tk) => tk.id === taskId ? task : tk) });
+      throw e;
+    }
+  },
+
+  async setSubtaskAssignee(taskId, subtaskId, personId) {
+    const task = get().tasks.find((tk) => tk.id === taskId);
+    if (!task) return;
+    const subtasks = (task.subtasks ?? []).map((s) =>
+      s.id === subtaskId ? { ...s, assignee_id: personId } : s
     );
     set({ tasks: get().tasks.map((tk) => tk.id === taskId ? { ...tk, subtasks } : tk) });
     try {

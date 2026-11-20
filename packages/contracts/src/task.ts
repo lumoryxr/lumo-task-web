@@ -32,6 +32,8 @@ export const SubtaskSchema = z.object({
   id: z.string(),
   title: z.string().max(500),
   completed: z.boolean(),
+  // Optional single owner of this step (a Person id). Null/absent = unassigned.
+  assignee_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).nullable().optional(),
 });
 
 const NotNowItemSchema = z.object({
@@ -202,6 +204,8 @@ export interface Subtask {
   id: string;
   title: string;
   completed: boolean;
+  /** Person responsible for this step, or null/undefined when unassigned. */
+  assignee_id?: string | null;
 }
 
 export interface Task {
