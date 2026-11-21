@@ -19,6 +19,9 @@ vi.mock("@/store/useTasksStore", () => ({
       deleteSubtask: vi.fn(),
       breakdownSubtasks: vi.fn(),
       setSubtaskAssignee: mockSetSubtaskAssignee,
+      addProgressNote: vi.fn(),
+      editProgressNote: vi.fn(),
+      deleteProgressNote: vi.fn(),
     }),
 }));
 
@@ -216,5 +219,17 @@ describe("TaskDetailModal · assignees", () => {
     setup({ ...TASK, assignee_ids: ["p_ann"] });
     expect(screen.getByTestId("assignee-primary")).toHaveTextContent("Ann Lee");
     expect(screen.queryByTestId("assignee-others")).toBeNull();
+  });
+});
+
+describe("TaskDetailModal · progress log", () => {
+  it("has a progress log with the task's dated updates, right after the completion card", () => {
+    setup({ ...TASK, progress_log: [{ id: "pn1", date: "2026-11-20", text: "Collected data", created_at: "2026-11-20T09:00:00.000Z" }] });
+    const log = screen.getByRole("region", { name: "Progress log" });
+    expect(log).toHaveTextContent("Collected data");
+    expect(screen.getByRole("textbox", { name: "Progress update" })).toBeInTheDocument();
+    // Order: completion % comes first, then the log, then subtasks.
+    const slider = screen.getByRole("slider");
+    expect(slider.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

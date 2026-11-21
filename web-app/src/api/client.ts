@@ -399,6 +399,7 @@ function adaptTask(raw: any): Task {
     scheduled_start: raw.scheduled_start ?? null,
     remind_at: raw.remind_at ?? null,
     progress: raw.progress ?? 0,
+    progress_log: raw.progress_log ?? [],
     section_id: raw.section_id ?? null,
     stage_id: raw.stage_id ?? null,
     created_at: raw.created_at ?? undefined,

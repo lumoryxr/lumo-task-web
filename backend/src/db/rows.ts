@@ -46,6 +46,8 @@ export interface TaskRow {
   not_now_json: string;
   recurrence: string;
   subtasks_json: string | null;
+  /** Dated progress notes (进展记录), JSON array; '[]' when none. */
+  progress_log_json: string | null;
   tags_json: string | null;
   project_id: string | null;
   scheduled_start: string | null;

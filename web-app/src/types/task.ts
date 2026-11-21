@@ -33,6 +33,7 @@ import type {
   TemplateCreateInput,
   ProjectSection,
   ProjectStage,
+  TaskProgressNote,
 } from "@lumo/contracts";
 
 export type {
@@ -56,6 +57,7 @@ export type {
   TemplateCreateInput,
   ProjectSection,
   ProjectStage,
+  TaskProgressNote,
 };
 
 export type Locale = "en" | "zh";

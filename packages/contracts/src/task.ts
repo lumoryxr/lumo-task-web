@@ -36,6 +36,33 @@ export const SubtaskSchema = z.object({
   assignee_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).nullable().optional(),
 });
 
+/** Most progress notes kept on one task. */
+export const MAX_PROGRESS_NOTES = 200;
+/** Longest progress note, in characters. */
+export const MAX_PROGRESS_NOTE_LENGTH = 2000;
+
+/**
+ * One dated progress update on a task (进展): what happened on `date`, in the
+ * user's words. Notes are kept newest-relevant by date in the UI; `created_at`
+ * orders notes within a day and `edited_at` marks a note changed later.
+ */
+export const TaskProgressNoteSchema = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+  /** The day this progress is for (YYYY-MM-DD), in the user's calendar. */
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  text: z.string().trim().min(1).max(MAX_PROGRESS_NOTE_LENGTH),
+  created_at: z.string().min(1).max(40),
+  edited_at: z.string().min(1).max(40).optional(),
+});
+export type TaskProgressNote = z.infer<typeof TaskProgressNoteSchema>;
+
+const ProgressLogFieldSchema = z
+  .array(TaskProgressNoteSchema)
+  .max(MAX_PROGRESS_NOTES)
+  .refine((list) => new Set(list.map((n) => n.id)).size === list.length, {
+    message: "Progress note ids must be unique",
+  });
+
 const NotNowItemSchema = z.object({
   id: z.string(),
   reason: LocalizedStringSchema,
@@ -110,6 +137,8 @@ export const TaskCreateBodySchema = z.object({
   not_now: z.array(NotNowItemSchema).default([]),
   subtasks: z.array(SubtaskSchema).default([]),
   progress: ProgressSchema.default(0),
+  // Dated progress notes (进展记录). The client sends the whole list on change.
+  progress_log: ProgressLogFieldSchema.default([]),
   tags: TagsFieldSchema,
   // Optional owning project (#211). Null/absent = unfiled. The backend verifies
   // the referenced project belongs to the same user before persisting.
@@ -176,6 +205,7 @@ export const TaskWireSchema = z.object({
   scheduled_start: z.string().nullable(),
   remind_at: z.string().nullable(),
   progress: ProgressSchema,
+  progress_log: z.array(TaskProgressNoteSchema).default([]),
   section_id: z.string().nullable(),
   stage_id: z.string().nullable(),
   created_at: z.string(),
@@ -267,6 +297,8 @@ export interface Task {
   remind_at?: string | null;
   /** Completion percentage, a whole number 0..100 set by the user. */
   progress?: number;
+  /** Dated progress notes (进展记录), in no particular order. */
+  progress_log?: TaskProgressNote[];
   /** Custom group inside the owning project (ProjectSection id), or null when ungrouped. */
   section_id?: string | null;
   /** Current stage in the owning project's stage track (ProjectStage id), or null. */

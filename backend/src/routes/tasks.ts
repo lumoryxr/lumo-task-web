@@ -72,6 +72,7 @@ export function rowToTask(row: TaskRow): TaskWire {
     scheduled_start: row.scheduled_start ?? null,
     remind_at: row.remind_at ?? null,
     progress: row.progress ?? 0,
+    progress_log: safeParse<unknown[]>(row.progress_log_json, []),
     section_id: row.section_id ?? null,
     stage_id: row.stage_id ?? null,
     created_at: row.created_at,
@@ -207,12 +208,12 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
       id, user_id, assignee_ids, title_en, title_zh, desc_en, desc_zh,
       quadrant, today, week_focus, due, duration, pomos_done, pomos_total, conviction,
       next_step_en, next_step_zh, reason_en, reason_zh, ai_suggest, not_now_json,
-      recurrence, subtasks_json, tags_json, project_id, section_id, stage_id, scheduled_start, remind_at, progress, created_at, updated_at
+      recurrence, subtasks_json, tags_json, project_id, section_id, stage_id, scheduled_start, remind_at, progress, progress_log_json, created_at, updated_at
     ) VALUES (
       :id, :user_id, :assignee_ids, :title_en, :title_zh, :desc_en, :desc_zh,
       :quadrant, :today, :week_focus, :due, :duration, 0, :pomos_total, :conviction,
       :next_step_en, :next_step_zh, :reason_en, :reason_zh, :ai_suggest, :not_now_json,
-      :recurrence, :subtasks_json, :tags_json, :project_id, :section_id, :stage_id, :scheduled_start, :remind_at, :progress, :now, :sync_ts
+      :recurrence, :subtasks_json, :tags_json, :project_id, :section_id, :stage_id, :scheduled_start, :remind_at, :progress, :progress_log_json, :now, :sync_ts
     )
   `, {
     id, user_id: userId,
@@ -232,6 +233,7 @@ app.post("/", taskMutateLimit, validate("json", TaskCreateBodySchema), async (c)
     ai_suggest: body.ai_suggest ?? null,
     not_now_json: JSON.stringify(body.not_now ?? []),
     subtasks_json: JSON.stringify(body.subtasks ?? []),
+    progress_log_json: JSON.stringify(body.progress_log ?? []),
     tags_json: JSON.stringify(body.tags ?? []),
     project_id: body.project_id ?? null,
     section_id: body.section_id ?? null,
@@ -322,6 +324,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
     scheduled_start: "scheduled_start" in body ? (body.scheduled_start ?? null) : existing.scheduled_start,
     remind_at: "remind_at" in body ? (body.remind_at ?? null) : existing.remind_at,
     progress: body.progress ?? existing.progress ?? 0,
+    progress_log_json: "progress_log" in body ? JSON.stringify(body.progress_log) : (existing.progress_log_json ?? "[]"),
   };
 
   await execute(`
@@ -332,7 +335,7 @@ app.patch("/:id", taskMutateLimit, validate("param", IdParam), validate("json", 
       conviction = :conviction, next_step_en = :next_step_en, next_step_zh = :next_step_zh,
       reason_en = :reason_en, reason_zh = :reason_zh, ai_suggest = :ai_suggest,
       not_now_json = :not_now_json, recurrence = :recurrence,
-      subtasks_json = :subtasks_json, tags_json = :tags_json, project_id = :project_id, section_id = :section_id, stage_id = :stage_id, scheduled_start = :scheduled_start, remind_at = :remind_at, progress = :progress, updated_at = :now
+      subtasks_json = :subtasks_json, tags_json = :tags_json, project_id = :project_id, section_id = :section_id, stage_id = :stage_id, scheduled_start = :scheduled_start, remind_at = :remind_at, progress = :progress, progress_log_json = :progress_log_json, updated_at = :now
     WHERE id = :id AND user_id = :uid
   `, { ...merged, id: taskId, uid: userId, now });
 

@@ -13,6 +13,7 @@ import { TaskEditModal } from "@/components/TaskEditModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TaskProgressEditor } from "@/components/TaskProgress";
 import { StageTrack } from "@/components/StageTrack";
+import { TaskProgressLog } from "@/components/TaskProgressLog";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { clampProgress } from "@/lib/progress";
 import { fmtDuration, fmtScheduledStart, getDueLabel, getDueColor } from "@/lib/format";
@@ -363,6 +364,11 @@ export function TaskDetailModal({ task, onClose }: Props) {
             busy={progressSaving}
           />
         </section>
+
+        {/* Progress log (进展记录): dated updates, newest first */}
+        <div className="mx-5 mb-5">
+          <TaskProgressLog task={liveTask} />
+        </div>
 
         {/* Subtasks */}
         <div className="mx-5 mb-4">

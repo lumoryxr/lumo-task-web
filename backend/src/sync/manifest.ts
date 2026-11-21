@@ -104,7 +104,7 @@ export const SYNC_MANIFEST: SyncEntity[] = [
       "pomos_total", "conviction", "next_step_en", "next_step_zh", "reason_en",
       "reason_zh", "ai_suggest", "completed", "not_now_json", "created_at",
       "updated_at", "recurrence", "week_focus", "subtasks_json",
-      "tags_json", "project_id", "section_id", "stage_id", "scheduled_start", "remind_at", "progress", "deleted_at",
+      "tags_json", "project_id", "section_id", "stage_id", "scheduled_start", "remind_at", "progress", "progress_log_json", "deleted_at",
     ],
   },
   {

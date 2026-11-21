@@ -343,6 +343,35 @@
           "progress": {
             "type": "integer"
           },
+          "progress_log": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "edited_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "text",
+                "created_at"
+              ]
+            }
+          },
           "section_id": {
             "type": "string",
             "nullable": true
@@ -565,6 +594,35 @@
           "progress": {
             "type": "integer"
           },
+          "progress_log": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "edited_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "text",
+                "created_at"
+              ]
+            }
+          },
           "tags": {
             "type": "array",
             "items": {
@@ -775,6 +833,35 @@
           },
           "progress": {
             "type": "integer"
+          },
+          "progress_log": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "edited_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "text",
+                "created_at"
+              ]
+            }
           },
           "tags": {
             "type": "array",
@@ -1030,6 +1117,35 @@
                 },
                 "progress": {
                   "type": "integer"
+                },
+                "progress_log": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "date": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "created_at": {
+                        "type": "string"
+                      },
+                      "edited_at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "date",
+                      "text",
+                      "created_at"
+                    ]
+                  }
                 },
                 "section_id": {
                   "type": "string",

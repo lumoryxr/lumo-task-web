@@ -6,6 +6,8 @@ import {
   TaskUpdateBodySchema,
   TaskCompleteResponseSchema,
   primaryAssigneeId,
+  MAX_PROGRESS_NOTES,
+  MAX_PROGRESS_NOTE_LENGTH,
 } from "../task.js";
 
 // A canonical, full backend response payload (mirrors rowToTask in
@@ -263,5 +265,42 @@ describe("primary assignee", () => {
 
   test("a PATCH without assignee_ids leaves them alone", () => {
     assert.equal("assignee_ids" in TaskUpdateBodySchema.parse({ title: { en: "y" } }), false);
+  });
+});
+
+describe("progress log (dated progress notes)", () => {
+  const note = { id: "pn_1", date: "2026-11-21", text: "Drafted the outline", created_at: "2026-11-21T09:30:00.000Z" };
+
+  test("a task carries dated notes; the log defaults to empty", () => {
+    assert.deepEqual(TaskCreateBodySchema.parse({ title: { en: "x" } }).progress_log, []);
+    const parsed = TaskUpdateBodySchema.parse({ progress_log: [note, { ...note, id: "pn_2", edited_at: "2026-11-21T10:00:00.000Z" }] });
+    assert.equal(parsed.progress_log?.length, 2);
+    assert.equal(parsed.progress_log?.[1].edited_at, "2026-11-21T10:00:00.000Z");
+  });
+
+  test("text is trimmed and must not be blank or too long", () => {
+    assert.equal(TaskUpdateBodySchema.parse({ progress_log: [{ ...note, text: "  done  " }] }).progress_log?.[0].text, "done");
+    assert.equal(TaskUpdateBodySchema.safeParse({ progress_log: [{ ...note, text: "   " }] }).success, false);
+    assert.equal(TaskUpdateBodySchema.safeParse({ progress_log: [{ ...note, text: "x".repeat(MAX_PROGRESS_NOTE_LENGTH + 1) }] }).success, false);
+  });
+
+  test("the date is a calendar day, and ids are unique", () => {
+    assert.equal(TaskUpdateBodySchema.safeParse({ progress_log: [{ ...note, date: "21/11/2026" }] }).success, false);
+    assert.equal(TaskUpdateBodySchema.safeParse({ progress_log: [note, note] }).success, false);
+  });
+
+  test(`at most ${MAX_PROGRESS_NOTES} notes per task`, () => {
+    const many = Array.from({ length: MAX_PROGRESS_NOTES + 1 }, (_, i) => ({ ...note, id: `pn_${i}` }));
+    assert.equal(TaskUpdateBodySchema.safeParse({ progress_log: many }).success, false);
+  });
+
+  test("a PATCH without progress_log leaves it alone", () => {
+    assert.equal("progress_log" in TaskUpdateBodySchema.parse({ progress: 40 }), false);
+  });
+
+  test("the wire task carries the log, and older payloads without it still parse", () => {
+    assert.deepEqual(TaskWireSchema.parse({ ...wireTask, progress_log: [note] }).progress_log, [note]);
+    const { progress_log: _omit, ...old } = { ...wireTask, progress_log: [] };
+    assert.deepEqual(TaskWireSchema.parse(old).progress_log, []);
   });
 });
