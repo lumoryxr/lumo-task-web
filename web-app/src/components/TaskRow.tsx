@@ -15,7 +15,8 @@ import { AssigneeChip } from "@/components/AssigneeChip";
 import { TaskProgressBar } from "@/components/TaskProgress";
 import { StageTrack } from "@/components/StageTrack";
 import { useProjectsStore } from "@/store/useProjectsStore";
-import { IconArrowRight, IconCheck, IconMore, IconRepeat } from "@/components/icons";
+import { IconArrowRight, IconCheck, IconMore, IconNote, IconRepeat } from "@/components/icons";
+import { TaskProgressDrawer } from "@/components/TaskProgressDrawer";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 import { TaskTitle } from "@/components/TaskTitle";
 
@@ -42,6 +43,13 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
   const toggleSelected = useTasksStore((s) => s.toggleSelected);
 
   const [hovered, setHovered] = useState(false);
+  const [progressOpen, setProgressOpen] = useState(false);
+  // Latest progress update (by day, then time written), for the row's count badge.
+  const progressLog = task.progress_log ?? [];
+  const latestNote = progressLog.reduce<(typeof progressLog)[number] | null>(
+    (best, n) => (!best || n.date > best.date || (n.date === best.date && n.created_at > best.created_at) ? n : best),
+    null,
+  );
   const coarse = useCoarsePointer();
   // Touch devices never hover, so keep the row actions reachable there.
   const showActions = (hovered || coarse) && !selecting;
@@ -159,6 +167,19 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
                 {task.subtasks!.filter((s) => s.completed).length}/{task.subtasks!.length}
               </span>
             )}
+            {latestNote && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setProgressOpen(true); }}
+                aria-label={t("progressLog.openCount").replace("{n}", String(progressLog.length))}
+                title={`${t("progressLog.latest")} · ${latestNote.date}：${latestNote.text}`}
+                className="flex items-center gap-0.5 rounded px-1 -mx-1 hover:text-text-primary hover:bg-subtle transition-colors"
+                style={{ color: "var(--text-faint)" }}
+              >
+                <IconNote size={11} />
+                {progressLog.length}
+              </button>
+            )}
             {task.recurrence && task.recurrence !== "none" && (
               <span
                 role="img"
@@ -211,6 +232,18 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
             pointerEvents: showActions ? "auto" : "none",
           }}
         >
+          {/* Log progress — opens the progress panel without opening the task */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setProgressOpen(true); }}
+            title={t("progressLog.addShort")}
+            aria-label={t("progressLog.addShort")}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-text-secondary hover:text-text-primary transition-colors"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border-default)" }}
+          >
+            <IconNote size={12} />
+            <span className="hidden md:inline">{t("progressLog.addShort")}</span>
+          </button>
+
           {/* Start focus — labeled accent pill */}
           <button
             onClick={(e) => { e.stopPropagation(); navigate("/focus", { state: { taskId: task.id } }); }}
@@ -303,6 +336,9 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
 
       {detailOpen && (
         <TaskDetailModal task={task} onClose={() => setDetailOpen(false)} />
+      )}
+      {progressOpen && (
+        <TaskProgressDrawer task={task} onClose={() => setProgressOpen(false)} />
       )}
       {editOpen && (
         <TaskEditModal task={task} onClose={() => setEditOpen(false)} />

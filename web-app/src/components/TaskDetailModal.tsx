@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { IconClose, IconCalendar, IconClock, IconArrowRight, IconCheck } from "@/components/icons";
+import { IconClose, IconCalendar, IconClock, IconArrowRight, IconCheck, IconChevronRight, IconEdit, IconNote, IconProject, IconRepeat } from "@/components/icons";
 import { TaskTitle } from "@/components/TaskTitle";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { useModalA11y } from "@/hooks/useModalA11y";
@@ -11,9 +11,9 @@ import { usePeopleStore } from "@/store/usePeopleStore";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { TaskEditModal } from "@/components/TaskEditModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { TaskProgressEditor } from "@/components/TaskProgress";
+import { TaskProgressBar, TaskProgressEditor } from "@/components/TaskProgress";
 import { StageTrack } from "@/components/StageTrack";
-import { TaskProgressLog } from "@/components/TaskProgressLog";
+import { TaskProgressDrawer } from "@/components/TaskProgressDrawer";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { clampProgress } from "@/lib/progress";
 import { fmtDuration, fmtScheduledStart, getDueLabel, getDueColor } from "@/lib/format";
@@ -71,10 +71,17 @@ export function TaskDetailModal({ task, onClose }: Props) {
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const [breakdownDraft, setBreakdownDraft] = useState<string[] | null>(null);
   const [pendingSubtaskRemove, setPendingSubtaskRemove] = useState<Subtask | null>(null);
+  const [progressOpen, setProgressOpen] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
   // Deactivated while a nested modal/confirm is open so only one focus-trap runs.
-  const dialogRef = useModalA11y<HTMLDivElement>(onClose, !editOpen && pendingSubtaskRemove === null);
+  const dialogRef = useModalA11y<HTMLDivElement>(onClose, !editOpen && pendingSubtaskRemove === null && !progressOpen);
 
   const assignees = (liveTask.assignee_ids ?? []).map(byId).filter(Boolean) as import("@/types/task").Person[];
+  const progressLog = liveTask.progress_log ?? [];
+  const latestNote = progressLog.reduce<(typeof progressLog)[number] | null>(
+    (best, n) => (!best || n.date > best.date || (n.date === best.date && n.created_at > best.created_at) ? n : best),
+    null,
+  );
   const due = getDueLabel(liveTask.due, locale);
   const dueColor = getDueColor(liveTask.due);
   const qColor = Q_COLOR[liveTask.quadrant] ?? "var(--text-faint)";
@@ -92,6 +99,7 @@ export function TaskDetailModal({ task, onClose }: Props) {
   // Stage: the owning project's track, clicked to move the task along it.
   const projectStages =
     useProjectsStore((s) => s.projects.find((p) => p.id === liveTask.project_id)?.stages) ?? [];
+  const projectName = useProjectsStore((s) => s.projects.find((p) => p.id === liveTask.project_id)?.name);
   const currentStageId = projectStages.some((s) => s.id === liveTask.stage_id) ? liveTask.stage_id ?? null : null;
   const [stageSaving, setStageSaving] = useState(false);
 
@@ -178,8 +186,8 @@ export function TaskDetailModal({ task, onClose }: Props) {
   return createPortal(
     <div
       onClick={onClose}
-      className="fade-in fixed inset-0 z-[200] flex items-center justify-center"
-      style={{ background: "rgba(8,11,10,0.6)", backdropFilter: "blur(6px)", padding: "0 32px" }}
+      className="task-dialog-backdrop fade-in z-[200]"
+      style={{ background: "rgba(8,11,10,0.6)", backdropFilter: "blur(6px)" }}
     >
       <div
         role="dialog"
@@ -187,24 +195,18 @@ export function TaskDetailModal({ task, onClose }: Props) {
         ref={dialogRef}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full overflow-x-hidden overflow-y-auto rounded-[16px] border"
+        className="task-dialog task-dialog--detail rounded-[16px] border"
         style={{
-          maxWidth: 480,
-          // Cap to the viewport and scroll internally so the action area stays
-          // reachable on short / mobile screens (was overflow-hidden → clipped).
-          maxHeight: "90vh",
           background: "var(--bg-elevated)",
           borderColor: "var(--border-default)",
           boxShadow: "var(--shadow-lifted)",
-          marginTop: "-4vh",
         }}
       >
-        {/* Header — quadrant accent bar + title */}
-        <div
-          className="h-[3px] w-full"
-          style={{ background: qColor, opacity: 0.7 }}
-        />
-        <header className="flex items-start gap-3 px-5 pt-4 pb-3">
+        {/* Header — quadrant accent bar + title; stays put while the body scrolls */}
+        <header
+          className="flex items-start gap-3 px-5 pt-4 pb-3"
+          style={{ boxShadow: `inset 0 3px 0 color-mix(in srgb, ${qColor} 70%, transparent)` }}
+        >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
               <span
@@ -225,6 +227,16 @@ export function TaskDetailModal({ task, onClose }: Props) {
             </h2>
           </div>
           <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            aria-label={t("detail.edit")}
+            title={t("detail.edit")}
+            className="flex-shrink-0 flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[12px] font-medium text-text-secondary border border-border-default bg-transparent hover:bg-subtle hover:text-text-primary transition-colors mt-0.5"
+          >
+            <IconEdit size={12} />
+            <span className="hidden sm:inline">{t("detail.edit")}</span>
+          </button>
+          <button
             onClick={onClose}
             className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-text-muted border border-border-default bg-transparent hover:bg-subtle hover:text-text-primary transition-colors mt-0.5"
             aria-label={t("qc.close")}
@@ -233,8 +245,18 @@ export function TaskDetailModal({ task, onClose }: Props) {
           </button>
         </header>
 
-        {/* Meta grid */}
-        <div className="px-5 pb-4 grid grid-cols-2 gap-x-6 gap-y-3">
+        {/* Body — the only part that scrolls */}
+        <div className="task-dialog__body">
+
+        {/* Description */}
+        {liveTask.desc && ls(liveTask.desc).trim() && (
+          <p className="mx-5 mb-4 mt-0 whitespace-pre-wrap break-words text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            {ls(liveTask.desc)}
+          </p>
+        )}
+
+        {/* Properties — label / value pairs, two columns where there is room */}
+        <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
           {/* Scheduled time */}
           {liveTask.scheduled_start && (
             <MetaRow
@@ -261,9 +283,41 @@ export function TaskDetailModal({ task, onClose }: Props) {
             value={fmtDuration(liveTask.duration, locale)}
           />
 
+          {/* Repeat */}
+          {liveTask.recurrence && liveTask.recurrence !== "none" && (
+            <MetaRow
+              icon={<IconRepeat size={13} />}
+              label={t("task.recurrence")}
+              value={t(`task.recurrence.${liveTask.recurrence}`)}
+            />
+          )}
+
+          {/* Project */}
+          {projectName && (
+            <MetaRow icon={<IconProject size={13} />} label={t("project.select.label")} value={projectName} />
+          )}
+
+          {/* Tags */}
+          {(liveTask.tags ?? []).length > 0 && (
+            <div className="sm:col-span-2 flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-medium" style={{ color: "var(--text-faint)", minWidth: 64 }}>
+                {t("edit.tags")}
+              </span>
+              {(liveTask.tags ?? []).map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded px-1.5 py-px text-[11px] font-medium"
+                  style={{ color: "var(--accent-primary)", background: "var(--accent-fog)", border: "1px solid var(--accent-edge)" }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Pomodoro pips */}
           {liveTask.pomos_total > 0 && (
-            <div className="col-span-2 flex items-center gap-2">
+            <div className="sm:col-span-2 flex items-center gap-2">
               <span className="text-[11px] font-medium" style={{ color: "var(--text-faint)", minWidth: 64 }}>
                 {t("detail.pomodoro")}
               </span>
@@ -281,7 +335,7 @@ export function TaskDetailModal({ task, onClose }: Props) {
           {/* Assignees: the primary (主责任人) stands out on its own line; the
               others are listed beneath it. Rows elsewhere show only the primary. */}
           {assignees.length > 0 && (
-            <div className="col-span-2 flex flex-col gap-1.5">
+            <div className="sm:col-span-2 flex flex-col gap-1.5">
               <div data-testid="assignee-primary" className="flex items-center gap-2 min-w-0">
                 <span className="text-[11px] font-medium flex-shrink-0" style={{ color: "var(--text-faint)", minWidth: 64 }}>
                   {t("assignee.primaryLabel")}
@@ -353,22 +407,59 @@ export function TaskDetailModal({ task, onClose }: Props) {
               />
             </div>
           )}
-          <div className="text-[11.5px] font-medium mb-2" style={{ color: "var(--text-muted)" }}>
-            {t("progress.completion")}
+          <div className="flex items-center gap-3">
+            <span className="flex-shrink-0 text-[11.5px] font-medium" style={{ color: "var(--text-muted)" }}>
+              {t("progress.completion")}
+            </span>
+            <div className="flex-1 min-w-0">
+              {!adjusting && <TaskProgressBar value={progressDraft} size="md" />}
+            </div>
+            <button
+              type="button"
+              onClick={() => setAdjusting((v) => !v)}
+              aria-expanded={adjusting}
+              className="flex-shrink-0 rounded-md px-2 py-0.5 text-[11px] font-medium text-text-muted hover:text-text-primary transition-colors"
+              style={{ border: "1px solid var(--border-default)" }}
+            >
+              {adjusting ? t("progress.adjustDone") : t("progress.adjust")}
+            </button>
           </div>
-          <TaskProgressEditor
-            value={progressDraft}
-            onChange={setProgressDraft}
-            onCommit={commitProgress}
-            subtasks={subtasks}
-            busy={progressSaving}
-          />
+          {adjusting && (
+            <div className="mt-3">
+              <TaskProgressEditor
+                value={progressDraft}
+                onChange={setProgressDraft}
+                onCommit={commitProgress}
+                subtasks={subtasks}
+                busy={progressSaving}
+              />
+            </div>
+          )}
         </section>
 
-        {/* Progress log (进展记录): dated updates, newest first */}
-        <div className="mx-5 mb-5">
-          <TaskProgressLog task={liveTask} />
-        </div>
+        {/* Progress updates (进展记录): one line here; the full log is its own panel */}
+        <button
+          type="button"
+          onClick={() => setProgressOpen(true)}
+          aria-label={t("progressLog.openCount").replace("{n}", String(progressLog.length))}
+          className="mx-5 mb-5 flex w-[calc(100%-2.5rem)] items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-colors hover:bg-subtle"
+          style={{ borderColor: "var(--border-faint)", background: "var(--bg-surface)" }}
+        >
+          <span className="flex-shrink-0" style={{ color: "var(--accent-primary)" }}><IconNote size={15} /></span>
+          <span className="flex-1 min-w-0">
+            <span className="flex items-center gap-2 text-[12px] font-semibold text-text-secondary">
+              {t("progressLog.title")}
+              {progressLog.length > 0 && <span className="font-normal tabular-nums text-text-faint">{progressLog.length}</span>}
+            </span>
+            <span className="block truncate text-[12.5px]" style={{ color: latestNote ? "var(--text-primary)" : "var(--text-faint)" }}>
+              {latestNote ? `${latestNote.date.slice(5).replace("-", "/")} · ${latestNote.text}` : t("progressLog.none")}
+            </span>
+          </span>
+          <span className="flex-shrink-0 flex items-center gap-0.5 text-[11.5px] text-text-muted">
+            {latestNote ? t("progressLog.view") : t("progressLog.addShort")}
+            <IconChevronRight size={12} />
+          </span>
+        </button>
 
         {/* Subtasks */}
         <div className="mx-5 mb-4">
@@ -563,19 +654,10 @@ export function TaskDetailModal({ task, onClose }: Props) {
           </div>
         )}
 
-        {/* Divider */}
-        <div style={{ height: 1, background: "var(--border-faint)", margin: "0 0" }} />
+        </div>
 
-        {/* Footer actions */}
-        <footer className="flex items-center gap-2 px-5 py-3">
-          <button
-            className="btn btn-primary flex items-center gap-2"
-            onClick={() => { onClose(); navigate("/focus", { state: { taskId: task.id } }); }}
-          >
-            {t("detail.start")}
-            <IconArrowRight size={13} />
-          </button>
-
+        {/* Footer actions — always in view; the main action sits on the right */}
+        <footer className="flex items-center gap-2 px-5 py-3 border-t border-border-faint">
           <button
             className="btn btn-secondary flex items-center gap-1.5"
             onClick={handleComplete}
@@ -587,14 +669,15 @@ export function TaskDetailModal({ task, onClose }: Props) {
           <div style={{ flex: 1 }} />
 
           <button
-            className="btn btn-ghost"
-            style={{ color: "var(--text-muted)" }}
-            onClick={() => setEditOpen(true)}
+            className="btn btn-primary flex items-center gap-2"
+            onClick={() => { onClose(); navigate("/focus", { state: { taskId: task.id } }); }}
           >
-            {t("detail.edit")}
+            {t("detail.start")}
+            <IconArrowRight size={13} />
           </button>
         </footer>
       </div>
+      {progressOpen && <TaskProgressDrawer task={liveTask} onClose={() => setProgressOpen(false)} />}
       <ConfirmDialog
         open={pendingSubtaskRemove !== null}
         danger

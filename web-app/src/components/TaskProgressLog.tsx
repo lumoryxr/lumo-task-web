@@ -6,14 +6,14 @@ import { toast } from "@/store/useToastStore";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { IconEdit, IconTrash } from "@/components/icons";
 import { toISODate } from "@/lib/format";
+import { useCoarsePointer } from "@/hooks/useCoarsePointer";
 import { MAX_PROGRESS_NOTE_LENGTH } from "@lumo/contracts";
 import type { Locale, Task, TaskProgressNote } from "@/types/task";
 
-/** Updates shown before "Show N earlier". */
-const VISIBLE_NOTES = 6;
-
 interface TaskProgressLogProps {
   task: Task;
+  /** Put the cursor in the composer on mount (when opened as its own panel). */
+  autoFocus?: boolean;
 }
 
 function dayLabel(date: string, locale: Locale, t: (k: string) => string): string {
@@ -40,9 +40,10 @@ function clock(iso: string, locale: Locale): string {
 /**
  * A task's progress log (进展记录): short dated updates, newest day first.
  * A composer at the top records today's progress (or an earlier day's); each
- * update can be edited in place or deleted. Older updates fold away.
+ * update can be edited in place or deleted. Rendered as the body of the
+ * progress drawer, which scrolls, so every update is listed.
  */
-export function TaskProgressLog({ task }: TaskProgressLogProps) {
+export function TaskProgressLog({ task, autoFocus = false }: TaskProgressLogProps) {
   const t = useT();
   const locale = useAppStore((s) => s.locale);
   const addProgressNote = useTasksStore((s) => s.addProgressNote);
@@ -50,11 +51,12 @@ export function TaskProgressLog({ task }: TaskProgressLogProps) {
   const deleteProgressNote = useTasksStore((s) => s.deleteProgressNote);
   const todayISO = toISODate(new Date());
   const composerId = useId();
+  // Touch screens have no hover: keep each update's edit/delete visible there.
+  const coarse = useCoarsePointer();
 
   const [text, setText] = useState("");
   const [date, setDate] = useState(todayISO);
   const [busy, setBusy] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState<{ id: string; date: string; text: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TaskProgressNote | null>(null);
 
@@ -62,10 +64,8 @@ export function TaskProgressLog({ task }: TaskProgressLogProps) {
   const notes = [...(task.progress_log ?? [])].sort((a, b) =>
     a.date === b.date ? b.created_at.localeCompare(a.created_at) : b.date.localeCompare(a.date),
   );
-  const visible = showAll ? notes : notes.slice(0, VISIBLE_NOTES);
-  const hidden = notes.length - visible.length;
   const days: Array<{ date: string; items: TaskProgressNote[] }> = [];
-  for (const n of visible) {
+  for (const n of notes) {
     const last = days[days.length - 1];
     if (last && last.date === n.date) last.items.push(n);
     else days.push({ date: n.date, items: [n] });
@@ -109,19 +109,11 @@ export function TaskProgressLog({ task }: TaskProgressLogProps) {
   }
 
   return (
-    <section aria-labelledby={`${composerId}-title`}>
-      <div className="flex items-center gap-2 mb-2">
-        <span id={`${composerId}-title`} className="text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-          {t("progressLog.title")}
-        </span>
-        {notes.length > 0 && (
-          <span className="text-[11px] tabular-nums" style={{ color: "var(--text-faint)" }}>{notes.length}</span>
-        )}
-      </div>
-
+    <div>
       {/* Composer */}
-      <div className="rounded-lg border" style={{ background: "var(--bg-surface)", borderColor: "var(--border-default)" }}>
+      <div className="progress-composer rounded-lg border" style={{ background: "var(--bg-surface)" }}>
         <textarea
+          autoFocus={autoFocus}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onComposerKey}
@@ -229,7 +221,7 @@ export function TaskProgressLog({ task }: TaskProgressLogProps) {
                             {clock(n.created_at, locale)}
                             {n.edited_at && <> · <span>{t("progressLog.edited")}</span></>}
                           </span>
-                          <span className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                          <span className={`flex-shrink-0 flex items-center gap-0.5 transition-opacity ${coarse ? "" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"}`}>
                             <button
                               type="button"
                               aria-label={t("progressLog.edit")}
@@ -257,15 +249,6 @@ export function TaskProgressLog({ task }: TaskProgressLogProps) {
               </div>
             );
           })}
-          {(hidden > 0 || showAll) && notes.length > VISIBLE_NOTES && (
-            <button
-              type="button"
-              onClick={() => setShowAll((v) => !v)}
-              className="self-start text-[11.5px] font-medium text-text-muted hover:text-text-primary transition-colors"
-            >
-              {showAll ? t("progressLog.showLess") : t("progressLog.showMore").replace("{n}", String(hidden))}
-            </button>
-          )}
         </div>
       )}
 
@@ -284,6 +267,6 @@ export function TaskProgressLog({ task }: TaskProgressLogProps) {
         }}
         onCancel={() => setPendingDelete(null)}
       />
-    </section>
+    </div>
   );
 }

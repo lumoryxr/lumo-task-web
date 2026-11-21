@@ -311,14 +311,12 @@ describe("TaskEditModal", () => {
   it("pre-fills recurrence from task prop", () => {
     const task: Task = { ...TASK, recurrence: "weekly" };
     setup(task);
-    const select = screen.getByDisplayValue("task.recurrence.weekly") as HTMLSelectElement;
-    expect(select.value).toBe("weekly");
+    expect(screen.getByRole("button", { name: "task.recurrence.weekly" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("sends recurrence to update", async () => {
     setup();
-    const select = document.querySelector("select") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "daily" } });
+    fireEvent.click(screen.getByRole("button", { name: "task.recurrence.daily" }));
     fireEvent.click(getSaveBtn());
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -373,23 +371,21 @@ describe("TaskEditModal", () => {
     );
   });
 
-  it("pre-fills progress from the task and saves an adjusted value", async () => {
+  it("leaves completion alone: it is adjusted from the task view, not here", async () => {
     setup({ ...TASK, progress: 40 });
-    const slider = screen.getByRole("slider", { name: "progress.label" });
-    expect(slider).toHaveValue("40");
-    fireEvent.change(slider, { target: { value: "65" } });
+    expect(screen.queryByRole("slider")).toBeNull();
     fireEvent.click(getSaveBtn());
-    await waitFor(() =>
-      expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ progress: 65 })),
-    );
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    expect(mockUpdate.mock.calls[0][1]).not.toHaveProperty("progress");
   });
 
-  it("saves progress 0 for a task that has none yet", async () => {
+  it("follows the New task form's order, then groups the rest under Schedule and Organize", () => {
     setup();
-    fireEvent.click(getSaveBtn());
-    await waitFor(() =>
-      expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ progress: 0 })),
-    );
+    const text = screen.getByRole("dialog").textContent ?? "";
+    const order = ["qc.quadrant", "qc.due", "edit.group.schedule", "qc.duration", "task.recurrence", "edit.remindAt", "edit.group.organize", "edit.tags"];
+    const positions = order.map((k) => text.indexOf(k));
+    expect(positions.every((p) => p >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
   });
 
   describe("project group", () => {
@@ -498,5 +494,26 @@ describe("TaskEditModal", () => {
       await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
       expect(mockUpdate.mock.calls[0][1].assignee_ids).toEqual(["p_ann", "p_bo"]);
     });
+  });
+});
+
+describe("responsive dialog frame", () => {
+  it("uses the shared task-dialog frame: screen-relative size, pinned header and footer, scrolling body", () => {
+    setup();
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveClass("task-dialog");
+    expect(dialog.parentElement).toHaveClass("task-dialog-backdrop");
+    // No fixed pixel width / viewport-percent height baked into the element.
+    expect(dialog.style.maxWidth).toBe("");
+    expect(dialog.style.maxHeight).toBe("");
+    expect(dialog.style.marginTop).toBe("");
+    const body = dialog.querySelector(".task-dialog__body");
+    expect(body).not.toBeNull();
+    // Header (with the X) and footer stay outside the scrolling body.
+    const close = screen.getByRole("button", { name: "qc.close" });
+    expect(body?.contains(close)).toBe(false);
+    const footer = dialog.querySelector("footer");
+    expect(footer).not.toBeNull();
+    expect(body?.contains(footer)).toBe(false);
   });
 });

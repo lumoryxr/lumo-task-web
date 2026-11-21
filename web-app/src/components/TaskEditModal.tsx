@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconClose } from "@/components/icons";
-import { TaskProgressEditor } from "@/components/TaskProgress";
 import { clampProgress } from "@/lib/progress";
 import { Spinner } from "@/components/Spinner";
 import { TagInput } from "@/components/TagInput";
@@ -13,6 +12,11 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { AssigneePicker } from "@/components/AssigneePicker";
+import { FieldAction, FieldLabel } from "@/components/taskForm/FieldLabel";
+import { QuadrantPicker } from "@/components/taskForm/QuadrantPicker";
+import { DuePicker } from "@/components/taskForm/DuePicker";
+import { DurationStepper } from "@/components/taskForm/DurationStepper";
+import { RecurrencePicker } from "@/components/taskForm/RecurrencePicker";
 import { DraftExitDialog } from "@/components/DraftExitDialog";
 import { useTaskDraftsStore, type EditDraftFields } from "@/store/useTaskDraftsStore";
 import { ProjectSelect } from "@/components/ProjectSelect";
@@ -22,25 +26,6 @@ import type { Quadrant, Task, TaskRecurrence } from "@/types/task";
 interface Props {
   task: Task;
   onClose: () => void;
-}
-
-const QUADRANTS: Quadrant[] = ["Q1", "Q2", "Q3", "Q4"];
-
-const RECURRENCE_VALUES: TaskRecurrence[] = ["none", "daily", "weekdays", "weekly", "monthly"];
-
-const Q_META: Record<Quadrant, { en: string; zh: string; descEn: string; descZh: string }> = {
-  Q1:           { en: "Do first",  zh: "立即做", descEn: "Urgent & important",    descZh: "紧急 + 重要" },
-  Q2:           { en: "Schedule",  zh: "安排做", descEn: "Important, not urgent", descZh: "重要，不紧急" },
-  Q3:           { en: "Delegate",  zh: "委托做", descEn: "Urgent, not important", descZh: "紧急，不重要" },
-  Q4:           { en: "Drop",      zh: "减少做", descEn: "Neither",               descZh: "都不是" },
-  unclassified: { en: "Unsorted",  zh: "未分类", descEn: "Not yet placed",        descZh: "尚未归位" },
-};
-
-function getNextMonday(): string {
-  const d = new Date();
-  const day = d.getDay(); // 0=Sun, 1=Mon … 6=Sat
-  const daysUntil = ((8 - day) % 7) || 7;
-  return toISODate(new Date(d.getTime() + daysUntil * 86400000));
 }
 
 export function TaskEditModal({ task, onClose }: Props) {
@@ -54,8 +39,6 @@ export function TaskEditModal({ task, onClose }: Props) {
   const projects = useProjectsStore((s) => s.projects);
 
   const todayISO = toISODate(new Date());
-  const tomorrowISO = toISODate(new Date(Date.now() + 86400000));
-  const nextWeekISO = getNextMonday();
 
   const initialTitle =
     typeof task.title === "string" ? task.title : (task.title as { en: string }).en;
@@ -101,7 +84,6 @@ export function TaskEditModal({ task, onClose }: Props) {
   const [desc, setDesc] = useState(start.desc);
   const [quadrant, setQuadrant] = useState<Task["quadrant"]>(start.quadrant);
   const [duration, setDuration] = useState(start.duration);
-  const [durationRaw, setDurationRaw] = useState(String(start.duration));
   const [dueDate, setDueDate] = useState<string>(start.dueDate);
   const [scheduledStart, setScheduledStart] = useState<string>(start.scheduledStart);
   const [remindAt, setRemindAt] = useState<string>(start.remindAt);
@@ -170,7 +152,6 @@ export function TaskEditModal({ task, onClose }: Props) {
     setDesc(base.desc);
     setQuadrant(base.quadrant);
     setDuration(base.duration);
-    setDurationRaw(String(base.duration));
     setDueDate(base.dueDate);
     setScheduledStart(base.scheduledStart);
     setRemindAt(base.remindAt);
@@ -223,7 +204,7 @@ export function TaskEditModal({ task, onClose }: Props) {
         project_id: projectId,
         section_id: effectiveSectionId,
         stage_id: effectiveStageId,
-        progress,
+        // Completion is adjusted from the task view, not here.
       });
       forgetDraft();
       onClose();
@@ -247,8 +228,8 @@ export function TaskEditModal({ task, onClose }: Props) {
   return createPortal(
     // No click-outside close: a stray click must not throw away unsaved edits.
     <div
-      className="fade-in fixed inset-0 z-[200] flex items-center justify-center"
-      style={{ background: "rgba(8, 11, 10, 0.65)", backdropFilter: "blur(6px)", padding: "0 32px" }}
+      className="task-dialog-backdrop fade-in z-[200]"
+      style={{ background: "rgba(8, 11, 10, 0.65)", backdropFilter: "blur(6px)" }}
     >
       <div
         role="dialog"
@@ -256,13 +237,11 @@ export function TaskEditModal({ task, onClose }: Props) {
         ref={dialogRef}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full overflow-hidden border rounded-[14px]"
+        className="task-dialog border rounded-[14px]"
         style={{
-          maxWidth: 520,
           background: "var(--bg-elevated)",
           borderColor: "var(--accent-edge)",
           boxShadow: "var(--shadow-lifted), 0 0 60px var(--accent-fog)",
-          marginTop: "-6vh",
         }}
       >
         {/* Header */}
@@ -294,13 +273,11 @@ export function TaskEditModal({ task, onClose }: Props) {
           </div>
         )}
 
-        {/* Body */}
-        <div className="px-[18px] py-4 flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: "60vh" }}>
-          {/* Title */}
+        {/* Body — same order as the New task form, then Schedule and Organize */}
+        <div className="task-dialog__body px-[18px] py-4 flex flex-col gap-4">
+          {/* Name + description */}
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-              {locale === "zh" ? "任务" : "Task"}
-            </div>
+            <FieldLabel>{locale === "zh" ? "任务" : "Task"}</FieldLabel>
             <input
               autoFocus
               value={title}
@@ -309,266 +286,64 @@ export function TaskEditModal({ task, onClose }: Props) {
               className="input"
               style={{ height: 40, fontSize: 14, fontWeight: 500 }}
             />
-          </div>
-
-          {/* Quadrant 2×2 grid */}
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-2">
-              {t("qc.quadrant")}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {QUADRANTS.map((q) => {
-                const meta = Q_META[q];
-                const active = quadrant === q;
-                return (
-                  <button
-                    key={q}
-                    onClick={() => setQuadrant(q)}
-                    aria-pressed={active}
-                    className="text-left rounded-lg border transition-colors"
-                    style={{
-                      padding: "9px 11px",
-                      background: active ? "var(--bg-subtle)" : "var(--bg-surface)",
-                      borderColor: active ? "var(--border-strong)" : "var(--border-default)",
-                      boxShadow: active ? "0 0 0 1px var(--border-strong)" : "none",
-                    }}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className={`qdot qdot-${q.toLowerCase()}`} />
-                      <span className="text-[11px] font-semibold text-text-primary">{q}</span>
-                      <span
-                        className="text-[11px] font-medium ml-1"
-                        style={{ color: `var(--q${q[1]}-color, var(--text-muted))` }}
-                      >
-                        {locale === "zh" ? meta.zh : meta.en}
-                      </span>
-                    </div>
-                    <div className="text-[10px] mt-0.5" style={{ color: "var(--text-faint)" }}>
-                      {locale === "zh" ? meta.descZh : meta.descEn}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-              {t("edit.desc")}
-            </div>
             <textarea
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
               placeholder={t("edit.desc.placeholder")}
-              rows={3}
-              className="input resize-none"
-              style={{ fontSize: 13, paddingTop: 8, paddingBottom: 8, lineHeight: "1.5" }}
+              aria-label={t("edit.desc")}
+              rows={desc.split("\n").length > 2 ? 4 : 2}
+              className="input resize-y mt-2"
+              style={{ height: "auto", fontSize: 13, paddingTop: 8, paddingBottom: 8, lineHeight: "1.5" }}
             />
           </div>
 
-          {/* Progress */}
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-              {t("progress.label")}
-            </div>
-            <div
-              className="rounded-lg border px-3 pt-2.5 pb-3"
-              style={{ background: "var(--bg-surface)", borderColor: "var(--border-faint)" }}
-            >
-              <TaskProgressEditor value={progress} onChange={setProgress} subtasks={task.subtasks} />
-            </div>
-          </div>
+          <QuadrantPicker value={quadrant as Quadrant} onChange={setQuadrant} />
 
-          {/* Due + Duration */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint">
-                  {t("qc.due")}
-                </div>
-                {dueDate && (
-                  <button
-                    type="button"
-                    onClick={() => setDueDate("")}
-                    className="text-[10px] transition-colors"
-                    style={{ color: "var(--text-faint)" }}
-                  >
-                    {t("due.none")}
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1 mb-1.5">
-                {([
-                  { label: t("due.today"), value: todayISO },
-                  { label: t("due.tomorrow"), value: tomorrowISO },
-                  { label: t("due.nextWeek"), value: nextWeekISO },
-                ]).map(({ label, value }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setDueDate(value)}
-                    className="text-[10px] px-1.5 py-0.5 rounded transition-colors"
-                    style={{
-                      background: dueDate === value ? "var(--accent-fog)" : "var(--bg-surface)",
-                      border: `1px solid ${dueDate === value ? "var(--accent-edge)" : "var(--border-default)"}`,
-                      color: dueDate === value ? "var(--accent-primary)" : "var(--text-muted)",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="input"
-                style={{ colorScheme: "dark", cursor: "pointer" }}
-              />
-            </div>
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-                {t("qc.duration")}
-              </div>
-              <div
-                className="flex items-center rounded-md border overflow-hidden"
-                style={{ height: 36, borderColor: "var(--border-default)", background: "var(--bg-surface)" }}
-              >
-                <button
-                  type="button"
-                  onClick={() => { const next = Math.max(1, duration - 1); setDuration(next); setDurationRaw(String(next)); }}
-                  className="flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-subtle transition-colors select-none"
-                  style={{ width: 32, fontSize: 16, flexShrink: 0, height: "100%" }}
-                >
-                  −
-                </button>
-                <div className="flex-1 flex items-center justify-center gap-1 min-w-0">
-                  <input
-                    type="number"
-                    min={1}
-                    value={durationRaw}
-                    onChange={(e) => {
-                      setDurationRaw(e.target.value);
-                      const v = parseInt(e.target.value);
-                      if (!isNaN(v)) setDuration(v);
-                    }}
-                    onBlur={() => {
-                      const clamped = Math.max(1, duration || 1);
-                      setDuration(clamped);
-                      setDurationRaw(String(clamped));
-                    }}
-                    className="tabular-nums font-semibold text-text-primary bg-transparent border-none outline-none text-center"
-                    style={{ fontSize: 13, width: 40 }}
-                  />
-                  <span className="text-[10px] text-text-muted flex-shrink-0">
-                    {locale === "zh" ? "分钟" : "min"}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { const next = duration + 1; setDuration(next); setDurationRaw(String(next)); }}
-                  className="flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-subtle transition-colors select-none"
-                  style={{ width: 32, fontSize: 16, flexShrink: 0, height: "100%" }}
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          </div>
+          <DuePicker value={dueDate} onChange={setDueDate} />
 
-          {/* Scheduled Start + Recurrence */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Owner (主责任人) + collaborators */}
+          {people.length > 0 && (
+            <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} />
+          )}
+
+          {/* ── Schedule ── */}
+          <FormGroupTitle>{t("edit.group.schedule")}</FormGroupTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <DurationStepper value={duration} onChange={setDuration} />
             <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint">
-                  {t("edit.scheduledStart")}
-                </div>
-                {scheduledStart && (
-                  <button
-                    type="button"
-                    onClick={() => setScheduledStart("")}
-                    className="text-[10px] transition-colors"
-                    style={{ color: "var(--text-faint)" }}
-                  >
-                    {t("edit.clearSchedule")}
-                  </button>
-                )}
-              </div>
+              <FieldLabel action={scheduledStart ? <FieldAction onClick={() => setScheduledStart("")}>{t("edit.clearSchedule")}</FieldAction> : undefined}>
+                {t("edit.scheduledStart")}
+              </FieldLabel>
               <input
                 type="datetime-local"
                 value={scheduledStart}
                 onChange={(e) => setScheduledStart(e.target.value)}
+                aria-label={t("edit.scheduledStart")}
                 className="input"
-                style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13 }}
+                style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13, height: 34 }}
               />
             </div>
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-                {t("task.recurrence")}
-              </div>
-              <select
-                value={recurrence}
-                onChange={(e) => setRecurrence(e.target.value as TaskRecurrence)}
-                aria-label={t("task.recurrence")}
-                className="input"
-                style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13 }}
-              >
-                {RECURRENCE_VALUES.map((r) => (
-                  <option key={r} value={r}>
-                    {t(`task.recurrence.${r}`)}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
-
-          {/* Reminder */}
+          <RecurrencePicker value={recurrence} onChange={setRecurrence} />
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint">
-                {t("edit.remindAt")}
-              </div>
-              {remindAt && (
-                <button
-                  type="button"
-                  onClick={() => setRemindAt("")}
-                  className="text-[10px] transition-colors"
-                  style={{ color: "var(--text-faint)" }}
-                >
-                  {t("edit.clearReminder")}
-                </button>
-              )}
-            </div>
+            <FieldLabel action={remindAt ? <FieldAction onClick={() => setRemindAt("")}>{t("edit.clearReminder")}</FieldAction> : undefined}>
+              {t("edit.remindAt")}
+            </FieldLabel>
             <input
               type="datetime-local"
               value={remindAt}
               onChange={(e) => setRemindAt(e.target.value)}
-              className="input"
-              style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13 }}
+              aria-label={t("edit.remindAt")}
+              className="input sm:max-w-[calc(50%-6px)]"
+              style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13, height: 34 }}
             />
           </div>
 
-          {/* Tags */}
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-              {t("edit.tags")}
-            </div>
-            <TagInput
-              tags={tags}
-              onChange={setTags}
-              placeholder={t("edit.tags.placeholder")}
-              inputAriaLabel={t("edit.tags")}
-              suggestions={tagSuggestions}
-            />
-          </div>
-
-          {/* Project — single owning project (#211) */}
+          {/* ── Organize ── */}
+          <FormGroupTitle>{t("edit.group.organize")}</FormGroupTitle>
           {projects.length > 0 && (
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-                {t("project.select.label")}
-              </div>
+              <FieldLabel>{t("project.select.label")}</FieldLabel>
               <ProjectSelect
                 label={t("project.select.label")}
                 value={projectId}
@@ -577,53 +352,56 @@ export function TaskEditModal({ task, onClose }: Props) {
               />
             </div>
           )}
-
-          {/* Stage in the project's workflow */}
-          {projectStages.length > 0 && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-                {t("edit.stage")}
-              </div>
-              <select
-                value={effectiveStageId ?? ""}
-                onChange={(e) => setStageId(e.target.value || null)}
-                aria-label={t("edit.stage")}
-                className="input"
-                style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13 }}
-              >
-                <option value="">{t("edit.stage.none")}</option>
-                {projectStages.map((s, i) => (
-                  <option key={s.id} value={s.id}>{`${i + 1}. ${s.name}`}</option>
-                ))}
-              </select>
+          {(projectSections.length > 0 || projectStages.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Group inside the project — also the touch-friendly way to move a task */}
+              {projectSections.length > 0 && (
+                <div>
+                  <FieldLabel>{t("edit.section")}</FieldLabel>
+                  <select
+                    value={effectiveSectionId ?? ""}
+                    onChange={(e) => setSectionId(e.target.value || null)}
+                    aria-label={t("edit.section")}
+                    className="input"
+                    style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13, height: 34 }}
+                  >
+                    <option value="">{t("edit.section.none")}</option>
+                    {projectSections.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {/* Stage in the project's workflow */}
+              {projectStages.length > 0 && (
+                <div>
+                  <FieldLabel>{t("edit.stage")}</FieldLabel>
+                  <select
+                    value={effectiveStageId ?? ""}
+                    onChange={(e) => setStageId(e.target.value || null)}
+                    aria-label={t("edit.stage")}
+                    className="input"
+                    style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13, height: 34 }}
+                  >
+                    <option value="">{t("edit.stage.none")}</option>
+                    {projectStages.map((s, i) => (
+                      <option key={s.id} value={s.id}>{`${i + 1}. ${s.name}`}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
-
-          {/* Group inside the project — also the touch-friendly way to move a task */}
-          {projectSections.length > 0 && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-                {t("edit.section")}
-              </div>
-              <select
-                value={effectiveSectionId ?? ""}
-                onChange={(e) => setSectionId(e.target.value || null)}
-                aria-label={t("edit.section")}
-                className="input"
-                style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13 }}
-              >
-                <option value="">{t("edit.section.none")}</option>
-                {projectSections.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Assignees — several people, the first is the primary (主责任人) */}
-          {people.length > 0 && (
-            <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} />
-          )}
+          <div>
+            <FieldLabel>{t("edit.tags")}</FieldLabel>
+            <TagInput
+              tags={tags}
+              onChange={setTags}
+              placeholder={t("edit.tags.placeholder")}
+              inputAriaLabel={t("edit.tags")}
+              suggestions={tagSuggestions}
+            />
+          </div>
         </div>
 
         {/* Footer */}
@@ -674,5 +452,15 @@ export function TaskEditModal({ task, onClose }: Props) {
       />
     </div>,
     document.body
+  );
+}
+
+/** A quiet divider-with-label that groups the less common fields. */
+function FormGroupTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 pt-1">
+      <span className="text-[11px] font-semibold text-text-muted">{children}</span>
+      <span className="flex-1 h-px" style={{ background: "var(--border-faint)" }} />
+    </div>
   );
 }

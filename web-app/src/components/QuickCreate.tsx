@@ -9,6 +9,10 @@ import { usePeopleStore } from "@/store/usePeopleStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { AssigneePicker } from "@/components/AssigneePicker";
 import { DraftExitDialog } from "@/components/DraftExitDialog";
+import { QuadrantPicker } from "@/components/taskForm/QuadrantPicker";
+import { DuePicker } from "@/components/taskForm/DuePicker";
+import { DurationStepper } from "@/components/taskForm/DurationStepper";
+import { RecurrencePicker } from "@/components/taskForm/RecurrencePicker";
 import { useTaskDraftsStore, type CreateDraft } from "@/store/useTaskDraftsStore";
 import { ProjectSelect } from "@/components/ProjectSelect";
 import { TagInput } from "@/components/TagInput";
@@ -16,11 +20,6 @@ import { derivePlanTags } from "@/utils/planFilters";
 import { fmtDuration, toISODate } from "@/lib/format";
 import type { Quadrant, TaskRecurrence } from "@/types/task";
 
-function getNextMonday(): string {
-  const d = new Date();
-  const daysUntil = ((8 - d.getDay()) % 7) || 7;
-  return toISODate(new Date(d.getTime() + daysUntil * 86400000));
-}
 
 interface QuickCreateProps {
   initialQuadrant?: Quadrant;
@@ -34,15 +33,6 @@ interface QuickCreateProps {
   onCreated?: () => void;
 }
 
-const QUADRANTS: Quadrant[] = ["Q1", "Q2", "Q3", "Q4"];
-
-const Q_META: Record<Quadrant, { en: string; zh: string; descEn: string; descZh: string }> = {
-  Q1:           { en: "Do first",  zh: "立即做", descEn: "Urgent & important",    descZh: "紧急 + 重要" },
-  Q2:           { en: "Schedule",  zh: "安排做", descEn: "Important, not urgent", descZh: "重要，不紧急" },
-  Q3:           { en: "Delegate",  zh: "委托做", descEn: "Urgent, not important", descZh: "紧急，不重要" },
-  Q4:           { en: "Drop",      zh: "减少做", descEn: "Neither",               descZh: "都不是" },
-  unclassified: { en: "Unsorted",  zh: "未分类", descEn: "Not yet placed",        descZh: "尚未归位" },
-};
 
 /**
  * Modal for creating a task quickly. It closes only from its X (or Cancel):
@@ -62,8 +52,6 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   const projects = useProjectsStore((s) => s.projects);
 
   const todayISO = toISODate(new Date());
-  const tomorrowISO = toISODate(new Date(Date.now() + 86400000));
-  const nextWeekISO = getNextMonday();
 
   // What a fresh form holds in this context (where it was opened from).
   const defaults: CreateDraft = {
@@ -89,7 +77,6 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   const [busy, setBusy] = useState(false);
   const [quadrant, setQuadrant] = useState<Quadrant>(start.quadrant);
   const [duration, setDuration] = useState(start.duration);
-  const [durationRaw, setDurationRaw] = useState(String(start.duration));
   const [dueDate, setDueDate] = useState<string>(start.dueDate);
   const [assigneeIds, setAssigneeIds] = useState<string[]>(start.assigneeIds);
   const [recurrence, setRecurrence] = useState<TaskRecurrence>(start.recurrence);
@@ -145,7 +132,6 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
     setTitle(defaults.title);
     setQuadrant(defaults.quadrant);
     setDuration(defaults.duration);
-    setDurationRaw(String(defaults.duration));
     setDueDate(defaults.dueDate);
     setAssigneeIds(defaults.assigneeIds);
     setRecurrence(defaults.recurrence);
@@ -188,7 +174,6 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
       }
       if (result.duration) {
         setDuration(result.duration);
-        setDurationRaw(String(result.duration));
       }
       setAiMode(false);
     } catch {
@@ -228,19 +213,17 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   return createPortal(
     // No click-outside close: a stray click must not throw away what was typed.
     <div
-      className="fade-in fixed inset-0 z-[150] flex items-center justify-center"
-      style={{ background: "rgba(8, 11, 10, 0.6)", backdropFilter: "blur(6px)", padding: "0 32px" }}
+      className="task-dialog-backdrop fade-in z-[150]"
+      style={{ background: "rgba(8, 11, 10, 0.6)", backdropFilter: "blur(6px)" }}
     >
       <div
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="w-full overflow-hidden border rounded-[14px] bg-elevated shadow-lifted"
+        className="task-dialog border rounded-[14px] bg-elevated shadow-lifted"
         style={{
-          maxWidth: 520,
           borderColor: "var(--accent-edge)",
           boxShadow: "var(--shadow-lifted), 0 0 60px var(--accent-fog)",
-          marginTop: "-6vh",
         }}
       >
         {/* Header */}
@@ -295,8 +278,8 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
           </div>
         )}
 
-        {/* Body — scrolls inside the dialog when More options makes it tall */}
-        <div className="px-[18px] py-4 flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: "calc(100dvh - 190px)" }}>
+        {/* Body — the only part that scrolls; header and footer stay put */}
+        <div className="task-dialog__body px-[18px] py-4 flex flex-col gap-4">
           {/* AI Parse input */}
           {aiMode && (
             <div>
@@ -341,91 +324,9 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
             />
           </div>
 
-          {/* Quadrant — one compact row; the description is in the tooltip */}
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-              {t("qc.quadrant")}
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-              {QUADRANTS.map((q) => {
-                const meta = Q_META[q];
-                const active = quadrant === q;
-                return (
-                  <button
-                    key={q}
-                    type="button"
-                    onClick={() => setQuadrant(q)}
-                    aria-pressed={active}
-                    title={locale === "zh" ? meta.descZh : meta.descEn}
-                    className="flex items-center gap-1.5 rounded-lg border px-2.5 h-9 transition-colors"
-                    style={{
-                      background: active ? "var(--bg-subtle)" : "var(--bg-surface)",
-                      borderColor: active ? "var(--border-strong)" : "var(--border-default)",
-                      boxShadow: active ? "0 0 0 1px var(--border-strong)" : "none",
-                    }}
-                  >
-                    <span className={`qdot qdot-${q.toLowerCase()}`} />
-                    <span className="text-[11px] font-semibold text-text-primary">{q}</span>
-                    <span
-                      className="text-[11px] font-medium truncate"
-                      style={{ color: `var(--q${q[1]}-color, var(--text-muted))` }}
-                    >
-                      {locale === "zh" ? meta.zh : meta.en}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <QuadrantPicker value={quadrant} onChange={setQuadrant} />
 
-          {/* Due — quick picks and a date field on one line */}
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint">
-                {t("qc.due")}
-              </div>
-              {dueDate && (
-                <button
-                  type="button"
-                  onClick={() => setDueDate("")}
-                  className="text-[10px] transition-colors"
-                  style={{ color: "var(--text-faint)" }}
-                >
-                  {t("due.none")}
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {([
-                { label: t("due.today"), value: todayISO },
-                { label: t("due.tomorrow"), value: tomorrowISO },
-                { label: t("due.nextWeek"), value: nextWeekISO },
-              ]).map(({ label, value }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setDueDate(value)}
-                  aria-pressed={dueDate === value}
-                  className="text-[11px] px-2 h-8 rounded-md transition-colors"
-                  style={{
-                    background: dueDate === value ? "var(--accent-fog)" : "var(--bg-surface)",
-                    border: `1px solid ${dueDate === value ? "var(--accent-edge)" : "var(--border-default)"}`,
-                    color: dueDate === value ? "var(--accent-primary)" : "var(--text-muted)",
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                aria-label={t("qc.due")}
-                className="input flex-1 min-w-[140px]"
-                style={{ colorScheme: "dark", cursor: "pointer", height: 32 }}
-              />
-            </div>
-          </div>
+          <DuePicker value={dueDate} onChange={setDueDate} />
 
           {/* Owner (主责任人) — one person; collaborators live under More options */}
           {people.length > 0 && (
@@ -480,83 +381,10 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-                {t("qc.duration")}
-              </div>
-              <div
-                className="flex items-center rounded-md border overflow-hidden"
-                style={{
-                  height: 36,
-                  borderColor: "var(--border-default)",
-                  background: "var(--bg-surface)",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => { const next = Math.max(1, duration - 1); setDuration(next); setDurationRaw(String(next)); }}
-                  className="flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-subtle transition-colors select-none"
-                  style={{ width: 32, fontSize: 16, flexShrink: 0, height: "100%" }}
-                >
-                  −
-                </button>
-                <div className="flex-1 flex items-center justify-center gap-1 min-w-0">
-                  <input
-                    type="number"
-                    min={1}
-                    value={durationRaw}
-                    onChange={(e) => {
-                      setDurationRaw(e.target.value);
-                      const v = parseInt(e.target.value);
-                      if (!isNaN(v)) setDuration(v);
-                    }}
-                    onBlur={() => {
-                      const clamped = Math.max(1, duration || 1);
-                      setDuration(clamped);
-                      setDurationRaw(String(clamped));
-                    }}
-                    className="tabular-nums font-semibold text-text-primary bg-transparent border-none outline-none text-center"
-                    style={{ fontSize: 13, width: 40 }}
-                  />
-                  <span className="text-[10px] text-text-muted flex-shrink-0">
-                    {locale === "zh" ? "分钟" : "min"}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { const next = duration + 1; setDuration(next); setDurationRaw(String(next)); }}
-                  className="flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-subtle transition-colors select-none"
-                  style={{ width: 32, fontSize: 16, flexShrink: 0, height: "100%" }}
-                >
-                  +
-                </button>
-              </div>
-            </div>
+                <DurationStepper value={duration} onChange={setDuration} />
               </div>
 
-              {/* Recurrence */}
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-                  {t("task.recurrence")}
-                </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {(["none", "daily", "weekdays", "weekly", "monthly"] as TaskRecurrence[]).map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setRecurrence(r)}
-                      className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
-                      style={{
-                        background: recurrence === r ? "var(--accent-fog)" : "var(--bg-surface)",
-                        border: `1px solid ${recurrence === r ? "var(--accent-edge)" : "var(--border-default)"}`,
-                        color: recurrence === r ? "var(--accent-primary)" : "var(--text-secondary)",
-                      }}
-                    >
-                      {t(`task.recurrence.${r}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <RecurrencePicker value={recurrence} onChange={setRecurrence} />
 
               {/* Tags */}
               <div>
