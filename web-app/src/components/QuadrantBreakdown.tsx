@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { useT } from "@/i18n/useT";
-import type { QuadrantCount } from "@/utils/stats";
+import { quadrantCallout, type QuadrantCount } from "@/utils/stats";
 
+// Quadrant identity colours are the same tokens the Matrix, chips and dots use
+// everywhere, so a quadrant reads the same on every screen.
 const QUADRANT_COLOR: Record<string, string> = {
   Q1: "var(--q1-color)",
   Q2: "var(--q2-color)",
@@ -9,77 +12,94 @@ const QUADRANT_COLOR: Record<string, string> = {
   unclassified: "var(--text-faint)",
 };
 
-function quadrantLabel(q: string, t: (k: string) => string): string {
-  if (q === "unclassified") return t("stats.quadrant.unclassified");
-  return q;
-}
+const NAME_KEY: Record<string, string> = {
+  Q1: "matrix.q1",
+  Q2: "matrix.q2",
+  Q3: "matrix.q3",
+  Q4: "matrix.q4",
+};
 
-interface Props {
-  breakdown: QuadrantCount[];
-}
-
-export function QuadrantBreakdown({ breakdown }: Props) {
+/**
+ * Where finished work landed in the Eisenhower matrix: one tall segmented bar
+ * (each quadrant a block, its share printed inside when it fits) above a list
+ * that names each quadrant with its colour swatch and count, plus a one-line
+ * reading of the split.
+ */
+export function QuadrantBreakdown({ breakdown }: { breakdown: QuadrantCount[] }) {
   const t = useT();
+  const [hover, setHover] = useState<string | null>(null);
   const total = breakdown.reduce((s, b) => s + b.count, 0);
-
-  let callout: string | null = null;
-  if (total >= 5) {
-    const q2Pct = breakdown.find((b) => b.quadrant === "Q2")?.percent ?? 0;
-    const q1Pct = breakdown.find((b) => b.quadrant === "Q1")?.percent ?? 0;
-    const q3Pct = breakdown.find((b) => b.quadrant === "Q3")?.percent ?? 0;
-    const q4Pct = breakdown.find((b) => b.quadrant === "Q4")?.percent ?? 0;
-    const q3q4Pct = q3Pct + q4Pct;
-
-    if (q2Pct >= 30) {
-      callout = t("stats.quadrant.callout.q2good").replace("{pct}", String(q2Pct));
-    } else if (q1Pct >= 60) {
-      callout = t("stats.quadrant.callout.q1heavy");
-    } else if (q3q4Pct >= 40) {
-      callout = t("stats.quadrant.callout.q3q4high").replace("{pct}", String(q3q4Pct));
-    }
-  }
+  const parts = breakdown.filter((b) => b.count > 0);
+  const callout = quadrantCallout(breakdown);
+  const label = (q: string) => (q === "unclassified" ? t("stats.quadrant.unclassified") : `${q} · ${t(NAME_KEY[q])}`);
 
   return (
-    <div className="mt-4 p-4 surface-card">
-      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-faint mb-3">
-        {t("stats.quadrant.breakdown")}
-      </h3>
-      <div className="flex flex-col gap-2.5">
-        {breakdown.map((b) => (
-          <div key={b.quadrant} className="flex items-center gap-2 min-w-0">
-            <span
-              className="text-[11px] font-semibold shrink-0 w-[72px]"
-              style={{ color: b.count > 0 ? QUADRANT_COLOR[b.quadrant] : "var(--text-faint)" }}
-            >
-              {quadrantLabel(b.quadrant, t)}
-            </span>
+    <div className="flex flex-col gap-4">
+      <div
+        role="img"
+        aria-label={parts.map((b) => `${label(b.quadrant)} ${b.count} (${b.percent}%)`).join(", ") || t("stats.period.empty")}
+        className="flex w-full gap-[2px]"
+        style={{ height: 28 }}
+      >
+        {total === 0 ? (
+          <div className="flex-1 rounded" style={{ background: "var(--bg-elevated)" }} />
+        ) : (
+          parts.map((b) => (
             <div
-              role="progressbar"
-              aria-valuenow={b.percent}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={`${quadrantLabel(b.quadrant, t)} ${b.percent}%`}
-              className="flex-1 h-1.5 rounded-full overflow-hidden min-w-0"
-              style={{ background: "var(--bg-elevated)" }}
+              key={b.quadrant}
+              data-quadrant={b.quadrant}
+              onPointerEnter={() => setHover(b.quadrant)}
+              onPointerLeave={() => setHover(null)}
+              className="flex items-center min-w-0 rounded transition-opacity"
+              style={{
+                width: `${b.percent}%`,
+                minWidth: 4,
+                background: QUADRANT_COLOR[b.quadrant],
+                opacity: hover === null || hover === b.quadrant ? 1 : 0.5,
+              }}
+              title={`${label(b.quadrant)}: ${b.count} · ${b.percent}%`}
             >
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{
-                  width: b.count > 0 ? `${b.percent}%` : "0%",
-                  background: QUADRANT_COLOR[b.quadrant],
-                  opacity: b.count > 0 ? 1 : 0,
-                }}
-              />
+              {b.percent >= 9 && (
+                <span className="pl-2 text-[11.5px] font-semibold" style={{ color: "var(--text-inverse)" }}>
+                  {b.percent}%
+                </span>
+              )}
             </div>
-            <span className="text-[11px] text-text-muted tabular-nums shrink-0 w-[60px] text-right">
-              {b.count > 0 ? `${b.count} · ${b.percent}%` : "—"}
-            </span>
-          </div>
-        ))}
+          ))
+        )}
       </div>
+
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+        {breakdown.map((b) => (
+          <li
+            key={b.quadrant}
+            className="flex items-center gap-2 min-w-0 rounded-md px-1.5 py-1 -mx-1.5 transition-colors"
+            style={{ background: hover === b.quadrant ? "var(--bg-subtle)" : "transparent" }}
+            onPointerEnter={() => setHover(b.quadrant)}
+            onPointerLeave={() => setHover(null)}
+          >
+            <span
+              aria-hidden="true"
+              className="flex-shrink-0 rounded-sm"
+              style={{ width: 10, height: 10, background: QUADRANT_COLOR[b.quadrant], opacity: b.count > 0 ? 1 : 0.35 }}
+            />
+            <span className="flex-1 min-w-0 truncate text-[12.5px] text-text-secondary">{label(b.quadrant)}</span>
+            <span className="text-[12.5px] font-semibold text-text-primary tabular-nums">
+              {b.count > 0 ? b.count : "—"}
+            </span>
+            {b.count > 0 && b.percent < 9 && (
+              <span className="text-[11px] text-text-faint tabular-nums w-8 text-right">{b.percent}%</span>
+            )}
+          </li>
+        ))}
+      </ul>
+
       {callout && (
-        <p className="mt-3 pt-3 text-[12px] text-text-muted border-t border-border-faint leading-relaxed">
-          {callout}
+        <p
+          className="text-[12.5px] text-text-secondary leading-relaxed rounded-lg px-3 py-2"
+          style={{ background: "var(--bg-elevated)" }}
+        >
+          {t(callout.key).replace("{pct}", String(callout.pct ?? ""))}
         </p>
       )}
     </div>

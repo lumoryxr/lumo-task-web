@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { IconStats } from "@/components/icons";
+import { IconCalendar, IconCheck, IconClock, IconHabit, IconMatrix, IconNote, IconProject, IconSparkle, IconStats } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { useHabitsStore } from "@/store/useHabitsStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import type { CompletedEntry } from "@/types/task";
-import { computeWeekStats, computeAllTimeStats, computeTagDistribution, fmtHour } from "@/utils/stats";
-import { currentStreak as habitStreak, toDateStr } from "@/utils/habits";
+import { computeWeekStats, computeAllTimeStats } from "@/utils/stats";
+import { computeDashboard, deltaPct } from "@/utils/statsDashboard";
+import { useProjectsStore } from "@/store/useProjectsStore";
+import { currentStreak as habitStreak } from "@/utils/habits";
 import { shouldShowWrapped, markWrappedShown, computePrevWeekStats, computeMonthStats, shouldShowMonthlyWrapped, markMonthlyWrappedShown, computeYearStats, shouldShowYearlyWrapped, markYearlyWrappedShown } from "@/utils/wrapped";
 import { pendingStreakMilestone, markStreakMilestoneCelebrated } from "@/utils/streakMilestone";
 import { useNavigate } from "react-router-dom";
@@ -19,27 +21,25 @@ import { HabitWeekSection } from "@/components/HabitWeekSection";
 import { QuadrantBreakdown } from "@/components/QuadrantBreakdown";
 import { StatsSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/EmptyState";
-import type { QuadrantCount } from "@/utils/stats";
+import { StatTile } from "@/components/stats/StatTile";
+import { StatsCard } from "@/components/stats/StatsCard";
+import { DailyChart } from "@/components/stats/DailyChart";
+import { HourHeatmap } from "@/components/stats/HourHeatmap";
+import { RankedList, type RankedItem } from "@/components/stats/RankedList";
+import { Highlights, type Highlight } from "@/components/stats/Highlights";
 
-const DAY_KEYS = ["stats.day.sun","stats.day.mon","stats.day.tue","stats.day.wed","stats.day.thu","stats.day.fri","stats.day.sat"];
+const RANGES = [7, 30, 90] as const;
+type StatsRange = (typeof RANGES)[number];
+const WEEKDAY_LONG_KEYS = [
+  "stats.weekday.mon", "stats.weekday.tue", "stats.weekday.wed", "stats.weekday.thu",
+  "stats.weekday.fri", "stats.weekday.sat", "stats.weekday.sun",
+];
 
-function topQuadrantsSub(breakdown: QuadrantCount[]): string {
-  const top2 = breakdown
-    .filter((b) => b.count > 0 && b.quadrant !== "unclassified")
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 2);
-  if (top2.length === 0) return "";
-  return top2.map((b) => `${b.quadrant}: ${b.count}`).join(" · ");
-}
-
-function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+function AllTimeFigure({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-1 p-4 surface-card min-w-0">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-text-faint">{label}</span>
-      <span className="text-[28px] font-bold text-text-primary leading-none tabular-nums" style={{ color: "var(--accent-primary)" }}>
-        {value}
-      </span>
-      {sub && <span className="text-[11px] text-text-muted">{sub}</span>}
+    <div className="min-w-0">
+      <dt className="text-[11.5px] text-text-muted truncate">{label}</dt>
+      <dd className="text-[20px] font-semibold text-text-primary mt-0.5">{value}</dd>
     </div>
   );
 }
@@ -59,6 +59,8 @@ export function StatsPage() {
   const [showYearlyWrapped, setShowYearlyWrapped] = useState(false);
   const [streakMilestone, setStreakMilestone] = useState<number | null>(null);
   const [showRecaps, setShowRecaps] = useState(false);
+  const [range, setRange] = useState<StatsRange>(30);
+  const projects = useProjectsStore((s) => s.projects);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -112,25 +114,70 @@ export function StatsPage() {
   const prevWeekStats = computePrevWeekStats(entries);
   const monthStats = computeMonthStats(entries);
   const yearStats = computeYearStats(entries);
+  const dash = computeDashboard(entries, range);
 
   const bestHabitStreak = habits.length > 0
     ? Math.max(...habits.map((h) => habitStreak(h, habitLogs)))
     : 0;
 
-  const weekStartStr = toDateStr(week.weekStart);
-  const weekEndStr = toDateStr(week.weekEnd);
-  const weekHabitDone = habitLogs.filter(
-    (l) => l.date >= weekStartStr && l.date <= weekEndStr,
-  ).length;
-
   const focusHours = (week.focusMinutes / 60).toFixed(1);
   const allFocusHours = (allTime.focusMinutes / 60).toFixed(0);
+  const dateLocale = locale === "zh" ? "zh-CN" : "en-US";
+  const weekLabel = `${week.weekStart.toLocaleDateString(dateLocale, { month: "short", day: "numeric" })} – ${week.weekEnd.toLocaleDateString(dateLocale, { month: "short", day: "numeric" })}`;
+  const fmtHours = (min: number) => (min >= 600 ? String(Math.round(min / 60)) : (min / 60).toFixed(1));
+  const fmtDay = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(dateLocale, { month: "short", day: "numeric", weekday: "short" });
+  };
 
-  const weekLabel = `${week.weekStart.toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" })} – ${week.weekEnd.toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" })}`;
+  const projectItems: RankedItem[] = dash.projects.slice(0, 5).map((p) => {
+    const proj = projects.find((x) => x.id === p.id);
+    return {
+      key: p.id,
+      label: proj?.name ?? t("stats.projects.unknown"),
+      count: p.count,
+      lead: proj?.emoji ? <span aria-hidden="true">{proj.emoji}</span> : undefined,
+    };
+  });
+  const tagItems: RankedItem[] = dash.tags.slice(0, 6).map((tc) => ({ key: tc.tag, label: `#${tc.tag}`, count: tc.count }));
 
-  const maxDay = Math.max(...week.byDay, 1);
-
-  const tagDist = computeTagDistribution(entries).slice(0, 8);
+  const q2 = dash.quadrants.find((q) => q.quadrant === "Q2");
+  const highlights: Highlight[] = [];
+  if (dash.bestDay) {
+    highlights.push({
+      key: "best",
+      icon: <IconStats size={15} />,
+      text: t("stats.highlights.bestDay").replace("{date}", fmtDay(dash.bestDay.date)).replace("{n}", String(dash.bestDay.count)),
+    });
+  }
+  if (dash.peakHour !== null) {
+    highlights.push({
+      key: "peak",
+      icon: <IconClock size={15} />,
+      text: t("stats.highlights.peak").replace("{hour}", `${dash.peakHour}:00`),
+    });
+  }
+  if (dash.peakWeekday !== null && range > 7) {
+    highlights.push({
+      key: "weekday",
+      icon: <IconCalendar size={15} />,
+      text: t("stats.highlights.weekday").replace("{day}", t(WEEKDAY_LONG_KEYS[dash.peakWeekday])),
+    });
+  }
+  if (q2 && q2.count > 0) {
+    highlights.push({
+      key: "q2",
+      icon: <IconMatrix size={15} />,
+      text: t("stats.highlights.q2").replace("{pct}", String(q2.percent)),
+    });
+  }
+  if (dash.tasks > 0 && dash.focusMinutes > 0) {
+    highlights.push({
+      key: "perTask",
+      icon: <IconSparkle size={15} />,
+      text: t("stats.highlights.focusPerTask").replace("{n}", String(Math.round(dash.focusMinutes / dash.tasks))),
+    });
+  }
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -149,22 +196,48 @@ export function StatsPage() {
           onClose={() => setShowRecaps(false)}
         />
       )}
-      {/* Header */}
-      <div className="flex items-center justify-between px-7 pt-7 pb-4 flex-shrink-0">
-        <div>
+      {/* Header — the range picker sits in one row above everything it scopes */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-7 pt-7 pb-4 flex-shrink-0">
+        <div className="min-w-0">
           <h1 className="text-[20px] font-semibold text-text-primary">{t("stats.title")}</h1>
           <p className="text-[13px] text-text-muted mt-0.5">{t("stats.sub")}</p>
         </div>
-        <button
-          onClick={() => setShowRecaps(true)}
-          className="btn btn-secondary"
-          style={{ height: 32, fontSize: 12 }}
-        >
-          {t("recaps.title")}
-        </button>
+        <div className="flex items-center gap-2">
+          <div
+            role="radiogroup"
+            aria-label={t("stats.range.label")}
+            className="flex items-center rounded-lg p-0.5"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
+          >
+            {RANGES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                role="radio"
+                aria-checked={range === r}
+                onClick={() => setRange(r)}
+                className="px-3 py-1 rounded-md text-[12px] font-medium transition-colors"
+                style={{
+                  background: range === r ? "var(--bg-surface)" : "transparent",
+                  color: range === r ? "var(--text-primary)" : "var(--text-muted)",
+                  boxShadow: range === r ? "var(--shadow-card)" : "none",
+                }}
+              >
+                {t(`stats.range.${r}`)}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setShowRecaps(true)}
+            className="btn btn-secondary"
+            style={{ height: 32, fontSize: 12 }}
+          >
+            {t("recaps.title")}
+          </button>
+        </div>
       </div>
 
-      <div className="px-7 pb-7 space-y-6">
+      <div className="px-7 pb-7 space-y-3">
         {loading ? (
           <StatsSkeleton />
         ) : entries.length === 0 ? (
@@ -217,102 +290,73 @@ export function StatsPage() {
               </section>
             )}
 
-            {/* Week stats */}
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-[13px] font-semibold text-text-secondary">{t("stats.week")}</h2>
-                <span className="text-[12px] text-text-faint">{weekLabel}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <StatCard
-                  label={t("stats.tasks")}
-                  value={week.tasksCompleted}
-                  sub={topQuadrantsSub(week.quadrantBreakdown)}
-                />
-                <StatCard
-                  label={t("stats.focus")}
-                  value={`${focusHours}${t("stats.hours")}`}
-                  sub={`${week.focusMinutes} ${t("stats.mins")}`}
-                />
-                <StatCard
-                  label={t("stats.streak")}
-                  value={allTime.currentStreak}
-                  sub={t("stats.days")}
-                />
-                {week.peakHour !== null && (
-                  <StatCard
-                    label={t("stats.peak")}
-                    value={fmtHour(week.peakHour)}
-                  />
-                )}
-                {weekHabitDone > 0 && (
-                  <StatCard
-                    label={t("stats.habits.total")}
-                    value={weekHabitDone}
-                    sub={t("stats.habits.totalUnit")}
-                  />
-                )}
-              </div>
+            {/* KPI row — the period at a glance, each against the period before */}
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-4 gap-3">
+              <StatTile
+                icon={<IconCheck size={15} strokeWidth={2} />}
+                label={t("stats.kpi.tasks")}
+                value={String(dash.tasks)}
+                delta={deltaPct(dash.tasks, dash.prevTasks)}
+                rangeDays={range}
+                trend={dash.daily.map((p) => p.count)}
+              />
+              <StatTile
+                icon={<IconClock size={15} />}
+                label={t("stats.kpi.focus")}
+                value={`${fmtHours(dash.focusMinutes)}${t("stats.hours")}`}
+                sub={`${dash.focusMinutes} ${t("stats.mins")}`}
+                delta={deltaPct(dash.focusMinutes, dash.prevFocusMinutes)}
+                rangeDays={range}
+                trend={dash.daily.map((p) => p.minutes)}
+              />
+              <StatTile
+                icon={<IconHabit size={15} />}
+                label={t("stats.kpi.streak")}
+                value={`${allTime.currentStreak}`}
+                sub={t("stats.kpi.streak.sub").replace("{n}", String(allTime.bestStreak))}
+              />
+              <StatTile
+                icon={<IconStats size={15} />}
+                label={t("stats.kpi.avg")}
+                value={String(dash.avgPerActiveDay)}
+                sub={t("stats.kpi.avg.sub").replace("{n}", String(dash.activeDays)).replace("{d}", String(range))}
+              />
+            </div>
 
-              <QuadrantBreakdown breakdown={week.quadrantBreakdown} />
+            {/* Trend + highlights */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <StatsCard
+                className="lg:col-span-2"
+                icon={<IconStats size={15} />}
+                title={t("stats.trend.title")}
+                sub={t("stats.trend.sub")}
+              >
+                <DailyChart points={dash.daily} locale={locale} />
+              </StatsCard>
+              <StatsCard icon={<IconSparkle size={15} />} title={t("stats.highlights.title")}>
+                <Highlights items={highlights} empty={t("stats.period.empty")} />
+              </StatsCard>
+            </div>
 
-              {/* Daily bar chart */}
-              <div className="mt-4 p-4 surface-card">
-                <div className="flex items-end gap-2 h-16">
-                  {week.byDay.map((count, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <div
-                        className="w-full rounded-sm transition-all"
-                        style={{
-                          height: count === 0 ? 2 : `${Math.max(8, (count / maxDay) * 52)}px`,
-                          background: count > 0 ? "var(--accent-primary)" : "var(--bg-elevated)",
-                          opacity: count > 0 ? 1 : 0.4,
-                        }}
-                      />
-                      <span className="text-[9px] text-text-faint">{t(DAY_KEYS[i])}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
+            {/* Where the effort went + when it happens */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <StatsCard icon={<IconMatrix size={15} />} title={t("stats.quad.title")} sub={t("stats.quad.sub")}>
+                <QuadrantBreakdown breakdown={dash.quadrants} />
+              </StatsCard>
+              <StatsCard icon={<IconClock size={15} />} title={t("stats.heat.title")} sub={t("stats.heat.sub")}>
+                <HourHeatmap heat={dash.heat} max={dash.heatMax} />
+              </StatsCard>
+            </div>
 
-            {/* All-time + habit streak */}
-            <section>
-              <h2 className="text-[13px] font-semibold text-text-secondary mb-3">{t("stats.alltime")}</h2>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <StatCard label={t("stats.tasks")} value={allTime.tasksCompleted} />
-                <StatCard label={t("stats.focus")} value={`${allFocusHours}${t("stats.hours")}`} />
-                <StatCard label={t("stats.best")} value={allTime.bestStreak} sub={t("stats.days")} />
-                {bestHabitStreak > 0 && (
-                  <StatCard label={t("stats.habit.best")} value={bestHabitStreak} sub={t("stats.days")} />
-                )}
-              </div>
-            </section>
-
-            {/* Tag distribution (Tags V2) */}
-            {tagDist.length > 0 && (
-              <section>
-                <h2 className="text-[13px] font-semibold text-text-secondary mb-3">{t("stats.tags.title")}</h2>
-                <div className="flex flex-col gap-2.5 p-4 surface-card">
-                  {tagDist.map((tc) => (
-                    <div key={tc.tag} className="flex items-center gap-3 min-w-0">
-                      <span className="text-[12px] text-text-secondary truncate w-24 flex-shrink-0" title={tc.tag}>
-                        #{tc.tag}
-                      </span>
-                      <div className="flex-1 h-2 rounded-full bg-border-faint overflow-hidden min-w-0">
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${Math.max(tc.percent, 6)}%`, backgroundColor: "var(--accent-primary)" }}
-                        />
-                      </div>
-                      <span className="text-[12px] font-semibold text-text-primary tabular-nums w-8 text-right flex-shrink-0">
-                        {tc.count}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+            {/* Projects + tags */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <StatsCard icon={<IconProject size={15} />} title={t("stats.projects.title")} sub={t("stats.projects.sub")}>
+                <RankedList items={projectItems} empty={t("stats.projects.none")} />
+              </StatsCard>
+              <StatsCard icon={<IconNote size={15} />} title={t("stats.tags.title")} sub={t("stats.tags.sub")}>
+                <RankedList items={tagItems} empty={t("stats.tags.none")} />
+              </StatsCard>
+            </div>
 
             {/* Habit week section */}
             <HabitWeekSection
@@ -321,6 +365,19 @@ export function StatsPage() {
               weekStart={week.weekStart}
               weekEnd={week.weekEnd}
             />
+
+            {/* All time — the long view, independent of the range above */}
+            <section aria-labelledby="stats-alltime" className="surface-card p-4 sm:p-5">
+              <h2 id="stats-alltime" className="text-[14px] font-semibold text-text-primary mb-3">{t("stats.alltime")}</h2>
+              <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <AllTimeFigure label={t("stats.tasks")} value={String(allTime.tasksCompleted)} />
+                <AllTimeFigure label={t("stats.focus")} value={`${allFocusHours}${t("stats.hours")}`} />
+                <AllTimeFigure label={t("stats.best")} value={`${allTime.bestStreak} ${t("stats.days")}`} />
+                {bestHabitStreak > 0 && (
+                  <AllTimeFigure label={t("stats.habit.best")} value={`${bestHabitStreak} ${t("stats.days")}`} />
+                )}
+              </dl>
+            </section>
 
             {/* Share card */}
             <section>
