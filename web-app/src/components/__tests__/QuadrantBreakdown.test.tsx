@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QuadrantBreakdown } from "../QuadrantBreakdown";
-import type { QuadrantCount } from "@/utils/stats";
+import { quadrantCallout, type QuadrantCount } from "@/utils/stats";
 
 vi.mock("@/i18n/useT", () => ({
   useT: () => (key: string) => key,
@@ -20,56 +20,55 @@ function makeBreakdown(overrides: Partial<Record<string, number>> = {}): Quadran
 }
 
 describe("QuadrantBreakdown", () => {
-  it("renders all 5 quadrant rows", () => {
-    render(<QuadrantBreakdown breakdown={makeBreakdown()} />);
-    expect(screen.getByText("Q1")).toBeInTheDocument();
-    expect(screen.getByText("Q2")).toBeInTheDocument();
-    expect(screen.getByText("Q3")).toBeInTheDocument();
-    expect(screen.getByText("Q4")).toBeInTheDocument();
-    expect(screen.getByText("stats.quadrant.unclassified")).toBeInTheDocument();
-  });
-
-  it("shows dash for zero-count rows", () => {
-    render(<QuadrantBreakdown breakdown={makeBreakdown()} />);
-    const dashes = screen.getAllByText("—");
-    expect(dashes.length).toBe(5);
-  });
-
-  it("shows count · percent for non-zero rows", () => {
+  it("names every quadrant with its count, and a dash where there is none", () => {
     render(<QuadrantBreakdown breakdown={makeBreakdown({ Q1: 3, Q2: 1 })} />);
-    expect(screen.getByText("3 · 75%")).toBeInTheDocument();
-    expect(screen.getByText("1 · 25%")).toBeInTheDocument();
+    expect(screen.getByText("Q1 · matrix.q1")).toBeInTheDocument();
+    expect(screen.getByText("Q4 · matrix.q4")).toBeInTheDocument();
+    expect(screen.getByText("stats.quadrant.unclassified")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getAllByText("—")).toHaveLength(3);
   });
 
-  it("renders progress bars with ARIA attributes", () => {
-    const breakdown = makeBreakdown({ Q1: 5 });
-    render(<QuadrantBreakdown breakdown={breakdown} />);
-    const bars = screen.getAllByRole("progressbar");
-    expect(bars.length).toBe(5);
-    const q1Bar = bars.find((b) => b.getAttribute("aria-label")?.startsWith("Q1"));
-    expect(q1Bar).toBeDefined();
-    expect(q1Bar?.getAttribute("aria-valuenow")).toBe("100");
-    expect(q1Bar?.getAttribute("aria-valuemin")).toBe("0");
-    expect(q1Bar?.getAttribute("aria-valuemax")).toBe("100");
+  it("draws one block per quadrant that has work, sized by its share, printing the share", () => {
+    const { container } = render(<QuadrantBreakdown breakdown={makeBreakdown({ Q1: 3, Q2: 1 })} />);
+    const blocks = container.querySelectorAll("[data-quadrant]");
+    expect(blocks).toHaveLength(2);
+    expect((blocks[0] as HTMLElement).style.width).toBe("75%");
+    expect(screen.getByText("75%")).toBeInTheDocument();
+    expect(screen.getByRole("img")).toHaveAccessibleName("Q1 · matrix.q1 3 (75%), Q2 · matrix.q2 1 (25%)");
   });
 
-  it("does not show callout when total < 5", () => {
+  it("does not show a callout when there are fewer than 5 tasks", () => {
     render(<QuadrantBreakdown breakdown={makeBreakdown({ Q2: 4 })} />);
     expect(screen.queryByText(/stats\.quadrant\.callout/)).not.toBeInTheDocument();
   });
 
-  it("shows q2good callout when Q2 >= 30%", () => {
+  it("shows the reading of the split", () => {
     render(<QuadrantBreakdown breakdown={makeBreakdown({ Q1: 3, Q2: 3, Q3: 1, Q4: 1, unclassified: 2 })} />);
     expect(screen.getByText("stats.quadrant.callout.q2good")).toBeInTheDocument();
   });
+});
 
-  it("shows q1heavy callout when Q1 >= 60% and Q2 < 30%", () => {
-    render(<QuadrantBreakdown breakdown={makeBreakdown({ Q1: 6, Q3: 2, Q4: 2 })} />);
-    expect(screen.getByText("stats.quadrant.callout.q1heavy")).toBeInTheDocument();
+describe("quadrantCallout", () => {
+  it("praises a healthy share of Q2 work", () => {
+    expect(quadrantCallout(makeBreakdown({ Q1: 3, Q2: 3, Q3: 1, Q4: 1, unclassified: 2 }))).toEqual({
+      key: "stats.quadrant.callout.q2good",
+      pct: 30,
+    });
   });
 
-  it("shows q3q4high callout when Q3+Q4 >= 40%", () => {
-    render(<QuadrantBreakdown breakdown={makeBreakdown({ Q1: 3, Q3: 3, Q4: 4 })} />);
-    expect(screen.getByText("stats.quadrant.callout.q3q4high")).toBeInTheDocument();
+  it("flags a Q1-heavy period", () => {
+    expect(quadrantCallout(makeBreakdown({ Q1: 6, Q3: 2, Q4: 2 }))?.key).toBe("stats.quadrant.callout.q1heavy");
+  });
+
+  it("flags a lot of Q3/Q4 work", () => {
+    expect(quadrantCallout(makeBreakdown({ Q1: 3, Q3: 3, Q4: 4 }))).toEqual({
+      key: "stats.quadrant.callout.q3q4high",
+      pct: 70,
+    });
+  });
+
+  it("says nothing for too little data", () => {
+    expect(quadrantCallout(makeBreakdown({ Q2: 4 }))).toBeNull();
   });
 });

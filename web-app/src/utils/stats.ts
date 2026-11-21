@@ -205,3 +205,14 @@ export function fmtHour(h: number): string {
   if (h === 12) return "12pm";
   return `${h - 12}pm`;
 }
+
+/** The one-line read of a split, or null when there's too little to say anything. */
+export function quadrantCallout(breakdown: QuadrantCount[]): { key: string; pct?: number } | null {
+  const total = breakdown.reduce((s, b) => s + b.count, 0);
+  if (total < 5) return null;
+  const pct = (q: string) => breakdown.find((b) => b.quadrant === q)?.percent ?? 0;
+  if (pct("Q2") >= 30) return { key: "stats.quadrant.callout.q2good", pct: pct("Q2") };
+  if (pct("Q1") >= 60) return { key: "stats.quadrant.callout.q1heavy" };
+  if (pct("Q3") + pct("Q4") >= 40) return { key: "stats.quadrant.callout.q3q4high", pct: pct("Q3") + pct("Q4") };
+  return null;
+}

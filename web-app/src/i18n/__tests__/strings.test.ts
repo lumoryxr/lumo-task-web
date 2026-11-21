@@ -36,6 +36,8 @@ const DYNAMIC_KEY_FAMILIES: Record<string, string[]> = {
   "project.view.": ["list", "board"],
   // GoalConfidence union (types/task.ts) — OKR check-in pill in ProjectDetailPage
   "project.goal.confidence.": ["on_track", "at_risk", "off_track"],
+  // Stats range picker (StatsPage RANGES) — 7 | 30 | 90 days
+  "stats.range.": ["7", "30", "90"],
   // PetSpecies union (PetSvg.tsx) — species selector labels in SettingsPage
   "settings.pet.species.": ["dog", "cat", "fox", "panda", "robot"],
   // FeedbackCategory union (@lumo/contracts) — FeedbackPanel category select

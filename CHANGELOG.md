@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- feat(stats): **the Stats page is now a dashboard with charts**.
+  - **Range picker** (7 / 30 / 90 days, 30 by default) in one row above everything it scopes.
+  - **KPI tiles**, each with an icon:
+    - **Tasks completed** and **Focus time**, each with its change against the previous period of the same length (arrow + words, not colour alone) and a sparkline of the range;
+    - **Current streak**, with the best streak;
+    - **Tasks per active day**.
+  - **Daily output**: a column chart with a solid hairline grid, a labelled average line, and a tooltip on hover or keyboard focus (←/→). Each day's whole slot is its hover target.
+  - **Highlights**: plain sentences with icons: best day, peak hour, strongest weekday, Q2 share, focus per task.
+  - **Where your effort went**: a tall segmented bar by quadrant, using the app's quadrant colours with shares printed inside, then a swatch list with counts and a one-line reading. The readings no longer say "this week".
+  - **When you get things done**: a weekday × hour heatmap in one accent hue, with a Less/More scale and a cell readout on hover or arrow keys.
+  - **Top projects** and **Top tags** as ranked bars, with project names and emoji.
+  - The **All time** summary, habits this week and the weekly share card stay, restyled to match.
+  - Each chart also has a screen-reader table of its numbers.
+  - Data comes from a pure `computeDashboard(entries, rangeDays, now)` that buckets by local day and hour.
+  - Checked in a browser at 1440 and 390 wide with three months of sample data.
+
 ### Removed
 - feat: **task and project templates are gone** — tasks and projects are simply created directly.
   - Web: the template library, "Save as template" in the task ⋯ menu and the Matrix toolbar's Templates button.
