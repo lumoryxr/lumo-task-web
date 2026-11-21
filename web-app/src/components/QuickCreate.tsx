@@ -228,19 +228,17 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   return createPortal(
     // No click-outside close: a stray click must not throw away what was typed.
     <div
-      className="fade-in fixed inset-0 z-[150] flex items-center justify-center"
-      style={{ background: "rgba(8, 11, 10, 0.6)", backdropFilter: "blur(6px)", padding: "0 32px" }}
+      className="task-dialog-backdrop fade-in z-[150]"
+      style={{ background: "rgba(8, 11, 10, 0.6)", backdropFilter: "blur(6px)" }}
     >
       <div
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="w-full overflow-hidden border rounded-[14px] bg-elevated shadow-lifted"
+        className="task-dialog border rounded-[14px] bg-elevated shadow-lifted"
         style={{
-          maxWidth: 520,
           borderColor: "var(--accent-edge)",
           boxShadow: "var(--shadow-lifted), 0 0 60px var(--accent-fog)",
-          marginTop: "-6vh",
         }}
       >
         {/* Header */}
@@ -295,8 +293,8 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
           </div>
         )}
 
-        {/* Body — scrolls inside the dialog when More options makes it tall */}
-        <div className="px-[18px] py-4 flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: "calc(100dvh - 190px)" }}>
+        {/* Body — the only part that scrolls; header and footer stay put */}
+        <div className="task-dialog__body px-[18px] py-4 flex flex-col gap-4">
           {/* AI Parse input */}
           {aiMode && (
             <div>

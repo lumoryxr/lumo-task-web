@@ -247,8 +247,8 @@ export function TaskEditModal({ task, onClose }: Props) {
   return createPortal(
     // No click-outside close: a stray click must not throw away unsaved edits.
     <div
-      className="fade-in fixed inset-0 z-[200] flex items-center justify-center"
-      style={{ background: "rgba(8, 11, 10, 0.65)", backdropFilter: "blur(6px)", padding: "0 32px" }}
+      className="task-dialog-backdrop fade-in z-[200]"
+      style={{ background: "rgba(8, 11, 10, 0.65)", backdropFilter: "blur(6px)" }}
     >
       <div
         role="dialog"
@@ -256,13 +256,11 @@ export function TaskEditModal({ task, onClose }: Props) {
         ref={dialogRef}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full overflow-hidden border rounded-[14px]"
+        className="task-dialog border rounded-[14px]"
         style={{
-          maxWidth: 520,
           background: "var(--bg-elevated)",
           borderColor: "var(--accent-edge)",
           boxShadow: "var(--shadow-lifted), 0 0 60px var(--accent-fog)",
-          marginTop: "-6vh",
         }}
       >
         {/* Header */}
@@ -295,7 +293,7 @@ export function TaskEditModal({ task, onClose }: Props) {
         )}
 
         {/* Body */}
-        <div className="px-[18px] py-4 flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: "60vh" }}>
+        <div className="task-dialog__body px-[18px] py-4 flex flex-col gap-4">
           {/* Title */}
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">

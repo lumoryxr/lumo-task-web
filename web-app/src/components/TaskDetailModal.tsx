@@ -178,8 +178,8 @@ export function TaskDetailModal({ task, onClose }: Props) {
   return createPortal(
     <div
       onClick={onClose}
-      className="fade-in fixed inset-0 z-[200] flex items-center justify-center"
-      style={{ background: "rgba(8,11,10,0.6)", backdropFilter: "blur(6px)", padding: "0 32px" }}
+      className="task-dialog-backdrop fade-in z-[200]"
+      style={{ background: "rgba(8,11,10,0.6)", backdropFilter: "blur(6px)" }}
     >
       <div
         role="dialog"
@@ -187,24 +187,18 @@ export function TaskDetailModal({ task, onClose }: Props) {
         ref={dialogRef}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full overflow-x-hidden overflow-y-auto rounded-[16px] border"
+        className="task-dialog task-dialog--detail rounded-[16px] border"
         style={{
-          maxWidth: 480,
-          // Cap to the viewport and scroll internally so the action area stays
-          // reachable on short / mobile screens (was overflow-hidden → clipped).
-          maxHeight: "90vh",
           background: "var(--bg-elevated)",
           borderColor: "var(--border-default)",
           boxShadow: "var(--shadow-lifted)",
-          marginTop: "-4vh",
         }}
       >
-        {/* Header — quadrant accent bar + title */}
-        <div
-          className="h-[3px] w-full"
-          style={{ background: qColor, opacity: 0.7 }}
-        />
-        <header className="flex items-start gap-3 px-5 pt-4 pb-3">
+        {/* Header — quadrant accent bar + title; stays put while the body scrolls */}
+        <header
+          className="flex items-start gap-3 px-5 pt-4 pb-3"
+          style={{ boxShadow: `inset 0 3px 0 color-mix(in srgb, ${qColor} 70%, transparent)` }}
+        >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
               <span
@@ -232,6 +226,9 @@ export function TaskDetailModal({ task, onClose }: Props) {
             <IconClose size={13} />
           </button>
         </header>
+
+        {/* Body — the only part that scrolls */}
+        <div className="task-dialog__body">
 
         {/* Meta grid */}
         <div className="px-5 pb-4 grid grid-cols-2 gap-x-6 gap-y-3">
@@ -563,11 +560,10 @@ export function TaskDetailModal({ task, onClose }: Props) {
           </div>
         )}
 
-        {/* Divider */}
-        <div style={{ height: 1, background: "var(--border-faint)", margin: "0 0" }} />
+        </div>
 
-        {/* Footer actions */}
-        <footer className="flex items-center gap-2 px-5 py-3">
+        {/* Footer actions — always in view */}
+        <footer className="flex items-center gap-2 px-5 py-3 border-t border-border-faint">
           <button
             className="btn btn-primary flex items-center gap-2"
             onClick={() => { onClose(); navigate("/focus", { state: { taskId: task.id } }); }}

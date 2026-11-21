@@ -233,3 +233,24 @@ describe("TaskDetailModal · progress log", () => {
     expect(slider.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+describe("responsive dialog frame", () => {
+  it("uses the shared task-dialog frame: screen-relative size, pinned header and footer, scrolling body", () => {
+    setup(TASK);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveClass("task-dialog");
+    expect(dialog.parentElement).toHaveClass("task-dialog-backdrop");
+    // No fixed pixel width / viewport-percent height baked into the element.
+    expect(dialog.style.maxWidth).toBe("");
+    expect(dialog.style.maxHeight).toBe("");
+    expect(dialog.style.marginTop).toBe("");
+    const body = dialog.querySelector(".task-dialog__body");
+    expect(body).not.toBeNull();
+    // Header (with the X) and footer stay outside the scrolling body.
+    const close = screen.getByRole("button", { name: "Close" });
+    expect(body?.contains(close)).toBe(false);
+    const footer = dialog.querySelector("footer");
+    expect(footer).not.toBeNull();
+    expect(body?.contains(footer)).toBe(false);
+  });
+});
