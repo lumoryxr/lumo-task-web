@@ -2,8 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
 import { useModalA11y } from "../useModalA11y";
 
-function Dialog({ onClose }: { onClose: () => void }) {
-  const ref = useModalA11y<HTMLDivElement>(onClose);
+function Dialog({ onClose, closeOnEscape }: { onClose: () => void; closeOnEscape?: boolean }) {
+  const ref = useModalA11y<HTMLDivElement>(onClose, true, { closeOnEscape });
   return (
     <div role="dialog" aria-modal="true" ref={ref} tabIndex={-1}>
       <button>first</button>
@@ -24,6 +24,13 @@ describe("useModalA11y", () => {
       expect(onClose, `Escape on ${target}`).toHaveBeenCalledTimes(1);
       unmount();
     }
+  });
+
+  it("can leave Escape alone for dialogs that only close from their X", () => {
+    const onClose = vi.fn();
+    render(<Dialog onClose={onClose} closeOnEscape={false} />);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("moves initial focus to the first focusable element on open", () => {

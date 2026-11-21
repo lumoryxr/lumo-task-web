@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QuickCreate } from "../QuickCreate";
+import { useTaskDraftsStore } from "@/store/useTaskDraftsStore";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -35,12 +36,12 @@ vi.mock("@/i18n/useT", () => ({
 function setup(props: { onCreated?: () => void; projectId?: string; sectionId?: string } = {}) {
   const onClose = vi.fn();
   const onCreated = props.onCreated ?? vi.fn();
-  render(
+  const utils = render(
     <MemoryRouter>
       <QuickCreate onClose={onClose} onCreated={onCreated} projectId={props.projectId} sectionId={props.sectionId} />
     </MemoryRouter>
   );
-  return { onClose, onCreated };
+  return { onClose, onCreated, ...utils };
 }
 
 function getCreateBtn() {
@@ -61,6 +62,8 @@ describe("QuickCreate", () => {
     vi.clearAllMocks();
     mockCreate.mockResolvedValue({});
     mockProjects = [];
+    localStorage.clear();
+    useTaskDraftsStore.setState({ createDraft: null, editDrafts: {} });
   });
 
   it("disables create button when title is empty", () => {
@@ -98,10 +101,101 @@ describe("QuickCreate", () => {
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
   });
 
-  it("calls onClose when Escape is pressed", () => {
+  it("does not close on Escape or a click outside — only the X closes it", () => {
     const { onClose } = setup();
     fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.click(screen.getByRole("dialog").parentElement!);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("closes straight away from the X when nothing was typed", () => {
+    const { onClose } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
     expect(onClose).toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  describe("draft", () => {
+    it("asks whether to keep the draft when closing with unsaved input", () => {
+      const { onClose } = setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Plan launch" } });
+      fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByRole("alertdialog", { name: "draft.exit.title" })).toBeInTheDocument();
+    });
+
+    it("keeps editing when asked", () => {
+      const { onClose } = setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Plan launch" } });
+      fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
+      fireEvent.click(screen.getByRole("button", { name: "draft.exit.continue" }));
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(getTitleInput().value).toBe("Plan launch");
+    });
+
+    it("the Cancel button asks too", () => {
+      const { onClose } = setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Plan launch" } });
+      fireEvent.click(screen.getByRole("button", { name: "qc.cancel" }));
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    });
+
+    it("keeps the draft, and restores it the next time the form opens", () => {
+      const first = setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Plan launch" } });
+      fireEvent.click(screen.getByRole("button", { name: /^Q1/ }));
+      fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
+      fireEvent.click(screen.getByRole("button", { name: "draft.exit.keep" }));
+      expect(first.onClose).toHaveBeenCalled();
+      first.unmount();
+
+      setup();
+      expect(getTitleInput().value).toBe("Plan launch");
+      expect(screen.getByRole("button", { name: /^Q1/ })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByText("draft.restored")).toBeInTheDocument();
+    });
+
+    it("discards the draft when asked", () => {
+      const first = setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Plan launch" } });
+      fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
+      fireEvent.click(screen.getByRole("button", { name: "draft.exit.discard" }));
+      expect(first.onClose).toHaveBeenCalled();
+      first.unmount();
+
+      setup();
+      expect(getTitleInput().value).toBe("");
+      expect(screen.queryByText("draft.restored")).toBeNull();
+    });
+
+    it("saves the draft as you type, so it survives a reload", () => {
+      setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Plan launch" } });
+      expect(useTaskDraftsStore.getState().createDraft?.title).toBe("Plan launch");
+    });
+
+    it("can clear a restored draft back to an empty form", () => {
+      useTaskDraftsStore.getState().saveCreateDraft({
+        title: "Old idea", quadrant: "Q4", duration: 30, dueDate: "", assigneeIds: [], recurrence: "none", tags: [], projectId: null,
+      });
+      setup();
+      expect(getTitleInput().value).toBe("Old idea");
+      fireEvent.click(screen.getByRole("button", { name: "draft.clear" }));
+      expect(getTitleInput().value).toBe("");
+      expect(useTaskDraftsStore.getState().createDraft).toBeNull();
+      expect(screen.queryByText("draft.restored")).toBeNull();
+    });
+
+    it("drops the draft once the task is created", async () => {
+      setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Plan launch" } });
+      fireEvent.click(getCreateBtn());
+      await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+      await waitFor(() => expect(useTaskDraftsStore.getState().createDraft).toBeNull());
+    });
   });
 
   it("submits on Ctrl+Enter", async () => {

@@ -5,6 +5,7 @@ import { TaskDetailModal } from "../TaskDetailModal";
 import type { Task } from "@/types/task";
 
 const mockUpdate = vi.fn();
+const mockSetSubtaskAssignee = vi.fn();
 let mockTasks: Task[] = [];
 
 vi.mock("@/store/useTasksStore", () => ({
@@ -17,6 +18,7 @@ vi.mock("@/store/useTasksStore", () => ({
       toggleSubtask: vi.fn(),
       deleteSubtask: vi.fn(),
       breakdownSubtasks: vi.fn(),
+      setSubtaskAssignee: mockSetSubtaskAssignee,
     }),
 }));
 
@@ -25,8 +27,13 @@ vi.mock("@/store/useProjectsStore", () => ({
   useProjectsStore: (sel: any) => sel({ projects: mockProjects }),
 }));
 
+const PEOPLE = [
+  { id: "p_ann", name: "Ann Lee", initials: "AL", color: "var(--accent-primary)" },
+  { id: "p_bo", name: "Bo Wu", initials: "BW", color: "var(--accent-primary)" },
+];
 vi.mock("@/store/usePeopleStore", () => ({
-  usePeopleStore: (sel: any) => sel({ people: [], byId: () => undefined }),
+  usePeopleStore: (sel: any) =>
+    sel({ people: PEOPLE, byId: (id: string) => PEOPLE.find((p) => p.id === id) }),
 }));
 
 vi.mock("@/store/useAppStore", () => {
@@ -147,5 +154,43 @@ describe("TaskDetailModal · stage", () => {
     setup({ ...TASK, project_id: "p1" });
     expect(screen.queryByRole("listitem", { current: "step" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Set stage to/ })).toBeNull();
+  });
+});
+
+describe("TaskDetailModal · subtask assignee", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSetSubtaskAssignee.mockResolvedValue(undefined);
+    mockProjects = [];
+  });
+
+  const withAssignee = {
+    ...TASK,
+    subtasks: [
+      { id: "s1", title: "Outline", completed: true, assignee_id: "p_ann" },
+      { id: "s2", title: "Draft", completed: false },
+    ],
+  };
+
+  it("shows who owns each subtask", () => {
+    setup(withAssignee);
+    expect(screen.getByRole("button", { name: "Assignee for Outline: Ann Lee" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Assign Draft" })).toBeInTheDocument();
+  });
+
+  it("assigns a person to a subtask from the picker", async () => {
+    setup(withAssignee);
+    fireEvent.click(screen.getByRole("button", { name: "Assign Draft" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Bo Wu" }));
+    await waitFor(() => expect(mockSetSubtaskAssignee).toHaveBeenCalledWith("t1", "s2", "p_bo"));
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("can unassign a subtask", async () => {
+    setup(withAssignee);
+    fireEvent.click(screen.getByRole("button", { name: "Assignee for Outline: Ann Lee" }));
+    expect(screen.getByRole("menuitemradio", { name: "Ann Lee" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Unassigned" }));
+    await waitFor(() => expect(mockSetSubtaskAssignee).toHaveBeenCalledWith("t1", "s1", null));
   });
 });

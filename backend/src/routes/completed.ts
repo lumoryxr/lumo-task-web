@@ -6,6 +6,7 @@ import type { Variables } from "../env.js";
 import { httpError } from "../lib/errors.js";
 import { hlcNow } from "../lib/hlc.js";
 import { decodeCursor, encodeCursor, type CursorPos } from "../lib/cursor.js";
+import { SubtaskSchema, type Subtask } from "@lumo/contracts";
 import type { CompletedEntryRow } from "../db/rows.js";
 
 const DEFAULT_LIMIT = 200;
@@ -24,6 +25,21 @@ function parseTags(raw: string | null | undefined): string[] {
   }
 }
 
+/** Stored subtask snapshot, dropping any malformed item rather than failing the read. */
+function parseSubtasks(raw: string | null | undefined): Subtask[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    return v.flatMap((s) => {
+      const r = SubtaskSchema.safeParse(s);
+      return r.success ? [r.data] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
 export function rowToEntry(row: CompletedEntryRow) {
   return {
     id: row.id,
@@ -35,6 +51,7 @@ export function rowToEntry(row: CompletedEntryRow) {
     completedAt: row.completed_at,
     project_id: row.project_id ?? null,
     tags: parseTags(row.tags_json),
+    subtasks: parseSubtasks(row.subtasks_json),
   };
 }
 
@@ -46,15 +63,22 @@ app.get("/", async (c) => {
   if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return httpError(c, 400, "INVALID_DATE", "date must be in YYYY-MM-DD format");
   }
+  // Optional project filter (the project page's History view). Same grammar as
+  // the contract's CompletedListQuerySchema; bound as a parameter, never spliced.
+  const projectId = c.req.query("project_id");
+  if (projectId !== undefined && !/^[A-Za-z0-9_-]{1,64}$/.test(projectId)) {
+    return httpError(c, 400, "VALIDATION_ERROR", "project_id is malformed");
+  }
+  const projectClause = projectId !== undefined ? " AND project_id = :pid" : "";
 
   // A single local day's entries are inherently bounded → return the full array
   // (unchanged contract; used by the per-day view).
   if (date) {
     const rows = await query<CompletedEntryRow>(`
       SELECT * FROM completed_entries
-      WHERE user_id = :uid AND deleted_at IS NULL AND DATE(completed_at, 'localtime') = :date
+      WHERE user_id = :uid AND deleted_at IS NULL AND DATE(completed_at, 'localtime') = :date${projectClause}
       ORDER BY completed_at ASC
-    `, { uid: userId, date });
+    `, { uid: userId, date, ...(projectId !== undefined ? { pid: projectId } : {}) });
     return c.json(rows.map(rowToEntry));
   }
 
@@ -77,8 +101,9 @@ app.get("/", async (c) => {
     }
   }
 
-  let sql = "SELECT * FROM completed_entries WHERE user_id = :uid AND deleted_at IS NULL";
+  let sql = "SELECT * FROM completed_entries WHERE user_id = :uid AND deleted_at IS NULL" + projectClause;
   const params: Record<string, string | number> = { uid: userId };
+  if (projectId !== undefined) params.pid = projectId;
   if (after) {
     params.ca = after.createdAt;
     params.cid = after.id;

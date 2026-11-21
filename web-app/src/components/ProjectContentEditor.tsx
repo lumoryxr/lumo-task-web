@@ -13,6 +13,11 @@ interface Props {
   onChange: (json: string) => void;
   /** When false, render read-only (no toolbar, no border) — a display state. */
   editable?: boolean;
+  /**
+   * Fill the parent's height with a roomy writing area and larger text (the
+   * notes modal). The parent must give the editor a height.
+   */
+  fill?: boolean;
 }
 
 /** Parse stored content into something useEditor accepts. Tolerates legacy plain
@@ -28,10 +33,13 @@ function parseContent(value?: string): object | string {
   return value;
 }
 
-export function ProjectContentEditor({ value, onChange, editable = true }: Props) {
+export function ProjectContentEditor({ value, onChange, editable = true, fill = false }: Props) {
   const t = useT();
   const fileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The serialised doc waiting for the debounce; flushed on unmount so closing
+  // the notes right after typing never drops the last edit.
+  const pending = useRef<string | null>(null);
   // Latest onChange in a ref so the (once-created) onUpdate handler never calls
   // a stale callback — important because the editor instance is reused across
   // display ↔ edit toggles rather than remounted.
@@ -47,15 +55,28 @@ export function ProjectContentEditor({ value, onChange, editable = true }: Props
     content: parseContent(value),
     onUpdate: ({ editor }) => {
       // Debounce: serialize the doc to JSON 600ms after the last keystroke.
+      pending.current = JSON.stringify(editor.getJSON());
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => onChangeRef.current(JSON.stringify(editor.getJSON())), 600);
+      saveTimer.current = setTimeout(() => {
+        const json = pending.current;
+        pending.current = null;
+        if (json !== null) onChangeRef.current(json);
+      }, 600);
     },
   });
 
   // Keep TipTap's editable flag and the rendered doc in sync with props when
   // toggling display ↔ edit or switching projects.
   useEffect(() => { editor?.setEditable(editable); }, [editor, editable]);
-  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+  useEffect(() => () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    // Save what is still waiting instead of dropping it.
+    if (pending.current !== null) {
+      const json = pending.current;
+      pending.current = null;
+      onChangeRef.current(json);
+    }
+  }, []);
 
   async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -77,8 +98,11 @@ export function ProjectContentEditor({ value, onChange, editable = true }: Props
   }
 
   return (
-    <div className="rounded-lg" style={{ border: "1px solid var(--border-default)" }}>
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b" style={{ borderColor: "var(--border-faint)" }}>
+    <div
+      className={`rounded-lg ${fill ? "flex flex-col h-full min-h-0" : ""}`}
+      style={{ border: "1px solid var(--border-default)" }}
+    >
+      <div className="flex flex-shrink-0 items-center gap-0.5 px-2 py-1.5 border-b" style={{ borderColor: "var(--border-faint)" }}>
         <ToolBtn editor={editor} label={t("project.editor.bold")} active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><IconBold size={14} /></ToolBtn>
         <ToolBtn editor={editor} label={t("project.editor.italic")} active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><IconItalic size={14} /></ToolBtn>
         <ToolBtn editor={editor} label={t("project.editor.heading")} active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><IconHeading size={14} /></ToolBtn>
@@ -88,7 +112,16 @@ export function ProjectContentEditor({ value, onChange, editable = true }: Props
         <ToolBtn editor={editor} label={t("project.editor.image")} active={false} onClick={() => fileRef.current?.click()}><IconImage size={14} /></ToolBtn>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickImage} />
       </div>
-      <EditorContent editor={editor} className="tiptap-content px-3 py-2.5 text-sm" />
+      <EditorContent
+        editor={editor}
+        className={
+          fill
+            ? "tiptap-content tiptap-content--fill flex-1 min-h-0 overflow-y-auto px-5 py-4 text-[15px] leading-relaxed"
+            : "tiptap-content px-3 py-2.5 text-sm"
+        }
+        // Clicking the empty space below the text still puts the caret in it.
+        onClick={fill ? () => { if (!editor.isFocused) editor.chain().focus("end").run(); } : undefined}
+      />
     </div>
   );
 }

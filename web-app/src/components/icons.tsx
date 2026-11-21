@@ -205,6 +205,23 @@ export const IconList = (p: IconProps) => (
   </svg>
 );
 
+/** Three steps joined by a line — a workflow's stages. */
+export const IconStages = (p: IconProps) => (
+  <svg {...base(p)}>
+    <circle cx="5" cy="12" r="2.2" />
+    <circle cx="12" cy="12" r="2.2" />
+    <circle cx="19" cy="12" r="2.2" />
+    <path d="M7.2 12h2.6M14.2 12h2.6" />
+  </svg>
+);
+
+/** Six-dot drag handle. */
+export const IconGrip = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" strokeWidth={3} />
+  </svg>
+);
+
 export const IconQuote = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M7 7H4a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3v3a3 3 0 0 1-3 3M20 7h-3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3v3a3 3 0 0 1-3 3" />

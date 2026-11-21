@@ -5,8 +5,9 @@ import { useProjectsStore } from "@/store/useProjectsStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { TaskRow } from "@/components/TaskRow";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { IconChevronRight, IconMore, IconPlus } from "@/components/icons";
+import { IconChevronRight, IconGrip, IconMore, IconPlus } from "@/components/icons";
 import { DND_MIME, makeDragProps } from "@/lib/taskDnd";
+import { SECTION_DND_MIME, reorderSections } from "@/lib/sectionDnd";
 import type { Project, ProjectSection, Task } from "@/types/task";
 
 interface ProjectTaskGroupsProps {
@@ -43,6 +44,8 @@ export function ProjectTaskGroups({ project, tasks, onAddTask }: ProjectTaskGrou
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [pendingDelete, setPendingDelete] = useState<ProjectSection | null>(null);
+  // The group being dragged by its handle (dataTransfer can't be read mid-drag).
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const known = new Set(sections.map((s) => s.id));
   const groupOf = (task: Task) => (task.section_id && known.has(task.section_id) ? task.section_id : null);
@@ -74,6 +77,14 @@ export function ProjectTaskGroups({ project, tasks, onAddTask }: ProjectTaskGrou
     const next = [...sections];
     [next[i], next[j]] = [next[j], next[i]];
     saveSections(next);
+  }
+
+  function dropSectionOn(targetId: string) {
+    const from = draggingId;
+    setDraggingId(null);
+    if (!from) return;
+    const next = reorderSections(sections, from, targetId);
+    if (next) saveSections(next);
   }
 
   function toggle(id: string) {
@@ -174,6 +185,19 @@ export function ProjectTaskGroups({ project, tasks, onAddTask }: ProjectTaskGrou
             collapsed={collapsed.has(section.id)}
             onToggle={() => toggle(section.id)}
             onDropTask={(id) => moveTaskTo(id, section.id)}
+            reorder={{
+              handleLabel: t("project.groups.drag").replace("{name}", section.name),
+              dragging: draggingId === section.id,
+              // Where the dragged group would land: above when moving up, below when moving down.
+              dropSide:
+                draggingId && draggingId !== section.id
+                  ? sections.findIndex((s) => s.id === draggingId) > index ? "before" : "after"
+                  : null,
+              onDragStart: () => setDraggingId(section.id),
+              onDragEnd: () => setDraggingId(null),
+              onDrop: () => dropSectionOn(section.id),
+              onMove: (delta) => move(section.id, delta),
+            }}
             titleSlot={
               isRenaming ? (
                 <input
@@ -282,43 +306,115 @@ interface TaskGroupProps {
   actions?: React.ReactNode;
   /** The Ungrouped bucket reads quieter than a named group. */
   muted?: boolean;
+  /** Named groups can be reordered by dragging their handle (or arrow keys on it). */
+  reorder?: {
+    handleLabel: string;
+    dragging: boolean;
+    /** A group drag is over the page: which edge of this group shows the drop line. */
+    dropSide: "before" | "after" | null;
+    onDragStart: () => void;
+    onDragEnd: () => void;
+    onDrop: () => void;
+    onMove: (delta: -1 | 1) => void;
+  };
   children: React.ReactNode;
 }
 
 /** One collapsible group that also accepts dropped tasks. */
-function TaskGroup({ name, count, collapsed, onToggle, onDropTask, titleSlot, actions, muted, children }: TaskGroupProps) {
+function TaskGroup({ name, count, collapsed, onToggle, onDropTask, titleSlot, actions, muted, reorder, children }: TaskGroupProps) {
+  const t = useT();
   const [over, setOver] = useState(false);
+  const [sectionOver, setSectionOver] = useState(false);
+
+  const isSectionDrag = (e: DragEvent) => e.dataTransfer.types.includes(SECTION_DND_MIME);
 
   const dropHandlers = {
     onDragOver: (e: DragEvent) => {
+      if (isSectionDrag(e)) {
+        // Only named groups (other than the one being dragged) take a group drop.
+        if (!reorder || reorder.dragging) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (!sectionOver) setSectionOver(true);
+        return;
+      }
       if (!e.dataTransfer.types.includes(DND_MIME)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
       if (!over) setOver(true);
     },
     onDragLeave: (e: DragEvent) => {
-      if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) setOver(false);
+      if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) {
+        setOver(false);
+        setSectionOver(false);
+      }
     },
     onDrop: (e: DragEvent) => {
       e.preventDefault();
       setOver(false);
+      setSectionOver(false);
+      if (isSectionDrag(e)) {
+        if (reorder && !reorder.dragging) reorder.onDrop();
+        return;
+      }
       const id = e.dataTransfer.getData(DND_MIME);
       if (id) onDropTask(id);
     },
   };
 
+  const showLine = sectionOver && reorder?.dropSide ? reorder.dropSide : null;
+
   return (
     <section
       aria-label={name}
       {...dropHandlers}
-      className="rounded-xl transition-colors"
+      data-dragging={reorder?.dragging ? "true" : undefined}
+      className="group/section relative rounded-xl transition-[background,opacity]"
       style={{
         padding: "6px 8px 8px",
         background: over ? "var(--accent-fog)" : "transparent",
         outline: over ? "1px dashed var(--accent-edge)" : "1px solid transparent",
+        opacity: reorder?.dragging ? 0.45 : 1,
       }}
     >
+      {showLine && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute left-2 right-2 h-[2px] rounded-full"
+          style={{
+            [showLine === "before" ? "top" : "bottom"]: -2,
+            background: "var(--accent-primary)",
+            boxShadow: "0 0 6px var(--accent-glow)",
+          }}
+        />
+      )}
       <div className="flex items-center gap-1.5 mb-1 min-h-[26px]">
+        {reorder && (
+          <button
+            type="button"
+            draggable
+            aria-label={reorder.handleLabel}
+            title={t("project.groups.dragHint")}
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData(SECTION_DND_MIME, "1");
+              // Drag the whole group card, not just the little handle.
+              const card = (e.currentTarget as HTMLElement).closest("section");
+              if (card && typeof e.dataTransfer.setDragImage === "function") e.dataTransfer.setDragImage(card, 16, 14);
+              reorder.onDragStart();
+            }}
+            onDragEnd={reorder.onDragEnd}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                e.preventDefault();
+                reorder.onMove(e.key === "ArrowUp" ? -1 : 1);
+              }
+            }}
+            className="flex-shrink-0 -ml-1 flex items-center justify-center w-5 h-6 rounded text-text-faint cursor-grab active:cursor-grabbing hover:text-text-primary hover:bg-subtle transition-[opacity,colors] opacity-40 group-hover/section:opacity-100 focus-visible:opacity-100"
+          >
+            <IconGrip size={13} />
+          </button>
+        )}
         {titleSlot ?? (
           <button
             type="button"

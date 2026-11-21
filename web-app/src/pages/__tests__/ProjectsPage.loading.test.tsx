@@ -65,4 +65,15 @@ describe("ProjectsPage initial load", () => {
     expect(container.querySelectorAll(".skeleton").length).toBe(0);
     expect(screen.getByText("Launch")).toBeTruthy();
   });
+
+  it("offers New project but no longer creating from a template", () => {
+    for (const [loaded, projects] of [[false, []], [true, []], [true, [mk("p1", "Launch")]]] as const) {
+      state.loaded = loaded;
+      state.projects = [...projects];
+      const { unmount } = render(<ProjectsPage />);
+      expect(screen.getAllByText("project.new").length).toBeGreaterThan(0);
+      expect(screen.queryByText("project.fromTemplate")).toBeNull();
+      unmount();
+    }
+  });
 });

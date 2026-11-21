@@ -71,6 +71,7 @@ import {
   FocusSessionBodySchema,
   FocusSessionResponseSchema,
   CompletedListResponseSchema,
+  CompletedListQuerySchema,
   CompletedDayResponseSchema,
   ReopenResponseSchema,
 } from "./focus.js";
@@ -858,13 +859,10 @@ const focusRoutes: RouteDef[] = [
     description:
       "Two shapes, selected by the query string: `?date=YYYY-MM-DD` returns a bare array " +
       "for that day (inherently bounded); with no `date` it returns the keyset-paginated " +
-      "`{ items, nextCursor }` envelope over the full history.",
+      "`{ items, nextCursor }` envelope over the full history. `project_id` narrows either " +
+      "shape to one project.",
     auth: "bearer",
-    query: z.object({
-      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-      limit: z.number().int().optional(),
-      cursor: z.string().optional(),
-    }),
+    query: CompletedListQuerySchema,
     responses: [
       ok("A page of history, or a single day's array", CompletedListResponseSchema),
       { status: 400, description: "`date` is not in YYYY-MM-DD format" },

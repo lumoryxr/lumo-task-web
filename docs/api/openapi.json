@@ -309,6 +309,10 @@
                 },
                 "completed": {
                   "type": "boolean"
+                },
+                "assignee_id": {
+                  "type": "string",
+                  "nullable": true
                 }
               },
               "required": [
@@ -545,6 +549,10 @@
                 },
                 "completed": {
                   "type": "boolean"
+                },
+                "assignee_id": {
+                  "type": "string",
+                  "nullable": true
                 }
               },
               "required": [
@@ -752,6 +760,10 @@
                 },
                 "completed": {
                   "type": "boolean"
+                },
+                "assignee_id": {
+                  "type": "string",
+                  "nullable": true
                 }
               },
               "required": [
@@ -985,6 +997,10 @@
                       },
                       "completed": {
                         "type": "boolean"
+                      },
+                      "assignee_id": {
+                        "type": "string",
+                        "nullable": true
                       }
                     },
                     "required": [
@@ -2444,6 +2460,32 @@
             "items": {
               "type": "string"
             }
+          },
+          "subtasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "completed": {
+                  "type": "boolean"
+                },
+                "assignee_id": {
+                  "type": "string",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "completed"
+              ]
+            }
           }
         },
         "required": [
@@ -2455,7 +2497,8 @@
           "startedAt",
           "completedAt",
           "project_id",
-          "tags"
+          "tags",
+          "subtasks"
         ]
       },
       "CompletedListResponse": {
@@ -2510,6 +2553,32 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "subtasks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "completed": {
+                        "type": "boolean"
+                      },
+                      "assignee_id": {
+                        "type": "string",
+                        "nullable": true
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "completed"
+                    ]
+                  }
                 }
               },
               "required": [
@@ -2521,7 +2590,8 @@
                 "startedAt",
                 "completedAt",
                 "project_id",
-                "tags"
+                "tags",
+                "subtasks"
               ]
             }
           },
@@ -8337,7 +8407,7 @@
         ],
         "summary": "List completion history",
         "operationId": "getV1Completed",
-        "description": "Two shapes, selected by the query string: `?date=YYYY-MM-DD` returns a bare array for that day (inherently bounded); with no `date` it returns the keyset-paginated `{ items, nextCursor }` envelope over the full history.",
+        "description": "Two shapes, selected by the query string: `?date=YYYY-MM-DD` returns a bare array for that day (inherently bounded); with no `date` it returns the keyset-paginated `{ items, nextCursor }` envelope over the full history. `project_id` narrows either shape to one project.",
         "parameters": [
           {
             "name": "date",
@@ -8357,6 +8427,14 @@
           },
           {
             "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project_id",
             "in": "query",
             "required": false,
             "schema": {

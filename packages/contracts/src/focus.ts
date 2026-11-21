@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LocalizedStringSchema } from "./primitives.js";
+import { SubtaskSchema } from "./task.js";
 
 /**
  * Focus + Completed contract — single source of truth for the
@@ -58,6 +59,20 @@ export const CompletedEntryWireSchema = z.object({
   completedAt: z.string(),
   project_id: z.string().nullable(),
   tags: z.array(z.string()),
+  // The task's subtasks as they were at the moment it was closed — a snapshot,
+  // so history keeps reading the same even if the task is later edited or gone.
+  subtasks: z.array(SubtaskSchema),
+});
+
+/**
+ * GET /v1/completed query string. `project_id` narrows the history to one
+ * project (the project page's History view); `date` selects the one-day shape.
+ */
+export const CompletedListQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  cursor: z.string().min(1).max(256).optional(),
+  project_id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(),
 });
 
 /**

@@ -10,7 +10,7 @@
  * JWT token is stored in localStorage and attached to every request.
  */
 
-import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, ProjectTemplate, Template, TemplatePayload, ProjectTemplatePayload, User } from "@/types/task";
+import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, Template, TemplatePayload, ProjectTemplatePayload, User } from "@/types/task";
 import type { SyncStatusResponse, SyncCycleResponse, DataExportWire } from "@lumo/contracts";
 import type {
   FeedbackListResponse,
@@ -417,6 +417,7 @@ function adaptEntry(raw: any): CompletedEntry {
     completedAt: raw.completedAt ?? undefined,
     projectId: raw.project_id ?? null,
     tags: Array.isArray(raw.tags) ? raw.tags : [],
+    subtasks: Array.isArray(raw.subtasks) ? raw.subtasks : [],
   };
 }
 
@@ -634,6 +635,20 @@ export const api = {
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const rows = await req<any[]>("GET", `/completed?date=${date}`);
     return rows.map(adaptEntry);
+  },
+
+  /** One page of the completed history, newest first (keyset-paginated). */
+  async listCompletedPage(
+    cursor?: string,
+    limit = 50,
+    projectId?: string,
+  ): Promise<{ entries: CompletedEntry[]; nextCursor: string | null }> {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (cursor) qs.set("cursor", cursor);
+    if (projectId) qs.set("project_id", projectId);
+    const path = `/completed?${qs.toString()}`;
+    const res = await req<{ items: any[]; nextCursor: string | null }>("GET", path);
+    return { entries: res.items.map(adaptEntry), nextCursor: res.nextCursor ?? null };
   },
 
   async listAllCompleted(): Promise<CompletedEntry[]> {
@@ -1062,17 +1077,6 @@ export const templateApi = {
       payload,
     });
     return adaptTemplate(raw) as TaskTemplate;
-  },
-
-  // Project templates (#211 V2 ⭐3): stored on the same entity with kind="project".
-  async createProject(name: string, payload: ProjectTemplatePayload, id?: string): Promise<ProjectTemplate> {
-    const raw = await req<any>("POST", "/templates", {
-      ...(id ? { id } : {}),
-      name,
-      kind: "project",
-      payload,
-    });
-    return adaptTemplate(raw) as ProjectTemplate;
   },
 
   async rename(id: string, name: string): Promise<Template> {

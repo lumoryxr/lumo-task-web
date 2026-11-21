@@ -77,6 +77,8 @@ export interface CompletedEntry {
   projectId?: string | null;
   /** Tags snapshotted at completion time (Tags V2), for the Stats distribution. */
   tags?: string[];
+  /** The task's subtasks as they were when it was closed (history view). */
+  subtasks?: Subtask[];
 }
 
 export interface User {

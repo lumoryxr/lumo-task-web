@@ -157,4 +157,9 @@ describe("CompletedTimeline", () => {
     // Only ENTRY_1 has a connector (not the last)
     expect(connectors).toHaveLength(1);
   });
+
+  it("leaves the full history to the project page", () => {
+    render(<CompletedTimeline entries={[ENTRY_1]} locale="en" />);
+    expect(screen.queryByRole("button", { name: "History" })).toBeNull();
+  });
 });

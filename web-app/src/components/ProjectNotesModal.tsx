@@ -11,10 +11,10 @@ interface Props {
 }
 
 /**
- * View/edit a project's rich-text notes in a focused modal (#215 follow-up), so
- * the detail page stays compact — the notes are collapsed to a preview there and
- * expanded here. Edits autosave through `onChange` (same as the inline editor),
- * so closing simply dismisses; there's no separate save step.
+ * View/edit a project's rich-text notes in a large, focused modal. The project
+ * page shows no notes itself — only a Notes button that opens this. Edits
+ * autosave through `onChange` (the last one is flushed on close), so closing
+ * simply dismisses; there's no separate save step.
  */
 export function ProjectNotesModal({ value, onChange, onClose }: Props) {
   const t = useT();
@@ -35,12 +35,15 @@ export function ProjectNotesModal({ value, onChange, onClose }: Props) {
         aria-label={t("project.content.title")}
         ref={dialogRef}
         tabIndex={-1}
+        data-size="large"
         style={{
           background: "var(--bg-elevated)",
           border: "1px solid var(--border-default)",
           borderRadius: "var(--radius-lg)",
           boxShadow: "var(--shadow-lifted)",
-          width: 640, maxWidth: "calc(100vw - 32px)", maxHeight: "90vh",
+          // Roomy: most of the window, so long notes read and edit comfortably.
+          width: 960, maxWidth: "calc(100vw - 32px)",
+          height: "min(860px, calc(100dvh - 48px))",
           display: "flex", flexDirection: "column",
         }}
       >
@@ -66,9 +69,9 @@ export function ProjectNotesModal({ value, onChange, onClose }: Props) {
           </button>
         </div>
 
-        {/* Scrollable editor body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
-          <ProjectContentEditor value={value} onChange={onChange} />
+        {/* Editor body: the editor fills it and scrolls inside. */}
+        <div style={{ flex: 1, minHeight: 0, padding: "16px 20px" }}>
+          <ProjectContentEditor value={value} onChange={onChange} fill />
         </div>
 
         {/* Footer */}
