@@ -74,25 +74,35 @@ function setup(task = TASK) {
   );
 }
 
+/** The completion editor is folded behind "Adjust" to keep the view compact. */
+function openAdjust() {
+  fireEvent.click(screen.getByRole("button", { name: "Adjust" }));
+}
+
 describe("TaskDetailModal · progress", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpdate.mockResolvedValue(undefined);
   });
 
-  it("shows the task's current progress", () => {
+  it("shows the completion as a compact bar; the editor opens on Adjust", () => {
     setup();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "20");
+    expect(screen.queryByRole("slider")).toBeNull();
+    openAdjust();
     expect(screen.getByRole("slider", { name: "Progress" })).toHaveValue("20");
   });
 
   it("saves a preset in one click", async () => {
     setup();
+    openAdjust();
     fireEvent.click(screen.getByRole("button", { name: "Set progress to 75%" }));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith("t1", { progress: 75 }));
   });
 
   it("saves the slider value when it is released", async () => {
     setup();
+    openAdjust();
     const slider = screen.getByRole("slider", { name: "Progress" });
     fireEvent.change(slider, { target: { value: "60" } });
     expect(mockUpdate).not.toHaveBeenCalled();
@@ -102,12 +112,14 @@ describe("TaskDetailModal · progress", () => {
 
   it("does not save when the value did not change", () => {
     setup();
+    openAdjust();
     fireEvent.pointerUp(screen.getByRole("slider", { name: "Progress" }));
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
   it("can match the subtask completion", async () => {
     setup();
+    openAdjust();
     fireEvent.click(screen.getByRole("button", { name: "Match subtasks (50%)" }));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith("t1", { progress: 50 }));
   });
@@ -116,6 +128,7 @@ describe("TaskDetailModal · progress", () => {
     let reject!: (e: Error) => void;
     mockUpdate.mockReturnValue(new Promise((_, r) => { reject = r; }));
     setup();
+    openAdjust();
     fireEvent.click(screen.getByRole("button", { name: "Set progress to 100%" }));
     expect(await screen.findByText("Saving…")).toBeInTheDocument();
     expect(screen.getByRole("slider", { name: "Progress" })).toBeDisabled();
@@ -223,14 +236,49 @@ describe("TaskDetailModal · assignees", () => {
 });
 
 describe("TaskDetailModal · progress log", () => {
-  it("has a progress log with the task's dated updates, right after the completion card", () => {
-    setup({ ...TASK, progress_log: [{ id: "pn1", date: "2026-11-20", text: "Collected data", created_at: "2026-11-20T09:00:00.000Z" }] });
-    const log = screen.getByRole("region", { name: "Progress log" });
-    expect(log).toHaveTextContent("Collected data");
-    expect(screen.getByRole("textbox", { name: "Progress update" })).toBeInTheDocument();
-    // Order: completion % comes first, then the log, then subtasks.
-    const slider = screen.getByRole("slider");
-    expect(slider.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const withLog = {
+    ...TASK,
+    progress_log: [
+      { id: "pn1", date: "2026-11-20", text: "Collected data", created_at: "2026-11-20T09:00:00.000Z" },
+      { id: "pn2", date: "2026-11-21", text: "Wrote the summary", created_at: "2026-11-21T09:00:00.000Z" },
+    ],
+  };
+
+  it("shows a one-line summary (count + latest update) instead of the whole log", () => {
+    setup(withLog);
+    const summary = screen.getByRole("button", { name: "Progress updates (2)" });
+    expect(summary).toHaveTextContent("Wrote the summary");
+    expect(summary).not.toHaveTextContent("Collected data");
+    expect(screen.queryByRole("textbox", { name: "Progress update" })).toBeNull();
+  });
+
+  it("opens the progress panel from the summary", () => {
+    setup(withLog);
+    fireEvent.click(screen.getByRole("button", { name: "Progress updates (2)" }));
+    const panel = screen.getByRole("dialog", { name: "Progress log" });
+    expect(panel).toHaveTextContent("Collected data");
+  });
+
+  it("invites the first update when there is none", () => {
+    setup();
+    const summary = screen.getByRole("button", { name: "Progress updates (0)" });
+    expect(summary).toHaveTextContent("No updates yet");
+  });
+});
+
+describe("TaskDetailModal · layout", () => {
+  it("puts Edit and Close in the header and the two actions in the footer", () => {
+    setup();
+    const header = screen.getByRole("button", { name: "Close" }).closest("header");
+    expect(header?.querySelector("button[aria-label='Edit']")).not.toBeNull();
+    const footer = screen.getByRole("dialog").querySelector("footer");
+    expect(footer).toHaveTextContent("Mark complete");
+    expect(footer).toHaveTextContent("Start focus");
+  });
+
+  it("shows the description", () => {
+    setup({ ...TASK, desc: { en: "Cover Q3 numbers and next steps" } });
+    expect(screen.getByText("Cover Q3 numbers and next steps")).toBeInTheDocument();
   });
 });
 

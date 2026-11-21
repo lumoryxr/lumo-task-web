@@ -205,6 +205,14 @@ export const IconList = (p: IconProps) => (
   </svg>
 );
 
+/** A note with lines — a progress update. */
+export const IconNote = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M5 4h14a1 1 0 0 1 1 1v10.5L15.5 20H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
+    <path d="M8 9h8M8 13h5M15 20v-4.5h5" />
+  </svg>
+);
+
 /** Three steps joined by a line — a workflow's stages. */
 export const IconStages = (p: IconProps) => (
   <svg {...base(p)}>

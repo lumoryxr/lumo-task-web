@@ -17,6 +17,10 @@ vi.mock("@/store/useTasksStore", () => ({
       selectMode: false,
       selectedIds: [],
       toggleSelected: vi.fn(),
+      tasks: [],
+      addProgressNote: vi.fn(),
+      editProgressNote: vi.fn(),
+      deleteProgressNote: vi.fn(),
     }),
 }));
 
@@ -200,5 +204,36 @@ describe("TaskRow", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe("progress updates", () => {
+    const withLog = {
+      ...TASK,
+      progress_log: [
+        { id: "n1", date: "2026-11-20", text: "Collected data", created_at: "2026-11-20T09:00:00.000Z" },
+        { id: "n2", date: "2026-11-21", text: "Wrote the summary", created_at: "2026-11-21T09:00:00.000Z" },
+      ],
+    };
+
+    it("shows how many updates a task has, with the latest as the tooltip", () => {
+      renderRow(withLog);
+      const btn = screen.getByRole("button", { name: "Progress updates (2)" });
+      expect(btn).toHaveTextContent("2");
+      expect(btn).toHaveAttribute("title", expect.stringContaining("Wrote the summary"));
+    });
+
+    it("opens the progress panel straight from the row, without opening the task", () => {
+      renderRow(withLog);
+      fireEvent.click(screen.getByRole("button", { name: "Progress updates (2)" }));
+      expect(screen.getByRole("dialog", { name: "Progress log" })).toBeInTheDocument();
+      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    });
+
+    it("offers logging progress from the row's actions when there is none yet", () => {
+      renderRow();
+      expect(screen.queryByRole("button", { name: /^Progress updates \(/ })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Log progress" }));
+      expect(screen.getByRole("dialog", { name: "Progress log" })).toBeInTheDocument();
+    });
   });
 });

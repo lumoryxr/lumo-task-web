@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- feat(tasks): **progress updates get their own panel; the task view, edit form and New task form share one clear layout**.
+  - **Progress updates (进展记录) are now a standalone drawer.** It slides in from the right (360–520px depending on the window, full screen on phones), with the composer at the top (cursor already in it) and every dated update below. It opens from three places:
+    - the task row: a count badge (latest update as its tooltip), and **Log progress** among the row's hover actions;
+    - the task view: a one-line summary showing the count and the latest update.
+
+    The task view no longer embeds the whole log. On touch screens each update's edit and delete buttons stay visible, since there's no hover.
+  - **Task view**, top to bottom:
+    - header with **Edit** (moved up from the footer) and the X;
+    - the description, which wasn't shown before;
+    - properties: due date, estimate, repeat, project, tags, pomodoros, owner and collaborators, in two columns where there is room;
+    - progress (进度): the stage track, plus the completion as a bar with **Adjust**, which opens the slider in place;
+    - the progress-updates summary;
+    - subtasks.
+
+    Footer: **Mark complete** on the left, **Start focus** (the main action) on the right.
+  - **Edit task** now follows the New task form's order: name and description, quadrant, due date, owner and collaborators. The rest is grouped under **Schedule** (estimate, scheduled time, repeat, reminder) and **Organize** (project, group, stage, tags). Fields sit in two columns where there is room. The completion slider moved out (adjust it from the task view), and repeat is a row of chips like in the New task form.
+  - Shared form pieces (`taskForm/QuadrantPicker`, `DuePicker`, `DurationStepper`, `RecurrencePicker`, `FieldLabel`) make the New task and Edit forms identical where they overlap. The estimate steps by 5 minutes.
+  - Copy: the completion card is titled 「进度」, so it isn't confused with 「进展记录」; the owner field's clear action reads 「清空」 instead of 「未指定」.
+  - Checked in a browser at 1280×720, 1440×900, 1920×1080 and 390×844: every dialog and the drawer fit the window, and footers stay visible.
+  - Tests: form pieces (4), drawer (4), progress log (updated), task row (3), task view (5 new, 6 updated), edit form (2 new, 2 updated)
 - feat(ui): **the New task, Edit task and task detail dialogs now adapt to the screen**. Before, each used a fixed width (480–520px), its own height rule (60vh, 90vh or viewport − 190px) and a negative top margin. So they looked small on large monitors, changed size with their content, could be clipped at the top of short windows, and the detail dialog's action buttons scrolled out of view.
   - One shared frame (`.task-dialog` in `index.css`): width follows the window (`clamp(480px, 44vw, 720px)`, or up to 760px for the detail dialog). The dialog is never taller than the window, has a minimum height so a short task doesn't shrink to a sliver, and is centred with padding that scales with the window.
   - Only the middle scrolls: the header (title, X) and the footer actions stay in view at any size.

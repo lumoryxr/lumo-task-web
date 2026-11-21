@@ -138,11 +138,9 @@ describe("TaskProgressLog", () => {
     await waitFor(() => expect(deleteProgressNote).toHaveBeenCalledWith("t1", "a"));
   });
 
-  it("shows the latest updates and folds older ones behind a button", () => {
+  it("shows every update; the panel around it scrolls", () => {
     const many = Array.from({ length: 9 }, (_, i) => note(`n${i}`, day(i), `Update ${i}`));
     setup(many);
-    expect(screen.getAllByRole("listitem")).toHaveLength(6);
-    fireEvent.click(screen.getByRole("button", { name: "Show 3 earlier" }));
     expect(screen.getAllByRole("listitem")).toHaveLength(9);
   });
 });

@@ -1055,3 +1055,43 @@ input[type="number"] { -moz-appearance: textfield; }
     border-width: 0 !important;
   }
 }
+
+/* ── Task progress drawer: slides in from the right, full screen on phones ── */
+.task-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+.task-drawer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: clamp(min(360px, 100%), 34vw, 520px);
+  border-left: 1px solid;
+}
+.task-drawer > header {
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .task-drawer {
+    width: 100%;
+    border-left-width: 0;
+  }
+}
+
+/* Progress composer: the whole box lights up on focus instead of an outline
+   around the bare textarea spilling over the date row. */
+.progress-composer {
+  border-color: var(--border-default);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.progress-composer:focus-within {
+  border-color: var(--accent-edge);
+  box-shadow: 0 0 0 3px var(--accent-fog);
+}
+.progress-composer textarea:focus,
+.progress-composer textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
