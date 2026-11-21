@@ -178,17 +178,6 @@ export interface ProjectRow {
   // deleted_at added via the shared soft-delete ALTER loop in migrate.ts
 }
 
-export interface TemplateRow {
-  id: string;
-  user_id: string;
-  name: string;
-  kind: string;
-  /** JSON-encoded TemplatePayload (opaque at the DB layer). */
-  payload: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface FeedbackRow {
   id: string;
   user_id: string;

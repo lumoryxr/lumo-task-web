@@ -1,7 +1,7 @@
 import type React from "react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { IconBookmark, IconCopy, IconEdit, IconTrash } from "@/components/icons";
+import { IconCopy, IconEdit, IconTrash } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 
 interface Props {
@@ -9,11 +9,10 @@ interface Props {
   onClose: () => void;
   onEdit: () => void;
   onDuplicate: () => void;
-  onSaveAsTemplate: () => void;
   onDelete: () => void;
 }
 
-export function TaskMoreMenu({ anchor, onClose, onEdit, onDuplicate, onSaveAsTemplate, onDelete }: Props) {
+export function TaskMoreMenu({ anchor, onClose, onEdit, onDuplicate, onDelete }: Props) {
   const t = useT();
 
   useEffect(() => {
@@ -55,11 +54,6 @@ export function TaskMoreMenu({ anchor, onClose, onEdit, onDuplicate, onSaveAsTem
           icon={<IconCopy size={13} />}
           label={t("popover.duplicate")}
           onClick={() => { onClose(); onDuplicate(); }}
-        />
-        <MenuBtn
-          icon={<IconBookmark size={13} />}
-          label={t("popover.saveTemplate")}
-          onClick={() => { onClose(); onSaveAsTemplate(); }}
         />
         <div style={{ height: 1, background: "var(--border-faint)" }} />
         <MenuBtn

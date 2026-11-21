@@ -21,7 +21,7 @@ const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 500;
 
 // Bound the :id path param at the request boundary, matching every sibling
-// user-scoped resource (tasks/countdowns/habits/projects/templates). The contract
+// user-scoped resource (tasks/countdowns/habits/projects). The contract
 // caps a person id at ^[A-Za-z0-9_-]{1,64}$, so max(64) never rejects a real id —
 // it only turns an oversized junk :id into a clean 400 instead of a DB round-trip.
 const IdParam = z.object({ id: z.string().min(1).max(64) });

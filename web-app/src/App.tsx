@@ -74,7 +74,6 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useCountdownStore } from "@/store/useCountdownStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
-import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { useHabitsStore } from "@/store/useHabitsStore";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
@@ -109,8 +108,6 @@ export default function App() {
   const clearHabits = useHabitsStore((s) => s.clear);
   const loadNotifications = useNotificationStore((s) => s.load);
   const loadAppearance = useAppStore((s) => s.loadAppearance);
-  const loadTemplates = useTemplatesStore((s) => s.load);
-  const clearTemplates = useTemplatesStore((s) => s.clear);
   const loadProjects = useProjectsStore((s) => s.load);
   const clearProjects = useProjectsStore((s) => s.clear);
   const isSignedIn = useAuthStore(selectIsSignedIn);
@@ -138,7 +135,6 @@ export default function App() {
       loadCountdowns(userId);
       loadHabits(userId);
       loadNotifications();
-      loadTemplates();
       loadProjects();
       loadAppearance();
     } else {
@@ -146,10 +142,9 @@ export default function App() {
       clearPeople();
       clearCountdowns();
       clearHabits();
-      clearTemplates();
       clearProjects();
     }
-  }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadNotifications, loadTemplates, clearTemplates, loadProjects, clearProjects, loadAppearance]);
+  }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadNotifications, loadProjects, clearProjects, loadAppearance]);
 
   useNotificationScheduler();
   useSyncEngine();

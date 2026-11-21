@@ -10,7 +10,6 @@ import { TaskDetailModal } from "@/components/TaskDetailModal";
 import { TaskEditModal } from "@/components/TaskEditModal";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useTasksStore } from "@/store/useTasksStore";
-import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { AssigneeChip } from "@/components/AssigneeChip";
 import { TaskProgressBar } from "@/components/TaskProgress";
 import { StageTrack } from "@/components/StageTrack";
@@ -36,7 +35,6 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
   const complete = useTasksStore((s) => s.complete);
   const remove = useTasksStore((s) => s.remove);
   const duplicate = useTasksStore((s) => s.duplicate);
-  const saveAsTemplate = useTemplatesStore((s) => s.saveFromTask);
   // Subscribe to narrow booleans so only the rows whose state actually flips re-render.
   const selecting = useTasksStore((s) => s.selectMode) && selectable;
   const selected = useTasksStore((s) => s.selectedIds.includes(task.id)) && selecting;
@@ -329,7 +327,6 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
           onClose={() => setMoreAnchor(null)}
           onEdit={() => setEditOpen(true)}
           onDuplicate={() => duplicate(task.id)}
-          onSaveAsTemplate={() => saveAsTemplate(task)}
           onDelete={() => remove(task.id)}
         />
       )}

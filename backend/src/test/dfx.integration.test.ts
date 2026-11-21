@@ -345,15 +345,6 @@ const TENANT_RESOURCES: Array<{
     patch: { title: "Hijacked" },
   },
   {
-    // Templates (#173) were added after the original isolation sweep (#158/#160),
-    // so the matrix never exercised them. The payload uses schema defaults so the
-    // create body stays minimal.
-    name: "templates",
-    path: "/v1/templates",
-    create: () => ({ name: "Owner Template", payload: { title: { en: "Owner Template" } } }),
-    patch: { name: "Hijacked" },
-  },
-  {
     name: "projects",
     path: "/v1/projects",
     create: () => ({ name: "Owner Project", category: "Work", color: "cyan" }),
@@ -1407,17 +1398,6 @@ describe("DFX · Robustness — hostile & malformed input", () => {
     const { status } = await api("GET", "/v1/does-not-exist", { token: alice.token });
     assert.equal(status, 404);
   });
-
-  test("templates: nested-payload validation rejects an out-of-range field → 400, not 5xx", async () => {
-    // `payload.duration` is bounded (0..1440). A nested-schema violation must be
-    // a client error, proving validation reaches into the JSON payload column and
-    // does not slip a bad blueprint past the contract into storage.
-    const { status } = await api("POST", "/v1/templates", {
-      token: alice.token,
-      body: { name: "Bad blueprint", payload: { title: { en: "x" }, duration: 99999 } },
-    });
-    assert.equal(status, 400);
-  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1588,193 +1568,6 @@ describe("DFX · Robustness — bounded OKR/KPI goal fields on /v1/projects (#30
     const still = (after.body.items as Array<{ id: string; goals: Array<Record<string, unknown>> }>).find((p) => p.id === pid);
     assert.equal(still!.goals[0].current, 40, "the stored KR is unmutated after the rejected PATCH (no partial poison)");
     assert.equal(still!.goals[0].unit, "万", "the stored unit survives the rejected PATCH");
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Design for ROBUSTNESS/SCALABILITY — bounded project-kind template payload (#211 V2)
-//
-// Coverage-gap audit (#236, project templates PR1 #233): #233 turned
-// TemplateCreateBodySchema into a `z.union` of a task variant and a NEW project
-// variant (ProjectTemplatePayloadSchema). That project payload is a distinct
-// JSON-column shape — the project's authored fields plus a bundle of task
-// blueprints — with its own bounds: `content` ≤ 1 MB, `goals` ≤ 50 (each
-// `goals[].text` ≤ 200), and **`tasks` ≤ 100** task blueprints (a bound UNIQUE
-// to project templates — no direct-/projects analogue). With no body-size
-// middleware, these Zod caps are the ONLY bound on template row growth. Before
-// this block the DFX suite reached /v1/templates only via the #158
-// tenant-isolation/malformed-JSON cases and the #184 TASK-kind `payload.duration`
-// nested bound — the PROJECT-kind payload had zero robustness coverage. A
-// regression loosening/dropping any cap, or a 5xx on an oversized project-template
-// body instead of a clean 400, would slip past every existing case (sharpened by
-// #222 inflating `content` + #235 instantiating project templates).
-//
-// Teeth: each case asserts the canonical 400 `VALIDATION_ERROR` envelope AND that
-// the offending dotted `payload.*` path is named — proving the RIGHT bound fired
-// inside the union's project variant (not an incidental 400 / the union rejecting
-// wholesale), and AC1 pairs the rejection with a valid project-template create →
-// 201 (recoverability + proof it was the cap, not the union structure).
-// ═══════════════════════════════════════════════════════════════════════════════
-
-describe("DFX · Robustness/Scalability — bounded project-kind template payload (#211 V2)", () => {
-  test("over-cap `payload.content` (> 1 MB) → 400 VALIDATION_ERROR naming payload.content, never a 5xx; server recovers", async () => {
-    const { status, body } = await api("POST", "/v1/templates", {
-      token: alice.token,
-      body: { name: "Huge project blueprint", kind: "project", payload: { name: "Huge", content: "a".repeat(1_000_001) } },
-    });
-    assert.equal(status, 400, "an over-cap project-template content must be a client error, not 5xx");
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-    assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "payload.content"),
-      "the rejection must name `payload.content` (the size cap fired inside the project variant, not an incidental 400)",
-    );
-
-    // Recoverability + teeth: a valid project template of the same shape still
-    // creates → 201, proving it was the CAP that rejected above, not the union
-    // structure, and that the oversized body did not poison the server.
-    const ok = await api("POST", "/v1/templates", {
-      token: alice.token,
-      body: { name: "Right-sized project", kind: "project", payload: { name: "OK", content: "ok", goals: [{ text: "g" }], tasks: [{ title: { en: "t" } }] } },
-    });
-    assert.equal(ok.status, 201, "a valid project template must still create after the oversized body was rejected");
-    assert.equal(ok.body.kind, "project", "the created template round-trips as kind=project");
-  });
-
-  test("over-length nested `payload.goals.0.text` (> 200) → 400, validation reaches into the array element", async () => {
-    const { status, body } = await api("POST", "/v1/templates", {
-      token: alice.token,
-      body: { name: "Bad goal blueprint", kind: "project", payload: { name: "P", goals: [{ text: "x".repeat(201) }] } },
-    });
-    assert.equal(status, 400);
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-    assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("payload.goals.0")),
-      "the rejection must name the offending nested goal element (e.g. `payload.goals.0.text`)",
-    );
-  });
-
-  test("over-cap `payload.tasks` blueprint array (> 100) → 400 naming payload.tasks (project-template-unique bound)", async () => {
-    const tasks = Array.from({ length: 101 }, () => ({ title: { en: "scaffold" } }));
-    const { status, body } = await api("POST", "/v1/templates", {
-      token: alice.token,
-      body: { name: "Too many scaffolds", kind: "project", payload: { name: "P", tasks } },
-    });
-    assert.equal(status, 400, "an over-cap task-blueprint array must be rejected (no unbounded array write)");
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-    assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "payload.tasks"),
-      "the rejection must name `payload.tasks` (the project-template-unique array-length cap fired)",
-    );
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Design for RELIABILITY — PATCH /v1/templates wrong-kind payload → 400 not 5xx (#395)
-//
-// Coverage-gap + real-defect audit (#395): `TemplateUpdateBodySchema.payload` is a
-// BARE `z.union([TemplatePayloadSchema, ProjectTemplatePayloadSchema])` — it accepts
-// EITHER kind's payload shape regardless of the template's actual kind. The PATCH
-// handler then re-encodes the payload against the template's EFFECTIVE kind via
-// `payloadSchemaFor(effectiveKind).safeParse(...)`. Before the #395 fix that call
-// was a `.parse()`, so a payload matching the *other* kind passed the request
-// validator, then threw a raw ZodError at the re-encode — and because routes never
-// throw HTTPException, `app.onError` turned it into a 500 INTERNAL_ERROR. A
-// DFX Reliability violation: mismatched input must degrade to a clean 4xx, never a
-// 5xx. The CREATE path is safe (its union variants pin kind↔payload together, so
-// the re-parse always matches) — only UPDATE decouples them.
-//
-// Both directions get teeth (task-kind ← project payload AND project-kind ← task
-// payload), each pairs the 400 with a read-back proving the stored row is
-// UNMUTATED (no partial poison), and a same-kind PATCH still succeeds (200 +
-// persists) so we prove it was the KIND MISMATCH that rejected, not a broken
-// update path.
-// ═══════════════════════════════════════════════════════════════════════════════
-
-describe("DFX · Reliability — PATCH /v1/templates wrong-kind payload → 400, never 5xx (#395)", () => {
-  let tplUser: { token: string; id: string };
-
-  before(async () => {
-    tplUser = await registerUser("tpl-patch-kind-395");
-  });
-
-  // No GET /:id — read a template back through the owner's list.
-  async function getTemplate(token: string, id: string): Promise<any> {
-    const { body } = await api("GET", "/v1/templates", { token });
-    return (body as any[]).find((t) => t.id === id);
-  }
-
-  test("PATCH a task-kind template with a valid PROJECT-shaped payload → 400 VALIDATION_ERROR (never 5xx); row unmutated", async () => {
-    // A task template (kind defaults to "task").
-    const created = await api("POST", "/v1/templates", {
-      token: tplUser.token,
-      body: { name: "Task tpl A", payload: { title: { en: "Original task title" } } },
-    });
-    assert.equal(created.status, 201);
-    const id = created.body.id as string;
-
-    // A payload that is a VALID *project* blueprint (has `name`, lacks `title`) —
-    // it passes the request-body union but is the wrong kind for this template.
-    const { status, body } = await api("PATCH", `/v1/templates/${id}`, {
-      token: tplUser.token,
-      body: { payload: { name: "Project shaped", goals: [{ text: "g" }] } },
-    });
-    assert.equal(status, 400, "a wrong-kind payload must degrade to a client error, not a 5xx");
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-    assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("payload.")),
-      "the rejection must name the offending payload field (the task-schema re-parse fired, e.g. payload.title)",
-    );
-
-    // No-poison: the stored template is untouched (still its original task payload).
-    const after = await getTemplate(tplUser.token, id);
-    assert.equal(after.kind, "task", "kind must be unchanged");
-    assert.equal(after.payload?.title?.en, "Original task title", "payload must be unmutated after the rejected PATCH");
-  });
-
-  test("PATCH a project-kind template with a valid TASK-shaped payload → 400 VALIDATION_ERROR (never 5xx); row unmutated", async () => {
-    const created = await api("POST", "/v1/templates", {
-      token: tplUser.token,
-      body: { name: "Project tpl B", kind: "project", payload: { name: "Original project name" } },
-    });
-    assert.equal(created.status, 201);
-    const id = created.body.id as string;
-
-    // A valid *task* blueprint (has `title`, lacks `name`) — wrong kind here.
-    const { status, body } = await api("PATCH", `/v1/templates/${id}`, {
-      token: tplUser.token,
-      body: { payload: { title: { en: "Task shaped" } } },
-    });
-    assert.equal(status, 400, "a wrong-kind payload must degrade to a client error, not a 5xx");
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-    assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path.startsWith("payload.")),
-      "the rejection must name the offending payload field (the project-schema re-parse fired, e.g. payload.name)",
-    );
-
-    const after = await getTemplate(tplUser.token, id);
-    assert.equal(after.kind, "project", "kind must be unchanged");
-    assert.equal(after.payload?.name, "Original project name", "payload must be unmutated after the rejected PATCH");
-  });
-
-  test("PATCH with a valid SAME-kind payload still succeeds (200) and persists — no regression", async () => {
-    const created = await api("POST", "/v1/templates", {
-      token: tplUser.token,
-      body: { name: "Task tpl C", payload: { title: { en: "Before" } } },
-    });
-    assert.equal(created.status, 201);
-    const id = created.body.id as string;
-
-    const { status, body } = await api("PATCH", `/v1/templates/${id}`, {
-      token: tplUser.token,
-      body: { payload: { title: { en: "After" } } },
-    });
-    assert.equal(status, 200, "a matching-kind payload replace must succeed");
-    assert.equal(body.payload?.title?.en, "After", "the response reflects the replaced payload");
-
-    // Persisted (the handler re-reads from the DB before responding, but confirm
-    // via the list too that the write landed).
-    const after = await getTemplate(tplUser.token, id);
-    assert.equal(after.payload?.title?.en, "After", "the replaced payload is persisted");
   });
 });
 
@@ -2138,8 +1931,7 @@ describe("DFX · Robustness — focus-session `started_at` anchor is format-boun
 // dashboards), so a single overflow-shaped session (e.g. 9_999_999) silently
 // dwarfs every real total with no status-code change — the classic unbounded-
 // magnitude footgun. Every sibling minutes field is already capped at 1440 (=24h):
-// `tasks.duration` and the task/project-template `payload.duration` (contract
-// task.ts/template.ts, exercised by the #211/#184 DFX cases above). A pomodoro
+// `tasks.duration` (contract task.ts). A pomodoro
 // longer than a day is junk; bound it at the request boundary so the poison never
 // reaches the row. Validated by `validate("json", FocusSessionBody)` BEFORE the
 // write → a bad magnitude is a clean 400, never a 5xx or a poisoned Stats total.

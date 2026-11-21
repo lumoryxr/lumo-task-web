@@ -461,11 +461,10 @@ export async function runMigrations() {
     )
   `);
 
-  // Reusable task templates (#173 V1). A lightweight per-user entity: a named
-  // snapshot of a task's authored fields stored as a single JSON `payload` blob
-  // (kept opaque here; validated by the contracts schema at the route). Created
-  // with the full four-tuple { id, user_id, updated_at, deleted_at } so it is
-  // syncable from day one with no follow-up ALTER. Idempotent.
+  // Task/project templates (#173, #211). The feature and its /v1/templates
+  // endpoints have been retired; the table stays so rows people already saved
+  // are still synced, included in their data export and purged on account
+  // deletion. Nothing reads it in the app any more. Idempotent.
   await execRaw(`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,

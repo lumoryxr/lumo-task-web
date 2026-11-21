@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTasksStore } from "@/store/useTasksStore";
-import { useTemplatesStore } from "@/store/useTemplatesStore";
 import { useDragSettleStore } from "@/store/useDragSettleStore";
 import { useTaskDrop, makeDragProps } from "@/lib/taskDnd";
 import { useT, useLocaleString } from "@/i18n/useT";
@@ -9,10 +8,9 @@ import { TaskTitle } from "@/components/TaskTitle";
 import type { Quadrant, Task } from "@/types/task";
 import { useAppStore } from "@/store/useAppStore";
 import { fmtDuration, getDueLabel, getDueColor } from "@/lib/format";
-import { IconArrowRight, IconBookmark, IconCheck, IconMore, IconPlus, IconSparkle } from "@/components/icons";
+import { IconArrowRight, IconCheck, IconMore, IconPlus, IconSparkle } from "@/components/icons";
 import { useShellOutlet } from "@/components/shellOutletContext";
 import { AIClassifyModal } from "@/components/AIClassifyModal";
-import { TemplateLibraryModal } from "@/components/TemplateLibraryModal";
 import { TaskDetailModal } from "@/components/TaskDetailModal";
 import { TaskEditModal } from "@/components/TaskEditModal";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
@@ -46,7 +44,6 @@ export function MatrixPage() {
   const unclassified = tasks.filter((x) => x.quadrant === "unclassified" && !x.completed);
   const allActive = tasks.filter((x) => !x.completed);
   const [classifyOpen, setClassifyOpen] = useState(false);
-  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
   const projects = useProjectsStore((s) => s.projects);
   const view = useAppStore((s) => s.matrixView) as ViewMode;
@@ -112,13 +109,6 @@ export function MatrixPage() {
                   · {allActive.length}
                 </span>
               )}
-            </button>
-            <button
-              className="btn btn-secondary flex-shrink-0"
-              onClick={() => setTemplatesOpen(true)}
-            >
-              <IconBookmark size={14} />
-              {!isMobile && t("template.library.button")}
             </button>
           </>
         ) : (
@@ -204,7 +194,6 @@ export function MatrixPage() {
       )}
 
       {classifyOpen && <AIClassifyModal onClose={() => setClassifyOpen(false)} />}
-      {templatesOpen && <TemplateLibraryModal onClose={() => setTemplatesOpen(false)} />}
     </div>
   );
 }
@@ -355,7 +344,6 @@ function MatrixTaskCard({ task }: { task: Task }) {
   const complete = useTasksStore((s) => s.complete);
   const remove = useTasksStore((s) => s.remove);
   const duplicate = useTasksStore((s) => s.duplicate);
-  const saveAsTemplate = useTemplatesStore((s) => s.saveFromTask);
 
   const [hovered, setHovered] = useState(false);
   const coarse = useCoarsePointer();
@@ -516,7 +504,6 @@ function MatrixTaskCard({ task }: { task: Task }) {
           onClose={() => setMoreAnchor(null)}
           onEdit={() => setEditOpen(true)}
           onDuplicate={() => duplicate(task.id)}
-          onSaveAsTemplate={() => saveAsTemplate(task)}
           onDelete={() => remove(task.id)}
         />
       )}

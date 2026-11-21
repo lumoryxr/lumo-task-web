@@ -60,9 +60,6 @@ vi.mock("@/store/useProjectsStore", () => ({
     }),
 }));
 
-vi.mock("@/store/useTemplatesStore", () => ({
-  useTemplatesStore: (selector: (s: any) => unknown) => selector({ saveFromTask: vi.fn() }),
-}));
 
 vi.mock("@/store/useDragSettleStore", () => ({
   useDragSettleStore: Object.assign(
@@ -84,7 +81,6 @@ vi.mock("@/store/usePeopleStore", () => ({
 }));
 
 vi.mock("@/components/AIClassifyModal", () => ({ AIClassifyModal: () => null }));
-vi.mock("@/components/TemplateLibraryModal", () => ({ TemplateLibraryModal: () => null }));
 vi.mock("@/components/TaskDetailModal", () => ({ TaskDetailModal: () => null }));
 vi.mock("@/components/TaskEditModal", () => ({ TaskEditModal: () => null }));
 vi.mock("@/components/TaskMoreMenu", () => ({ TaskMoreMenu: () => null }));
