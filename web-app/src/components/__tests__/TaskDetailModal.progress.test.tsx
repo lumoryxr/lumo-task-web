@@ -194,3 +194,27 @@ describe("TaskDetailModal · subtask assignee", () => {
     await waitFor(() => expect(mockSetSubtaskAssignee).toHaveBeenCalledWith("t1", "s1", null));
   });
 });
+
+describe("TaskDetailModal · assignees", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockProjects = [];
+  });
+
+  it("shows the primary assignee on its own line, and the others below", () => {
+    setup({ ...TASK, assignee_ids: ["p_bo", "p_ann"] });
+    const owner = screen.getByTestId("assignee-primary");
+    expect(owner).toHaveTextContent("Owner");
+    expect(owner).toHaveTextContent("Bo Wu");
+    expect(owner).not.toHaveTextContent("Ann Lee");
+    const others = screen.getByTestId("assignee-others");
+    expect(others).toHaveTextContent("Also assigned");
+    expect(others).toHaveTextContent("Ann Lee");
+  });
+
+  it("has no others line when only the primary is assigned", () => {
+    setup({ ...TASK, assignee_ids: ["p_ann"] });
+    expect(screen.getByTestId("assignee-primary")).toHaveTextContent("Ann Lee");
+    expect(screen.queryByTestId("assignee-others")).toBeNull();
+  });
+});

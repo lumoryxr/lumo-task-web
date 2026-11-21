@@ -5,34 +5,31 @@ import { PersonAvatar } from "@/components/PersonAvatar";
 type ChipPerson = Pick<Person, "id" | "name" | "initials" | "color">;
 
 interface AssigneeChipProps {
+  /** The task's assignees in order: the first is the primary assignee. */
   people: ChipPerson[];
   /** Avatar diameter in px. */
   size?: number;
-  /** How many names are spelled out before collapsing the rest into "+N". */
-  maxNames?: number;
   /**
    * "pill" — bordered capsule for the trailing slot of a wide row.
    * "inline" — borderless, sits inside a meta line (e.g. matrix cards).
    */
   variant?: "pill" | "inline";
-  /** Tailwind max-width classes for the names text; it truncates past this. */
+  /** Tailwind max-width classes for the name text; it truncates past this. */
   nameMaxWidthClass?: string;
   /** Extra classes on the root, e.g. responsive visibility. */
   className?: string;
 }
 
 /**
- * Shows who a task is assigned to: stacked avatars followed by their names.
- *
- * Names are spelled out (not just initials) so ownership is readable at a
- * glance, but the text truncates at `nameMaxWidthClass` so a long name never
- * pushes the row's layout around. The full list is always available through
- * the tooltip and the accessible label.
+ * Shows who owns a task: the primary assignee (主责任人) — avatar and full
+ * name — plus a quiet "+N" when others share the task. The other assignees are
+ * deliberately left to the task's details, so rows stay focused on the one
+ * person responsible. The name truncates at `nameMaxWidthClass` so a long name
+ * never pushes the row's layout around.
  */
 export function AssigneeChip({
   people,
   size = 20,
-  maxNames = 2,
   variant = "pill",
   nameMaxWidthClass = "max-w-[140px]",
   className = "",
@@ -40,11 +37,10 @@ export function AssigneeChip({
   const t = useT();
   if (people.length === 0) return null;
 
-  const sep = t("assignee.separator");
-  const allNames = people.map((p) => p.name).join(sep);
-  const label = t("assignee.label").replace("{names}", allNames);
-  const shown = people.slice(0, maxNames);
-  const overflow = people.length - shown.length;
+  const [primary, ...others] = people;
+  const label = (others.length > 0 ? t("assignee.primaryWithOthers") : t("assignee.primary"))
+    .replace("{name}", primary.name)
+    .replace("{n}", String(others.length));
   const pill = variant === "pill";
 
   return (
@@ -63,28 +59,23 @@ export function AssigneeChip({
           : undefined
       }
     >
-      <div className="flex items-center flex-shrink-0" aria-hidden="true">
-        {shown.map((p, i) => (
-          <div
-            key={p.id}
-            style={{ marginLeft: i > 0 ? -Math.round(size * 0.3) : 0, zIndex: shown.length - i, position: "relative" }}
-          >
-            <PersonAvatar person={p} size={size} />
-          </div>
-        ))}
+      <div className="flex-shrink-0" aria-hidden="true">
+        <PersonAvatar person={primary} size={size} />
       </div>
       <span
         className={`truncate leading-none ${nameMaxWidthClass} ${pill ? "text-[12px] font-medium" : ""}`}
         style={{ color: pill ? "var(--text-secondary)" : "inherit" }}
+        aria-hidden="true"
       >
-        {shown.map((p) => p.name).join(sep)}
+        {primary.name}
       </span>
-      {overflow > 0 && (
+      {others.length > 0 && (
         <span
           className="flex-shrink-0 leading-none text-[11px] font-semibold tabular-nums"
           style={{ color: "var(--text-faint)" }}
+          aria-hidden="true"
         >
-          +{overflow}
+          +{others.length}
         </span>
       )}
     </div>

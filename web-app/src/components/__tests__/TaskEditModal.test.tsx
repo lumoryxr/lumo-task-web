@@ -15,8 +15,9 @@ vi.mock("@/store/useTasksStore", () => ({
   useTasksStore: (sel: any) => sel({ update: mockUpdate, remove: mockRemove, tasks: [] }),
 }));
 
+let mockPeople: Array<{ id: string; name: string; initials: string; color: string }> = [];
 vi.mock("@/store/usePeopleStore", () => ({
-  usePeopleStore: (sel: any) => sel({ people: [] }),
+  usePeopleStore: (sel: any) => sel({ people: mockPeople }),
 }));
 
 vi.mock("@/store/useAppStore", () => ({
@@ -464,6 +465,25 @@ describe("TaskEditModal", () => {
       await waitFor(() =>
         expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ stage_id: null })),
       );
+    });
+  });
+
+  describe("assignees", () => {
+    beforeEach(() => {
+      mockPeople = [
+        { id: "p_ann", name: "Ann", initials: "A", color: "var(--accent-primary)" },
+        { id: "p_bo", name: "Bo", initials: "B", color: "var(--accent-primary)" },
+      ];
+    });
+
+    it("shows the current primary and can hand the role to another assignee", async () => {
+      mockUpdate.mockResolvedValue(undefined);
+      setup({ ...TASK, assignee_ids: ["p_ann", "p_bo"] });
+      expect(screen.getByText("assignee.primaryBadge").closest("[data-person]")).toHaveAttribute("data-person", "p_ann");
+      fireEvent.click(screen.getByRole("button", { name: "assignee.makePrimary" }));
+      fireEvent.click(getSaveBtn());
+      await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+      expect(mockUpdate.mock.calls[0][1].assignee_ids).toEqual(["p_bo", "p_ann"]);
     });
   });
 });

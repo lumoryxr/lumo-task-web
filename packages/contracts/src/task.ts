@@ -66,6 +66,22 @@ function dedupeTags(tags: string[]): string[] {
 // de-duplicated case-insensitively at the boundary.
 const TagsFieldSchema = z.array(TagSchema).max(20).default([]).transform(dedupeTags);
 
+// Who the task is assigned to, in order. The FIRST id is the primary assignee
+// (主责任人) — the one owner shown on rows and cards; the rest are supporting
+// assignees shown in the task's details. Keeping the primary as list position
+// (not a separate field) means a task with assignees always has exactly one
+// primary, and removing it promotes the next person. A person may appear once.
+const AssigneeIdsSchema = z
+  .array(z.string())
+  .refine((ids) => new Set(ids).size === ids.length, {
+    message: "assignee_ids must not list the same person twice",
+  });
+
+/** The primary assignee of a task: the first of its `assignee_ids`, or null. */
+export function primaryAssigneeId(ids: readonly string[] | null | undefined): string | null {
+  return ids && ids.length > 0 ? ids[0] : null;
+}
+
 // Completion percentage set by the user: a whole number from 0 (not started)
 // to 100 (done). Independent of `completed`, which still marks the task done.
 const ProgressSchema = z.number().int().min(0).max(100);
@@ -85,7 +101,7 @@ export const TaskCreateBodySchema = z.object({
   due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   duration: z.number().int().min(0).max(1440).default(0),
   pomos_total: z.number().int().default(0),
-  assignee_ids: z.array(z.string()).default([]),
+  assignee_ids: AssigneeIdsSchema.default([]),
   conviction: z.number().nullable().optional(),
   next_step: LongLocalizedStringSchema.optional().nullable(),
   recurrence: RecurrenceSchema.default("none"),

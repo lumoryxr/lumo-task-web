@@ -12,7 +12,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
-import { PersonAvatar } from "@/components/PersonAvatar";
+import { AssigneePicker } from "@/components/AssigneePicker";
 import { DraftExitDialog } from "@/components/DraftExitDialog";
 import { useTaskDraftsStore, type EditDraftFields } from "@/store/useTaskDraftsStore";
 import { ProjectSelect } from "@/components/ProjectSelect";
@@ -118,9 +118,6 @@ export function TaskEditModal({ task, onClose }: Props) {
   const [stageId, setStageId] = useState<string | null>(start.stageId);
   const projectStages = projects.find((p) => p.id === projectId)?.stages ?? [];
   const effectiveStageId = projectStages.some((s) => s.id === stageId) ? stageId : null;
-  function toggleAssignee(id: string) {
-    setAssigneeIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-  }
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
@@ -623,46 +620,9 @@ export function TaskEditModal({ task, onClose }: Props) {
             </div>
           )}
 
-          {/* Assignees — multi-select */}
+          {/* Assignees — several people, the first is the primary (主责任人) */}
           {people.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint">
-                  {t("qc.assignee")}
-                </div>
-                {assigneeIds.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setAssigneeIds([])}
-                    className="text-[10px] transition-colors"
-                    style={{ color: "var(--text-faint)" }}
-                  >
-                    {t("qc.assignee.none")}
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {people.map((p) => {
-                  const selected = assigneeIds.includes(p.id);
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => toggleAssignee(p.id)}
-                      className="flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] transition-colors"
-                      style={{
-                        border: selected ? "1px solid var(--accent-edge)" : "1px solid var(--border-default)",
-                        background: selected ? "var(--accent-fog)" : "var(--bg-surface)",
-                        color: selected ? "var(--accent-primary)" : "var(--text-secondary)",
-                      }}
-                    >
-                      <PersonAvatar person={p} size={16} />
-                      {p.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} />
           )}
         </div>
 

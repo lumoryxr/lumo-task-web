@@ -277,20 +277,34 @@ export function TaskDetailModal({ task, onClose }: Props) {
             </div>
           )}
 
-          {/* Assignees */}
+          {/* Assignees: the primary (主责任人) stands out on its own line; the
+              others are listed beneath it. Rows elsewhere show only the primary. */}
           {assignees.length > 0 && (
-            <div className="col-span-2 flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-medium" style={{ color: "var(--text-faint)", minWidth: 64 }}>
-                {t("detail.assignee")}
-              </span>
-              {assignees.map((p) => (
-                <div key={p.id} className="flex items-center gap-1.5">
-                  <PersonAvatar person={p} size={20} />
-                  <span className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                    {p.name}
+            <div className="col-span-2 flex flex-col gap-1.5">
+              <div data-testid="assignee-primary" className="flex items-center gap-2 min-w-0">
+                <span className="text-[11px] font-medium flex-shrink-0" style={{ color: "var(--text-faint)", minWidth: 64 }}>
+                  {t("assignee.primaryLabel")}
+                </span>
+                <PersonAvatar person={assignees[0]} size={22} />
+                <span className="text-[13px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>
+                  {assignees[0].name}
+                </span>
+              </div>
+              {assignees.length > 1 && (
+                <div data-testid="assignee-others" className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-medium flex-shrink-0" style={{ color: "var(--text-faint)", minWidth: 64 }}>
+                    {t("assignee.others")}
                   </span>
+                  {assignees.slice(1).map((p) => (
+                    <div key={p.id} className="flex items-center gap-1.5">
+                      <PersonAvatar person={p} size={18} />
+                      <span className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                        {p.name}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
 

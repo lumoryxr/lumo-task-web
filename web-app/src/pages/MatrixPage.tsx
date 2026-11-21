@@ -439,7 +439,6 @@ function MatrixTaskCard({ task }: { task: Task }) {
             <AssigneeChip
               people={assignees}
               size={14}
-              maxNames={1}
               variant="inline"
               nameMaxWidthClass="max-w-[120px]"
             />

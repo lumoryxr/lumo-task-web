@@ -32,23 +32,27 @@ describe("AssigneeChip", () => {
     expect(screen.getByText("AL")).toBeInTheDocument();
   });
 
-  it("joins up to two names and collapses the rest into +N", () => {
+  it("shows only the primary assignee (the first) and counts the rest as +N", () => {
     render(<AssigneeChip people={[ALICE, BOB, CAROL]} />);
-    expect(screen.getByText("Alice Wonderland, Bob")).toBeInTheDocument();
-    expect(screen.getByText("+1")).toBeInTheDocument();
-  });
-
-  it("honors a smaller maxNames for compact surfaces", () => {
-    render(<AssigneeChip people={[ALICE, BOB]} maxNames={1} />);
     expect(screen.getByText("Alice Wonderland")).toBeInTheDocument();
-    expect(screen.getByText("+1")).toBeInTheDocument();
     expect(screen.queryByText(/Bob/)).toBeNull();
+    expect(screen.queryByText(/Carol/)).toBeNull();
+    expect(screen.getByText("+2")).toBeInTheDocument();
+    // Only the primary's avatar: the others are for the task's details.
+    expect(screen.getByText("AL")).toBeInTheDocument();
+    expect(screen.queryByText("BO")).toBeNull();
   });
 
-  it("exposes every assignee's full name via tooltip and accessible label", () => {
+  it("labels the primary assignee, and how many others there are", () => {
     render(<AssigneeChip people={[ALICE, BOB, CAROL]} />);
-    const chip = screen.getByLabelText("Assigned to Alice Wonderland, Bob, Carol");
-    expect(chip).toHaveAttribute("title", "Assigned to Alice Wonderland, Bob, Carol");
+    const chip = screen.getByLabelText("Owner: Alice Wonderland (+2 more)");
+    expect(chip).toHaveAttribute("title", "Owner: Alice Wonderland (+2 more)");
+  });
+
+  it("labels a lone primary assignee without a count", () => {
+    render(<AssigneeChip people={[ALICE]} />);
+    expect(screen.getByLabelText("Owner: Alice Wonderland")).toBeInTheDocument();
+    expect(screen.queryByText(/^\+/)).toBeNull();
   });
 
   it("truncates the names instead of growing past its max width", () => {
@@ -56,11 +60,10 @@ describe("AssigneeChip", () => {
     expect(screen.getByText("Alice Wonderland")).toHaveClass("truncate");
   });
 
-  it("uses the Chinese list separator in zh", () => {
+  it("speaks Chinese in zh", () => {
     mockAppState.locale = "zh";
     render(<AssigneeChip people={[ALICE, BOB]} />);
-    expect(screen.getByText("Alice Wonderland、Bob")).toBeInTheDocument();
-    expect(screen.getByLabelText("责任人：Alice Wonderland、Bob")).toBeInTheDocument();
+    expect(screen.getByLabelText("主责任人：Alice Wonderland（另有 1 人）")).toBeInTheDocument();
     mockAppState.locale = "en";
   });
 });

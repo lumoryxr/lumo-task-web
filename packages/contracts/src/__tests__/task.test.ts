@@ -5,6 +5,7 @@ import {
   TaskCreateBodySchema,
   TaskUpdateBodySchema,
   TaskCompleteResponseSchema,
+  primaryAssigneeId,
 } from "../task.js";
 
 // A canonical, full backend response payload (mirrors rowToTask in
@@ -238,5 +239,29 @@ describe("subtask assignee", () => {
       TaskUpdateBodySchema.safeParse({ subtasks: [{ id: "s1", title: "x", completed: false, assignee_id: "" }] }).success,
       false,
     );
+  });
+});
+
+describe("primary assignee", () => {
+  test("the first assignee is the primary one; order is kept", () => {
+    const parsed = TaskCreateBodySchema.parse({ title: { en: "x" }, assignee_ids: ["p_2", "p_1", "p_3"] });
+    assert.deepEqual(parsed.assignee_ids, ["p_2", "p_1", "p_3"]);
+    assert.equal(primaryAssigneeId(parsed.assignee_ids), "p_2");
+  });
+
+  test("no assignees means no primary", () => {
+    assert.equal(primaryAssigneeId([]), null);
+    assert.equal(primaryAssigneeId(undefined), null);
+    assert.equal(primaryAssigneeId(null), null);
+  });
+
+  test("the same person cannot be listed twice (the primary would be ambiguous)", () => {
+    assert.equal(TaskCreateBodySchema.safeParse({ title: { en: "x" }, assignee_ids: ["p_1", "p_1"] }).success, false);
+    assert.equal(TaskUpdateBodySchema.safeParse({ assignee_ids: ["p_1", "p_2", "p_1"] }).success, false);
+    assert.equal(TaskUpdateBodySchema.safeParse({ assignee_ids: ["p_2", "p_1"] }).success, true);
+  });
+
+  test("a PATCH without assignee_ids leaves them alone", () => {
+    assert.equal("assignee_ids" in TaskUpdateBodySchema.parse({ title: { en: "y" } }), false);
   });
 });

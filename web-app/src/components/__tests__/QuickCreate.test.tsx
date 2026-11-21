@@ -12,8 +12,9 @@ vi.mock("@/store/useTasksStore", () => ({
   useTasksStore: (sel: any) => sel({ create: mockCreate, tasks: [] }),
 }));
 
+let mockPeople: Array<{ id: string; name: string; initials: string; color: string }> = [];
 vi.mock("@/store/usePeopleStore", () => ({
-  usePeopleStore: (sel: any) => sel({ people: [] }),
+  usePeopleStore: (sel: any) => sel({ people: mockPeople }),
 }));
 
 // Mutable so individual tests can populate the project list; defaults to empty
@@ -317,5 +318,35 @@ describe("QuickCreate", () => {
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalled());
     expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("project_id");
+  });
+
+  describe("assignees", () => {
+    beforeEach(() => {
+      mockPeople = [
+        { id: "p_ann", name: "Ann", initials: "A", color: "var(--accent-primary)" },
+        { id: "p_bo", name: "Bo", initials: "B", color: "var(--accent-primary)" },
+      ];
+    });
+
+    it("saves the assignees in order, the primary first", async () => {
+      setup();
+      fireEvent.change(getTitleInput(), { target: { value: "My task" } });
+      fireEvent.click(screen.getByRole("button", { name: /^Bo/ }));
+      fireEvent.click(screen.getByRole("button", { name: /^Ann/ }));
+      fireEvent.click(getCreateBtn());
+      await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+      expect(mockCreate.mock.calls[0][0].assignee_ids).toEqual(["p_bo", "p_ann"]);
+    });
+
+    it("can switch the primary before saving", async () => {
+      setup();
+      fireEvent.change(getTitleInput(), { target: { value: "My task" } });
+      fireEvent.click(screen.getByRole("button", { name: /^Bo/ }));
+      fireEvent.click(screen.getByRole("button", { name: /^Ann/ }));
+      fireEvent.click(screen.getByRole("button", { name: "assignee.makePrimary" }));
+      fireEvent.click(getCreateBtn());
+      await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+      expect(mockCreate.mock.calls[0][0].assignee_ids).toEqual(["p_ann", "p_bo"]);
+    });
   });
 });

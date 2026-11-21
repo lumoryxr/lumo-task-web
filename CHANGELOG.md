@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Project templates**: "Save as template" on a project and "From template" on the Projects page are gone, along with the project-template picker and its store actions (`saveFromProject`, `instantiateProject`, `templateApi.createProject`). Task templates are unchanged. The `/v1/templates` API still accepts `kind: "project"`, and existing project templates are kept on the server but no longer shown or used.
 
 ### Added
+- feat(tasks): **one primary assignee (主责任人) among several**. A task can still have several assignees, but one is always the primary. Rows and matrix cards show only the primary (avatar and name, plus "+N" when others share the task). The task's details list the primary on its own line and the others under "Also assigned".
+  - Picking assignees: the first person picked becomes the primary, ☆ on another selected person makes them the primary, and removing the primary promotes the next one. The new `AssigneePicker` is shared by the create and edit forms.
+  - Contract: the primary is the **first** id of `assignee_ids` (documented, with a `primaryAssigneeId()` helper), so a task with assignees always has exactly one primary and no field can drift. `assignee_ids` may no longer list the same person twice (400 `VALIDATION_ERROR`). OpenAPI is unchanged.
+  - Backend: deleting a person keeps the remaining assignees in order (`ORDER BY key`), so the next one becomes the primary.
+  - Tests: contract (4), backend API (4), chip (7), picker (5), create/edit forms (3), detail (2), task row (1)
 - feat(projects): **project notes move behind a Notes button and open in a much larger editor**.
   - The project page no longer shows a Notes section. A 笔记 / Notes button in the header opens them, with a dot when the project has notes.
   - The notes dialog is now large: up to 960px wide and 860px tall, with the writing area filling it, 15px text and larger headings. It fits the screen on phones.
