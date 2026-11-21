@@ -19,6 +19,9 @@ vi.mock("@/store/useTasksStore", () => ({
       deleteSubtask: vi.fn(),
       breakdownSubtasks: vi.fn(),
       setSubtaskAssignee: mockSetSubtaskAssignee,
+      addProgressNote: vi.fn(),
+      editProgressNote: vi.fn(),
+      deleteProgressNote: vi.fn(),
     }),
 }));
 
@@ -192,5 +195,41 @@ describe("TaskDetailModal · subtask assignee", () => {
     expect(screen.getByRole("menuitemradio", { name: "Ann Lee" })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Unassigned" }));
     await waitFor(() => expect(mockSetSubtaskAssignee).toHaveBeenCalledWith("t1", "s1", null));
+  });
+});
+
+describe("TaskDetailModal · assignees", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockProjects = [];
+  });
+
+  it("shows the primary assignee on its own line, and the others below", () => {
+    setup({ ...TASK, assignee_ids: ["p_bo", "p_ann"] });
+    const owner = screen.getByTestId("assignee-primary");
+    expect(owner).toHaveTextContent("Owner");
+    expect(owner).toHaveTextContent("Bo Wu");
+    expect(owner).not.toHaveTextContent("Ann Lee");
+    const others = screen.getByTestId("assignee-others");
+    expect(others).toHaveTextContent("Also assigned");
+    expect(others).toHaveTextContent("Ann Lee");
+  });
+
+  it("has no others line when only the primary is assigned", () => {
+    setup({ ...TASK, assignee_ids: ["p_ann"] });
+    expect(screen.getByTestId("assignee-primary")).toHaveTextContent("Ann Lee");
+    expect(screen.queryByTestId("assignee-others")).toBeNull();
+  });
+});
+
+describe("TaskDetailModal · progress log", () => {
+  it("has a progress log with the task's dated updates, right after the completion card", () => {
+    setup({ ...TASK, progress_log: [{ id: "pn1", date: "2026-11-20", text: "Collected data", created_at: "2026-11-20T09:00:00.000Z" }] });
+    const log = screen.getByRole("region", { name: "Progress log" });
+    expect(log).toHaveTextContent("Collected data");
+    expect(screen.getByRole("textbox", { name: "Progress update" })).toBeInTheDocument();
+    // Order: completion % comes first, then the log, then subtasks.
+    const slider = screen.getByRole("slider");
+    expect(slider.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

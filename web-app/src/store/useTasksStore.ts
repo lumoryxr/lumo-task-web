@@ -10,7 +10,7 @@
 import { create } from "zustand";
 import { api } from "@/api/client";
 import { clientId } from "@/lib/id";
-import type { CompletedEntry, Subtask, Task, TaskCompleteResponse, TaskCreateInput, TaskUpdateInput } from "@/types/task";
+import type { CompletedEntry, Subtask, Task, TaskCompleteResponse, TaskCreateInput, TaskProgressNote, TaskUpdateInput } from "@/types/task";
 import { toast } from "@/store/useToastStore";
 import { t } from "@/i18n/useT";
 import { usePetStore } from "@/store/usePetStore";
@@ -58,6 +58,12 @@ interface TasksState {
   addSubtask: (taskId: string, title: string) => Promise<void>;
   toggleSubtask: (taskId: string, subtaskId: string) => Promise<void>;
   deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
+  /** Adds a dated progress note (进展). Blank text is ignored. Optimistic, rolled back on failure. */
+  addProgressNote: (taskId: string, note: { date: string; text: string }) => Promise<void>;
+  /** Changes a progress note's text and/or date and marks it edited. */
+  editProgressNote: (taskId: string, noteId: string, change: { date: string; text: string }) => Promise<void>;
+  /** Removes a progress note. */
+  deleteProgressNote: (taskId: string, noteId: string) => Promise<void>;
   /** Assigns one subtask to a person (null clears it). Optimistic, rolled back on failure. */
   setSubtaskAssignee: (taskId: string, subtaskId: string, personId: string | null) => Promise<void>;
   breakdownSubtasks: (taskId: string, locale?: string) => Promise<{ subtasks: string[]; cloudLimitReached: boolean }>;
@@ -311,6 +317,24 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
   },
 
+  async addProgressNote(taskId, { date, text }) {
+    const body = text.trim();
+    if (!body) return;
+    const note: TaskProgressNote = { id: clientId("pn"), date, text: body, created_at: new Date().toISOString() };
+    await saveProgressLog(taskId, (log) => [...log, note]);
+  },
+
+  async editProgressNote(taskId, noteId, { date, text }) {
+    const body = text.trim();
+    if (!body) return;
+    const edited_at = new Date().toISOString();
+    await saveProgressLog(taskId, (log) => log.map((n) => (n.id === noteId ? { ...n, date, text: body, edited_at } : n)));
+  },
+
+  async deleteProgressNote(taskId, noteId) {
+    await saveProgressLog(taskId, (log) => log.filter((n) => n.id !== noteId));
+  },
+
   async setSubtaskAssignee(taskId, subtaskId, personId) {
     const task = get().tasks.find((tk) => tk.id === taskId);
     if (!task) return;
@@ -343,3 +367,21 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     return api.breakdownSubtasks(taskId, locale);
   },
 }));
+
+/**
+ * Applies `change` to a task's progress log optimistically, saves the whole
+ * list, and restores the task as it was if the save fails.
+ */
+async function saveProgressLog(taskId: string, change: (log: TaskProgressNote[]) => TaskProgressNote[]): Promise<void> {
+  const { tasks } = useTasksStore.getState();
+  const task = tasks.find((tk) => tk.id === taskId);
+  if (!task) return;
+  const progress_log = change(task.progress_log ?? []);
+  useTasksStore.setState({ tasks: tasks.map((tk) => (tk.id === taskId ? { ...tk, progress_log } : tk)) });
+  try {
+    await api.updateTask(taskId, { progress_log });
+  } catch (e) {
+    useTasksStore.setState({ tasks: useTasksStore.getState().tasks.map((tk) => (tk.id === taskId ? task : tk)) });
+    throw e;
+  }
+}

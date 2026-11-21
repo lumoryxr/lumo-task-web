@@ -155,10 +155,15 @@ app.delete("/:id", validate("param", IdParam), async (c) => {
     // do not accidentally match unrelated rows.
     await execute(`
       UPDATE tasks
+      -- Keep the remaining ids in their order: the first is the task's primary
+      -- assignee, so removing the primary promotes the next one.
       SET assignee_ids = (
         SELECT COALESCE(json_group_array(value), '[]')
-        FROM json_each(assignee_ids)
-        WHERE value != :pid
+        FROM (
+          SELECT value FROM json_each(tasks.assignee_ids)
+          WHERE value != :pid
+          ORDER BY key
+        )
       ),
       updated_at = :now
       WHERE user_id = :uid

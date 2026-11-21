@@ -71,7 +71,7 @@ describe("TaskRow", () => {
   it("shows the assignee's name: trailing pill on wide screens, meta line on narrow ones", () => {
     mockPeople.p1 = { id: "p1", name: "Alice Wonderland", initials: "AW", color: "var(--accent-primary)" };
     renderRow({ ...TASK, assignee_ids: ["p1"] });
-    const chips = screen.getAllByLabelText("Assigned to Alice Wonderland");
+    const chips = screen.getAllByLabelText("Owner: Alice Wonderland");
     // jsdom ignores media queries, so both breakpoint variants are in the DOM;
     // exactly one is visible at any viewport width.
     expect(chips).toHaveLength(2);
@@ -81,9 +81,23 @@ describe("TaskRow", () => {
     delete mockPeople.p1;
   });
 
+  it("with several assignees, shows only the primary (the first) plus a count", () => {
+    mockPeople.p1 = { id: "p1", name: "Alice Wonderland", initials: "AW", color: "var(--accent-primary)" };
+    mockPeople.p2 = { id: "p2", name: "Bob Stone", initials: "BS", color: "var(--accent-primary)" };
+    renderRow({ ...TASK, assignee_ids: ["p2", "p1"] });
+    const chips = screen.getAllByLabelText("Owner: Bob Stone (+1 more)");
+    for (const chip of chips) {
+      expect(chip).toHaveTextContent("Bob Stone");
+      expect(chip).toHaveTextContent("+1");
+      expect(chip).not.toHaveTextContent("Alice");
+    }
+    delete mockPeople.p1;
+    delete mockPeople.p2;
+  });
+
   it("renders no assignee chip when the task is unassigned", () => {
     renderRow();
-    expect(screen.queryByLabelText(/Assigned to/)).toBeNull();
+    expect(screen.queryByLabelText(/^Owner:/)).toBeNull();
   });
 
   it("shows a progress bar once the task has progress", () => {

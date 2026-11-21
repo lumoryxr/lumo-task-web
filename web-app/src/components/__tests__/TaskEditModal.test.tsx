@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TaskEditModal } from "../TaskEditModal";
 import type { Task } from "@/types/task";
@@ -15,8 +15,9 @@ vi.mock("@/store/useTasksStore", () => ({
   useTasksStore: (sel: any) => sel({ update: mockUpdate, remove: mockRemove, tasks: [] }),
 }));
 
+let mockPeople: Array<{ id: string; name: string; initials: string; color: string }> = [];
 vi.mock("@/store/usePeopleStore", () => ({
-  usePeopleStore: (sel: any) => sel({ people: [] }),
+  usePeopleStore: (sel: any) => sel({ people: mockPeople }),
 }));
 
 vi.mock("@/store/useAppStore", () => ({
@@ -464,6 +465,38 @@ describe("TaskEditModal", () => {
       await waitFor(() =>
         expect(mockUpdate).toHaveBeenCalledWith("t1", expect.objectContaining({ stage_id: null })),
       );
+    });
+  });
+
+  describe("assignees", () => {
+    beforeEach(() => {
+      mockPeople = [
+        { id: "p_ann", name: "Ann", initials: "A", color: "var(--accent-primary)" },
+        { id: "p_bo", name: "Bo", initials: "B", color: "var(--accent-primary)" },
+      ];
+    });
+
+    it("shows the current owner and can hand the role to another person", async () => {
+      mockUpdate.mockResolvedValue(undefined);
+      setup({ ...TASK, assignee_ids: ["p_ann", "p_bo"] });
+      const owner = screen.getByRole("radiogroup", { name: "assignee.primaryLabel" });
+      expect(within(owner).getByRole("radio", { name: "Ann" })).toHaveAttribute("aria-checked", "true");
+      const collab = screen.getByRole("group", { name: "assignee.others" });
+      expect(within(collab).getByRole("button", { name: "Bo" })).toHaveAttribute("aria-pressed", "true");
+      // Make Bo the owner: Ann is replaced, so only Bo stays assigned.
+      fireEvent.click(within(owner).getByRole("radio", { name: "Bo" }));
+      fireEvent.click(getSaveBtn());
+      await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+      expect(mockUpdate.mock.calls[0][1].assignee_ids).toEqual(["p_bo"]);
+    });
+
+    it("adds a collaborator next to the owner", async () => {
+      mockUpdate.mockResolvedValue(undefined);
+      setup({ ...TASK, assignee_ids: ["p_ann"] });
+      fireEvent.click(within(screen.getByRole("group", { name: "assignee.others" })).getByRole("button", { name: "Bo" }));
+      fireEvent.click(getSaveBtn());
+      await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+      expect(mockUpdate.mock.calls[0][1].assignee_ids).toEqual(["p_ann", "p_bo"]);
     });
   });
 });
