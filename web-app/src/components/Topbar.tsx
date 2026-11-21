@@ -27,7 +27,7 @@ export function Topbar({ title, subtitle, onOpenSearch }: TopbarProps) {
     >
       <div style={{ WebkitAppRegion: "no-drag" }}>
         <span className="text-[15px] font-semibold text-text-primary">{title}</span>
-        {subtitle && <span className="ml-2.5 text-xs text-text-muted">{subtitle}</span>}
+        {subtitle && <span className="ml-2.5 text-xs text-text-muted hidden sm:inline">{subtitle}</span>}
       </div>
       <div className="flex-1" />
 

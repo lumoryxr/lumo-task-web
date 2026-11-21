@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useT } from "@/i18n/useT";
 import { useProjectsStore } from "@/store/useProjectsStore";
@@ -13,13 +13,13 @@ import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { TaskHistoryButton } from "@/components/TaskHistory";
 import { ProgressRing } from "@/components/ProgressRing";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { QuickCreate } from "@/components/QuickCreate";
+import { useShellOutlet } from "@/components/shellOutletContext";
 import { AddExistingTaskModal } from "@/components/AddExistingTaskModal";
 import { EmptyState } from "@/components/EmptyState";
 import { ProjectDetailSkeleton } from "@/components/skeletons";
 import { computeProjectRecap } from "@/utils/projectRecap";
 import { isKpiGoal, goalPct, parseTarget, nextConfidence } from "@/utils/goalKpi";
-import { IconArrowLeft, IconCheck, IconEdit, IconClose, IconPlus, IconProject, IconShare, IconStages, IconTrash } from "@/components/icons";
+import { IconArrowLeft, IconCheck, IconEdit, IconClose, IconMore, IconPlus, IconProject, IconShare, IconStages, IconTrash } from "@/components/icons";
 
 const COLORS: ProjectColor[] = ["green", "cyan", "amber", "red"];
 // OKR check-in status → token color (green on track, amber at risk, red off track).
@@ -38,6 +38,7 @@ const COLOR_PRIMARY: Record<ProjectColor, string> = {
 export function ProjectDetailPage() {
   const t = useT();
   const navigate = useNavigate();
+  const { openQuickCreate } = useShellOutlet();
   const { id } = useParams<{ id: string }>();
   const project = useProjectsStore((s) => s.projects.find((p) => p.id === id));
   const update = useProjectsStore((s) => s.update);
@@ -56,8 +57,22 @@ export function ProjectDetailPage() {
   const [addExistingOpen, setAddExistingOpen] = useState(false);
   // The workflow stages are detail most visits don't need: folded by default.
   const [stagesOpen, setStagesOpen] = useState(false);
-  // Closed = null; open = { sectionId } (null files the task ungrouped).
-  const [addTaskFor, setAddTaskFor] = useState<{ sectionId: string | null } | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreWrapRef = useRef<HTMLDivElement>(null);
+  // Close the ⋯ menu on Escape or a click anywhere outside it.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!moreWrapRef.current?.contains(e.target as Node)) setMoreOpen(false);
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape") setMoreOpen(false); };
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [moreOpen]);
 
   const [newGoal, setNewGoal] = useState("");
   const [newGoalStart, setNewGoalStart] = useState("");
@@ -214,23 +229,18 @@ export function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* Color + actions */}
+      {/* Toolbar — laid out like the Matrix's: the main action (New task, same
+          button and same dialog as everywhere else) first, then the project's
+          views, and the rarely used settings (colour, archive, delete) behind ⋯. */}
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        {COLORS.map((c) => (
-          <button
-            key={c}
-            aria-label={c}
-            aria-pressed={project.color === c}
-            onClick={() => update(project.id, { color: c })}
-            className="rounded-full transition-transform"
-            style={{
-              width: 20, height: 20, background: COLOR_PRIMARY[c],
-              outline: project.color === c ? "2px solid var(--text-primary)" : "none",
-              outlineOffset: 2,
-            }}
-          />
-        ))}
-        <div className="flex-1" />
+        <button
+          type="button"
+          className="btn btn-primary flex-shrink-0"
+          onClick={() => openQuickCreate({ projectId: pid })}
+        >
+          <IconPlus size={14} />
+          {t("action.newTask")}
+        </button>
         {/* Notes live behind this button (no section on the page); a dot marks
             a project that has some. */}
         <button
@@ -239,10 +249,9 @@ export function ProjectDetailPage() {
           aria-haspopup="dialog"
           aria-label={t("project.content.title")}
           data-has-notes={project.content ? "true" : "false"}
-          className="relative flex items-center gap-1 text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
-          style={{ border: "1px solid var(--border-default)" }}
+          className="btn btn-secondary relative flex-shrink-0"
         >
-          <IconEdit size={12} />
+          <IconEdit size={13} />
           {t("project.content.title")}
           {project.content && (
             <span
@@ -258,14 +267,10 @@ export function ProjectDetailPage() {
           aria-expanded={stagesOpen}
           aria-controls="project-stages"
           aria-label={t("stage.toggle")}
-          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md transition-colors"
-          style={{
-            color: stagesOpen ? "var(--accent-primary)" : "var(--text-secondary)",
-            background: stagesOpen ? "var(--accent-fog)" : "transparent",
-            border: `1px solid ${stagesOpen ? "var(--accent-edge)" : "var(--border-default)"}`,
-          }}
+          className="btn btn-secondary flex-shrink-0"
+          style={stagesOpen ? { color: "var(--accent-primary)", background: "var(--accent-fog)", borderColor: "var(--accent-edge)" } : undefined}
         >
-          <IconStages size={12} />
+          <IconStages size={13} />
           {t("stage.toggle")}
           {(project.stages?.length ?? 0) > 0 && (
             <span className="tabular-nums text-[10.5px] opacity-70">{project.stages?.length}</span>
@@ -274,40 +279,75 @@ export function ProjectDetailPage() {
         <TaskHistoryButton
           projectId={project.id}
           projectName={project.name}
-          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
+          className="btn btn-secondary flex-shrink-0"
         />
-        <button
-          onClick={() => setRecapOpen(true)}
-          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
-          style={{ border: "1px solid var(--border-default)" }}
-        >
-          <IconShare size={12} />
+        <button type="button" onClick={() => setRecapOpen(true)} className="btn btn-secondary flex-shrink-0">
+          <IconShare size={13} />
           {t("project.recap.button")}
         </button>
-        <button
-          onClick={() => {
-            // Archiving is disruptive (hides the project) → confirm. Unarchiving
-            // is harmless, so it needs none.
-            if (project.status === "archived") {
-              update(project.id, { status: "active" });
-            } else {
-              setConfirmKind("archive");
-            }
-          }}
-          className="text-xs px-2.5 py-1 rounded-md text-text-secondary hover:text-text-primary transition-colors"
-          style={{ border: "1px solid var(--border-default)" }}
-        >
-          {project.status === "archived" ? t("project.unarchive") : t("project.archive")}
-        </button>
-        <button
-          onClick={() => setConfirmKind("delete")}
-          aria-label={t("project.delete")}
-          title={t("project.delete")}
-          className="flex items-center justify-center w-[28px] h-[26px] rounded-md transition-colors"
-          style={{ color: "var(--status-urgent)", border: "1px solid var(--border-default)" }}
-        >
-          <IconTrash size={13} />
-        </button>
+        <div className="flex-1" />
+        <div className="relative" ref={moreWrapRef}>
+          <button
+            type="button"
+            onClick={() => setMoreOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={moreOpen}
+            aria-label={t("project.more")}
+            title={t("project.more")}
+            className="btn btn-secondary flex-shrink-0"
+            style={{ paddingLeft: 8, paddingRight: 8 }}
+          >
+            <IconMore size={14} />
+          </button>
+          {moreOpen && (
+            <>
+              <div
+                role="menu"
+                aria-label={t("project.more")}
+                className="absolute right-0 top-full mt-1 z-[61] min-w-[200px] rounded-xl border py-1.5"
+                style={{ background: "var(--bg-elevated)", borderColor: "var(--border-strong)", boxShadow: "var(--shadow-lifted)" }}
+              >
+                <div className="px-3.5 pt-1 pb-2">
+                  <div className="text-[11px] font-medium text-text-muted mb-1.5">{t("project.color")}</div>
+                  <div className="flex items-center gap-2">
+                    {COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        aria-label={c}
+                        aria-pressed={project.color === c}
+                        onClick={() => update(project.id, { color: c })}
+                        className="rounded-full transition-transform"
+                        style={{
+                          width: 20, height: 20, background: COLOR_PRIMARY[c],
+                          outline: project.color === c ? "2px solid var(--text-primary)" : "none",
+                          outlineOffset: 2,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div style={{ height: 1, background: "var(--border-faint)" }} />
+                <MenuItem
+                  label={project.status === "archived" ? t("project.unarchive") : t("project.archive")}
+                  onSelect={() => {
+                    setMoreOpen(false);
+                    // Archiving is disruptive (hides the project) → confirm. Unarchiving
+                    // is harmless, so it needs none.
+                    if (project.status === "archived") update(project.id, { status: "active" });
+                    else setConfirmKind("archive");
+                  }}
+                />
+                <MenuItem
+                  label={t("project.delete")}
+                  icon={<IconTrash size={13} />}
+                  danger
+                  onSelect={() => { setMoreOpen(false); setConfirmKind("delete"); }}
+                />
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Overview band — the whole picture at a glance (#246 PR2):
@@ -333,7 +373,70 @@ export function ProjectDetailPage() {
       </div>
 
 
-      {/* Key goals */}
+      {/* Stages — the project's workflow, with how many tasks sit in each */}
+      {stagesOpen && (
+        <div id="project-stages">
+          <Section title={t("stage.section")}>
+            <ProjectStagesEditor project={project} tasks={projectTasks} />
+          </Section>
+        </div>
+      )}
+
+      {/* Tasks */}
+      <Section
+        title={t("project.tasks.title")}
+        extra={
+          <div className="flex items-center gap-2 normal-case tracking-normal">
+            <button
+              type="button"
+              onClick={() => setAddExistingOpen(true)}
+              className="text-[11px] font-medium text-text-muted hover:text-text-primary transition-colors"
+            >
+              {t("project.tasks.addExisting")}
+            </button>
+            <div className="flex items-center rounded-md overflow-hidden" style={{ border: "1px solid var(--border-default)" }}>
+              {(["list", "board"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setTaskView(v)}
+                  aria-pressed={taskView === v}
+                  className="text-[11px] font-medium px-2 py-0.5 transition-colors"
+                  style={{
+                    background: taskView === v ? "var(--bg-elevated)" : "transparent",
+                    color: taskView === v ? "var(--text-primary)" : "var(--text-muted)",
+                  }}
+                >
+                  {t(`project.view.${v}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+        }
+      >
+        {projectTasks.length === 0 && (
+          <div
+            className="flex flex-col items-center gap-2 rounded-xl px-4 py-6 mb-2 text-center"
+            style={{ border: "1px dashed var(--border-default)" }}
+          >
+            <p className="text-sm text-text-muted">{t("project.tasks.empty")}</p>
+            <button type="button" className="btn btn-secondary" onClick={() => openQuickCreate({ projectId: pid })}>
+              <IconPlus size={13} />
+              {t("action.newTask")}
+            </button>
+          </div>
+        )}
+        {projectTasks.length > 0 && taskView === "board" ? (
+          <ProjectBoard tasks={projectTasks} />
+        ) : (
+          <ProjectTaskGroups
+            project={project}
+            tasks={projectTasks}
+            onAddTask={(sectionId) => openQuickCreate({ projectId: pid, sectionId: sectionId ?? undefined })}
+          />
+        )}
+      </Section>
+
+      {/* Key goals — after the tasks: the work comes first, the targets it serves below */}
       <Section title={t("project.goals.title")}>
         {goals.length === 0 && <p className="text-xs text-text-faint mb-2">{t("project.goals.empty")}</p>}
         <div className="flex flex-col gap-1.5 mb-2">
@@ -392,67 +495,6 @@ export function ProjectDetailPage() {
         </div>
       </Section>
 
-      {/* Stages — the project's workflow, with how many tasks sit in each */}
-      {stagesOpen && (
-        <div id="project-stages">
-          <Section title={t("stage.section")}>
-            <ProjectStagesEditor project={project} tasks={projectTasks} />
-          </Section>
-        </div>
-      )}
-
-      {/* Tasks */}
-      <Section
-        title={t("project.tasks.title")}
-        extra={
-          <div className="flex items-center gap-2 normal-case tracking-normal">
-            <button
-              type="button"
-              onClick={() => setAddExistingOpen(true)}
-              className="text-[11px] font-medium text-text-muted hover:text-text-primary transition-colors"
-            >
-              {t("project.tasks.addExisting")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddTaskFor({ sectionId: null })}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors"
-              style={{ color: "var(--accent-primary)", background: "var(--accent-fog)", border: "1px solid var(--accent-edge)" }}
-            >
-              <IconPlus size={11} />
-              {t("project.tasks.add")}
-            </button>
-            <div className="flex items-center rounded-md overflow-hidden" style={{ border: "1px solid var(--border-default)" }}>
-              {(["list", "board"] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setTaskView(v)}
-                  aria-pressed={taskView === v}
-                  className="text-[11px] font-medium px-2 py-0.5 transition-colors"
-                  style={{
-                    background: taskView === v ? "var(--bg-elevated)" : "transparent",
-                    color: taskView === v ? "var(--text-primary)" : "var(--text-muted)",
-                  }}
-                >
-                  {t(`project.view.${v}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-        }
-      >
-        {projectTasks.length === 0 && <p className="text-xs text-text-faint mb-2">{t("project.tasks.empty")}</p>}
-        {projectTasks.length > 0 && taskView === "board" ? (
-          <ProjectBoard tasks={projectTasks} />
-        ) : (
-          <ProjectTaskGroups
-            project={project}
-            tasks={projectTasks}
-            onAddTask={(sectionId) => setAddTaskFor({ sectionId })}
-          />
-        )}
-      </Section>
-
       {recapOpen && (
         <ProjectRecapCard
           project={project}
@@ -464,15 +506,6 @@ export function ProjectDetailPage() {
 
       {addExistingOpen && (
         <AddExistingTaskModal projectId={pid} onClose={() => setAddExistingOpen(false)} />
-      )}
-
-      {addTaskFor && (
-        <QuickCreate
-          projectId={pid}
-          sectionId={addTaskFor.sectionId ?? undefined}
-          onClose={() => setAddTaskFor(null)}
-          onCreated={() => setAddTaskFor(null)}
-        />
       )}
 
       {notesOpen && (
@@ -511,6 +544,21 @@ export function ProjectDetailPage() {
         onCancel={() => setPendingGoalRemove(null)}
       />
     </div>
+  );
+}
+
+function MenuItem({ label, onSelect, danger, icon }: { label: string; onSelect: () => void; danger?: boolean; icon?: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onSelect}
+      className="w-full flex items-center gap-2 text-left px-3.5 py-2 text-[13px] font-medium hover:bg-subtle transition-colors"
+      style={{ color: danger ? "var(--status-urgent)" : "var(--text-secondary)" }}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

@@ -47,6 +47,9 @@ vi.mock("@/store/useTasksStore", () => ({
       complete: vi.fn(),
       remove: vi.fn(),
       duplicate: vi.fn(),
+      selectMode: false,
+      selectedIds: [],
+      toggleSelected: vi.fn(),
     }),
 }));
 

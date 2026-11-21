@@ -21,7 +21,7 @@ export function TaskMoreMenu({ anchor, onClose, onEdit, onDuplicate, onDelete }:
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const popoverH = 174;
+  const popoverH = 132;
   const gap = 6;
   const spaceBelow = window.innerHeight - anchor.bottom;
   const openAbove = spaceBelow < popoverH + gap + 16;
@@ -82,14 +82,8 @@ function MenuBtn({
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors text-left"
-      style={{ color: danger ? "#e05252" : "var(--text-secondary)", background: "transparent" }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.background = danger
-          ? "rgba(224, 82, 82, 0.08)"
-          : "var(--bg-subtle)";
-      }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors text-left bg-transparent hover:bg-subtle"
+      style={{ color: danger ? "var(--status-urgent)" : "var(--text-secondary)" }}
     >
       {icon}
       {label}

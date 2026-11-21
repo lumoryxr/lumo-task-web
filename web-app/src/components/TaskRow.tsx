@@ -18,15 +18,37 @@ import { IconArrowRight, IconCheck, IconMore, IconNote, IconRepeat } from "@/com
 import { TaskProgressDrawer } from "@/components/TaskProgressDrawer";
 import { TaskMoreMenu } from "@/components/TaskMoreMenu";
 import { TaskTitle } from "@/components/TaskTitle";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useDragSettleStore } from "@/store/useDragSettleStore";
+import { makeDragProps } from "@/lib/taskDnd";
 
 interface TaskRowProps {
   task: Task;
   compact?: boolean;
   /** Opt into multi-select: when the store's selectMode is on, the row becomes a checkbox toggle. */
   selectable?: boolean;
+  /**
+   * "row" (default): a full-width list row (Today, project list).
+   * "card": the denser card used inside the Matrix quadrants and the project
+   * board — the column already says the quadrant, so the quadrant dot/chip are
+   * dropped, the owner moves into the meta line and the actions float over the
+   * card's right edge on hover instead of reserving width.
+   */
+  variant?: "row" | "card";
+  /** Make the item draggable (onto a quadrant or a project group). Cards always are. */
+  draggable?: boolean;
 }
 
-export function TaskRow({ task, compact = false, selectable = false }: TaskRowProps) {
+/**
+ * The one task item used everywhere a task is listed — Today, the Matrix
+ * quadrants, a project's list and its board — so a task looks and behaves the
+ * same wherever it appears: same complete circle, same meta line, same actions
+ * (Log progress, Start focus, ⋯ Edit / Duplicate / Delete), same detail dialog.
+ */
+export function TaskRow({ task, compact = false, selectable = false, variant = "row", draggable = false }: TaskRowProps) {
+  const card = variant === "card";
+  const canDrag = card || draggable;
+  const settling = useDragSettleStore((s) => s.settleId === task.id);
   const t = useT();
   const ls = useLocaleString();
   const locale = useAppStore((s) => s.locale);
@@ -51,12 +73,18 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
   const coarse = useCoarsePointer();
   // Touch devices never hover, so keep the row actions reachable there.
   const showActions = (hovered || coarse) && !selecting;
+  // A card's actions float over its right edge on hover. With touch (no hover)
+  // they stay visible, so they sit inline instead of covering the title. On a
+  // phone-width screen only ⋯ stays; Log progress and Start focus are one tap
+  // away in the task dialog, so the title keeps the row's width.
+  const overlayActions = card && !coarse;
   const [circleHover, setCircleHover] = useState(false);
   const [busy, setBusy] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [moreAnchor, setMoreAnchor] = useState<DOMRect | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const moreRef = useRef<HTMLButtonElement>(null);
 
   const assignees = (task.assignee_ids ?? []).map(byId).filter(Boolean) as import("@/types/task").Person[];
@@ -70,13 +98,15 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
   return (
     <>
       <div
+        {...(canDrag && !selecting ? makeDragProps(task.id) : {})}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className="task-row flex items-center gap-3 transition-all"
+        data-variant={variant}
+        className={`task-row relative flex items-center transition-all ${card ? "gap-2" : "gap-3"}${canDrag && !selecting ? " cursor-grab active:cursor-grabbing" : ""}${settling ? " matrix-card-settle" : ""}`}
         style={{
-          padding: compact ? "11px 14px" : "14px 16px",
-          borderRadius: "var(--radius-lg)",
-          background: selected ? "var(--accent-dim)" : "var(--bg-surface)",
+          padding: card ? "9px 10px" : compact ? "11px 14px" : "14px 16px",
+          borderRadius: card ? "var(--radius-md)" : "var(--radius-lg)",
+          background: selected ? "var(--accent-dim)" : card ? "var(--bg-elevated)" : "var(--bg-surface)",
           border: `1px solid ${selected ? "var(--accent-edge)" : hovered ? "var(--border-default)" : "var(--border-faint)"}`,
           boxShadow: hovered ? "var(--shadow-lifted)" : "var(--shadow-card)",
           transform: hovered ? "translateY(-1px)" : "none",
@@ -138,16 +168,27 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
         )}
 
         {/* ── Center: clickable content area ───────────────────── */}
-        <span className={`qdot qdot-${q} flex-shrink-0`} />
+        {!card && <span className={`qdot qdot-${q} flex-shrink-0`} />}
 
         <div
           className="flex-1 min-w-0 cursor-pointer"
           onClick={() => (selecting ? toggleSelected(task.id) : setDetailOpen(true))}
         >
-          <div className="text-sm font-medium text-text-primary truncate leading-snug">
-            <TaskTitle text={ls(task.title)} />
+          <div className={`flex items-center gap-1.5 font-medium text-text-primary leading-snug ${card ? "text-[13px]" : "text-sm"}`}>
+            <span className="truncate"><TaskTitle text={ls(task.title)} /></span>
+            {task.week_focus && (
+              <span
+                role="img"
+                className="flex-shrink-0 text-[11px]"
+                style={{ color: "var(--accent-primary)" }}
+                title={t("weekly.focus.badge")}
+                aria-label={t("weekly.focus.badge")}
+              >
+                ★
+              </span>
+            )}
           </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5 text-xs text-text-muted tabular-nums">
+          <div className={`flex flex-wrap items-center gap-y-1 mt-0.5 text-text-muted tabular-nums ${card ? "gap-x-2 text-[11px]" : "gap-x-3 text-xs"}`}>
             {due && <span style={{ color: dueColor }}>{due}</span>}
             {task.duration > 0 && <span>{fmtDuration(task.duration, locale)}</span>}
             <span className="pip">
@@ -203,8 +244,8 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
               people={assignees}
               size={14}
               variant="inline"
-              nameMaxWidthClass="max-w-[160px]"
-              className="sm:hidden"
+              nameMaxWidthClass={card ? "max-w-[120px]" : "max-w-[160px]"}
+              className={card ? undefined : "sm:hidden"}
             />
             {(task.tags ?? []).map((tag) => (
               <span
@@ -222,12 +263,15 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
           </div>
         </div>
 
-        {/* ── Right: hover actions + meta (suppressed in select mode) ── */}
+        {/* ── Right: hover actions + meta (suppressed in select mode) ──
+            On a card they float over the right edge so a narrow column keeps
+            the whole width for the title until the card is hovered. */}
         <div
-          className="flex items-center gap-1.5 transition-all"
+          className={`flex items-center transition-all ${overlayActions ? "absolute right-2 top-1/2 -translate-y-1/2 gap-1 rounded-md pl-2" : card ? "gap-1" : "gap-1.5"}`}
           style={{
             opacity: showActions ? 1 : 0,
             pointerEvents: showActions ? "auto" : "none",
+            background: overlayActions ? "var(--bg-subtle)" : undefined,
           }}
         >
           {/* Log progress — opens the progress panel without opening the task */}
@@ -235,11 +279,11 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
             onClick={(e) => { e.stopPropagation(); setProgressOpen(true); }}
             title={t("progressLog.addShort")}
             aria-label={t("progressLog.addShort")}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-text-secondary hover:text-text-primary transition-colors"
+            className={`hidden sm:flex items-center gap-1 rounded-md py-1 text-[12px] font-medium text-text-secondary hover:text-text-primary transition-colors ${card ? "px-1.5" : "px-2"}`}
             style={{ background: "var(--bg-subtle)", border: "1px solid var(--border-default)" }}
           >
             <IconNote size={12} />
-            <span className="hidden md:inline">{t("progressLog.addShort")}</span>
+            {!card && <span className="hidden md:inline">{t("progressLog.addShort")}</span>}
           </button>
 
           {/* Start focus — labeled accent pill */}
@@ -247,7 +291,7 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
             onClick={(e) => { e.stopPropagation(); navigate("/focus", { state: { taskId: task.id } }); }}
             title={t("row.startfocus")}
             aria-label={t("row.startfocus")}
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors"
+            className={`hidden sm:flex items-center gap-1.5 rounded-md py-1 text-[12px] font-medium transition-colors ${card ? "px-1.5" : "px-2.5"}`}
             style={{
               color: "var(--accent-primary)",
               background: "var(--accent-fog)",
@@ -263,7 +307,7 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
             }}
           >
             <IconArrowRight size={12} />
-            {t("row.startfocus")}
+            {!card && t("row.startfocus")}
           </button>
 
           {/* ··· more menu — Edit + Delete */}
@@ -303,14 +347,16 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
 
         {/* Assignees — avatar + name so ownership reads at a glance; truncates to keep the row stable.
             On narrow screens it moves into the meta line instead (see above) so the title keeps its width. */}
-        <AssigneeChip
-          people={assignees}
-          size={18}
-          className="hidden sm:flex"
-        />
+        {!card && (
+          <AssigneeChip
+            people={assignees}
+            size={18}
+            className="hidden sm:flex"
+          />
+        )}
 
-        {/* Quadrant chip — always visible */}
-        {task.quadrant !== "unclassified" && (
+        {/* Quadrant chip — always visible on a row (a card's column already says it) */}
+        {!card && task.quadrant !== "unclassified" && (
           <span
             className={`chip chip-${task.quadrant.toLowerCase()} flex-shrink-0`}
             onClick={() => setDetailOpen(true)}
@@ -327,9 +373,20 @@ export function TaskRow({ task, compact = false, selectable = false }: TaskRowPr
           onClose={() => setMoreAnchor(null)}
           onEdit={() => setEditOpen(true)}
           onDuplicate={() => duplicate(task.id)}
-          onDelete={() => remove(task.id)}
+          onDelete={() => setConfirmDelete(true)}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        danger
+        title={t("task.delete.confirm.title")}
+        message={t("task.delete.confirm")}
+        detail={ls(task.title)}
+        confirmLabel={t("popover.delete")}
+        onConfirm={() => { setConfirmDelete(false); void remove(task.id).catch(() => {}); }}
+        onCancel={() => setConfirmDelete(false)}
+      />
 
       {detailOpen && (
         <TaskDetailModal task={task} onClose={() => setDetailOpen(false)} />

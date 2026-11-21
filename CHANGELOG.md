@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- feat: **task and project templates are gone** — tasks and projects are simply created directly.
+  - Web: the template library, "Save as template" in the task ⋯ menu and the Matrix toolbar's Templates button.
+  - API: the four `/v1/templates` endpoints, their contract schemas and OpenAPI entries (regenerated).
+  - The `templates` table stays, so rows people already saved are still synced, exported and purged on account deletion.
+
+### Changed
+- feat(ux): **one task card, one New task dialog, and a project page that leads with its tasks**.
+  - **One task item everywhere.** The Matrix quadrants and the project board now use the same `TaskRow` as Today and a project's list (a denser "card" variant), replacing two separate card components. A task now looks and behaves the same wherever it appears: completion animation, stage, progress, subtasks, progress-updates count, tags, repeat and this-week star in the meta line, and the same actions (Log progress, Start focus, ⋯ Edit / Duplicate / Delete). Board cards, which couldn't be opened before, now open the task.
+  - **Deleting a task from the ⋯ menu asks first**, like every other delete in the app. The menu uses colour tokens instead of raw hex.
+  - **One New task dialog.** A project's New task (and a group's +) now opens the same Shell-owned dialog as Today and the Matrix, pre-filed into the project. Creating a task inside a project no longer jumps you to the Matrix.
+  - **Project page:** the toolbar is laid out like the Matrix's: the same primary **New task** button first, then Notes, Stages, History and Recap. Colour, archive and delete moved behind ⋯. Tasks now come before key goals, and an empty project shows a New task prompt.
+  - **Top bar names the section you're in.** Projects, a project's own page, Habits, Stats and Countdown used to say "Today".
+  - **Phones:**
+    - Matrix quadrants grow with their tasks instead of clipping them, and the Matrix toolbar wraps.
+    - Task rows keep only ⋯ on a phone-width screen, so titles no longer collapse to a few letters.
+    - The top bar hides its subtitle.
+  - Checked in a browser at 1440×900 and 390×844 (Matrix, project list and board, ⋯ menu, New task from a project). Full Playwright UI suite: 87 passed.
+
 ### Changed
 - feat(tasks): **progress updates get their own panel; the task view, edit form and New task form share one clear layout**.
   - **Progress updates (进展记录) are now a standalone drawer.** It slides in from the right (360–520px depending on the window, full screen on phones), with the composer at the top (cursor already in it) and every dated update below. It opens from three places:

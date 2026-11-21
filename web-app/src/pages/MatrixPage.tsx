@@ -1,28 +1,19 @@
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useTasksStore } from "@/store/useTasksStore";
-import { useDragSettleStore } from "@/store/useDragSettleStore";
 import { useTaskDrop, makeDragProps } from "@/lib/taskDnd";
 import { useT, useLocaleString } from "@/i18n/useT";
 import { TaskTitle } from "@/components/TaskTitle";
 import type { Quadrant, Task } from "@/types/task";
 import { useAppStore } from "@/store/useAppStore";
-import { fmtDuration, getDueLabel, getDueColor } from "@/lib/format";
-import { IconArrowRight, IconCheck, IconMore, IconPlus, IconSparkle } from "@/components/icons";
+import { IconPlus, IconSparkle } from "@/components/icons";
+import { TaskRow } from "@/components/TaskRow";
 import { useShellOutlet } from "@/components/shellOutletContext";
 import { AIClassifyModal } from "@/components/AIClassifyModal";
-import { TaskDetailModal } from "@/components/TaskDetailModal";
-import { TaskEditModal } from "@/components/TaskEditModal";
-import { TaskMoreMenu } from "@/components/TaskMoreMenu";
-import { usePeopleStore } from "@/store/usePeopleStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
-import { AssigneeChip } from "@/components/AssigneeChip";
-import { TaskProgressBar } from "@/components/TaskProgress";
 import { FilterChip } from "@/components/FilterChip";
 import { CalendarView } from "@/components/CalendarView";
 import { MatrixSkeleton } from "@/components/skeletons";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { useCoarsePointer } from "@/hooks/useCoarsePointer";
 import { derivePlanProjects, resolveActiveFilter, filterPlanTasks } from "@/utils/planFilters";
 
 /**
@@ -75,7 +66,7 @@ export function MatrixPage() {
   return (
     <div className="fade-in flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-shrink-0 px-7 pt-7 pb-4">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0 px-4 sm:px-7 pt-5 sm:pt-7 pb-4">
         {/* Create task — explicit primary action, first in the toolbar so it
             reads as the main thing to do on this board. */}
         <button
@@ -175,7 +166,7 @@ export function MatrixPage() {
 
       {/* Content area */}
       {view === "matrix" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-2 gap-3 sm:gap-4 flex-1 min-h-0 overflow-y-auto px-4 sm:px-7 pb-4 sm:pb-7">
+        <div className="grid grid-cols-1 auto-rows-max sm:grid-cols-2 sm:grid-rows-2 gap-3 sm:gap-4 flex-1 min-h-0 overflow-y-auto px-4 sm:px-7 pb-4 sm:pb-7">
           {quadrants.map((q) => (
             <QuadrantPanel
               key={q.id}
@@ -183,7 +174,7 @@ export function MatrixPage() {
               title={q.label}
               subtitle={q.sub}
               projectFilter={activeProject}
-              onAdd={() => openQuickCreate(q.id)}
+              onAdd={() => openQuickCreate({ quadrant: q.id })}
             />
           ))}
         </div>
@@ -293,7 +284,7 @@ function QuadrantPanel({
   return (
     <div
       {...handlers}
-      className="flex flex-col min-h-0 rounded-xl border bg-surface overflow-hidden transition-all"
+      className="flex flex-col sm:min-h-0 rounded-xl border bg-surface overflow-hidden transition-all"
       style={{
         borderColor: over ? "var(--accent-edge)" : "var(--border-default)",
         boxShadow: over ? "0 0 0 2px var(--accent-fog), inset 0 0 30px var(--accent-fog)" : "none",
@@ -319,197 +310,19 @@ function QuadrantPanel({
         </button>
       </header>
 
-      <div className="flex-1 min-h-0 scroll-y p-3 flex flex-col gap-2">
+      {/* Stacked on a phone, a quadrant grows with its tasks (the page scrolls);
+          in the 2×2 grid each quadrant scrolls on its own. */}
+      <div className="sm:flex-1 sm:min-h-0 sm:scroll-y p-3 flex flex-col gap-2">
         {tasks.length === 0 && (
           <div className="text-[12px] text-text-faint italic px-1 py-3">
             {over ? t("matrix.dropHere") : t("matrix.empty")}
           </div>
         )}
         {tasks.map((task) => (
-          <MatrixTaskCard key={task.id} task={task} />
+          <TaskRow key={task.id} task={task} variant="card" />
         ))}
       </div>
     </div>
-  );
-}
-
-/* ── Matrix task card — TaskRow style + drag-and-drop ────────────── */
-
-function MatrixTaskCard({ task }: { task: Task }) {
-  const t = useT();
-  const ls = useLocaleString();
-  const locale = useAppStore((s) => s.locale);
-  const navigate = useNavigate();
-  const byId = usePeopleStore((s) => s.byId);
-  const complete = useTasksStore((s) => s.complete);
-  const remove = useTasksStore((s) => s.remove);
-  const duplicate = useTasksStore((s) => s.duplicate);
-
-  const [hovered, setHovered] = useState(false);
-  const coarse = useCoarsePointer();
-  // Touch devices never hover — keep the card actions reachable there.
-  const showActions = hovered || coarse;
-  const [circleHover, setCircleHover] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [moreAnchor, setMoreAnchor] = useState<DOMRect | null>(null);
-  const moreRef = useRef<HTMLButtonElement>(null);
-  const settling = useDragSettleStore((s) => s.settleId === task.id);
-
-  const assignees = (task.assignee_ids ?? []).map(byId).filter(Boolean) as import("@/types/task").Person[];
-  const due = getDueLabel(task.due, locale);
-  const dueColor = getDueColor(task.due);
-
-  return (
-    <>
-      <div
-        {...makeDragProps(task.id)}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        className={`flex items-center gap-2 transition-all cursor-grab active:cursor-grabbing${settling ? " matrix-card-settle" : ""}`}
-        style={{
-          padding: "9px 10px",
-          borderRadius: "var(--radius-md)",
-          background: hovered ? "var(--bg-subtle)" : "var(--bg-elevated)",
-          border: `1px solid ${hovered ? "var(--border-default)" : "var(--border-faint)"}`,
-          boxShadow: hovered ? "var(--shadow-card)" : "none",
-          transform: hovered ? "translateY(-1px)" : "none",
-        }}
-      >
-        {/* Complete circle */}
-        <button
-          onMouseEnter={() => setCircleHover(true)}
-          onMouseLeave={() => setCircleHover(false)}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); complete(task.id); }}
-          aria-label={t("row.complete")}
-          className="flex-shrink-0 flex items-center justify-center w-[16px] h-[16px] rounded-full border-[1.5px] transition-all"
-          style={{
-            borderColor: circleHover ? "var(--accent-primary)" : "var(--border-strong)",
-            background: circleHover ? "var(--accent-fog)" : "transparent",
-            boxShadow: circleHover ? "0 0 6px var(--accent-glow)" : "none",
-            color: "var(--accent-primary)",
-            cursor: "default",
-          }}
-        >
-          {circleHover && <IconCheck size={9} strokeWidth={2.5} />}
-        </button>
-
-        {/* Content area — click opens detail */}
-        <div
-          className="flex-1 min-w-0 cursor-pointer"
-          onClick={() => setDetailOpen(true)}
-        >
-          <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-medium text-text-primary truncate leading-snug">
-              <TaskTitle text={ls(task.title)} />
-            </span>
-            {task.week_focus && (
-              <span
-                className="flex-shrink-0 text-[11px]"
-                style={{ color: "var(--accent-primary)" }}
-                title={t("weekly.focus.badge")}
-              >
-                ★
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted tabular-nums min-w-0">
-            {due && <span className="flex-shrink-0" style={{ color: dueColor }}>{due}</span>}
-            {task.duration > 0 && <span className="flex-shrink-0">{fmtDuration(task.duration, locale)}</span>}
-            <span className="pip flex-shrink-0">
-              {Array.from({ length: task.pomos_total }).map((_, i) => (
-                <i key={i} className={i < task.pomos_done ? "on" : ""} />
-              ))}
-            </span>
-            {(task.progress ?? 0) > 0 && <TaskProgressBar value={task.progress} className="flex-shrink-0" />}
-            {/* Assignee name lives in the meta line so it never steals width from the title */}
-            <AssigneeChip
-              people={assignees}
-              size={14}
-              variant="inline"
-              nameMaxWidthClass="max-w-[120px]"
-            />
-          </div>
-        </div>
-
-        {/* Hover actions */}
-        <div
-          className="flex items-center gap-1 transition-all"
-          style={{ opacity: showActions ? 1 : 0, pointerEvents: showActions ? "auto" : "none" }}
-        >
-          <button
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); navigate("/focus", { state: { taskId: task.id } }); }}
-            title={t("row.startfocus")}
-            aria-label={t("row.startfocus")}
-            className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors"
-            style={{
-              color: "var(--accent-primary)",
-              background: "var(--accent-fog)",
-              border: "1px solid var(--accent-edge)",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--accent-dim)";
-              (e.currentTarget as HTMLElement).style.borderColor = "var(--accent-primary)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--accent-fog)";
-              (e.currentTarget as HTMLElement).style.borderColor = "var(--accent-edge)";
-            }}
-          >
-            <IconArrowRight size={11} />
-            {t("row.startfocus")}
-          </button>
-
-          <button
-            ref={moreRef}
-            onMouseDown={(e) => e.stopPropagation()}
-            title={t("matrix.moreActions")}
-            aria-label={t("matrix.moreActions")}
-            aria-haspopup="menu"
-            aria-expanded={moreAnchor !== null}
-            onClick={(e) => {
-              e.stopPropagation();
-              const rect = moreRef.current?.getBoundingClientRect();
-              if (rect) setMoreAnchor(rect);
-            }}
-            className="flex items-center justify-center w-[24px] h-[22px] rounded-md transition-colors"
-            style={{
-              color: moreAnchor ? "var(--text-primary)" : "var(--text-secondary)",
-              background: moreAnchor ? "var(--bg-elevated)" : "var(--bg-subtle)",
-              border: `1px solid ${moreAnchor ? "var(--border-strong)" : "var(--border-default)"}`,
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--bg-elevated)";
-              (e.currentTarget as HTMLElement).style.borderColor = "var(--border-strong)";
-              (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              if (!moreAnchor) {
-                (e.currentTarget as HTMLElement).style.background = "var(--bg-subtle)";
-                (e.currentTarget as HTMLElement).style.borderColor = "var(--border-default)";
-                (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
-              }
-            }}
-          >
-            <IconMore size={12} />
-          </button>
-        </div>
-      </div>
-
-      {moreAnchor && (
-        <TaskMoreMenu
-          anchor={moreAnchor}
-          onClose={() => setMoreAnchor(null)}
-          onEdit={() => setEditOpen(true)}
-          onDuplicate={() => duplicate(task.id)}
-          onDelete={() => remove(task.id)}
-        />
-      )}
-      {detailOpen && <TaskDetailModal task={task} onClose={() => setDetailOpen(false)} />}
-      {editOpen && <TaskEditModal task={task} onClose={() => setEditOpen(false)} />}
-    </>
   );
 }
 
