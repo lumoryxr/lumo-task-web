@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QuickCreate } from "../QuickCreate";
 import { useTaskDraftsStore } from "@/store/useTaskDraftsStore";
@@ -49,6 +49,12 @@ function getCreateBtn() {
   // Query by accessible name (persists via aria-label) — while a create is
   // in-flight the visible label is swapped for a spinner.
   return screen.getByRole("button", { name: "qc.create" });
+}
+
+/** Expands the collapsed "More options" section. */
+function openMore() {
+  const toggle = screen.getByRole("button", { name: /^qc\.more/ });
+  if (toggle.getAttribute("aria-expanded") !== "true") fireEvent.click(toggle);
 }
 
 function getTitleInput() {
@@ -210,6 +216,7 @@ describe("QuickCreate", () => {
     setup();
     fireEvent.change(getTitleInput(), { target: { value: "My task" } });
 
+    openMore();
     const tagInput = screen.getByPlaceholderText("edit.tags.placeholder") as HTMLInputElement;
     fireEvent.change(tagInput, { target: { value: "work" } });
     fireEvent.keyDown(tagInput, { key: "Enter" });
@@ -262,6 +269,7 @@ describe("QuickCreate", () => {
   // trigger is a button (aria-label persists), and options are role="option"
   // buttons rendered in a portal once the menu is open.
   function getProjectTrigger() {
+    openMore();
     return screen.getByRole("button", { name: "project.select.label" });
   }
 
@@ -271,8 +279,10 @@ describe("QuickCreate", () => {
   }
 
   it("shows the project selector only when projects exist", () => {
-    setup();
+    const first = setup();
+    openMore();
     expect(screen.queryByRole("button", { name: "project.select.label" })).toBeNull();
+    first.unmount();
 
     mockProjects = [{ id: "prj_a", name: "Alpha" }];
     setup();
@@ -320,33 +330,85 @@ describe("QuickCreate", () => {
     expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("project_id");
   });
 
+  describe("a short form: only what most tasks need is up front", () => {
+    it("shows name, quadrant and due date; tucks estimate, repeat and tags under More options", () => {
+      setup();
+      expect(getTitleInput()).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^Q1/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "due.today" })).toBeInTheDocument();
+      const more = screen.getByRole("button", { name: /^qc\.more/ });
+      expect(more).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByPlaceholderText("edit.tags.placeholder")).toBeNull();
+      expect(screen.queryByText("task.recurrence")).toBeNull();
+      expect(screen.queryByText("qc.duration")).toBeNull();
+
+      fireEvent.click(more);
+      expect(more).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByPlaceholderText("edit.tags.placeholder")).toBeInTheDocument();
+      expect(screen.getByText("task.recurrence")).toBeInTheDocument();
+      expect(screen.getByText("qc.duration")).toBeInTheDocument();
+    });
+
+    it("the More toggle lists what is set inside it, so nothing hides unnoticed", () => {
+      setup();
+      openMore();
+      fireEvent.click(screen.getByRole("button", { name: "task.recurrence.daily" }));
+      fireEvent.click(screen.getByRole("button", { name: /^qc\.more/ }));
+      expect(screen.getByRole("button", { name: /^qc\.more/ })).toHaveTextContent("task.recurrence.daily");
+    });
+
+    it("opens More options by itself when a restored draft has something set there", () => {
+      useTaskDraftsStore.getState().saveCreateDraft({
+        title: "Weekly sync", quadrant: "Q2", duration: 30, dueDate: "", assigneeIds: [],
+        recurrence: "weekly", tags: [], projectId: null,
+      });
+      setup();
+      expect(screen.getByRole("button", { name: /^qc\.more/ })).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("can create a task with just a name", async () => {
+      setup();
+      fireEvent.change(getTitleInput(), { target: { value: "Just a name" } });
+      fireEvent.click(getCreateBtn());
+      await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+      expect(mockCreate.mock.calls[0][0]).toMatchObject({ title: { en: "Just a name" }, quadrant: "Q2", duration: 30 });
+    });
+  });
+
   describe("assignees", () => {
     beforeEach(() => {
       mockPeople = [
         { id: "p_ann", name: "Ann", initials: "A", color: "var(--accent-primary)" },
         { id: "p_bo", name: "Bo", initials: "B", color: "var(--accent-primary)" },
+        { id: "p_cy", name: "Cy", initials: "C", color: "var(--accent-primary)" },
       ];
     });
 
-    it("saves the assignees in order, the primary first", async () => {
+    it("picks one owner up front; collaborators are under More options", async () => {
       setup();
       fireEvent.change(getTitleInput(), { target: { value: "My task" } });
-      fireEvent.click(screen.getByRole("button", { name: /^Bo/ }));
-      fireEvent.click(screen.getByRole("button", { name: /^Ann/ }));
+      const owner = screen.getByRole("radiogroup", { name: "assignee.primaryLabel" });
+      expect(screen.queryByRole("group", { name: "assignee.others" })).toBeNull();
+      fireEvent.click(within(owner).getByRole("radio", { name: "Bo" }));
+      openMore();
+      const collab = screen.getByRole("group", { name: "assignee.others" });
+      fireEvent.click(within(collab).getByRole("button", { name: "Cy" }));
+      fireEvent.click(within(collab).getByRole("button", { name: "Ann" }));
       fireEvent.click(getCreateBtn());
       await waitFor(() => expect(mockCreate).toHaveBeenCalled());
-      expect(mockCreate.mock.calls[0][0].assignee_ids).toEqual(["p_bo", "p_ann"]);
+      expect(mockCreate.mock.calls[0][0].assignee_ids).toEqual(["p_bo", "p_cy", "p_ann"]);
     });
 
-    it("can switch the primary before saving", async () => {
+    it("only one owner: picking another replaces the first", async () => {
       setup();
       fireEvent.change(getTitleInput(), { target: { value: "My task" } });
-      fireEvent.click(screen.getByRole("button", { name: /^Bo/ }));
-      fireEvent.click(screen.getByRole("button", { name: /^Ann/ }));
-      fireEvent.click(screen.getByRole("button", { name: "assignee.makePrimary" }));
+      const owner = screen.getByRole("radiogroup", { name: "assignee.primaryLabel" });
+      fireEvent.click(within(owner).getByRole("radio", { name: "Bo" }));
+      fireEvent.click(within(owner).getByRole("radio", { name: "Ann" }));
+      expect(within(owner).getAllByRole("radio").filter((r) => r.getAttribute("aria-checked") === "true")).toHaveLength(1);
       fireEvent.click(getCreateBtn());
       await waitFor(() => expect(mockCreate).toHaveBeenCalled());
-      expect(mockCreate.mock.calls[0][0].assignee_ids).toEqual(["p_ann", "p_bo"]);
+      expect(mockCreate.mock.calls[0][0].assignee_ids).toEqual(["p_ann"]);
     });
   });
 });

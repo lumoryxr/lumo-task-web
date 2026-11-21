@@ -1,65 +1,78 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { useState } from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { AssigneePicker } from "../AssigneePicker";
 
-
 const p = (id: string, name: string) => ({ id, name, initials: name.slice(0, 1), color: "var(--accent-primary)" });
 const PEOPLE = [p("a", "Ann"), p("b", "Bo"), p("c", "Cy")];
 
-function Harness({ initial = [] as string[], onChange = vi.fn() }) {
+function Harness({ initial = [] as string[], part = "both" as "both" | "primary" | "collaborators" }) {
   const [ids, setIds] = useState(initial);
   return (
     <>
-      <AssigneePicker
-        people={PEOPLE}
-        value={ids}
-        onChange={(next) => { setIds(next); onChange(next); }}
-      />
+      <AssigneePicker people={PEOPLE} value={ids} onChange={setIds} part={part} />
       <output data-testid="value">{ids.join(",")}</output>
     </>
   );
 }
 
 const value = () => screen.getByTestId("value").textContent;
-const chip = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}`) });
+const ownerGroup = () => screen.getByRole("radiogroup", { name: "Owner" });
+const collabGroup = () => screen.getByRole("group", { name: "Also assigned" });
+const owner = (name: string) => within(ownerGroup()).getByRole("radio", { name });
+const collab = (name: string) => within(collabGroup()).getByRole("button", { name });
 
 describe("AssigneePicker", () => {
-  it("the first person picked becomes the primary assignee", () => {
+  it("picks exactly one owner: choosing another replaces it", () => {
     render(<Harness />);
-    fireEvent.click(chip("Bo"));
-    fireEvent.click(chip("Ann"));
-    expect(value()).toBe("b,a");
-    expect(chip("Bo")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("Owner").closest("[data-person]")).toHaveAttribute("data-person", "b");
-  });
-
-  it("can make another selected person the primary", () => {
-    render(<Harness initial={["a", "b", "c"]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Make Cy the owner" }));
-    expect(value()).toBe("c,a,b");
-    // The primary itself offers no such button.
-    expect(screen.queryByRole("button", { name: "Make Cy the owner" })).toBeNull();
-  });
-
-  it("removing the primary promotes the next person", () => {
-    render(<Harness initial={["a", "b"]} />);
-    fireEvent.click(chip("Ann"));
+    fireEvent.click(owner("Bo"));
     expect(value()).toBe("b");
-    expect(screen.getByText("Owner").closest("[data-person]")).toHaveAttribute("data-person", "b");
+    expect(owner("Bo")).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(owner("Ann"));
+    expect(value()).toBe("a");
+    expect(owner("Bo")).toHaveAttribute("aria-checked", "false");
   });
 
-  it("only selected, non-primary people offer the make-primary button", () => {
-    render(<Harness initial={["a", "b"]} />);
-    const group = screen.getByRole("group", { name: "Assignees" });
-    expect(within(group).getAllByRole("button", { name: /^Make .* the owner$/ })).toHaveLength(1);
+  it("adds several collaborators once an owner is picked; the owner is not offered again", () => {
+    render(<Harness initial={["a"]} />);
+    expect(within(collabGroup()).queryByRole("button", { name: "Ann" })).toBeNull();
+    fireEvent.click(collab("Cy"));
+    fireEvent.click(collab("Bo"));
+    expect(value()).toBe("a,c,b");
+    fireEvent.click(collab("Cy"));
+    expect(value()).toBe("a,b");
   });
 
-  it("explains the rule once someone is picked, and can clear everyone", () => {
-    render(<Harness initial={["a", "b"]} />);
-    expect(screen.getByText("The first person picked is the owner. Use ☆ to change it.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+  it("collaborators need an owner first", () => {
+    render(<Harness />);
+    expect(screen.getByText("Pick an owner first")).toBeInTheDocument();
+    for (const b of within(collabGroup()).getAllByRole("button")) expect(b).toBeDisabled();
+  });
+
+  it("making a collaborator the owner moves them out of the collaborators", () => {
+    render(<Harness initial={["a", "b", "c"]} />);
+    fireEvent.click(owner("Cy"));
+    // Cy leads; the previous owner (Ann) is replaced, Bo stays a collaborator.
+    expect(value()).toBe("c,b");
+  });
+
+  it("clearing the owner promotes the first collaborator, so a team always has an owner", () => {
+    render(<Harness initial={["a", "b", "c"]} />);
+    fireEvent.click(owner("Ann"));
+    expect(value()).toBe("b,c");
+    fireEvent.click(owner("Bo")); // Bo was promoted; clearing promotes Cy
+    expect(value()).toBe("c");
+    fireEvent.click(owner("Cy"));
     expect(value()).toBe("");
-    expect(screen.queryByText("The first person picked is the owner. Use ☆ to change it.")).toBeNull();
+  });
+
+  it("can show just the owner part, or just the collaborators part", () => {
+    const { unmount } = render(<Harness part="primary" />);
+    expect(screen.getByRole("radiogroup", { name: "Owner" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Also assigned" })).toBeNull();
+    unmount();
+    render(<Harness part="collaborators" initial={["a"]} />);
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.getByRole("group", { name: "Also assigned" })).toBeInTheDocument();
   });
 });

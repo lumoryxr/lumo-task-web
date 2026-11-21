@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { IconClose, IconSparkle } from "@/components/icons";
+import { IconChevronRight, IconClose, IconSparkle } from "@/components/icons";
 import { Spinner } from "@/components/Spinner";
 import { useT } from "@/i18n/useT";
 import { useAppStore } from "@/store/useAppStore";
@@ -13,7 +13,7 @@ import { useTaskDraftsStore, type CreateDraft } from "@/store/useTaskDraftsStore
 import { ProjectSelect } from "@/components/ProjectSelect";
 import { TagInput } from "@/components/TagInput";
 import { derivePlanTags } from "@/utils/planFilters";
-import { toISODate } from "@/lib/format";
+import { fmtDuration, toISODate } from "@/lib/format";
 import type { Quadrant, TaskRecurrence } from "@/types/task";
 
 function getNextMonday(): string {
@@ -98,11 +98,31 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
   // a project detail page) but user-selectable everywhere else (#211).
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(start.projectId);
   const [exitOpen, setExitOpen] = useState(false);
+  // "More options" starts folded, unless a restored draft set something there.
+  const [moreOpen, setMoreOpen] = useState(
+    () =>
+      start.duration !== defaults.duration ||
+      start.recurrence !== defaults.recurrence ||
+      start.tags.length > 0 ||
+      start.assigneeIds.length > 1 ||
+      start.projectId !== defaults.projectId,
+  );
 
   const snapshot: CreateDraft = {
     title, quadrant, duration, dueDate, assigneeIds, recurrence, tags, projectId: selectedProjectId,
   };
   const snapshotKey = JSON.stringify(snapshot);
+
+  // What is set under "More options", shown on its toggle while folded.
+  const moreSummary: string[] = [];
+  if (assigneeIds.length > 1) {
+    moreSummary.push(t("qc.more.collaborators").replace("{n}", String(assigneeIds.length - 1)));
+  }
+  const projectName = selectedProjectId ? projects.find((p) => p.id === selectedProjectId)?.name : undefined;
+  if (projectName) moreSummary.push(projectName);
+  if (duration !== defaults.duration) moreSummary.push(fmtDuration(duration, locale));
+  if (recurrence !== "none") moreSummary.push(t(`task.recurrence.${recurrence}`));
+  if (tags.length > 0) moreSummary.push(tags.map((tag) => `#${tag}`).join(" "));
   const dirty = snapshotKey !== JSON.stringify(defaults);
 
   // Save the draft as it changes (not on mount, so merely opening the form
@@ -232,9 +252,7 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-semibold text-text-primary">{t("qc.title")}</div>
             <div className="mt-0.5 text-[11px] text-text-muted">
-              {locale === "zh"
-                ? "选个象限和时长，我会帮你排上。"
-                : "Pick a quadrant + estimate. I'll slot it in."}
+              {t("qc.subtitle")}
             </div>
           </div>
           <button
@@ -277,8 +295,8 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
           </div>
         )}
 
-        {/* Body */}
-        <div className="px-[18px] py-4 flex flex-col gap-4">
+        {/* Body — scrolls inside the dialog when More options makes it tall */}
+        <div className="px-[18px] py-4 flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: "calc(100dvh - 190px)" }}>
           {/* AI Parse input */}
           {aiMode && (
             <div>
@@ -323,94 +341,145 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
             />
           </div>
 
-          {/* Quadrant 2×2 grid */}
+          {/* Quadrant — one compact row; the description is in the tooltip */}
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
               {t("qc.quadrant")}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {QUADRANTS.map((q) => {
                 const meta = Q_META[q];
                 const active = quadrant === q;
                 return (
                   <button
                     key={q}
+                    type="button"
                     onClick={() => setQuadrant(q)}
                     aria-pressed={active}
-                    className="text-left rounded-lg border transition-colors"
+                    title={locale === "zh" ? meta.descZh : meta.descEn}
+                    className="flex items-center gap-1.5 rounded-lg border px-2.5 h-9 transition-colors"
                     style={{
-                      padding: "9px 11px",
                       background: active ? "var(--bg-subtle)" : "var(--bg-surface)",
                       borderColor: active ? "var(--border-strong)" : "var(--border-default)",
-                      boxShadow: active ? `0 0 0 1px var(--border-strong)` : "none",
+                      boxShadow: active ? "0 0 0 1px var(--border-strong)" : "none",
                     }}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <span className={`qdot qdot-${q.toLowerCase()}`} />
-                      <span className="text-[11px] font-semibold text-text-primary">{q}</span>
-                      <span
-                        className="text-[11px] font-medium ml-1"
-                        style={{ color: `var(--q${q[1]}-color, var(--text-muted))` }}
-                      >
-                        {locale === "zh" ? meta.zh : meta.en}
-                      </span>
-                    </div>
-                    <div className="text-[10px] mt-0.5" style={{ color: "var(--text-faint)" }}>
-                      {locale === "zh" ? meta.descZh : meta.descEn}
-                    </div>
+                    <span className={`qdot qdot-${q.toLowerCase()}`} />
+                    <span className="text-[11px] font-semibold text-text-primary">{q}</span>
+                    <span
+                      className="text-[11px] font-medium truncate"
+                      style={{ color: `var(--q${q[1]}-color, var(--text-muted))` }}
+                    >
+                      {locale === "zh" ? meta.zh : meta.en}
+                    </span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Due + Duration */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint">
-                  {t("qc.due")}
-                </div>
-                {dueDate && (
-                  <button
-                    type="button"
-                    onClick={() => setDueDate("")}
-                    className="text-[10px] transition-colors"
-                    style={{ color: "var(--text-faint)" }}
-                  >
-                    {t("due.none")}
-                  </button>
-                )}
+          {/* Due — quick picks and a date field on one line */}
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint">
+                {t("qc.due")}
               </div>
-              <div className="flex flex-wrap gap-1 mb-1.5">
-                {([
-                  { label: t("due.today"), value: todayISO },
-                  { label: t("due.tomorrow"), value: tomorrowISO },
-                  { label: t("due.nextWeek"), value: nextWeekISO },
-                ]).map(({ label, value }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setDueDate(value)}
-                    className="text-[10px] px-1.5 py-0.5 rounded transition-colors"
-                    style={{
-                      background: dueDate === value ? "var(--accent-fog)" : "var(--bg-surface)",
-                      border: `1px solid ${dueDate === value ? "var(--accent-edge)" : "var(--border-default)"}`,
-                      color: dueDate === value ? "var(--accent-primary)" : "var(--text-muted)",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              {dueDate && (
+                <button
+                  type="button"
+                  onClick={() => setDueDate("")}
+                  className="text-[10px] transition-colors"
+                  style={{ color: "var(--text-faint)" }}
+                >
+                  {t("due.none")}
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {([
+                { label: t("due.today"), value: todayISO },
+                { label: t("due.tomorrow"), value: tomorrowISO },
+                { label: t("due.nextWeek"), value: nextWeekISO },
+              ]).map(({ label, value }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setDueDate(value)}
+                  aria-pressed={dueDate === value}
+                  className="text-[11px] px-2 h-8 rounded-md transition-colors"
+                  style={{
+                    background: dueDate === value ? "var(--accent-fog)" : "var(--bg-surface)",
+                    border: `1px solid ${dueDate === value ? "var(--accent-edge)" : "var(--border-default)"}`,
+                    color: dueDate === value ? "var(--accent-primary)" : "var(--text-muted)",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
               <input
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="input"
-                style={{ colorScheme: "dark", cursor: "pointer" }}
+                aria-label={t("qc.due")}
+                className="input flex-1 min-w-[140px]"
+                style={{ colorScheme: "dark", cursor: "pointer", height: 32 }}
               />
             </div>
+          </div>
+
+          {/* Owner (主责任人) — one person; collaborators live under More options */}
+          {people.length > 0 && (
+            <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} part="primary" />
+          )}
+
+          {/* More options: everything most tasks don't need. The toggle lists
+              whatever is set inside, so nothing hides unnoticed. */}
+          <div className="-mx-1">
+            <button
+              type="button"
+              onClick={() => setMoreOpen((v) => !v)}
+              aria-expanded={moreOpen}
+              aria-controls="qc-more"
+              className="w-full flex items-center gap-2 rounded-md px-1 py-1 text-left text-[12px] font-medium text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <span
+                aria-hidden="true"
+                className="flex-shrink-0 text-text-faint transition-transform"
+                style={{ transform: moreOpen ? "rotate(90deg)" : "none" }}
+              >
+                <IconChevronRight size={12} strokeWidth={2} />
+              </span>
+              <span className="flex-shrink-0">{t("qc.more")}</span>
+              {!moreOpen && moreSummary.length > 0 && (
+                <span className="flex-1 min-w-0 truncate text-[11px] font-normal" style={{ color: "var(--text-faint)" }}>
+                  · {moreSummary.join(" · ")}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {moreOpen && (
+            <div id="qc-more" className="flex flex-col gap-4 -mt-1">
+              {people.length > 0 && (
+                <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} part="collaborators" />
+              )}
+
+              {/* Project — single owning project (#211) */}
+              {projects.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
+                    {t("project.select.label")}
+                  </div>
+                  <ProjectSelect
+                    label={t("project.select.label")}
+                    value={selectedProjectId}
+                    onChange={setSelectedProjectId}
+                    projects={projects}
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
                 {t("qc.duration")}
@@ -463,64 +532,46 @@ export function QuickCreate({ initialQuadrant = "Q2", initialTitle, initialDue, 
                 </button>
               </div>
             </div>
-          </div>
-
-          {/* Recurrence */}
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-              {t("task.recurrence")}
-            </div>
-            <div className="flex gap-1.5 flex-wrap">
-              {(["none", "daily", "weekdays", "weekly", "monthly"] as TaskRecurrence[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRecurrence(r)}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
-                  style={{
-                    background: recurrence === r ? "var(--accent-fog)" : "var(--bg-surface)",
-                    border: `1px solid ${recurrence === r ? "var(--accent-edge)" : "var(--border-default)"}`,
-                    color: recurrence === r ? "var(--accent-primary)" : "var(--text-secondary)",
-                  }}
-                >
-                  {t(`task.recurrence.${r}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-              {t("edit.tags")}
-            </div>
-            <TagInput
-              tags={tags}
-              onChange={setTags}
-              placeholder={t("edit.tags.placeholder")}
-              inputAriaLabel={t("edit.tags")}
-              suggestions={tagSuggestions}
-            />
-          </div>
-
-          {/* Project — single owning project (#211) */}
-          {projects.length > 0 && (
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
-                {t("project.select.label")}
               </div>
-              <ProjectSelect
-                label={t("project.select.label")}
-                value={selectedProjectId}
-                onChange={setSelectedProjectId}
-                projects={projects}
-              />
-            </div>
-          )}
 
-          {/* Assignees — several people, the first is the primary (主责任人) */}
-          {people.length > 0 && (
-            <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} />
+              {/* Recurrence */}
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
+                  {t("task.recurrence")}
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {(["none", "daily", "weekdays", "weekly", "monthly"] as TaskRecurrence[]).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setRecurrence(r)}
+                      className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
+                      style={{
+                        background: recurrence === r ? "var(--accent-fog)" : "var(--bg-surface)",
+                        border: `1px solid ${recurrence === r ? "var(--accent-edge)" : "var(--border-default)"}`,
+                        color: recurrence === r ? "var(--accent-primary)" : "var(--text-secondary)",
+                      }}
+                    >
+                      {t(`task.recurrence.${r}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-faint mb-1.5">
+                  {t("edit.tags")}
+                </div>
+                <TagInput
+                  tags={tags}
+                  onChange={setTags}
+                  placeholder={t("edit.tags.placeholder")}
+                  inputAriaLabel={t("edit.tags")}
+                  suggestions={tagSuggestions}
+                />
+              </div>
+            </div>
           )}
         </div>
 
