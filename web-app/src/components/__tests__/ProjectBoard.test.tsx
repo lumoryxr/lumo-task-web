@@ -11,10 +11,11 @@ vi.mock("@/store/useTasksStore", () => ({
   useTasksStore: (selector: (s: any) => unknown) => selector({ complete: vi.fn(), update: vi.fn() }),
 }));
 
-vi.mock("@/store/useDragSettleStore", () => ({
-  useDragSettleStore: Object.assign(
-    (selector: (s: any) => unknown) => selector({ settleId: null }),
-    { getState: () => ({ settle: vi.fn() }) }
+// The board renders the shared task card; its own behaviour is covered by
+// TaskRow's tests, so here it only needs to show which task and which variant.
+vi.mock("@/components/TaskRow", () => ({
+  TaskRow: ({ task, variant }: { task: { title: string }; variant?: string }) => (
+    <div data-testid="task-card" data-variant={variant}>{task.title}</div>
   ),
 }));
 
@@ -40,10 +41,9 @@ describe("ProjectBoard", () => {
     expect(screen.getByText("Loose")).toBeTruthy();
   });
 
-  it("each draggable card is marked draggable for reassignment", () => {
-    render(<ProjectBoard tasks={[task("t1", "Q2", "Draggable")] as any} />);
-    const card = screen.getByText("Draggable").closest("[draggable]");
-    expect(card).toBeTruthy();
-    expect(card?.getAttribute("draggable")).toBe("true");
+  it("shows each task with the shared task card, the same one the Matrix uses", () => {
+    render(<ProjectBoard tasks={[task("t1", "Q2", "Shared")] as any} />);
+    expect(screen.getByTestId("task-card")).toHaveAttribute("data-variant", "card");
+    expect(screen.getByTestId("task-card")).toHaveTextContent("Shared");
   });
 });

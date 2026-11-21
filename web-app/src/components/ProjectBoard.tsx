@@ -1,17 +1,14 @@
-import { useState } from "react";
-import { useTasksStore } from "@/store/useTasksStore";
-import { useDragSettleStore } from "@/store/useDragSettleStore";
-import { useT, useLocaleString } from "@/i18n/useT";
-import { TaskTitle } from "@/components/TaskTitle";
-import { useTaskDrop, makeDragProps } from "@/lib/taskDnd";
-import { IconCheck } from "@/components/icons";
+import { useT } from "@/i18n/useT";
+import { useTaskDrop } from "@/lib/taskDnd";
+import { TaskRow } from "@/components/TaskRow";
 import type { Quadrant, Task } from "@/types/task";
 
 /**
  * Kanban board of a single project's active tasks, grouped into Eisenhower
  * quadrant columns (#211 V2 ⭐4). Drag a card between columns to reassign its
  * quadrant — reusing the exact shared DnD primitives the Matrix uses, so both
- * stay behaviourally identical. An "unclassified" column only appears when the
+ * stay behaviourally identical, and the same task card (TaskRow "card") so a
+ * card opens, completes and offers the same actions as anywhere else. An "unclassified" column only appears when the
  * project actually has unclassified tasks, so the board isn't cluttered.
  */
 const COLUMNS: Array<{ id: Quadrant; labelKey: string }> = [
@@ -65,42 +62,9 @@ function BoardColumn({ quadrant, label, tasks }: { quadrant: Quadrant; label: st
             {over ? t("matrix.dropHere") : "—"}
           </div>
         ) : (
-          tasks.map((task) => <BoardCard key={task.id} task={task} />)
+          tasks.map((task) => <TaskRow key={task.id} task={task} variant="card" />)
         )}
       </div>
-    </div>
-  );
-}
-
-function BoardCard({ task }: { task: Task }) {
-  const t = useT();
-  const ls = useLocaleString();
-  const complete = useTasksStore((s) => s.complete);
-  const settling = useDragSettleStore((s) => s.settleId === task.id);
-  const [circleHover, setCircleHover] = useState(false);
-
-  return (
-    <div
-      {...makeDragProps(task.id)}
-      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 cursor-grab active:cursor-grabbing${settling ? " matrix-card-settle" : ""}`}
-      style={{ borderColor: "var(--border-faint)", background: "var(--bg-elevated)" }}
-    >
-      <button
-        onMouseEnter={() => setCircleHover(true)}
-        onMouseLeave={() => setCircleHover(false)}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => { e.stopPropagation(); complete(task.id); }}
-        aria-label={t("row.complete")}
-        className="flex-shrink-0 flex items-center justify-center w-[15px] h-[15px] rounded-full border-[1.5px] transition-all"
-        style={{
-          borderColor: circleHover ? "var(--accent-primary)" : "var(--border-strong)",
-          background: circleHover ? "var(--accent-fog)" : "transparent",
-          color: "var(--accent-primary)",
-        }}
-      >
-        {circleHover && <IconCheck size={9} strokeWidth={2.5} />}
-      </button>
-      <span className="text-[12px] text-text-primary truncate leading-snug"><TaskTitle text={ls(task.title)} /></span>
     </div>
   );
 }

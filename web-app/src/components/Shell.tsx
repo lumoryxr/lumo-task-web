@@ -3,8 +3,8 @@ import { useLocation, useNavigate, useOutlet } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { QuickCreate } from "@/components/QuickCreate";
-import type { ShellOutletContext } from "@/components/shellOutletContext";
-import type { Quadrant } from "@/types/task";
+import type { QuickCreatePreset, ShellOutletContext } from "@/components/shellOutletContext";
+import { topbarTitle } from "@/lib/topbarTitle";
 import { CommandPalette } from "@/components/CommandPalette";
 import { FloatingPet } from "@/components/FloatingPet";
 import { VerifyEmailBanner } from "@/components/VerifyEmailBanner";
@@ -43,7 +43,7 @@ export function Shell() {
   const density = useAppStore((s) => s.density);
   const isMobile = useIsMobile();
   const [quickOpen, setQuickOpen] = useState(false);
-  const [quickQuadrant, setQuickQuadrant] = useState<Quadrant | undefined>(undefined);
+  const [quickPreset, setQuickPreset] = useState<QuickCreatePreset>({});
   const [searchOpen, setSearchOpen] = useState(false);
 
   const openSearch = useCallback(() => setSearchOpen(true), []);
@@ -52,13 +52,13 @@ export function Shell() {
   // Open the Quick Create modal, optionally preset to a quadrant. Handed to
   // routed pages via the outlet context so Today / Matrix can surface an
   // explicit "create task" button in-page.
-  const openQuickCreate = useCallback((quadrant?: Quadrant) => {
-    setQuickQuadrant(quadrant);
+  const openQuickCreate = useCallback((preset?: QuickCreatePreset) => {
+    setQuickPreset(preset ?? {});
     setQuickOpen(true);
   }, []);
   const closeQuickCreate = useCallback(() => {
     setQuickOpen(false);
-    setQuickQuadrant(undefined);
+    setQuickPreset({});
   }, []);
 
   const outlet = useOutlet({ openQuickCreate } satisfies ShellOutletContext);
@@ -75,14 +75,7 @@ export function Shell() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const titleMap: Record<string, { title: string; sub: string }> = {
-    "/today": { title: t("today.title"), sub: t("today.sub") },
-    "/matrix": { title: t("matrix.title"), sub: t("matrix.sub") },
-    "/focus": { title: t("focus.title"), sub: t("focus.sub") },
-    "/settings": { title: t("nav.settings"), sub: t("settings.sub") },
-    "/account": { title: t("account.title"), sub: t("account.profile") },
-  };
-  const meta = titleMap[location.pathname] ?? titleMap["/today"];
+  const meta = topbarTitle(location.pathname, t);
   const isFocus = location.pathname === "/focus";
 
   return (
@@ -117,11 +110,15 @@ export function Shell() {
 
           {quickOpen && (
             <QuickCreate
-              initialQuadrant={quickQuadrant}
+              initialQuadrant={quickPreset.quadrant}
+              projectId={quickPreset.projectId}
+              sectionId={quickPreset.sectionId}
               onClose={closeQuickCreate}
               onCreated={() => {
                 closeQuickCreate();
-                if (location.pathname !== "/matrix") navigate("/matrix");
+                // A task made inside a project shows up right there; elsewhere
+                // the Matrix is where a new task can be seen and sorted.
+                if (!quickPreset.projectId && location.pathname !== "/matrix") navigate("/matrix");
               }}
             />
           )}

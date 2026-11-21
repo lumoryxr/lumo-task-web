@@ -40,6 +40,11 @@ vi.mock("@/store/useTasksStore", () => ({
   useTasksStore: (sel: any) => sel({ tasks: [], create: vi.fn() }),
 }));
 
+const mockOpenQuickCreate = vi.fn();
+vi.mock("@/components/shellOutletContext", () => ({
+  useShellOutlet: () => ({ openQuickCreate: mockOpenQuickCreate }),
+}));
+
 vi.mock("@/store/useAuthStore", () => ({
   useAuthStore: (sel: any) => sel({ user: { name: "Jalen" } }),
 }));
@@ -117,13 +122,17 @@ describe("ProjectDetailPage polish", () => {
 
   it("asks for confirmation before archiving (via ConfirmDialog)", () => {
     renderPage();
+    const openArchive = () => {
+      fireEvent.click(screen.getByRole("button", { name: "project.more" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "project.archive" }));
+    };
     // Opens the dialog; cancelling must not archive.
-    fireEvent.click(screen.getByText("project.archive"));
+    openArchive();
     const dialog = screen.getByRole("alertdialog");
     fireEvent.click(within(dialog).getByText("common.cancel"));
     expect(mockUpdate).not.toHaveBeenCalled();
     // Reopen and confirm → archives.
-    fireEvent.click(screen.getByText("project.archive"));
+    openArchive();
     const dialog2 = screen.getByRole("alertdialog");
     fireEvent.click(within(dialog2).getByText("project.archive")); // confirm button inside dialog
     expect(mockUpdate).toHaveBeenCalledWith("p1", { status: "archived" });
@@ -186,14 +195,39 @@ describe("ProjectDetailPage polish", () => {
     expect(screen.queryByText("project.saveAsTemplate")).toBeNull();
   });
 
-  it("puts a compact Add task button in the Tasks header, not a full-width bar below the list", () => {
+  it("leads with the same New task button as the Matrix, opening the shared dialog for this project", () => {
     renderPage();
-    const add = screen.getByRole("button", { name: "project.tasks.add" });
-    expect(add.className).not.toContain("w-full");
-    // It sits in the section header, ahead of the task list.
-    const header = add.closest("[data-section-header]");
-    expect(header).not.toBeNull();
-    expect(within(header as HTMLElement).getByText("project.tasks.title")).toBeTruthy();
+    const buttons = screen.getAllByRole("button", { name: /action\.newTask/ });
+    // The toolbar's primary action, plus the empty list's own prompt.
+    expect(buttons[0].className).toContain("btn-primary");
+    fireEvent.click(buttons[0]);
+    expect(mockOpenQuickCreate).toHaveBeenCalledWith({ projectId: "p1" });
+    // No second, differently styled "Add task" button in the Tasks header.
+    expect(screen.queryByRole("button", { name: "project.tasks.add" })).toBeNull();
+  });
+
+  it("shows the tasks before the key goals", () => {
+    const { container } = renderPage();
+    const headers = Array.from(container.querySelectorAll("[data-section-header]")).map((h) => h.firstElementChild?.textContent);
+    expect(headers.indexOf("project.tasks.title")).toBeGreaterThan(-1);
+    expect(headers.indexOf("project.tasks.title")).toBeLessThan(headers.indexOf("project.goals.title"));
+  });
+
+  it("keeps colour, archive and delete behind the ⋯ menu", () => {
+    renderPage();
+    expect(screen.queryByText("project.archive")).toBeNull();
+    expect(screen.queryByRole("button", { name: "green" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "project.more" }));
+    const menu = screen.getByRole("menu", { name: "project.more" });
+    fireEvent.click(within(menu).getByRole("button", { name: "cyan" }));
+    expect(mockUpdate).toHaveBeenCalledWith("p1", { color: "cyan" });
+    expect(within(menu).getByRole("menuitem", { name: "project.delete" })).toBeInTheDocument();
+    // Escape or a click outside closes it.
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "project.more" }));
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("keeps the Stages section hidden until the header toggle opens it", () => {

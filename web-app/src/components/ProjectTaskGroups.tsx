@@ -6,7 +6,7 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { TaskRow } from "@/components/TaskRow";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { IconChevronRight, IconGrip, IconMore, IconPlus } from "@/components/icons";
-import { DND_MIME, makeDragProps } from "@/lib/taskDnd";
+import { DND_MIME } from "@/lib/taskDnd";
 import { SECTION_DND_MIME, reorderSections } from "@/lib/sectionDnd";
 import type { Project, ProjectSection, Task } from "@/types/task";
 
@@ -115,9 +115,7 @@ export function ProjectTaskGroups({ project, tasks, onAddTask }: ProjectTaskGrou
   const taskList = (list: Task[]) => (
     <div className="flex flex-col gap-1.5">
       {list.map((task) => (
-        <div key={task.id} {...makeDragProps(task.id)} className="cursor-grab active:cursor-grabbing">
-          <TaskRow task={task} compact />
-        </div>
+        <TaskRow key={task.id} task={task} compact draggable />
       ))}
     </div>
   );

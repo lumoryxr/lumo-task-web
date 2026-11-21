@@ -40,11 +40,6 @@ import {
   CountdownListResponseSchema,
 } from "./countdown.js";
 import {
-  TemplateCreateBodySchema,
-  TemplateUpdateBodySchema,
-  TemplateWireSchema,
-} from "./template.js";
-import {
   RegisterBodySchema,
   SigninBodySchema,
   BindEmailBodySchema,
@@ -803,43 +798,6 @@ const countdownRoutes: RouteDef[] = [
   },
 ];
 
-const templateRoutes: RouteDef[] = [
-  {
-    method: "get",
-    path: "/v1/templates",
-    tag: "Templates",
-    summary: "List templates",
-    auth: "bearer",
-    responses: [ok("Templates", z.array(TemplateWireSchema))],
-  },
-  {
-    method: "post",
-    path: "/v1/templates",
-    tag: "Templates",
-    summary: "Create a template",
-    auth: "bearer",
-    request: TemplateCreateBodySchema,
-    responses: [created("The created template", TemplateWireSchema)],
-  },
-  {
-    method: "patch",
-    path: "/v1/templates/:id",
-    tag: "Templates",
-    summary: "Update a template",
-    auth: "bearer",
-    request: TemplateUpdateBodySchema,
-    responses: [ok("The updated template", TemplateWireSchema), notFound()],
-  },
-  {
-    method: "delete",
-    path: "/v1/templates/:id",
-    tag: "Templates",
-    summary: "Delete a template",
-    auth: "bearer",
-    responses: [noContent("Deleted"), notFound()],
-  },
-];
-
 const focusRoutes: RouteDef[] = [
   {
     method: "post",
@@ -1126,7 +1084,6 @@ export const API_ROUTES: readonly RouteDef[] = Object.freeze([
   ...projectRoutes,
   ...habitRoutes,
   ...countdownRoutes,
-  ...templateRoutes,
   ...focusRoutes,
   ...settingsRoutes,
   ...aiRoutes,

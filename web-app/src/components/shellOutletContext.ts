@@ -7,9 +7,21 @@ import type { Quadrant } from "@/types/task";
  * Shell owns — so the "create task" action can surface prominently in-page,
  * not only in the top bar.
  */
+/** What a page can pre-fill when it opens the shared New task dialog. */
+export interface QuickCreatePreset {
+  quadrant?: Quadrant;
+  /** File the new task under this project (and optionally one of its groups). */
+  projectId?: string;
+  sectionId?: string;
+}
+
 export interface ShellOutletContext {
-  /** Open the Quick Create task modal, optionally preset to a quadrant. */
-  openQuickCreate: (quadrant?: Quadrant) => void;
+  /**
+   * Open the one New task dialog the Shell owns. Every page (Today, Matrix, a
+   * project) creates tasks through it, so creating a task looks and works the
+   * same everywhere.
+   */
+  openQuickCreate: (preset?: QuickCreatePreset) => void;
 }
 
 const NOOP_CONTEXT: ShellOutletContext = { openQuickCreate: () => {} };

@@ -1,7 +1,7 @@
 import type React from "react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { IconBookmark, IconCopy, IconEdit, IconTrash } from "@/components/icons";
+import { IconCopy, IconEdit, IconTrash } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 
 interface Props {
@@ -9,11 +9,10 @@ interface Props {
   onClose: () => void;
   onEdit: () => void;
   onDuplicate: () => void;
-  onSaveAsTemplate: () => void;
   onDelete: () => void;
 }
 
-export function TaskMoreMenu({ anchor, onClose, onEdit, onDuplicate, onSaveAsTemplate, onDelete }: Props) {
+export function TaskMoreMenu({ anchor, onClose, onEdit, onDuplicate, onDelete }: Props) {
   const t = useT();
 
   useEffect(() => {
@@ -22,7 +21,7 @@ export function TaskMoreMenu({ anchor, onClose, onEdit, onDuplicate, onSaveAsTem
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const popoverH = 174;
+  const popoverH = 132;
   const gap = 6;
   const spaceBelow = window.innerHeight - anchor.bottom;
   const openAbove = spaceBelow < popoverH + gap + 16;
@@ -56,11 +55,6 @@ export function TaskMoreMenu({ anchor, onClose, onEdit, onDuplicate, onSaveAsTem
           label={t("popover.duplicate")}
           onClick={() => { onClose(); onDuplicate(); }}
         />
-        <MenuBtn
-          icon={<IconBookmark size={13} />}
-          label={t("popover.saveTemplate")}
-          onClick={() => { onClose(); onSaveAsTemplate(); }}
-        />
         <div style={{ height: 1, background: "var(--border-faint)" }} />
         <MenuBtn
           icon={<IconTrash size={13} />}
@@ -88,14 +82,8 @@ function MenuBtn({
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors text-left"
-      style={{ color: danger ? "#e05252" : "var(--text-secondary)", background: "transparent" }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.background = danger
-          ? "rgba(224, 82, 82, 0.08)"
-          : "var(--bg-subtle)";
-      }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors text-left bg-transparent hover:bg-subtle"
+      style={{ color: danger ? "var(--status-urgent)" : "var(--text-secondary)" }}
     >
       {icon}
       {label}

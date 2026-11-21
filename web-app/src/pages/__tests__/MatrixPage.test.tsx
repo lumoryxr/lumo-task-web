@@ -99,6 +99,6 @@ describe("MatrixPage create-task affordances", () => {
     const adds = screen.getAllByLabelText("matrix.quadrantAdd");
     expect(adds).toHaveLength(4);
     fireEvent.click(adds[0]);
-    expect(openQuickCreate).toHaveBeenCalledWith("Q1");
+    expect(openQuickCreate).toHaveBeenCalledWith({ quadrant: "Q1" });
   });
 });

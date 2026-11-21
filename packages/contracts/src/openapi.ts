@@ -44,7 +44,6 @@ import {
   CountdownUpdateBodySchema,
   CountdownListResponseSchema,
 } from "./countdown.js";
-import { TemplateWireSchema } from "./template.js";
 import { SettingsWireSchema, SettingsPatchBodySchema } from "./settings.js";
 import { CompletedEntryWireSchema, CompletedListResponseSchema } from "./focus.js";
 import { StorageInfoWireSchema } from "./storage.js";
@@ -196,8 +195,6 @@ const NAMED_SCHEMAS: ReadonlyArray<readonly [string, z.ZodType]> = [
   ["CountdownCreateBody", CountdownCreateBodySchema],
   ["CountdownUpdateBody", CountdownUpdateBodySchema],
   ["CountdownListResponse", CountdownListResponseSchema],
-
-  ["Template", TemplateWireSchema],
 
   ["CompletedEntry", CompletedEntryWireSchema],
   ["CompletedListResponse", CompletedListResponseSchema],

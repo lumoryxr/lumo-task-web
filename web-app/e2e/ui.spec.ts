@@ -217,15 +217,6 @@ async function mockAPI(page: Page) {
         body: JSON.stringify(body),
       });
     }
-    if (url.includes("/v1/templates")) {
-      // GET → array; mutations → empty object. Without this the catch-all returns
-      // {} and templateApi.list()'s .map throws on sign-in.
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(method === "GET" ? [] : {}),
-      });
-    }
     if (url.includes("/v1/settings")) {
       return route.fulfill({
         status: 200,
@@ -262,43 +253,11 @@ async function mockAPI(page: Page) {
 
 /** Full mock with realistic tasks, habits, countdowns, and auth responses. */
 async function mockAPIWithData(page: Page) {
-  // Stateful in-memory templates store so the save → list → instantiate flow works.
-  const templates: any[] = [];
   // Stateful projects store (#211) for the create → detail → edit flow.
   const projects: any[] = [];
   await page.route("**/v1/**", (route) => {
     const url = route.request().url();
     const method = route.request().method();
-
-    // Templates (#173) — stateful: POST appends, GET returns the list.
-    if (url.includes("/v1/templates")) {
-      if (method === "POST") {
-        const body = JSON.parse(route.request().postData() || "{}");
-        const tpl = {
-          id: body.id || `tpl_${templates.length + 1}`,
-          name: body.name,
-          kind: "task",
-          payload: body.payload,
-          created_at: "2026-06-28T00:00:00.000Z",
-        };
-        templates.unshift(tpl);
-        return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(tpl) });
-      }
-      if (method === "DELETE") {
-        const id = url.split("/v1/templates/")[1];
-        const idx = templates.findIndex((x) => x.id === id);
-        if (idx >= 0) templates.splice(idx, 1);
-        return route.fulfill({ status: 204, body: "" });
-      }
-      if (method === "PATCH") {
-        const id = url.split("/v1/templates/")[1];
-        const body = JSON.parse(route.request().postData() || "{}");
-        const tpl = templates.find((x) => x.id === id);
-        if (tpl && body.name) tpl.name = body.name;
-        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(tpl ?? {}) });
-      }
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(templates) });
-    }
 
     // Projects (#211) — stateful: POST appends, PATCH/DELETE mutate, GET lists.
     if (url.includes("/v1/projects")) {
@@ -1611,52 +1570,26 @@ test("TC84 – a11y: keyboard focus paints a visible outline", async ({ page }) 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TC87  Templates (#173): save a task as a template, then instantiate it from
-// the library. Exercises the full vertical slice — ⋯ menu → save → library →
-// Use → tasks POST — against the stateful templates mock.
+// TC87  Templates are gone: a task's ⋯ menu offers no "Save as template" and the
+// Matrix toolbar has no Templates library — tasks are simply created directly.
 // ─────────────────────────────────────────────────────────────────────────────
 
-test("TC87 – templates: save a task as a template and instantiate it from the library", async ({ page }) => {
+test("TC87 – no templates: the task menu and the Matrix toolbar offer none", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
   await mockAPIWithData(page);
   await page.goto("/#/today");
 
-  // Take the first task row that actually exposes a ⋯ menu. Today special-cases its
-  // hero/active task as a heading WITHOUT a ⋯, and does not render rows in seed
-  // order, so we don't assume a particular title — we capture whichever row this is
-  // and assert that same title round-trips through the template library.
   const moreBtn = page.getByRole("button", { name: "More actions" }).first();
   await expect(moreBtn).toBeAttached({ timeout: 10_000 });
-  const row = moreBtn.locator(
-    "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' task-row ')][1]",
-  );
-  const savedTitle = (await row.locator(".truncate").first().innerText()).trim();
-
-  // The ⋯ lives in a container that is opacity:0 / pointer-events:none until the
-  // row's `hovered` state is true; under Playwright that boolean races and a real
-  // click is intercepted by the parent row div. Dispatch the click straight to the
-  // button instead — its onClick only reads the button's own rect, so it is
-  // functionally identical to a user click but immune to the pointer-events gate.
+  // The ⋯ sits in a hover-gated container; dispatch the click straight to it.
   await moreBtn.dispatchEvent("click");
-  await page.getByRole("button", { name: "Save as template" }).click();
-  // Confirmation toast.
-  await expect(page.getByText("Saved as template")).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByRole("button", { name: "Duplicate" })).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByRole("button", { name: "Save as template" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
-  // Open the template library from the Matrix toolbar.
   await page.goto("/#/matrix");
-  await page.getByRole("button", { name: "Templates" }).click();
-  const dialog = page.locator('[role="dialog"]');
-  await expect(dialog).toBeVisible({ timeout: 8_000 });
-  // The saved template (named after the task) shows up.
-  await expect(dialog.getByText(savedTitle).first()).toBeVisible({ timeout: 8_000 });
-
-  // Instantiating it fires a task-create request.
-  const createReq = page.waitForRequest(
-    (r) => r.url().includes("/v1/tasks") && r.method() === "POST",
-    { timeout: 8_000 },
-  );
-  await dialog.getByRole("button", { name: "Use" }).first().click();
-  await createReq;
+  await expect(page.getByRole("button", { name: "New task" }).first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "Templates" })).toHaveCount(0);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

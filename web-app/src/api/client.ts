@@ -10,7 +10,7 @@
  * JWT token is stored in localStorage and attached to every request.
  */
 
-import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, TaskTemplate, Template, TemplatePayload, ProjectTemplatePayload, User } from "@/types/task";
+import type { AppSettings, BreakdownResponse, CompletedEntry, CountdownEvent, Habit, HabitLog, Person, PetChatMessage, Project, Task, TaskCreateInput, TaskUpdateInput, TaskCompleteResponse, User } from "@/types/task";
 import type { SyncStatusResponse, SyncCycleResponse, DataExportWire } from "@lumo/contracts";
 import type {
   FeedbackListResponse,
@@ -886,26 +886,6 @@ function adaptHabitLog(raw: any): HabitLog {
   };
 }
 
-function adaptTemplate(raw: any): Template {
-  const createdAt = raw.created_at ?? raw.createdAt;
-  if (raw.kind === "project") {
-    return {
-      id: raw.id,
-      name: raw.name,
-      kind: "project",
-      payload: raw.payload as ProjectTemplatePayload,
-      createdAt,
-    };
-  }
-  return {
-    id: raw.id,
-    name: raw.name,
-    kind: "task",
-    payload: raw.payload as TemplatePayload,
-    createdAt,
-  };
-}
-
 function adaptCountdownEvent(raw: any): CountdownEvent {
   return {
     id: raw.id,
@@ -1058,35 +1038,6 @@ export const countdownApi = {
         createdAt: e.createdAt,
       })),
     });
-  },
-};
-
-// ── Template REST API (#173) ──────────────────────────────────────────────────
-
-export const templateApi = {
-  async list(): Promise<Template[]> {
-    const rows = await req<any[]>("GET", "/templates");
-    // Defensive: tolerate a non-array body (e.g. a stubbed endpoint) instead of
-    // throwing a raw TypeError from .map.
-    return Array.isArray(rows) ? rows.map(adaptTemplate) : [];
-  },
-
-  async create(name: string, payload: TemplatePayload, id?: string): Promise<TaskTemplate> {
-    const raw = await req<any>("POST", "/templates", {
-      ...(id ? { id } : {}),
-      name,
-      payload,
-    });
-    return adaptTemplate(raw) as TaskTemplate;
-  },
-
-  async rename(id: string, name: string): Promise<Template> {
-    const raw = await req<any>("PATCH", `/templates/${id}`, { name });
-    return adaptTemplate(raw);
-  },
-
-  async delete(id: string): Promise<void> {
-    await req<void>("DELETE", `/templates/${id}`);
   },
 };
 

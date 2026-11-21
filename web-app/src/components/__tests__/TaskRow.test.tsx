@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TaskRow } from "../TaskRow";
 import type { Task } from "@/types/task";
@@ -29,6 +29,13 @@ let mockProjects: any[] = [];
 vi.mock("@/store/useProjectsStore", () => ({
   useProjectsStore: (sel: any) => sel({ projects: mockProjects }),
 }));
+// The ⋯ menu itself is covered by its own test; here a stub exposes Delete.
+vi.mock("@/components/TaskMoreMenu", () => ({
+  TaskMoreMenu: ({ onDelete }: { onDelete: () => void }) => (
+    <button type="button" onClick={onDelete}>menu-delete</button>
+  ),
+}));
+
 vi.mock("@/store/usePeopleStore", () => ({
   usePeopleStore: (sel: any) =>
     sel({ people: Object.values(mockPeople), byId: (id: string) => mockPeople[id] }),
@@ -57,10 +64,10 @@ const TASK: Task = {
   completed: false,
 };
 
-function renderRow(task = TASK) {
+function renderRow(task = TASK, variant?: "row" | "card") {
   return render(
     <MemoryRouter>
-      <TaskRow task={task} />
+      <TaskRow task={task} variant={variant} />
     </MemoryRouter>
   );
 }
@@ -235,5 +242,52 @@ describe("TaskRow", () => {
       fireEvent.click(screen.getByRole("button", { name: "Log progress" }));
       expect(screen.getByRole("dialog", { name: "Progress log" })).toBeInTheDocument();
     });
+  });
+
+  describe("card variant (Matrix quadrants, project board)", () => {
+    it("is draggable and drops the quadrant dot and chip — the column already says it", () => {
+      const { container } = renderRow({ ...TASK, quadrant: "Q1" }, "card");
+      const card = container.querySelector(".task-row");
+      expect(card).toHaveAttribute("draggable", "true");
+      expect(container.querySelector(".qdot")).toBeNull();
+      expect(screen.queryByText("Q1")).toBeNull();
+    });
+
+    it("shows the owner once, in the meta line", () => {
+      mockPeople.p1 = { id: "p1", name: "Alice Wonderland", initials: "AW", color: "var(--accent-primary)" };
+      renderRow({ ...TASK, assignee_ids: ["p1"] }, "card");
+      expect(screen.getAllByLabelText("Owner: Alice Wonderland")).toHaveLength(1);
+      delete mockPeople.p1;
+    });
+
+    it("offers the same actions as a row, as icon buttons", () => {
+      renderRow(TASK, "card");
+      expect(screen.getByRole("button", { name: "Log progress" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Start focus" })).not.toHaveTextContent("Start focus");
+      expect(screen.getByRole("button", { name: "More actions" })).toBeInTheDocument();
+    });
+
+    it("a row stays put unless asked to be draggable", () => {
+      const { container } = renderRow(TASK);
+      expect(container.querySelector(".task-row")).not.toHaveAttribute("draggable");
+    });
+  });
+
+  it("marks a task in this week's focus with a star", () => {
+    renderRow({ ...TASK, week_focus: true });
+    expect(screen.getByRole("img", { name: "Week focus" })).toBeInTheDocument();
+  });
+
+  it("asks before deleting a task from the ⋯ menu", async () => {
+    mockRemove.mockReset();
+    mockRemove.mockResolvedValue(undefined);
+    renderRow();
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "menu-delete" }));
+    expect(mockRemove).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("alertdialog", { name: "Delete task" });
+    expect(dialog).toHaveTextContent("Test task");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mockRemove).toHaveBeenCalledWith("t_test1"));
   });
 });
