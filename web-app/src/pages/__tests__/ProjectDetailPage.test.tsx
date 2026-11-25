@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { ProjectDetailPage } from "../ProjectDetailPage";
 
 // Detail-page polish (#246 follow-up): explicit ✓ confirm on the name field,
@@ -106,18 +106,24 @@ describe("ProjectDetailPage polish", () => {
     expect(container.querySelectorAll(".skeleton")).toHaveLength(0);
   });
 
-  it("shows a confirm button only after the name changes, and commits on click", () => {
+  it("shows the name and category as text, not as fields you can type into by accident", () => {
     renderPage();
-    const nameInput = screen.getByLabelText("project.field.name") as HTMLInputElement;
-    // No confirm button initially.
-    expect(screen.queryByLabelText("project.save")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Launch" })).toBeInTheDocument();
+    expect(screen.getByText("Work")).toBeInTheDocument();
+    expect(screen.queryByLabelText("project.field.name")).toBeNull();
+    expect(screen.queryByLabelText("project.category.label")).toBeNull();
+    expect(screen.queryByLabelText("project.field.emoji")).toBeNull();
+  });
 
-    fireEvent.change(nameInput, { target: { value: "Launch v2" } });
-    const confirm = screen.getAllByLabelText("project.save")[0];
-    expect(confirm).toBeTruthy();
-
-    fireEvent.click(confirm);
-    expect(mockUpdate).toHaveBeenCalledWith("p1", { name: "Launch v2" });
+  it("edits the name, emoji, category and colour in a dialog behind an Edit button", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "project.edit" }));
+    const dialog = screen.getByRole("dialog", { name: "project.edit" });
+    const name = within(dialog).getByLabelText("project.field.name") as HTMLInputElement;
+    expect(name.value).toBe("Launch");
+    fireEvent.change(name, { target: { value: "Launch v2" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "project.save" }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith("p1", expect.objectContaining({ name: "Launch v2" })));
   });
 
   it("asks for confirmation before archiving (via ConfirmDialog)", () => {
@@ -213,14 +219,13 @@ describe("ProjectDetailPage polish", () => {
     expect(headers.indexOf("project.tasks.title")).toBeLessThan(headers.indexOf("project.goals.title"));
   });
 
-  it("keeps colour, archive and delete behind the ⋯ menu", () => {
+  it("keeps archive and delete behind the ⋯ menu (colour is edited in the Edit dialog)", () => {
     renderPage();
     expect(screen.queryByText("project.archive")).toBeNull();
     expect(screen.queryByRole("button", { name: "green" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "project.more" }));
     const menu = screen.getByRole("menu", { name: "project.more" });
-    fireEvent.click(within(menu).getByRole("button", { name: "cyan" }));
-    expect(mockUpdate).toHaveBeenCalledWith("p1", { color: "cyan" });
+    expect(within(menu).queryByRole("button", { name: "cyan" })).toBeNull();
     expect(within(menu).getByRole("menuitem", { name: "project.delete" })).toBeInTheDocument();
     // Escape or a click outside closes it.
     fireEvent.keyDown(window, { key: "Escape" });

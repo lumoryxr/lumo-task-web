@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- feat(projects): **a project's name, emoji, category and colour are edited in a dialog, not inline**.
+  - The detail page header is read-only: a colour tile with the emoji, the name as the page title, and the category as a small tag ("Uncategorized" when empty). An **Edit** button next to it opens the edit dialog, so a stray click no longer starts renaming. Colour moved there from the ⋯ menu, which now holds only Archive and Delete. Notes use a note icon, so Edit is the only pencil.
+  - **New / Edit project dialog**, restyled on the same frame as the task dialogs:
+    - header with a live preview tile (emoji on the chosen colour) and an X;
+    - labelled fields using the shared `FieldLabel` and `.input`;
+    - a row of emoji quick picks plus a box for your own emoji;
+    - round colour swatches with a check mark;
+    - footer with Cancel and Save/Create;
+    - full screen on phones.
+
 ### Fixed
 - fix(matrix): **a quadrant with more tasks than fit now scrolls its own list** — before, the extra tasks were clipped with no scrollbar.
   - Cause: the list used `sm:scroll-y`. `scroll-y` is a custom class in index.css, not a Tailwind utility, so the `sm:` prefix generated no CSS, and the list stayed at `overflow: visible` inside an `overflow: hidden` card.

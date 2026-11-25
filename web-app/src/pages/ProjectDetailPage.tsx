@@ -9,6 +9,7 @@ import { ProjectBoard } from "@/components/ProjectBoard";
 import { ProjectTaskGroups } from "@/components/ProjectTaskGroups";
 import { ProjectStagesEditor } from "@/components/ProjectStagesEditor";
 import { ProjectNotesModal } from "@/components/ProjectNotesModal";
+import { ProjectFormModal } from "@/components/ProjectFormModal";
 import { ProjectRecapCard } from "@/components/ProjectRecapCard";
 import { TaskHistoryButton } from "@/components/TaskHistory";
 import { ProgressRing } from "@/components/ProgressRing";
@@ -19,9 +20,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { ProjectDetailSkeleton } from "@/components/skeletons";
 import { computeProjectRecap } from "@/utils/projectRecap";
 import { isKpiGoal, goalPct, parseTarget, nextConfidence } from "@/utils/goalKpi";
-import { IconArrowLeft, IconCheck, IconEdit, IconClose, IconMore, IconPlus, IconProject, IconShare, IconStages, IconTrash } from "@/components/icons";
+import { IconArrowLeft, IconCheck, IconEdit, IconClose, IconMore, IconNote, IconPlus, IconProject, IconShare, IconStages, IconTrash } from "@/components/icons";
 
-const COLORS: ProjectColor[] = ["green", "cyan", "amber", "red"];
 // OKR check-in status → token color (green on track, amber at risk, red off track).
 const CONFIDENCE_COLOR: Record<GoalConfidence, string> = {
   on_track: "var(--accent-primary)",
@@ -79,15 +79,7 @@ export function ProjectDetailPage() {
   const [newGoalTarget, setNewGoalTarget] = useState("");
   const [newGoalUnit, setNewGoalUnit] = useState("");
 
-  // Header fields are controlled drafts with an explicit ✓ confirm button, so
-  // an edit is only persisted on confirm/Enter (not per keystroke). Re-seed
-  // when switching projects or when the saved value changes (e.g. after commit).
-  const [nameDraft, setNameDraft] = useState("");
-  const [catDraft, setCatDraft] = useState("");
-  useEffect(() => {
-    setNameDraft(project?.name ?? "");
-    setCatDraft(project?.category ?? "");
-  }, [project?.id, project?.name, project?.category]);
+  const [editOpen, setEditOpen] = useState(false);
 
   // Real done/total for the Tasks section (#223).
   useEffect(() => {
@@ -114,25 +106,6 @@ export function ProjectDetailPage() {
   const pid = project.id;
   const projectTasks = tasks.filter((tk) => tk.project_id === pid && !tk.completed);
   const goals = project.goals;
-
-  // Commit header edits only on confirm/Enter, and only when actually changed —
-  // an empty name falls back to "Untitled" at commit time (not while typing).
-  const nameDirty = nameDraft !== project.name;
-  const catDirty = catDraft !== (project.category ?? "");
-  function commitName() {
-    const name = nameDraft.trim() || t("project.untitled");
-    if (name !== project!.name) update(pid, { name });
-    setNameDraft(name);
-  }
-  function commitCategory() {
-    const category = catDraft.trim() || undefined;
-    if ((category ?? "") !== (project!.category ?? "")) update(pid, { category });
-    setCatDraft(category ?? "");
-  }
-  function commitEmoji(v: string) {
-    const emoji = v.trim() || undefined;
-    if ((emoji ?? "") !== (project!.emoji ?? "")) update(pid, { emoji });
-  }
 
   function setGoals(next: ProjectGoal[]) {
     update(pid, { goals: next });
@@ -181,57 +154,50 @@ export function ProjectDetailPage() {
     <div className="fade-in w-full px-4 sm:px-7 py-6 sm:py-7">
       <BackLink onClick={() => navigate("/projects")} label={t("project.page.title")} />
 
-      {/* Header — controlled drafts with an explicit ✓ confirm button per field.
-          The confirm only appears when the value actually changed; Enter also
-          commits, Escape reverts. An empty name falls back to "Untitled" only at
-          commit time, never mid-type (keeps the #247 rename-bug fix). */}
-      <div className="flex items-start gap-3 mt-3 mb-6">
-        <input
-          key={`${pid}-emoji`}
-          aria-label={t("project.field.emoji")}
-          defaultValue={project.emoji ?? ""}
-          onBlur={(e) => commitEmoji(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-          placeholder="📁"
-          className="flex-shrink-0 text-center text-xl rounded-lg"
-          style={{ width: 44, height: 44, background: primary, color: "var(--text-inverse)", border: "none" }}
-          maxLength={4}
-        />
+      {/* Header — the project's identity, read-only. Name, emoji, category and
+          colour change in one place: the Edit dialog (same as creating a
+          project), so nothing on the page can be renamed by a stray click. */}
+      <div className="flex items-center gap-3.5 mt-3 mb-6">
+        <span
+          aria-hidden="true"
+          className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-xl text-[24px]"
+          style={{ background: primary, color: "var(--text-inverse)" }}
+        >
+          {project.emoji || "📁"}
+        </span>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <input
-              aria-label={t("project.field.name")}
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitName();
-                else if (e.key === "Escape") setNameDraft(project.name);
-              }}
-              placeholder={t("project.field.namePlaceholder")}
-              className="inline-input flex-1 min-w-0 text-lg font-semibold"
-            />
-            {nameDirty && <ConfirmEditBtn label={t("project.save")} onClick={commitName} />}
-          </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <input
-              aria-label={t("project.category.label")}
-              value={catDraft}
-              onChange={(e) => setCatDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitCategory();
-                else if (e.key === "Escape") setCatDraft(project.category ?? "");
-              }}
-              placeholder={t("project.category.placeholder")}
-              className="inline-input flex-1 min-w-0 text-xs text-text-muted"
-            />
-            {catDirty && <ConfirmEditBtn label={t("project.save")} onClick={commitCategory} />}
+          <h1 className="text-[20px] font-semibold text-text-primary leading-tight truncate" title={project.name}>
+            {project.name}
+          </h1>
+          <div className="flex items-center gap-2 mt-1 text-[12.5px]">
+            {project.category ? (
+              <span className="inline-flex items-center rounded-md px-1.5 py-px text-text-secondary" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-faint)" }}>
+                {project.category}
+              </span>
+            ) : (
+              <span className="text-text-faint">{t("project.category.none")}</span>
+            )}
+            {project.status === "archived" && (
+              <span className="text-text-faint">· {t("project.status.archived")}</span>
+            )}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setEditOpen(true)}
+          aria-haspopup="dialog"
+          aria-label={t("project.edit")}
+          title={t("project.edit")}
+          className="btn btn-secondary flex-shrink-0"
+        >
+          <IconEdit size={13} />
+          <span className="hidden sm:inline">{t("project.editShort")}</span>
+        </button>
       </div>
 
       {/* Toolbar — laid out like the Matrix's: the main action (New task, same
           button and same dialog as everywhere else) first, then the project's
-          views, and the rarely used settings (colour, archive, delete) behind ⋯. */}
+          views, and the rarely used archive and delete behind ⋯. */}
       <div className="flex flex-wrap items-center gap-2 mb-6">
         <button
           type="button"
@@ -251,7 +217,7 @@ export function ProjectDetailPage() {
           data-has-notes={project.content ? "true" : "false"}
           className="btn btn-secondary relative flex-shrink-0"
         >
-          <IconEdit size={13} />
+          <IconNote size={13} />
           {t("project.content.title")}
           {project.content && (
             <span
@@ -307,27 +273,6 @@ export function ProjectDetailPage() {
                 className="absolute right-0 top-full mt-1 z-[61] min-w-[200px] rounded-xl border py-1.5"
                 style={{ background: "var(--bg-elevated)", borderColor: "var(--border-strong)", boxShadow: "var(--shadow-lifted)" }}
               >
-                <div className="px-3.5 pt-1 pb-2">
-                  <div className="text-[11px] font-medium text-text-muted mb-1.5">{t("project.color")}</div>
-                  <div className="flex items-center gap-2">
-                    {COLORS.map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        aria-label={c}
-                        aria-pressed={project.color === c}
-                        onClick={() => update(project.id, { color: c })}
-                        className="rounded-full transition-transform"
-                        style={{
-                          width: 20, height: 20, background: COLOR_PRIMARY[c],
-                          outline: project.color === c ? "2px solid var(--text-primary)" : "none",
-                          outlineOffset: 2,
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <div style={{ height: 1, background: "var(--border-faint)" }} />
                 <MenuItem
                   label={project.status === "archived" ? t("project.unarchive") : t("project.archive")}
                   onSelect={() => {
@@ -508,6 +453,8 @@ export function ProjectDetailPage() {
         <AddExistingTaskModal projectId={pid} onClose={() => setAddExistingOpen(false)} />
       )}
 
+      {editOpen && <ProjectFormModal project={project} onClose={() => setEditOpen(false)} />}
+
       {notesOpen && (
         <ProjectNotesModal
           value={project.content}
@@ -676,22 +623,6 @@ function GoalItem({
         <span>/ {goal.target}{goal.unit ? ` ${goal.unit}` : ""}</span>
       </div>
     </div>
-  );
-}
-
-/** Small ✓ button shown next to a header field once its draft has changed. */
-function ConfirmEditBtn({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-md transition-colors"
-      style={{ background: "var(--accent-primary)", color: "var(--text-inverse)" }}
-    >
-      <IconCheck size={13} strokeWidth={2.5} />
-    </button>
   );
 }
 
