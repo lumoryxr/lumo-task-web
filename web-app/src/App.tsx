@@ -76,8 +76,6 @@ import { useCountdownStore } from "@/store/useCountdownStore";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import { useHabitsStore } from "@/store/useHabitsStore";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
-import { useNotificationStore } from "@/store/useNotificationStore";
-import { useNotificationScheduler } from "@/hooks/useNotificationScheduler";
 import { useSyncEngine } from "@/hooks/useSyncEngine";
 import { useReducedMotionClass } from "@/hooks/useReducedMotionClass";
 import { useDocumentLang } from "@/hooks/useDocumentLang";
@@ -106,7 +104,6 @@ export default function App() {
   const clearCountdowns = useCountdownStore((s) => s.clear);
   const loadHabits = useHabitsStore((s) => s.load);
   const clearHabits = useHabitsStore((s) => s.clear);
-  const loadNotifications = useNotificationStore((s) => s.load);
   const loadAppearance = useAppStore((s) => s.loadAppearance);
   const loadProjects = useProjectsStore((s) => s.load);
   const clearProjects = useProjectsStore((s) => s.clear);
@@ -134,7 +131,6 @@ export default function App() {
       loadPeople();
       loadCountdowns(userId);
       loadHabits(userId);
-      loadNotifications();
       loadProjects();
       loadAppearance();
     } else {
@@ -144,9 +140,8 @@ export default function App() {
       clearHabits();
       clearProjects();
     }
-  }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadNotifications, loadProjects, clearProjects, loadAppearance]);
+  }, [isSignedIn, userId, loadTasks, loadPeople, loadCountdowns, loadHabits, clearTasks, clearPeople, clearCountdowns, clearHabits, loadProjects, clearProjects, loadAppearance]);
 
-  useNotificationScheduler();
   useSyncEngine();
 
   // Access policy (onboarding gate + mandatory-login gate). Login is required:

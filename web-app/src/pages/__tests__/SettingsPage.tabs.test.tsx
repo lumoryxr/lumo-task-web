@@ -93,7 +93,6 @@ describe("SettingsPage · consolidated tabs (#111)", () => {
   // On web, Data & Sync is hidden (desktop-only), so the web build shows these tabs.
   const WEB_TABS = [
     "settings.general",
-    "settings.notifications",
     "settings.pet",
     "settings.members",
     "ai.config.title",
@@ -194,5 +193,11 @@ describe("SettingsPage · Data & Sync is desktop-only (#112)", () => {
     expect(screen.getByText("settings.storage")).toBeInTheDocument();
     expect(screen.getByText("settings.cloud")).toBeInTheDocument();
     expect(screen.getByText("settings.sync")).toBeInTheDocument();
+  });
+
+  it("has no Notifications tab any more", () => {
+    renderPage();
+    expect(screen.queryByRole("tab", { name: "settings.notifications" })).toBeNull();
+    expect(screen.queryByText("settings.notifications")).toBeNull();
   });
 });

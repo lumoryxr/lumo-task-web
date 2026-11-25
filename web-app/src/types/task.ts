@@ -121,10 +121,6 @@ export interface AppSettings {
   long_break: number;
   long_break_interval: number;
   auto_start_breaks: boolean;
-  notifications_enabled: boolean;
-  morning_reminder_time: string | null;
-  evening_reminder_time: string | null;
-  due_alerts_enabled: boolean;
   onboarding_complete: boolean;
   ai_provider: "openai" | "deepseek" | "claude" | "custom";
   ai_provider_configs: Record<string, ProviderConfig>;

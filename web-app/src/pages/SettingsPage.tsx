@@ -18,7 +18,6 @@ import { Spinner } from "@/components/Spinner";
 import { IconUsers } from "@/components/icons";
 import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
 import { FeedbackPanel } from "@/components/FeedbackPanel";
-import { useNotificationStore } from "@/store/useNotificationStore";
 import type { SyncStatusResponse } from "@lumo/contracts";
 
 const ACCENT_SWATCHES: Array<{ id: Accent; hex: string; labelKey: string }> = [
@@ -28,7 +27,7 @@ const ACCENT_SWATCHES: Array<{ id: Accent; hex: string; labelKey: string }> = [
   { id: "graphite", hex: "#A0ADB0", labelKey: "accent.graphite" },
 ];
 
-type TabId = "general" | "notifications" | "pet" | "members" | "ai" | "integrations" | "about" | "datasync";
+type TabId = "general" | "pet" | "members" | "ai" | "integrations" | "about" | "datasync";
 
 export function SettingsPage() {
   const t = useT();
@@ -48,7 +47,6 @@ export function SettingsPage() {
 
   const tabs: Array<{ id: TabId; label: string }> = [
     { id: "general",      label: t("settings.general") },
-    { id: "notifications", label: t("settings.notifications") },
     { id: "pet",          label: t("settings.pet") },
     { id: "members",      label: t("settings.members") },
     { id: "ai",           label: t("ai.config.title") },
@@ -140,10 +138,6 @@ export function SettingsPage() {
                 />
               </Row>
             </Panel>
-          )}
-
-          {activeTab === "notifications" && (
-            <NotificationsPanel t={t} locale={locale} />
           )}
 
           {activeTab === "pet" && (
@@ -1593,139 +1587,5 @@ function Toggle({ value, onChange, disabled, ariaLabel }: { value: boolean; onCh
         }}
       />
     </button>
-  );
-}
-
-/* ── Notifications panel ──────────────────────────────────────────── */
-
-function NotificationsPanel({ t, locale: _locale }: { t: (k: string) => string; locale: string }) {
-  const {
-    enabled, morningTime, eveningTime, dueAlertsEnabled,
-    setEnabled, setMorningTime, setEveningTime, setDueAlertsEnabled,
-  } = useNotificationStore();
-
-  const [permDenied, setPermDenied] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  async function handleToggleEnabled(next: boolean) {
-    if (busy) return;
-    setBusy(true);
-    setPermDenied(false);
-
-    try {
-      if (next) {
-        if (typeof Notification === "undefined") {
-          setPermDenied(true);
-          return;
-        }
-        if (Notification.permission === "denied") {
-          setPermDenied(true);
-          return;
-        }
-        if (Notification.permission === "default") {
-          const result = await Notification.requestPermission();
-          if (result !== "granted") {
-            setPermDenied(true);
-            return;
-          }
-        }
-      }
-
-      setEnabled(next);
-      try {
-        await api.patchSettings({ notifications_enabled: next });
-      } catch {
-        setEnabled(!next);
-        toast.error(t("settings.notifications.error.save"));
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleMorningChange(v: string) {
-    const prev = morningTime;
-    setMorningTime(v);
-    try {
-      await api.patchSettings({ morning_reminder_time: v });
-    } catch {
-      setMorningTime(prev);
-      toast.error(t("settings.notifications.error.save"));
-    }
-  }
-
-  async function handleEveningChange(v: string) {
-    const prev = eveningTime;
-    setEveningTime(v);
-    try {
-      await api.patchSettings({ evening_reminder_time: v });
-    } catch {
-      setEveningTime(prev);
-      toast.error(t("settings.notifications.error.save"));
-    }
-  }
-
-  async function handleDueAlertsChange(v: boolean) {
-    const prev = dueAlertsEnabled;
-    setDueAlertsEnabled(v);
-    try {
-      await api.patchSettings({ due_alerts_enabled: v });
-    } catch {
-      setDueAlertsEnabled(prev);
-      toast.error(t("settings.notifications.error.save"));
-    }
-  }
-
-  return (
-    <Panel title={t("settings.notifications")}>
-      <Row label={t("settings.notifications.enabled")} helper={t("settings.notifications.enabled.helper")}>
-        <Toggle value={enabled} onChange={handleToggleEnabled} ariaLabel={t("settings.notifications.enabled")} />
-      </Row>
-      {permDenied && (
-        <div
-          className="mx-5 mb-4 rounded-lg px-4 py-3 text-[12px] leading-relaxed"
-          style={{
-            background: "color-mix(in srgb, var(--status-urgent) 10%, transparent)",
-            color: "var(--text-secondary)",
-            border: "1px solid color-mix(in srgb, var(--status-urgent) 25%, transparent)",
-          }}
-        >
-          {t("settings.notifications.permission.denied")}
-        </div>
-      )}
-      <Row label={t("settings.notifications.morning")} helper={t("settings.notifications.morning.helper")}>
-        <input
-          type="time"
-          value={morningTime}
-          onChange={(e) => handleMorningChange(e.target.value)}
-          disabled={!enabled}
-          className="text-[13px] rounded-lg px-3 py-1.5 outline-none"
-          style={{
-            background: "var(--bg-deep)",
-            border: "1px solid var(--border-default)",
-            color: enabled ? "var(--text-primary)" : "var(--text-faint)",
-            opacity: enabled ? 1 : 0.5,
-          }}
-        />
-      </Row>
-      <Row label={t("settings.notifications.due")} helper={t("settings.notifications.due.helper")}>
-        <Toggle value={dueAlertsEnabled} onChange={handleDueAlertsChange} disabled={!enabled} ariaLabel={t("settings.notifications.due")} />
-      </Row>
-      <Row label={t("settings.notifications.evening")} helper={t("settings.notifications.evening.helper")}>
-        <input
-          type="time"
-          value={eveningTime}
-          onChange={(e) => handleEveningChange(e.target.value)}
-          disabled={!enabled}
-          className="text-[13px] rounded-lg px-3 py-1.5 outline-none"
-          style={{
-            background: "var(--bg-deep)",
-            border: "1px solid var(--border-default)",
-            color: enabled ? "var(--text-primary)" : "var(--text-faint)",
-            opacity: enabled ? 1 : 0.5,
-          }}
-        />
-      </Row>
-    </Panel>
   );
 }

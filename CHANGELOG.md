@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- feat: **the Notifications feature is gone**.
+  - Web:
+    - Settings → Notifications: browser-notification permission, morning planning reminder, Q1 due-today alert, evening review reminder;
+    - the background scheduler that fired those reminders;
+    - the per-task **Reminder** field in Edit task;
+    - the browser notification when a focus session ends;
+    - the service worker's notification-click handler, and the Today page's `?planning=open` / `?evening=open` links that served it.
+  - API (contract first): the `notifications_enabled`, `morning_reminder_time`, `evening_reminder_time` and `due_alerts_enabled` settings fields and the task `remind_at` field. `openapi.json` was regenerated.
+  - Backend: settings no longer read or write those fields, and tasks no longer store or return `remind_at`; their tests are removed.
+  - The database columns stay, so existing data still syncs and exports and no destructive migration is needed.
+
 ### Changed
 - feat(projects): **a project's name, emoji, category and colour are edited in a dialog, not inline**.
   - The detail page header is read-only: a colour tile with the emoji, the name as the page title, and the category as a small tag ("Uncategorized" when empty). An **Edit** button next to it opens the edit dialog, so a stray click no longer starts renaming. Colour moved there from the ⋯ menu, which now holds only Archive and Delete. Notes use a note icon, so Edit is the only pencil.

@@ -382,10 +382,12 @@ describe("TaskEditModal", () => {
   it("follows the New task form's order, then groups the rest under Schedule and Organize", () => {
     setup();
     const text = screen.getByRole("dialog").textContent ?? "";
-    const order = ["qc.quadrant", "qc.due", "edit.group.schedule", "qc.duration", "task.recurrence", "edit.remindAt", "edit.group.organize", "edit.tags"];
+    const order = ["qc.quadrant", "qc.due", "edit.group.schedule", "qc.duration", "task.recurrence", "edit.group.organize", "edit.tags"];
     const positions = order.map((k) => text.indexOf(k));
     expect(positions.every((p) => p >= 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    // Reminders went with the Notifications feature.
+    expect(text).not.toContain("edit.remindAt");
   });
 
   describe("project group", () => {

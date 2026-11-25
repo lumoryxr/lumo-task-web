@@ -15,7 +15,6 @@ import { useTasksStore } from "@/store/useTasksStore";
 import { usePeopleStore } from "@/store/usePeopleStore";
 import { useCountdownStore } from "@/store/useCountdownStore";
 import { useHabitsStore } from "@/store/useHabitsStore";
-import { useNotificationStore } from "@/store/useNotificationStore";
 
 export async function reloadAllData(userId: string): Promise<void> {
   await Promise.all([
@@ -23,6 +22,5 @@ export async function reloadAllData(userId: string): Promise<void> {
     usePeopleStore.getState().load(),
     useCountdownStore.getState().load(userId),
     useHabitsStore.getState().load(userId),
-    useNotificationStore.getState().load(),
   ]);
 }

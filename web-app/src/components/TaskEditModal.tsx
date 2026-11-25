@@ -50,7 +50,6 @@ export function TaskEditModal({ task, onClose }: Props) {
   const initialScheduledStart = task.scheduled_start
     ? task.scheduled_start.slice(0, 16)
     : "";
-  const initialRemindAt = task.remind_at ? task.remind_at.slice(0, 16) : "";
 
   // The form as the task stands now. A kept draft is tied to this snapshot.
   const base: EditDraftFields = {
@@ -60,7 +59,6 @@ export function TaskEditModal({ task, onClose }: Props) {
     duration: task.duration,
     dueDate: task.due === "today" ? todayISO : (task.due ?? ""),
     scheduledStart: initialScheduledStart,
-    remindAt: initialRemindAt,
     recurrence: task.recurrence ?? "none",
     assigneeIds: task.assignee_ids ?? [],
     tags: task.tags ?? [],
@@ -86,7 +84,6 @@ export function TaskEditModal({ task, onClose }: Props) {
   const [duration, setDuration] = useState(start.duration);
   const [dueDate, setDueDate] = useState<string>(start.dueDate);
   const [scheduledStart, setScheduledStart] = useState<string>(start.scheduledStart);
-  const [remindAt, setRemindAt] = useState<string>(start.remindAt);
   const [recurrence, setRecurrence] = useState<TaskRecurrence>(start.recurrence);
   const [assigneeIds, setAssigneeIds] = useState<string[]>(start.assigneeIds);
   const [tags, setTags] = useState<string[]>(start.tags);
@@ -105,7 +102,7 @@ export function TaskEditModal({ task, onClose }: Props) {
   const [exitOpen, setExitOpen] = useState(false);
 
   const snapshot: EditDraftFields = {
-    title, desc, quadrant, duration, dueDate, scheduledStart, remindAt, recurrence,
+    title, desc, quadrant, duration, dueDate, scheduledStart, recurrence,
     assigneeIds, tags, projectId, progress, sectionId, stageId,
   };
   const snapshotKey = JSON.stringify(snapshot);
@@ -154,7 +151,6 @@ export function TaskEditModal({ task, onClose }: Props) {
     setDuration(base.duration);
     setDueDate(base.dueDate);
     setScheduledStart(base.scheduledStart);
-    setRemindAt(base.remindAt);
     setRecurrence(base.recurrence);
     setAssigneeIds(base.assigneeIds);
     setTags(base.tags);
@@ -197,7 +193,6 @@ export function TaskEditModal({ task, onClose }: Props) {
         pomos_total: Math.max(1, Math.ceil(duration / 25)),
         due: dueDate || null,
         scheduled_start: scheduledStart || null,
-        remind_at: remindAt || null,
         recurrence,
         assignee_ids: assigneeIds,
         tags,
@@ -325,19 +320,6 @@ export function TaskEditModal({ task, onClose }: Props) {
             </div>
           </div>
           <RecurrencePicker value={recurrence} onChange={setRecurrence} />
-          <div>
-            <FieldLabel action={remindAt ? <FieldAction onClick={() => setRemindAt("")}>{t("edit.clearReminder")}</FieldAction> : undefined}>
-              {t("edit.remindAt")}
-            </FieldLabel>
-            <input
-              type="datetime-local"
-              value={remindAt}
-              onChange={(e) => setRemindAt(e.target.value)}
-              aria-label={t("edit.remindAt")}
-              className="input sm:max-w-[calc(50%-6px)]"
-              style={{ colorScheme: "dark", cursor: "pointer", fontSize: 13, height: 34 }}
-            />
-          </div>
 
           {/* ── Organize ── */}
           <FormGroupTitle>{t("edit.group.organize")}</FormGroupTitle>

@@ -4,7 +4,6 @@ const tasksLoad = vi.fn(async () => {});
 const peopleLoad = vi.fn(async () => {});
 const countdownLoad = vi.fn(async (_userId: string) => {});
 const habitsLoad = vi.fn(async (_userId: string) => {});
-const notificationsLoad = vi.fn(async () => {});
 
 vi.mock("@/store/useTasksStore", () => ({
   useTasksStore: { getState: () => ({ load: tasksLoad }) },
@@ -18,9 +17,6 @@ vi.mock("@/store/useCountdownStore", () => ({
 vi.mock("@/store/useHabitsStore", () => ({
   useHabitsStore: { getState: () => ({ load: habitsLoad }) },
 }));
-vi.mock("@/store/useNotificationStore", () => ({
-  useNotificationStore: { getState: () => ({ load: notificationsLoad }) },
-}));
 
 import { reloadAllData } from "../reloadData";
 
@@ -29,7 +25,6 @@ beforeEach(() => {
   peopleLoad.mockClear();
   countdownLoad.mockClear();
   habitsLoad.mockClear();
-  notificationsLoad.mockClear();
 });
 
 describe("reloadAllData", () => {
@@ -38,7 +33,6 @@ describe("reloadAllData", () => {
 
     expect(tasksLoad).toHaveBeenCalledTimes(1);
     expect(peopleLoad).toHaveBeenCalledTimes(1);
-    expect(notificationsLoad).toHaveBeenCalledTimes(1);
     expect(countdownLoad).toHaveBeenCalledWith("user-42");
     expect(habitsLoad).toHaveBeenCalledWith("user-42");
   });

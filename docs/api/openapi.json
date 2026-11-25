@@ -333,10 +333,6 @@
             "type": "string",
             "nullable": true
           },
-          "remind_at": {
-            "type": "string",
-            "nullable": true
-          },
           "progress": {
             "type": "integer"
           },
@@ -403,7 +399,6 @@
           "recurrence",
           "subtasks",
           "scheduled_start",
-          "remind_at",
           "progress",
           "section_id",
           "stage_id",
@@ -639,10 +634,6 @@
             "nullable": true
           },
           "scheduled_start": {
-            "type": "string",
-            "nullable": true
-          },
-          "remind_at": {
             "type": "string",
             "nullable": true
           }
@@ -881,10 +872,6 @@
           "scheduled_start": {
             "type": "string",
             "nullable": true
-          },
-          "remind_at": {
-            "type": "string",
-            "nullable": true
           }
         }
       },
@@ -1108,10 +1095,6 @@
                   "type": "string",
                   "nullable": true
                 },
-                "remind_at": {
-                  "type": "string",
-                  "nullable": true
-                },
                 "progress": {
                   "type": "integer"
                 },
@@ -1178,7 +1161,6 @@
                 "recurrence",
                 "subtasks",
                 "scheduled_start",
-                "remind_at",
                 "progress",
                 "section_id",
                 "stage_id",
@@ -2472,18 +2454,6 @@
           "auto_start_breaks": {
             "type": "boolean"
           },
-          "notifications_enabled": {
-            "type": "boolean"
-          },
-          "morning_reminder_time": {
-            "type": "string"
-          },
-          "evening_reminder_time": {
-            "type": "string"
-          },
-          "due_alerts_enabled": {
-            "type": "boolean"
-          },
           "onboarding_complete": {
             "type": "boolean"
           },
@@ -2533,10 +2503,6 @@
           "long_break",
           "long_break_interval",
           "auto_start_breaks",
-          "notifications_enabled",
-          "morning_reminder_time",
-          "evening_reminder_time",
-          "due_alerts_enabled",
           "onboarding_complete",
           "ai_provider",
           "ai_provider_configs",
@@ -2590,20 +2556,6 @@
             "type": "integer"
           },
           "auto_start_breaks": {
-            "type": "boolean"
-          },
-          "notifications_enabled": {
-            "type": "boolean"
-          },
-          "morning_reminder_time": {
-            "type": "string",
-            "nullable": true
-          },
-          "evening_reminder_time": {
-            "type": "string",
-            "nullable": true
-          },
-          "due_alerts_enabled": {
             "type": "boolean"
           },
           "onboarding_complete": {
