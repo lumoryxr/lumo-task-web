@@ -580,6 +580,17 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .scroll-y::-webkit-scrollbar { width: 8px; }
 .scroll-y::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 4px; }
 
+/* A Matrix quadrant's task list. Stacked on a phone it grows with its tasks
+   (the page scrolls); in the 2×2 grid it fills its quadrant and scrolls on its
+   own, with a visible thin scrollbar. Responsive overflow lives here because a
+   Tailwind prefix on a custom class (e.g. `sm:scroll-y`) generates nothing. */
+.quadrant-list { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; overscroll-behavior: contain; }
+.quadrant-list::-webkit-scrollbar { width: 8px; }
+.quadrant-list::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 4px; }
+@media (min-width: 640px) {
+  .quadrant-list { flex: 1 1 0%; min-height: 0; overflow-y: auto; }
+}
+
 /* Number input — strip native spinners (used in QuickCreate) */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

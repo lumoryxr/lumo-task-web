@@ -1731,3 +1731,42 @@ test.describe("mobile viewport", () => {
     expect(tooSmall, `tab bar targets below 44px:\n${tooSmall.join("\n")}`).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC90  Matrix: a quadrant holding more tasks than fit scrolls its own list
+// (regression: a `sm:` prefix on the custom `scroll-y` class generated no CSS,
+// so overflowing tasks were clipped with no scrollbar).
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("TC90 – Matrix: a crowded quadrant scrolls its own task list", async ({ page }) => {
+  await skipOnboardingAndSignIn(page);
+  await mockAPIWithData(page);
+  const tasks = Array.from({ length: 14 }, (_, i) => ({
+    id: `q1-${i}`, title: { en: `Crowded task ${i + 1}` }, quadrant: "Q1", today: false, completed: false,
+    pomos_done: 0, pomos_total: 1, duration: 30, assignee_ids: [],
+  }));
+  await page.route("**/v1/tasks**", (r) =>
+    r.request().method() === "GET"
+      ? r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: tasks, nextCursor: null }) })
+      : r.fallback(),
+  );
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/#/matrix");
+  await expect(page.getByText("Crowded task 1", { exact: true })).toBeVisible({ timeout: 10_000 });
+
+  const list = page.locator("[data-quadrant-list]").first();
+  const metrics = await list.evaluate((el) => ({
+    overflowY: getComputedStyle(el).overflowY,
+    overflows: el.scrollHeight > el.clientHeight,
+  }));
+  expect(metrics).toEqual({ overflowY: "auto", overflows: true });
+
+  // The last task is out of view until the list is scrolled with the wheel.
+  const last = page.getByText("Crowded task 14", { exact: true });
+  const box = await list.boundingBox();
+  if (!box) throw new Error("quadrant list has no box");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 2000);
+  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await expect(last).toBeInViewport();
+});

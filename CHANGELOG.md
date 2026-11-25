@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- fix(matrix): **a quadrant with more tasks than fit now scrolls its own list** — before, the extra tasks were clipped with no scrollbar.
+  - Cause: the list used `sm:scroll-y`. `scroll-y` is a custom class in index.css, not a Tailwind utility, so the `sm:` prefix generated no CSS, and the list stayed at `overflow: visible` inside an `overflow: hidden` card.
+  - Fix: a `.quadrant-list` class with a ≥640px media rule. In the 2×2 grid each list fills its quadrant and scrolls on its own, with a thin scrollbar; on a phone it still grows with its tasks and the page scrolls.
+  - Quadrants never get shorter than 220px (`grid-rows-[repeat(2,minmax(220px,1fr))]`). On a short window the board scrolls instead of squeezing them.
+  - Guards:
+    - a standards test that fails on any Tailwind variant prefix on a class index.css defines itself, plus a check of the quadrant-list rule;
+    - Playwright TC90, which fills a quadrant and scrolls it with the mouse wheel. It fails on the old code.
+
 ### Changed
 - feat(stats): **the Stats page is now a dashboard with charts**.
   - **Range picker** (7 / 30 / 90 days, 30 by default) in one row above everything it scopes.
