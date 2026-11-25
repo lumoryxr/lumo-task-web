@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from "r
 import { useAppStore, type Accent, type Density } from "@/store/useAppStore";
 import { api } from "@/api/client";
 import { usePeopleStore } from "@/store/usePeopleStore";
+import { MembersPanel } from "@/components/settings/MembersPanel";
+import { SettingsSection as Panel, SettingsRow as Row } from "@/components/settings/SettingsSection";
 import { useAIStore } from "@/store/useAIStore";
 import { useImportedCalendarStore } from "@/store/useImportedCalendarStore";
 import { usePetStore } from "@/store/usePetStore";
@@ -9,13 +11,9 @@ import { useT, t as translate } from "@/i18n/useT";
 import { toast } from "@/store/useToastStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { reloadAllData } from "@/lib/reloadData";
-import type { Locale, Person } from "@/types/task";
-import { PERSON_COLORS } from "@/lib/personColors";
-import { PersonAvatar } from "@/components/PersonAvatar";
-import { EmptyState } from "@/components/EmptyState";
+import type { Locale } from "@/types/task";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Spinner } from "@/components/Spinner";
-import { IconUsers } from "@/components/icons";
 import { PET_SPECIES_LIST, PetSvg } from "@/components/PetSvg";
 import { FeedbackPanel } from "@/components/FeedbackPanel";
 import type { SyncStatusResponse } from "@lumo/contracts";
@@ -60,10 +58,10 @@ export function SettingsPage() {
   ];
 
   return (
-    <div className="fade-in flex h-full" style={{ minHeight: 0 }}>
-      {/* ── Left tab nav ─────────────────────────────────────────────── */}
+    <div className="fade-in flex flex-col sm:flex-row h-full" style={{ minHeight: 0 }}>
+      {/* ── Tab nav: a scrollable row on a phone, a left column from 640px ── */}
       <nav
-        className="flex-shrink-0 flex flex-col py-6 px-3 gap-0.5 border-r overflow-y-auto w-40 sm:w-[180px]"
+        className="flex-shrink-0 flex flex-row sm:flex-col gap-1 sm:gap-0.5 px-3 py-2 sm:py-6 border-b sm:border-b-0 sm:border-r overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto sm:w-[180px]"
         style={{
           borderColor: "var(--border-default)",
           background: "var(--bg-deep)",
@@ -75,7 +73,7 @@ export function SettingsPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="w-full text-left px-3 py-2 rounded-lg text-[13px] truncate transition-colors"
+              className="flex-shrink-0 sm:w-full text-left px-3 py-2 rounded-lg text-[13px] whitespace-nowrap sm:truncate transition-colors"
               style={{
                 background: active ? "var(--accent-fog)" : "transparent",
                 color: active ? "var(--accent-primary)" : "var(--text-secondary)",
@@ -90,7 +88,8 @@ export function SettingsPage() {
 
       {/* ── Right content panel ──────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 sm:py-8" style={{ minWidth: 0 }}>
-        <div style={{ maxWidth: 640 }}>
+        {/* Forms read best narrow; the Members grid gets room for more cards per row. */}
+        <div style={{ maxWidth: activeTab === "members" ? 1040 : 640 }}>
 
           {activeTab === "general" && (
             <Panel title={t("settings.general")}>
@@ -159,7 +158,6 @@ export function SettingsPage() {
               onCreate={createPerson}
               onUpdate={updatePerson}
               onRemove={removePerson}
-              t={t}
             />
           )}
 
@@ -194,17 +192,6 @@ export function SettingsPage() {
 
 /* ── Shared layout primitives ─────────────────────────────────────── */
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h2 className="text-[15px] font-semibold text-text-primary mb-5">{title}</h2>
-      <div className="surface-card overflow-hidden">
-        {children}
-      </div>
-    </div>
-  );
-}
-
 /* ── About & Support ──────────────────────────────────────────────────
  * A monitored, account-free support channel for the public beta: bug reports
  * and feedback go to the project's public issue tracker. No backend/contract
@@ -226,30 +213,6 @@ function AboutPanel({ t }: { t: (k: string) => string }) {
         </a>
       </Row>
     </Panel>
-  );
-}
-
-function Row({
-  label,
-  helper,
-  children,
-}: {
-  label: string;
-  helper?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="settings-row items-center px-5 py-4 border-t border-border-faint first:border-t-0"
-    >
-      <div>
-        <div className="text-[13px] font-medium text-text-primary leading-snug">{label}</div>
-        {helper && (
-          <div className="text-[11.5px] text-text-muted mt-1 leading-relaxed max-w-[300px]">{helper}</div>
-        )}
-      </div>
-      <div>{children}</div>
-    </div>
   );
 }
 
@@ -346,174 +309,6 @@ function PetPanel({
           </p>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ── Members panel ────────────────────────────────────────────────── */
-
-type PersonDraft = { name: string; email: string; initials: string; color: string };
-
-function emptyDraft(): PersonDraft {
-  return { name: "", email: "", initials: "", color: PERSON_COLORS[0] };
-}
-
-function deriveInitials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
-
-function MembersPanel({
-  people,
-  onCreate,
-  onUpdate,
-  onRemove,
-  t,
-}: {
-  people: Person[];
-  onCreate: (input: Omit<Person, "id">) => Promise<Person>;
-  onUpdate: (id: string, patch: Partial<Omit<Person, "id">>) => Promise<void>;
-  onRemove: (id: string) => Promise<void>;
-  t: (key: string) => string;
-}) {
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState<PersonDraft>(emptyDraft);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<PersonDraft>(emptyDraft);
-  const [busy, setBusy] = useState(false);
-  const [pendingRemove, setPendingRemove] = useState<Person | null>(null);
-
-  function startEdit(person: Person) {
-    setEditId(person.id);
-    setEditDraft({ name: person.name, email: person.email ?? "", initials: person.initials, color: person.color });
-  }
-
-  async function saveEdit() {
-    if (!editId || !editDraft.name.trim()) return;
-    setBusy(true);
-    try {
-      await onUpdate(editId, {
-        name: editDraft.name.trim(),
-        email: editDraft.email.trim() || undefined,
-        initials: editDraft.initials || deriveInitials(editDraft.name),
-        color: editDraft.color,
-      });
-      setEditId(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveNew() {
-    if (!draft.name.trim()) return;
-    setBusy(true);
-    try {
-      await onCreate({
-        name: draft.name.trim(),
-        email: draft.email.trim() || undefined,
-        initials: draft.initials || deriveInitials(draft.name),
-        color: draft.color,
-      });
-      setDraft(emptyDraft());
-      setAdding(false);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="text-[15px] font-semibold text-text-primary">{t("settings.members")}</h2>
-        {/* When the list is empty the EmptyState below shows its own "Add member"
-            CTA, so suppress this header button to avoid a duplicate control. */}
-        {!adding && people.length > 0 && (
-          <button
-            className="text-[12px] font-medium"
-            style={{ color: "var(--accent-primary)" }}
-            onClick={() => { setAdding(true); setDraft(emptyDraft()); }}
-          >
-            + {t("settings.members.add")}
-          </button>
-        )}
-      </div>
-      <div className="surface-card overflow-hidden">
-        {people.length === 0 && !adding && (
-          <EmptyState
-            variant="panel"
-            icon={<IconUsers size={22} />}
-            title={t("settings.members.empty.title")}
-            subtitle={t("settings.members.empty")}
-            cta={{ label: t("settings.members.add"), onClick: () => { setAdding(true); setDraft(emptyDraft()); } }}
-          />
-        )}
-        {people.map((person) => (
-          <div key={person.id} className="border-t border-border-faint first:border-t-0">
-            {editId === person.id ? (
-              <PersonForm
-                draft={editDraft}
-                onChange={setEditDraft}
-                onSave={saveEdit}
-                onCancel={() => setEditId(null)}
-                busy={busy}
-                t={t}
-              />
-            ) : (
-              <div className="flex items-center gap-3 px-5 py-3">
-                <PersonAvatar person={person} size={32} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-medium text-text-primary">{person.name}</div>
-                  {person.email && (
-                    <div className="text-[11px] text-text-muted mt-0.5">{person.email}</div>
-                  )}
-                </div>
-                <button
-                  className="text-[11px] text-text-muted hover:text-text-primary transition-colors mr-3"
-                  onClick={() => startEdit(person)}
-                >
-                  {t("settings.members.edit")}
-                </button>
-                <button
-                  className="text-[11px] text-text-muted hover:text-status-urgent transition-colors"
-                  disabled={busy}
-                  onClick={() => setPendingRemove(person)}
-                >
-                  {t("settings.members.delete")}
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-        {adding && (
-          <div className="border-t border-border-faint first:border-t-0">
-            <PersonForm
-              draft={draft}
-              onChange={setDraft}
-              onSave={saveNew}
-              onCancel={() => setAdding(false)}
-              busy={busy}
-              t={t}
-            />
-          </div>
-        )}
-      </div>
-      <ConfirmDialog
-        open={pendingRemove !== null}
-        danger
-        title={t("settings.members.delete.confirm.title")}
-        message={t("settings.members.delete.confirm")}
-        detail={pendingRemove?.name}
-        confirmLabel={t("settings.members.delete")}
-        onConfirm={async () => {
-          const target = pendingRemove;
-          setPendingRemove(null);
-          if (!target) return;
-          setBusy(true);
-          try { await onRemove(target.id); } finally { setBusy(false); }
-        }}
-        onCancel={() => setPendingRemove(null)}
-      />
     </div>
   );
 }
@@ -936,93 +731,6 @@ export function CalendarFeedCard({ t }: { t: (k: string) => string }) {
 }
 
 /* ── PersonForm ───────────────────────────────────────────────────── */
-
-function PersonForm({
-  draft,
-  onChange,
-  onSave,
-  onCancel,
-  busy,
-  t,
-}: {
-  draft: PersonDraft;
-  onChange: (d: PersonDraft) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  busy: boolean;
-  t: (key: string) => string;
-}) {
-  return (
-    <div className="px-5 py-4 flex flex-col gap-3">
-      <div className="flex items-start gap-3">
-        <PersonAvatar
-          person={{ name: draft.name, initials: draft.initials || deriveInitials(draft.name) || "?", color: draft.color }}
-          size={36}
-        />
-        <div className="flex-1 grid grid-cols-2 gap-2">
-          <input
-            autoFocus
-            placeholder={t("settings.members.name")}
-            value={draft.name}
-            onChange={(e) => {
-              const name = e.target.value;
-              onChange({ ...draft, name, initials: deriveInitials(name) });
-            }}
-            className="input"
-            style={{ height: 34, fontSize: 13 }}
-          />
-          <input
-            placeholder={t("settings.members.email") + " (optional)"}
-            value={draft.email}
-            onChange={(e) => onChange({ ...draft, email: e.target.value })}
-            className="input"
-            style={{ height: 34, fontSize: 13 }}
-          />
-          <input
-            placeholder={t("settings.members.initials")}
-            value={draft.initials}
-            maxLength={2}
-            onChange={(e) => onChange({ ...draft, initials: e.target.value.toUpperCase() })}
-            className="input"
-            style={{ height: 34, fontSize: 13 }}
-          />
-          <div className="flex items-center gap-1.5">
-            {PERSON_COLORS.map((c) => (
-              <button
-                key={c}
-                onClick={() => onChange({ ...draft, color: c })}
-                className="rounded-full transition-transform flex-shrink-0"
-                style={{
-                  width: 20,
-                  height: 20,
-                  background: c,
-                  outline: draft.color === c ? "2px solid var(--text-primary)" : "1px solid transparent",
-                  outlineOffset: 2,
-                  transform: draft.color === c ? "scale(1.1)" : "scale(1)",
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="flex justify-end gap-2">
-        <button className="btn btn-ghost" onClick={onCancel} disabled={busy} style={{ height: 30, fontSize: 12 }}>
-          {t("settings.members.cancel")}
-        </button>
-        <button
-          className="btn btn-primary"
-          onClick={onSave}
-          disabled={busy || !draft.name.trim()}
-          aria-busy={busy}
-          aria-label={t("settings.members.save")}
-          style={{ height: 30, fontSize: 12, minWidth: 56 }}
-        >
-          {busy ? <Spinner size={13} /> : t("settings.members.save")}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 /* ── Storage panel ────────────────────────────────────────────────── */
 

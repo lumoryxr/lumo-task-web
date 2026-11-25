@@ -85,6 +85,25 @@ beforeEach(() => {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
+describe("AccountPage — layout matches the other settings pages", () => {
+  it("uses the shared page frame (left-aligned, same margins), not a centred column", () => {
+    const { container } = render(<AccountPage />);
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.className).toContain("px-4");
+    expect(frame.className).toContain("sm:px-7");
+    expect(frame.className).not.toContain("mx-auto");
+  });
+
+  it("groups its settings in the same titled sections and responsive rows as Settings", () => {
+    const { container } = render(<AccountPage />);
+    for (const name of ["account.usage", "account.support", "account.security", "account.data", "account.danger"]) {
+      expect(screen.getByRole("region", { name })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 2, name })).toBeInTheDocument();
+    }
+    expect(container.querySelectorAll(".settings-row").length).toBeGreaterThan(0);
+  });
+});
+
 describe("AccountPage — data & danger zone", () => {
   it("renders the export and delete controls when signed in", () => {
     render(<AccountPage />);

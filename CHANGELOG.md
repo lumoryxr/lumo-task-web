@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- feat(settings): **Members redesigned; Settings and Account adapt to the screen and share one layout**.
+  - **Members**:
+    - a header with a member count, a one-line purpose and an **Add member** button, plus a search box;
+    - members as cards: avatar, name, email (or "No email") and how many open tasks they're on, with icon buttons to edit or remove;
+    - the grid fits as many 260px+ cards as the column allows (one on a phone);
+    - add and edit happen in one dialog on the shared task-dialog frame, with a live avatar preview, initials that follow the name until you type your own, and round colour swatches with a check;
+    - removing still asks first.
+  - **Settings on a phone**: the tab list becomes a scrollable row above the content instead of a side column that squeezed it.
+  - **Account and Change password** now use the same page frame as the other pages (left-aligned, same margins, no centred column) and the same `SettingsSection` / `SettingsRow` as Settings, which stack on a phone. The usage stats stack on a phone too.
+
 ### Removed
 - feat: **the Notifications feature is gone**.
   - Web:
