@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { IconArrowRight, IconCheck } from "@/components/icons";
 import { useT } from "@/i18n/useT";
+import { buildXlsx, exportBundleToSheets } from "@/lib/xlsx";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
 import { SettingsPageFrame, SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { DogEvolutionBadge } from "@/components/DogEvolutionBadge";
@@ -13,9 +14,11 @@ import { ApiError } from "@/api/ApiError";
 import { RecoveryCodeCard } from "@/components/RecoveryCodeCard";
 import { DONATE_URL } from "@/config/app";
 
-/** Serialize `data` and trigger a client-side file download. */
-function downloadJson(filename: string, data: unknown) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** Trigger a client-side download of an .xlsx workbook. */
+function downloadXlsx(filename: string, bytes: Uint8Array) {
+  const blob = new Blob([new Uint8Array(bytes)], { type: XLSX_MIME });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -71,7 +74,8 @@ export function AccountPage() {
     try {
       const bundle = await exportData();
       const stamp = new Date().toISOString().slice(0, 10);
-      downloadJson(`lumo-export-${stamp}.json`, bundle);
+      // One sheet per kind of data (profile, settings, tasks, projects, …).
+      downloadXlsx(`lumo-export-${stamp}.xlsx`, buildXlsx(exportBundleToSheets(bundle, t)));
       toast.success(t("account.export.success"));
     } catch (e) {
       presentError(e, "account.export.err");

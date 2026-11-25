@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- feat(account): **Export my data downloads an Excel workbook** (`lumo-export-YYYY-MM-DD.xlsx`) instead of JSON.
+  - One sheet per kind of data: Profile and Settings as Field/Value sheets, then Tasks, Completed, Projects, Members, Habits, Habit check-ins and Countdowns as tables.
+  - Sheet names follow the app language.
+  - Each table has one column for every field seen, with a bold frozen header row and columns sized to their content. Nested values (tags, goals…) are JSON text, and an empty kind still gets its sheet, marked "No records".
+  - The workbook is built in the browser by `lib/xlsx.ts`, a small SpreadsheetML writer. It uses `fflate` (MIT, about 8 KB) for the zip container. It escapes text, strips characters XML can't carry, makes sheet names Excel-safe and unique, and caps a cell at Excel's 32,767-character limit.
+  - Checked by opening a generated file with openpyxl: it loads without warnings.
+
+### Changed
 - feat(settings): **Members redesigned; Settings and Account adapt to the screen and share one layout**.
   - **Members**:
     - a header with a member count, a one-line purpose and an **Add member** button, plus a search box;

@@ -138,6 +138,11 @@ describe("AccountPage — data & danger zone", () => {
 
     await waitFor(() => expect(mockExportData).toHaveBeenCalledTimes(1));
     expect(clickSpy).toHaveBeenCalled(); // download was triggered
+    // An Excel workbook, not JSON: the blob is an .xlsx and the file is named so.
+    const blob = (URL.createObjectURL as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as Blob;
+    expect(blob.type).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    const anchor = clickSpy.mock.contexts[0] as HTMLAnchorElement;
+    expect(anchor.download).toMatch(/^lumo-export-\d{4}-\d{2}-\d{2}\.xlsx$/);
     await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("account.export.success"));
     clickSpy.mockRestore();
   });
