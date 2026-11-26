@@ -6,7 +6,7 @@ export const HABIT_COLOR_MAP: Record<string, string> = {
   green:  "var(--status-success)",
   cyan:   "var(--accent-primary)",
   amber:  "var(--status-warning)",
-  red:    "var(--status-danger)",
+  red:    "var(--status-urgent)",
   purple: "#a78bfa",
 };
 
@@ -216,4 +216,71 @@ export function completionRate(habit: Habit, logs: HabitLog[], days = 30): numbe
 /** Total number of times a habit has been logged */
 export function totalCompletions(habit: Habit, logs: HabitLog[]): number {
   return logs.filter((l) => l.habitId === habit.id).length;
+}
+
+/** One day in a habit's recent history, for the card's week strip. */
+export interface HabitDay {
+  date: string;
+  /** 0 = Sunday … 6 = Saturday. */
+  weekday: number;
+  scheduled: boolean;
+  done: boolean;
+  isToday: boolean;
+}
+
+/** The last `n` days (today included), oldest first. */
+export function lastNDays(habit: Habit, logs: HabitLog[], n = 7): HabitDay[] {
+  const done = completedDates(logs, habit.id);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const out: HabitDay[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const date = toDateStr(d);
+    out.push({ date, weekday: d.getDay(), scheduled: isScheduledForDate(habit, d), done: done.has(date), isToday: i === 0 });
+  }
+  return out;
+}
+
+export interface HabitsOverview {
+  scheduledToday: number;
+  doneToday: number;
+  bestStreak: { habitId: string; title: string; days: number } | null;
+  /** Check-ins logged since this Monday. */
+  weekCheckIns: number;
+  /** Average 30-day completion across habits, 0–100. */
+  rate30: number;
+}
+
+/** The Habits page summary: today's progress, the best running streak, this week and the last 30 days. */
+export function habitsOverview(habits: Habit[], logs: HabitLog[]): HabitsOverview {
+  const today = toDateStr(new Date());
+  const monday = new Date();
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const mondayStr = toDateStr(monday);
+  const ids = new Set(habits.map((h) => h.id));
+
+  let scheduledToday = 0;
+  let doneToday = 0;
+  let best: HabitsOverview["bestStreak"] = null;
+  let rateSum = 0;
+  for (const h of habits) {
+    const doneNow = logs.some((l) => l.habitId === h.id && l.date === today);
+    if (isScheduledToday(h) || doneNow) {
+      scheduledToday++;
+      if (doneNow) doneToday++;
+    }
+    const s = currentStreak(h, logs);
+    if (s > 0 && (!best || s > best.days)) best = { habitId: h.id, title: h.title, days: s };
+    rateSum += completionRate(h, logs, 30);
+  }
+  return {
+    scheduledToday,
+    doneToday,
+    bestStreak: best,
+    weekCheckIns: logs.filter((l) => ids.has(l.habitId) && l.date >= mondayStr && l.date <= today).length,
+    rate30: habits.length ? Math.round((rateSum / habits.length) * 100) : 0,
+  };
 }

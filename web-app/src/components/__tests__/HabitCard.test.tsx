@@ -78,7 +78,7 @@ describe("HabitCard", () => {
       />
     );
     // Streak should be 1 (yesterday done, today not yet)
-    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("🔥 1")).toBeInTheDocument();
   });
 
   it("calls onCheckIn when check button is clicked and not done", () => {
@@ -93,7 +93,7 @@ describe("HabitCard", () => {
         onShowCalendar={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByLabelText("habit.done"));
+    fireEvent.click(screen.getByRole("button", { name: "habit.checkIn" }));
     expect(onCheckIn).toHaveBeenCalledOnce();
   });
 
@@ -111,7 +111,7 @@ describe("HabitCard", () => {
       />
     );
     // The interactive check button is absent when done
-    expect(screen.queryByLabelText("habit.done")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "habit.checkIn" })).not.toBeInTheDocument();
     // Clicking the title should not invoke onCheckIn
     fireEvent.click(screen.getByText("Morning run"));
     expect(onCheckIn).not.toHaveBeenCalled();
@@ -132,8 +132,8 @@ describe("HabitCard", () => {
     expect(screen.getByText("habit.checkin.already")).toBeInTheDocument();
   });
 
-  it("applies strikethrough style to title when done today", () => {
-    const logs = [log("h1", TODAY)];
+  it("shows the last 7 days as a strip, marking done days and today", () => {
+    const logs = [log("h1", TODAY), log("h1", "2026-05-17")];
     render(
       <HabitCard
         habit={HABIT}
@@ -144,8 +144,27 @@ describe("HabitCard", () => {
         onShowCalendar={vi.fn()}
       />
     );
-    const title = screen.getByText("Morning run");
-    expect(title.className).toMatch(/line-through/);
+    const strip = screen.getByRole("list", { name: "habit.last7" });
+    const days = strip.querySelectorAll("li");
+    expect(days).toHaveLength(7);
+    expect(days[6]).toHaveAttribute("data-today", "true");
+    expect(days[6]).toHaveAttribute("data-done", "true");
+    expect(days[4]).toHaveAttribute("data-done", "true");
+    expect(days[5]).toHaveAttribute("data-done", "false");
+  });
+
+  it("tints the card in the habit's colour once done today", () => {
+    const { container } = render(
+      <HabitCard
+        habit={HABIT}
+        logs={[log("h1", TODAY)]}
+        onCheckIn={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onShowCalendar={vi.fn()}
+      />
+    );
+    expect((container.firstElementChild as HTMLElement).getAttribute("data-done")).toBe("true");
   });
 
   it("calls onEdit when Edit menu item is clicked", () => {

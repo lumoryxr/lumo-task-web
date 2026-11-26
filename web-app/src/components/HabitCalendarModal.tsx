@@ -17,7 +17,7 @@ const COLOR_MAP: Record<string, string> = {
   green:  "var(--status-success)",
   cyan:   "var(--accent-primary)",
   amber:  "var(--status-warning)",
-  red:    "var(--status-danger)",
+  red:    "var(--status-urgent)",
   purple: "#a78bfa",
 };
 
