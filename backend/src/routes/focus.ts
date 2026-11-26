@@ -18,7 +18,7 @@ const focusRateLimit = createRateLimiter<{ Variables: Variables }>(10, 60_000, (
 // `started_at` is the wall-clock time the pomodoro began, persisted verbatim into
 // `completed_entries.started_at`. Bound it to an ISO 8601 date-time — matching the
 // endpoint's own published contract (`format: date-time`, routes/docs.ts) and the
-// app-wide datetime-anchor convention (task scheduled_start/remind_at, countdown
+// app-wide datetime-anchor convention (task scheduled_start, countdown
 // date, habit check-in date). The regex is a deliberate SUPERSET: it accepts both
 // the client's real wire format (`new Date().toISOString()` → `…THH:MM:SS.sssZ`)
 // and the shorter `scheduled_start` shape (`YYYY-MM-DDTHH:MM`), so nothing

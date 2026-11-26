@@ -93,7 +93,6 @@ describe("SettingsPage · consolidated tabs (#111)", () => {
   // On web, Data & Sync is hidden (desktop-only), so the web build shows these tabs.
   const WEB_TABS = [
     "settings.general",
-    "settings.notifications",
     "settings.pet",
     "settings.members",
     "ai.config.title",
@@ -161,11 +160,11 @@ describe("SettingsPage · consolidated tabs (#111)", () => {
     renderPage();
     clickTab("settings.members");
     // Cancel path: the member must not be removed.
-    fireEvent.click(screen.getByText("settings.members.delete"));
+    fireEvent.click(screen.getByRole("button", { name: "settings.members.delete: Bob" }));
     fireEvent.click(within(screen.getByRole("alertdialog")).getByText("common.cancel"));
     expect(peopleMock.remove).not.toHaveBeenCalled();
     // Confirm path: remove is called with the member id.
-    fireEvent.click(screen.getByText("settings.members.delete"));
+    fireEvent.click(screen.getByRole("button", { name: "settings.members.delete: Bob" }));
     fireEvent.click(within(screen.getByRole("alertdialog")).getByText("settings.members.delete"));
     expect(peopleMock.remove).toHaveBeenCalledWith("u1");
   });
@@ -194,5 +193,11 @@ describe("SettingsPage · Data & Sync is desktop-only (#112)", () => {
     expect(screen.getByText("settings.storage")).toBeInTheDocument();
     expect(screen.getByText("settings.cloud")).toBeInTheDocument();
     expect(screen.getByText("settings.sync")).toBeInTheDocument();
+  });
+
+  it("has no Notifications tab any more", () => {
+    renderPage();
+    expect(screen.queryByRole("tab", { name: "settings.notifications" })).toBeNull();
+    expect(screen.queryByText("settings.notifications")).toBeNull();
   });
 });

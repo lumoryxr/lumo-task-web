@@ -7,7 +7,7 @@ const createDraft: CreateDraft = {
 };
 
 const fields = (title: string): EditDraftFields => ({
-  title, desc: "", quadrant: "Q2", duration: 30, dueDate: "", scheduledStart: "", remindAt: "",
+  title, desc: "", quadrant: "Q2", duration: 30, dueDate: "", scheduledStart: "",
   recurrence: "none", assigneeIds: [], tags: [], projectId: null, progress: 0, sectionId: null, stageId: null,
 });
 

@@ -9,7 +9,6 @@ import { usePetStore } from "@/store/usePetStore";
 import { computeAllTimeStats } from "@/utils/stats";
 import { fmtDuration, fmtMMSS } from "@/lib/format";
 import { DogSvg } from "@/components/DogSvg";
-import { useNotificationStore } from "@/store/useNotificationStore";
 
 const DEFAULT_DURATION = 25 * 60;
 
@@ -49,15 +48,8 @@ export function FocusPage() {
   const [timerReady, setTimerReady] = useState(false);
   const [exiting, setExiting] = useState(false);
   const isElectron = typeof window !== "undefined" && !!window.electronAPI;
-  const notificationsEnabled = useNotificationStore((s) => s.enabled);
   const localeRef = useRef(locale);
   localeRef.current = locale;
-  // Kept current so the timer callback (fires outside render) localizes the
-  // completion notification with the latest locale.
-  const tRef = useRef(t);
-  tRef.current = t;
-  const notifEnabledRef = useRef(notificationsEnabled);
-  notifEnabledRef.current = notificationsEnabled;
 
   // Mutable refs so interval callback always reads latest values without stale closures.
   const remainingRef = useRef(taskDuration);
@@ -72,7 +64,7 @@ export function FocusPage() {
     }
   }
 
-  // Clear interval on unmount. Permission is now managed by the notifications settings panel.
+  // Clear interval on unmount.
   useEffect(() => {
     return () => { stopInterval(); startedForRef.current = null; };
   }, []);
@@ -98,12 +90,6 @@ export function FocusPage() {
       setRemaining(next);
       if (next === 0) {
         stopInterval();
-        if (notifEnabledRef.current && typeof Notification !== "undefined" && Notification.permission === "granted") {
-          new Notification(tRef.current("focus.notify.title"), {
-            body: tRef.current("focus.notify.body"),
-            icon: "/favicon.ico",
-          });
-        }
         setPetBounce(true);
         setTimeout(() => setPetBounce(false), 1200);
         useTasksStore.getState().fetchAllCompleted().then((entries) => {

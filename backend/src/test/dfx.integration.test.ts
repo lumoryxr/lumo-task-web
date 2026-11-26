@@ -1572,95 +1572,10 @@ describe("DFX · Robustness — bounded OKR/KPI goal fields on /v1/projects (#30
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Design for ROBUSTNESS — `remind_at` reminder field is format-bounded (#176)
-//
-// Coverage-gap audit (per-task reminders, #176): `tasks.remind_at` is the field
-// the reminder scheduler reads to decide WHEN to fire a notification. Its contract
-// bound is a strict local-wall-clock datetime regex
-// (`YYYY-MM-DDTHH:MM(:SS)?`) — the ONLY thing standing between a client and a
-// junk value landing in the column the scheduler later parses. Before this block
-// the entire reminder surface had zero integration/DFX coverage: a regression that
-// loosened the regex to `z.string()` (or dropped it) would let `"tomorrow"` /
-// a date-only string / a TZ-suffixed ISO into storage and slip past every existing
-// case — surfacing only as a mis-fired or scheduler-crashing reminder in prod.
-//
-// The cases give the bound teeth on BOTH write paths (create + update) and prove
-// the round-trip: a malformed value is a clean 400 (never a 5xx / silent write),
-// a valid value persists and reflects back, and a bad PATCH leaves the stored
-// value unmutated (no partial poison of the scheduler's input).
-// ═══════════════════════════════════════════════════════════════════════════════
-
-describe("DFX · Robustness — `remind_at` reminder field is format-bounded (#176)", () => {
-  test("malformed `remind_at` on create → 400 VALIDATION_ERROR naming the field, never a 5xx / write", async () => {
-    const { status, body } = await api("POST", "/v1/tasks", {
-      token: alice.token,
-      body: { title: { en: "Bad reminder" }, quadrant: "Q1", remind_at: "tomorrow afternoon" },
-    });
-    assert.equal(status, 400, "a junk reminder value must be a client error, not 5xx");
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-    assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "remind_at"),
-      "the rejection must name `remind_at` (the format bound fired, not an incidental 400)",
-    );
-  });
-
-  test("date-only `remind_at` (no time component) → 400 — the full datetime bound has teeth", async () => {
-    // `"2026-06-30"` is a valid `due` date but NOT a valid `remind_at`: the
-    // scheduler needs a wall-clock time, so the regex demands `T HH:MM`. This
-    // proves the bound rejects a plausible-but-incomplete value, not just garbage.
-    const { status, body } = await api("POST", "/v1/tasks", {
-      token: alice.token,
-      body: { title: { en: "Date only" }, quadrant: "Q1", remind_at: "2026-06-30" },
-    });
-    assert.equal(status, 400);
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-    assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "remind_at"),
-      "a date with no time must still name `remind_at`",
-    );
-  });
-
-  test("valid `remind_at` round-trips — create persists it and a read reflects it back", async () => {
-    const remindAt = "2026-12-01T09:30";
-    const { status, body: created } = await api("POST", "/v1/tasks", {
-      token: alice.token,
-      body: { title: { en: "Standup" }, quadrant: "Q1", remind_at: remindAt },
-    });
-    assert.equal(status, 201, "a well-formed reminder must be accepted");
-    assert.equal(created.remind_at, remindAt, "the create response must echo the stored reminder");
-
-    // The value must survive storage so the scheduler can read it back later.
-    const read = await api("GET", `/v1/tasks/${created.id}`, { token: alice.token });
-    assert.equal(read.status, 200);
-    assert.equal(read.body.remind_at, remindAt, "a subsequent read must reflect the persisted reminder");
-  });
-
-  test("malformed `remind_at` on PATCH → 400 and the stored value is left unmutated", async () => {
-    // Seed a task with a good reminder, then try to corrupt it via update.
-    const good = "2026-12-02T08:00";
-    const { body: created } = await api("POST", "/v1/tasks", {
-      token: alice.token,
-      body: { title: { en: "Patch target" }, quadrant: "Q1", remind_at: good },
-    });
-
-    const { status, body } = await api("PATCH", `/v1/tasks/${created.id}`, {
-      token: alice.token,
-      body: { remind_at: "not-a-datetime" },
-    });
-    assert.equal(status, 400, "the update path must validate `remind_at` too");
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-
-    // No partial poison: the rejected PATCH must not have overwritten the column.
-    const read = await api("GET", `/v1/tasks/${created.id}`, { token: alice.token });
-    assert.equal(read.status, 200);
-    assert.equal(read.body.remind_at, good, "a rejected update must leave the stored reminder unchanged");
-  });
-});
-
 // Design for ROBUSTNESS — task `due` date anchor is format-bounded (#319)
 //
 // Coverage-gap audit (task write boundary temporal fields, #319): sibling of the
-// `remind_at` block above. `tasks.due` (#177) is the STRICT DATE-ONLY ISO anchor
+// `scheduled_start` block below. `tasks.due` (#177) is the STRICT DATE-ONLY ISO anchor
 // (`^\d{4}-\d{2}-\d{2}$`, on create + partial update) that drives due-date display
 // / sorting and the planned due-date reminders. The regex is the ONLY barrier
 // between a client and a junk value landing in the column — a regression loosening
@@ -1689,8 +1604,8 @@ describe("DFX · Robustness — task `due` date anchor is format-bounded (#319)"
     );
   });
 
-  test("full-datetime `due` (a valid `scheduled_start`/`remind_at` shape) → 400 — the date-only bound has teeth", async () => {
-    // `"2026-12-01T09:30"` is a valid `scheduled_start`/`remind_at` value but NOT a
+  test("full-datetime `due` (a valid `scheduled_start` shape) → 400 — the date-only bound has teeth", async () => {
+    // `"2026-12-01T09:30"` is a valid `scheduled_start` value but NOT a
     // valid `due`: the due anchor is date-only, so the regex forbids a time
     // component. Proves the bound rejects a plausible-but-wrong-shape value, not
     // just garbage.
@@ -1742,11 +1657,11 @@ describe("DFX · Robustness — task `due` date anchor is format-bounded (#319)"
 
 // Design for ROBUSTNESS — task `scheduled_start` slot anchor is format-bounded (#319)
 //
-// Coverage-gap audit (task write boundary temporal fields, #319): the third
-// format-bounded temporal field on the task write boundary (with `remind_at` and
+// Coverage-gap audit (task write boundary temporal fields, #319): the second
+// format-bounded temporal field on the task write boundary (with
 // `due`), and the one with NO prior format-bound coverage at all. `scheduled_start`
 // is the day-plan slot — a wall-clock DATETIME anchor
-// (`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$`, same shape as `remind_at`, on create
+// (`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$`, a full datetime, on create
 // + partial update) that places a task on the schedule. The regex is the sole guard
 // between a client and a junk value in the column the scheduler reads to position
 // the task — a regression loosening it to `z.string()` would let a date-only value
@@ -1833,9 +1748,8 @@ describe("DFX · Robustness — task `scheduled_start` slot anchor is format-bou
 // `z.string().optional()` — any string accepted — which (a) contradicts the
 // endpoint's OWN published contract (routes/docs.ts declares it
 // `format: date-time`) and (b) is inconsistent with every other datetime anchor
-// in the app, all of which are format-bounded (task scheduled_start/remind_at/due
-// #319, countdown date #240, habit check-in date #267, settings reminder-time
-// #264). A regression relaxing the bound would let garbage / oversized timestamps
+// in the app, all of which are format-bounded (task scheduled_start/due
+// #319, countdown date #240, habit check-in date #267). A regression relaxing the bound would let garbage / oversized timestamps
 // into stored history with no status-code change.
 //
 // The bound is a SUPERSET regex accepting both the client's real wire format
@@ -2087,7 +2001,7 @@ describe("DFX · Robustness — NL-capture input bounds on POST /v1/ai/parse (#3
 // engine parse. Its only contract bound is a strict date-only regex
 // (`^\d{4}-\d{2}-\d{2}$`, on `CountdownBody` + the partial `CountdownUpdateBody`)
 // — the sole guard between a client and a junk value landing in the column that
-// display + recurrence math later read. Like `remind_at` (#176), the countdown
+// display + recurrence math later read. Like task `scheduled_start`, the countdown
 // surface had no robustness DFX coverage: a regression that loosened the regex
 // to `z.string()` (or dropped it) would let `"someday"` / a full-datetime string
 // into storage and slip past every existing case — surfacing only as a NaN
@@ -2118,7 +2032,7 @@ describe("DFX · Robustness — countdown `date` anchor is format-bounded (#240)
   });
 
   test("full datetime `date` (plausible but wrong shape) → 400 — the date-only bound has teeth", async () => {
-    // `"2026-07-01T09:30"` is a valid task `remind_at` but NOT a valid countdown
+    // `"2026-07-01T09:30"` is a valid task `scheduled_start` but NOT a valid countdown
     // anchor: the countdown wants a date-only string, so the regex forbids the
     // time component. Proves the bound rejects a plausible-but-wrong value, not
     // just garbage.
@@ -2164,82 +2078,6 @@ describe("DFX · Robustness — countdown `date` anchor is format-bounded (#240)
   });
 });
 
-describe("DFX · Robustness — settings reminder-time fields are format-bounded (#264)", () => {
-  // `morning_reminder_time` / `evening_reminder_time` are the `HH:MM` anchors
-  // that PATCH /v1/settings stores verbatim and GET /v1/settings returns to drive
-  // the client's morning/evening reminder scheduling. Their ONLY guard is a shape
-  // regex `^\d{2}:\d{2}$` (nullable/optional). Sibling of the #176 `remind_at` /
-  // #240 `countdowns.date` format bounds: settings is otherwise absent from this
-  // daily suite, so a regression loosening the regex to `z.string()` would let a
-  // malformed time into the column — surfacing only as a mis-parsed / never-firing
-  // reminder in prod — past every existing case. (The registration flow seeds a
-  // settings row, so a PATCH on the shared actor targets an existing singleton.)
-
-  test("malformed `morning_reminder_time` (`9am`) → 400 VALIDATION_ERROR naming the field, never a 5xx / write", async () => {
-    const { status, body } = await api("PATCH", "/v1/settings", {
-      token: alice.token,
-      body: { morning_reminder_time: "9am" },
-    });
-    assert.equal(status, 400, "a junk time must be a client error, not 5xx");
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-    assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "morning_reminder_time"),
-      "the rejection must name `morning_reminder_time` (the format bound fired, not an incidental 400)",
-    );
-  });
-
-  test("single-digit `evening_reminder_time` (`9:5`) → 400 — the `\\d{2}:\\d{2}` bound has teeth", async () => {
-    // `"9:5"` is a plausible-but-wrong time: it *looks* like a clock value but
-    // violates the two-digit-each shape, so the regex must reject it. Proves the
-    // bound rejects a near-miss, not just obvious garbage.
-    const { status, body } = await api("PATCH", "/v1/settings", {
-      token: alice.token,
-      body: { evening_reminder_time: "9:5" },
-    });
-    assert.equal(status, 400);
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-    assert.ok(
-      (body.error?.fields as Array<{ path: string }> | undefined)?.some((f) => f.path === "evening_reminder_time"),
-      "a single-digit time must still name `evening_reminder_time`",
-    );
-  });
-
-  test("valid `HH:MM` values round-trip — PATCH persists them and GET reflects them back", async () => {
-    const morning = "07:15";
-    const evening = "21:45";
-    const { status, body } = await api("PATCH", "/v1/settings", {
-      token: alice.token,
-      body: { morning_reminder_time: morning, evening_reminder_time: evening },
-    });
-    assert.equal(status, 200, "well-formed times must be accepted");
-    assert.equal(body.morning_reminder_time, morning, "the PATCH response must echo the stored morning time");
-    assert.equal(body.evening_reminder_time, evening, "the PATCH response must echo the stored evening time");
-
-    // The values must survive storage so the client's scheduler can read them back.
-    const get = await api("GET", "/v1/settings", { token: alice.token });
-    assert.equal(get.status, 200);
-    assert.equal(get.body.morning_reminder_time, morning, "a subsequent read must reflect the persisted morning time");
-    assert.equal(get.body.evening_reminder_time, evening, "a subsequent read must reflect the persisted evening time");
-  });
-
-  test("malformed `morning_reminder_time` on PATCH → 400 and the stored value is left unmutated", async () => {
-    // Anchor a known-good value first, then attempt a poisoning update.
-    const good = "06:30";
-    await api("PATCH", "/v1/settings", { token: alice.token, body: { morning_reminder_time: good } });
-
-    const { status, body } = await api("PATCH", "/v1/settings", {
-      token: alice.token,
-      body: { morning_reminder_time: "25:99:99" },
-    });
-    assert.equal(status, 400, "a malformed update must be rejected");
-    assert.equal(body.error?.code, "VALIDATION_ERROR");
-
-    // No partial poison: the rejected PATCH must not have overwritten the column.
-    const get = await api("GET", "/v1/settings", { token: alice.token });
-    assert.equal(get.body.morning_reminder_time, good, "a rejected update must leave the stored time unchanged");
-  });
-});
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Design for SECURITY — AI-provider credential confidentiality on /v1/settings (#260)
 //
@@ -2252,8 +2090,7 @@ describe("DFX · Robustness — settings reminder-time fields are format-bounded
 //   (2) NEVER ECHOED — `rowToSettings` projects each provider config down to
 //       `{ hasKey, model, baseUrl }`; the key value (plaintext OR its `enc:v1:`
 //       ciphertext) is returned by NEITHER `PATCH` NOR `GET /v1/settings`.
-// Settings' only prior presence in this daily suite is the #264 reminder-time
-// robustness cases; the secret-handling contract — the whole reason the column is
+// Before this block the daily suite had no settings coverage; the secret-handling contract — the whole reason the column is
 // JSON-with-an-encrypted-field rather than a plain value — had no real-HTTP +
 // real-file-SQLite coverage. A regression that (a) dropped the `encryptSecret`
 // wrap (stored the key in cleartext) or (b) surfaced the key in `rowToSettings`
@@ -2348,7 +2185,7 @@ describe("DFX · Security — AI-provider credential confidentiality on /v1/sett
 
 describe("DFX · Robustness — habit check-in `date` is format-bounded (#267)", () => {
   // Last member of the scheduler/streak-driving format-bound family
-  // (#176 remind_at → #240 countdowns.date → #264 settings reminder-times).
+  // (#240 countdowns.date, #319 task due/scheduled_start).
   // The check-in `date` is the key of every `habit_logs` row and the sole input
   // to the client's streak computation; it is gated ONLY by `^\d{4}-\d{2}-\d{2}$`
   // on two surfaces — the `POST /:id/log` JSON body AND the `DELETE /:id/log/:date`
@@ -2388,7 +2225,7 @@ describe("DFX · Robustness — habit check-in `date` is format-bounded (#267)",
   });
 
   test("full-datetime `date` on POST /:id/log (plausible but wrong shape) → 400 — the date-only bound has teeth", async () => {
-    // `"2026-07-02T09:30"` is a valid task `remind_at` but NOT a valid check-in
+    // `"2026-07-02T09:30"` is a valid task `scheduled_start` but NOT a valid check-in
     // date: the streak math wants a date-only key, so the regex forbids the time
     // component. Proves the bound rejects a plausible-but-wrong value, not just
     // garbage.
@@ -2621,8 +2458,8 @@ describe("DFX · Robustness — habit frequency-scheduling fields are range-boun
 //                  sized for ≤ 2 chars; an over-length value overflows the layout).
 //   • `email`    — `z.string().email().max(255)`; a format bound.
 //
-// Same class as the scheduler/format-bound family (#176 remind_at → #240
-// countdowns.date → #264 settings times → #267 habit date), applied to the last
+// Same class as the scheduler/format-bound family (#240
+// countdowns.date → #267 habit date), applied to the last
 // user-scoped CRUD resource whose format bounds are untested at the daily
 // real-HTTP + real-SQLite layer. PATCH re-validates the full partial body, so the
 // bounds apply on BOTH write paths; there is no GET /:id, so round-trips read back

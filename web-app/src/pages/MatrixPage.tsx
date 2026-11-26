@@ -166,7 +166,10 @@ export function MatrixPage() {
 
       {/* Content area */}
       {view === "matrix" ? (
-        <div className="grid grid-cols-1 auto-rows-max sm:grid-cols-2 sm:grid-rows-2 gap-3 sm:gap-4 flex-1 min-h-0 overflow-y-auto px-4 sm:px-7 pb-4 sm:pb-7">
+        <div className="grid grid-cols-1 auto-rows-max sm:grid-cols-2 sm:grid-rows-[repeat(2,minmax(220px,1fr))] gap-3 sm:gap-4 flex-1 min-h-0 overflow-y-auto px-4 sm:px-7 pb-4 sm:pb-7">
+          {/* 2×2 on wider screens: the quadrants share the window's height, each
+              scrolling its own list, but never get shorter than 220px — on a short
+              window the board itself scrolls instead of squeezing them. */}
           {quadrants.map((q) => (
             <QuadrantPanel
               key={q.id}
@@ -312,7 +315,7 @@ function QuadrantPanel({
 
       {/* Stacked on a phone, a quadrant grows with its tasks (the page scrolls);
           in the 2×2 grid each quadrant scrolls on its own. */}
-      <div className="sm:flex-1 sm:min-h-0 sm:scroll-y p-3 flex flex-col gap-2">
+      <div data-quadrant-list className="quadrant-list p-3 flex flex-col gap-2">
         {tasks.length === 0 && (
           <div className="text-[12px] text-text-faint italic px-1 py-3">
             {over ? t("matrix.dropHere") : t("matrix.empty")}

@@ -33,7 +33,6 @@ const wireTask = {
   recurrence: "none" as const,
   subtasks: [{ id: "s_1", title: "stub", completed: false }],
   scheduled_start: null,
-  remind_at: null,
   progress: 40,
   section_id: null,
   stage_id: null,

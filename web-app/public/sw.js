@@ -33,24 +33,3 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
-
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  const action = event.notification.data?.action;
-  const target =
-    action === "morning" ? "/today?planning=open"
-    : action === "evening" ? "/today?evening=open"
-    : "/today";
-
-  event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((all) => {
-      for (const client of all) {
-        if (new URL(client.url).origin === self.location.origin && "focus" in client) {
-          client.navigate(target);
-          return client.focus();
-        }
-      }
-      return clients.openWindow(target);
-    })
-  );
-});

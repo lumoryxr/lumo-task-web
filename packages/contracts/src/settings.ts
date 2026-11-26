@@ -15,9 +15,6 @@ export const LocaleSchema = z.enum(["en", "zh"]);
 export const AccentSchema = z.enum(["green", "cyan", "amber", "graphite"]);
 export const DensitySchema = z.enum(["comfortable", "compact"]);
 
-/** `HH:MM` 24-hour local time for the morning/evening reminders. */
-const ClockTimeSchema = z.string().regex(/^\d{2}:\d{2}$/);
-
 // ── Request body ──────────────────────────────────────────────────────────────
 
 /**
@@ -38,10 +35,6 @@ export const SettingsPatchBodySchema = z.object({
   long_break: z.number().int().min(1).optional(),
   long_break_interval: z.number().int().min(1).optional(),
   auto_start_breaks: z.boolean().optional(),
-  notifications_enabled: z.boolean().optional(),
-  morning_reminder_time: ClockTimeSchema.nullable().optional(),
-  evening_reminder_time: ClockTimeSchema.nullable().optional(),
-  due_alerts_enabled: z.boolean().optional(),
   onboarding_complete: z.boolean().optional(),
   ai_provider: AiProviderSchema.optional(),
   ai_configs_update: z
@@ -77,10 +70,6 @@ export const SettingsWireSchema = z.object({
   long_break: z.number(),
   long_break_interval: z.number(),
   auto_start_breaks: z.boolean(),
-  notifications_enabled: z.boolean(),
-  morning_reminder_time: z.string(),
-  evening_reminder_time: z.string(),
-  due_alerts_enabled: z.boolean(),
   onboarding_complete: z.boolean(),
   ai_provider: z.string(),
   /** Keyed by provider id — see {@link AiProviderSchema}. */

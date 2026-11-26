@@ -59,10 +59,6 @@ function rowToSettings(row: SettingsRow) {
     long_break: row.long_break,
     long_break_interval: row.long_break_interval,
     auto_start_breaks: Boolean(row.auto_start_breaks),
-    notifications_enabled: Boolean(row.notifications_enabled),
-    morning_reminder_time: row.morning_reminder_time ?? "09:00",
-    evening_reminder_time: row.evening_reminder_time ?? "18:00",
-    due_alerts_enabled: Boolean(row.due_alerts_enabled ?? 1),
     onboarding_complete: Boolean(row.onboarding_complete),
     ai_provider: (row.ai_provider ?? "openai") as string,
     ai_provider_configs: providerConfigs,
@@ -95,8 +91,7 @@ app.patch("/", validate("json", SettingsPatchBodySchema), async (c) => {
   const ALLOWED_COLUMNS = new Set([
     "locale", "accent", "density", "reduced_motion", "ai_enabled",
     "pomodoro_duration", "short_break", "long_break", "long_break_interval",
-    "auto_start_breaks", "notifications_enabled", "morning_reminder_time",
-    "evening_reminder_time", "due_alerts_enabled", "onboarding_complete", "ai_provider",
+    "auto_start_breaks", "onboarding_complete", "ai_provider",
   ]);
 
   const updates: string[] = [];

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalA11y } from "@/hooks/useModalA11y";
-import { IconClose } from "@/components/icons";
+import { IconCheck, IconClose } from "@/components/icons";
 import { useT } from "@/i18n/useT";
 import { useProjectsStore } from "@/store/useProjectsStore";
 import type { Project, ProjectColor } from "@/types/task";
 import { Spinner } from "@/components/Spinner";
+import { FieldLabel } from "@/components/taskForm/FieldLabel";
 
 const COLORS: ProjectColor[] = ["green", "cyan", "amber", "red"];
 const COLOR_PRIMARY: Record<ProjectColor, string> = {
@@ -14,6 +15,8 @@ const COLOR_PRIMARY: Record<ProjectColor, string> = {
   amber: "var(--status-warning)",
   red: "var(--status-urgent)",
 };
+/** Quick picks so most people never have to type an emoji. */
+const EMOJI_CHOICES = ["🚀", "📁", "🎯", "💼", "📚", "🎨", "💡", "🛠️", "🏠", "❤️"];
 
 interface ProjectFormModalProps {
   onClose: () => void;
@@ -24,10 +27,11 @@ interface ProjectFormModalProps {
 }
 
 /**
- * Create- or edit-a-project dialog. Create replaces the old "instantly spawn an
- * Untitled project and jump in" flow so the name/category/color/first-goal are
- * set up front. Edit (when `project` is passed) is a quick rename/recolor from
- * the gallery without leaving the page.
+ * Create- or edit-a-project dialog, on the same frame as the task dialogs
+ * (header with an X, scrolling body, footer actions). A live preview tile shows
+ * the emoji on the chosen colour; the emoji comes from a row of quick picks or
+ * can be typed. Edit mode is how a project's name, emoji, category and colour
+ * change — the detail page shows them as text, never as inline inputs.
  */
 export function ProjectFormModal({ onClose, onCreated, project }: ProjectFormModalProps) {
   const t = useT();
@@ -73,188 +77,169 @@ export function ProjectFormModal({ onClose, onCreated, project }: ProjectFormMod
     }
   }
 
+  const title = isEdit ? t("project.edit") : t("project.new");
+
   return createPortal(
     <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 200,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
-      }}
+      className="task-dialog-backdrop fade-in z-[200]"
+      style={{ background: "rgba(8, 11, 10, 0.6)", backdropFilter: "blur(6px)" }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={isEdit ? t("project.edit") : t("project.new")}
+        aria-label={title}
         ref={dialogRef}
         tabIndex={-1}
-        style={{
-          background: "var(--bg-elevated)",
-          border: "1px solid var(--border-default)",
-          borderRadius: "var(--radius-lg)",
-          boxShadow: "var(--shadow-lifted)",
-          width: 420, maxWidth: "calc(100vw - 32px)", maxHeight: "90vh",
-          // Bound the dialog and lay it out as header (pinned) + scrollable body,
-          // so autoFocus on a field can't scroll the whole dialog and hide the
-          // header on short viewports.
-          display: "flex", flexDirection: "column",
-        }}
+        className="task-dialog border rounded-[14px] bg-elevated shadow-lifted"
+        style={{ borderColor: "var(--border-default)", minHeight: "auto" }}
       >
-        {/* Header */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 20px", borderBottom: "1px solid var(--border-faint)",
-          flexShrink: 0,
-        }}>
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
-            {isEdit ? t("project.edit") : t("project.new")}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t("qc.close")}
-            className="flex items-center justify-center transition-colors"
-            style={{
-              width: 28, height: 28, borderRadius: "var(--radius-sm)",
-              background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer",
-            }}
-          >
-            <IconClose size={14} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <form onSubmit={handleSubmit} style={{ padding: 20, overflowY: "auto", flex: 1, minHeight: 0 }}>
-          {/* Emoji + name */}
-          <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-            <div style={{ flexShrink: 0 }}>
-              <Label text={t("project.field.emoji")} />
-              <input
-                value={emoji}
-                onChange={(e) => setEmoji(e.target.value)}
-                placeholder="📁"
-                maxLength={4}
-                aria-label={t("project.field.emoji")}
-                style={{ ...inputStyle(), width: 52, textAlign: "center" }}
-              />
+        <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+          {/* Header — the project as it will look, with the X */}
+          <header className="flex items-center gap-3 px-[18px] py-4 border-b border-border-faint flex-shrink-0">
+            <span
+              data-testid="project-preview"
+              aria-hidden="true"
+              className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl text-[20px] transition-colors"
+              style={{ background: COLOR_PRIMARY[color], color: "var(--text-inverse)" }}
+            >
+              {emoji.trim() || "📁"}
+            </span>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-[13px] font-semibold text-text-primary">{title}</h2>
+              <p className="mt-0.5 text-[11.5px] text-text-muted truncate">
+                {name.trim() || t("project.field.namePlaceholder")}
+                {category.trim() ? ` · ${category.trim()}` : ""}
+              </p>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <Label text={t("project.field.name")} required />
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={t("qc.close")}
+              title={t("qc.close")}
+              className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-text-muted border border-border-default bg-transparent hover:bg-subtle hover:text-text-primary hover:border-border-strong transition-colors"
+            >
+              <IconClose size={12} />
+            </button>
+          </header>
+
+          <div className="task-dialog__body px-[18px] py-4 flex flex-col gap-4">
+            <div>
+              <FieldLabel>{t("project.field.name")}</FieldLabel>
               <input
                 autoFocus
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={t("project.field.namePlaceholder")}
                 aria-label={t("project.field.name")}
-                style={inputStyle()}
+                maxLength={200}
+                className="input"
+                style={{ height: 40, fontSize: 14, fontWeight: 500 }}
               />
             </div>
-          </div>
 
-          {/* Category */}
-          <div style={{ marginBottom: 16 }}>
-            <Label text={t("project.category.label")} />
-            <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder={t("project.category.placeholder")}
-              aria-label={t("project.category.label")}
-              style={inputStyle()}
-            />
-          </div>
-
-          {/* Color */}
-          <div style={{ marginBottom: 16 }}>
-            <Label text={t("project.color.label")} />
-            <div style={{ display: "flex", gap: 10 }}>
-              {COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  aria-label={c}
-                  aria-pressed={color === c}
-                  onClick={() => setColor(c)}
-                  className="rounded-full transition-transform"
-                  style={{
-                    width: 24, height: 24, background: COLOR_PRIMARY[c], cursor: "pointer",
-                    border: "none",
-                    outline: color === c ? "2px solid var(--text-primary)" : "none",
-                    outlineOffset: 2,
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* First goal (optional) — create only; goals are managed on the detail page. */}
-          {!isEdit && (
-            <div style={{ marginBottom: 20 }}>
-              <Label text={t("project.create.goal")} />
+            <div>
+              <FieldLabel>{t("project.category.label")}</FieldLabel>
               <input
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                placeholder={t("project.goals.placeholder")}
-                aria-label={t("project.create.goal")}
-                style={inputStyle()}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder={t("project.category.placeholder")}
+                aria-label={t("project.category.label")}
+                maxLength={60}
+                className="input"
+                style={{ height: 38, fontSize: 13 }}
               />
             </div>
-          )}
 
-          {/* Actions */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <button
-              type="button"
-              onClick={onClose}
-              className="transition-colors"
-              style={{
-                padding: "8px 18px", borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border-default)", background: "transparent",
-                color: "var(--text-secondary)", fontSize: 13, fontWeight: 500, cursor: "pointer",
-              }}
-            >
+            <div>
+              <FieldLabel>{t("project.field.emoji")}</FieldLabel>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {EMOJI_CHOICES.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    aria-label={e}
+                    aria-pressed={emoji === e}
+                    onClick={() => setEmoji(e)}
+                    className="flex items-center justify-center w-9 h-9 rounded-lg text-[17px] transition-colors hover:bg-subtle"
+                    style={{
+                      background: emoji === e ? "var(--accent-fog)" : "var(--bg-subtle)",
+                      border: `1px solid ${emoji === e ? "var(--accent-edge)" : "var(--border-faint)"}`,
+                    }}
+                  >
+                    {e}
+                  </button>
+                ))}
+                <input
+                  value={EMOJI_CHOICES.includes(emoji) ? "" : emoji}
+                  onChange={(e) => setEmoji(e.target.value)}
+                  placeholder="✏️"
+                  maxLength={4}
+                  aria-label={t("project.field.emojiCustom")}
+                  title={t("project.field.emojiCustom")}
+                  className="input text-center"
+                  style={{ width: 52, height: 36, fontSize: 16, padding: 0 }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <FieldLabel>{t("project.color.label")}</FieldLabel>
+              <div className="flex items-center gap-2.5">
+                {COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={c}
+                    aria-pressed={color === c}
+                    onClick={() => setColor(c)}
+                    className="flex items-center justify-center w-8 h-8 rounded-full transition-transform hover:scale-105"
+                    style={{
+                      background: COLOR_PRIMARY[c],
+                      color: "var(--text-inverse)",
+                      boxShadow: color === c ? "0 0 0 2px var(--bg-elevated), 0 0 0 4px var(--text-primary)" : "none",
+                    }}
+                  >
+                    {color === c && <IconCheck size={14} strokeWidth={2.5} />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* First goal (optional) — create only; goals are managed on the detail page. */}
+            {!isEdit && (
+              <div>
+                <FieldLabel>{t("project.create.goal")}</FieldLabel>
+                <input
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                  placeholder={t("project.goals.placeholder")}
+                  aria-label={t("project.create.goal")}
+                  className="input"
+                  style={{ height: 38, fontSize: 13 }}
+                />
+              </div>
+            )}
+          </div>
+
+          <footer className="flex items-center justify-end gap-2 px-[18px] py-3 border-t border-border-faint flex-shrink-0">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>
               {t("project.cancel")}
             </button>
             <button
               type="submit"
+              className="btn btn-primary"
+              style={{ minWidth: 76 }}
               disabled={busy}
               aria-busy={busy}
               aria-label={isEdit ? t("project.save") : t("project.create")}
-              className="transition-colors"
-              style={{
-                padding: "8px 20px", borderRadius: "var(--radius-md)",
-                border: "1px solid var(--accent-edge)",
-                background: busy ? "var(--bg-subtle)" : "var(--accent-fog)",
-                color: "var(--accent-primary)", fontSize: 13, fontWeight: 600,
-                cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1,
-                minWidth: 72, display: "inline-flex", alignItems: "center", justifyContent: "center",
-              }}
             >
               {busy ? <Spinner /> : isEdit ? t("project.save") : t("project.create")}
             </button>
-          </div>
+          </footer>
         </form>
       </div>
     </div>,
     document.body,
   );
-}
-
-function Label({ text, required }: { text: string; required?: boolean }) {
-  return (
-    <div style={{
-      fontSize: 11, fontWeight: 600, color: "var(--text-secondary)",
-      textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6,
-    }}>
-      {text}{required && <span style={{ color: "var(--status-urgent)", marginLeft: 2 }}>*</span>}
-    </div>
-  );
-}
-
-function inputStyle(): React.CSSProperties {
-  return {
-    width: "100%", height: 40, padding: "0 12px",
-    background: "var(--bg-subtle)", border: "1px solid var(--border-default)",
-    borderRadius: "var(--radius-md)", color: "var(--text-primary)",
-    fontSize: 13, outline: "none", transition: "border-color 150ms", boxSizing: "border-box",
-  };
 }

@@ -28,7 +28,6 @@ export interface EditDraftFields {
   duration: number;
   dueDate: string;
   scheduledStart: string;
-  remindAt: string;
   recurrence: TaskRecurrence;
   assigneeIds: string[];
   tags: string[];

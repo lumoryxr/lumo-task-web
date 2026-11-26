@@ -309,7 +309,6 @@ export function buildTaskUpdateBody(patch: TaskUpdateInput) {
     ...(patch.tags !== undefined && { tags: patch.tags }),
     ...(patch.project_id !== undefined && { project_id: patch.project_id }),
     ...(patch.scheduled_start !== undefined && { scheduled_start: patch.scheduled_start }),
-    ...(patch.remind_at !== undefined && { remind_at: patch.remind_at }),
     ...(patch.progress !== undefined && { progress: patch.progress }),
     ...(patch.section_id !== undefined && { section_id: patch.section_id }),
     ...(patch.stage_id !== undefined && { stage_id: patch.stage_id }),
@@ -368,7 +367,6 @@ export function buildTaskCreateBody(input: TaskCreateInput, id?: string) {
     ...(input.section_id !== undefined && { section_id: input.section_id }),
     ...(input.stage_id !== undefined && { stage_id: input.stage_id }),
     scheduled_start: input.scheduled_start ?? null,
-    remind_at: input.remind_at ?? null,
     progress: input.progress ?? 0,
   };
 }
@@ -397,7 +395,6 @@ function adaptTask(raw: any): Task {
     tags: raw.tags ?? [],
     project_id: raw.project_id ?? null,
     scheduled_start: raw.scheduled_start ?? null,
-    remind_at: raw.remind_at ?? null,
     progress: raw.progress ?? 0,
     progress_log: raw.progress_log ?? [],
     section_id: raw.section_id ?? null,
@@ -799,10 +796,6 @@ export const api = {
     density?: string;
     reduced_motion?: boolean;
     ai_enabled?: boolean;
-    notifications_enabled?: boolean;
-    morning_reminder_time?: string | null;
-    evening_reminder_time?: string | null;
-    due_alerts_enabled?: boolean;
     onboarding_complete?: boolean;
     ai_provider?: "openai" | "deepseek" | "claude" | "custom";
     ai_configs_update?: {

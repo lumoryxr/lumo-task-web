@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { IconArrowRight, IconCheck } from "@/components/icons";
 import { useT } from "@/i18n/useT";
+import { buildXlsx, exportBundleToSheets } from "@/lib/xlsx";
 import { selectIsSignedIn, useAuthStore } from "@/store/useAuthStore";
+import { SettingsPageFrame, SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { DogEvolutionBadge } from "@/components/DogEvolutionBadge";
 import { useModalA11y } from "@/hooks/useModalA11y";
 import { toast } from "@/store/useToastStore";
@@ -12,9 +14,11 @@ import { ApiError } from "@/api/ApiError";
 import { RecoveryCodeCard } from "@/components/RecoveryCodeCard";
 import { DONATE_URL } from "@/config/app";
 
-/** Serialize `data` and trigger a client-side file download. */
-function downloadJson(filename: string, data: unknown) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** Trigger a client-side download of an .xlsx workbook. */
+function downloadXlsx(filename: string, bytes: Uint8Array) {
+  const blob = new Blob([new Uint8Array(bytes)], { type: XLSX_MIME });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -70,7 +74,8 @@ export function AccountPage() {
     try {
       const bundle = await exportData();
       const stamp = new Date().toISOString().slice(0, 10);
-      downloadJson(`lumo-export-${stamp}.json`, bundle);
+      // One sheet per kind of data (profile, settings, tasks, projects, …).
+      downloadXlsx(`lumo-export-${stamp}.xlsx`, buildXlsx(exportBundleToSheets(bundle, t)));
       toast.success(t("account.export.success"));
     } catch (e) {
       presentError(e, "account.export.err");
@@ -81,10 +86,10 @@ export function AccountPage() {
 
   if (!isSignedIn) {
     return (
-      <div className="fade-in px-8 py-10 max-w-[640px] mx-auto">
-        <div className="text-2xl font-semibold text-text-primary">{t("account.title")}</div>
+      <SettingsPageFrame>
+        <h1 className="text-[20px] font-semibold text-text-primary">{t("account.title")}</h1>
         <div
-          className="mt-6 p-6 rounded-xl border bg-surface flex items-center gap-4"
+          className="p-6 rounded-xl border bg-surface flex flex-wrap items-center gap-4"
           style={{ borderColor: "var(--border-default)" }}
         >
           <div
@@ -111,7 +116,7 @@ export function AccountPage() {
             <IconArrowRight size={14} />
           </button>
         </div>
-      </div>
+      </SettingsPageFrame>
     );
   }
 
@@ -123,7 +128,7 @@ export function AccountPage() {
   }
 
   return (
-    <div className="fade-in px-8 py-8 max-w-[760px] mx-auto">
+    <SettingsPageFrame>
       {/* Header card: avatar + name + plan badge */}
       <div
         className="relative p-6 rounded-xl border bg-surface overflow-hidden"
@@ -194,13 +199,13 @@ export function AccountPage() {
       </div>
 
       {/* Dog evolution badge */}
-      <div className="mt-4">
+      <div className="-mt-4">
         <DogEvolutionBadge />
       </div>
 
       {/* Usage */}
-      <Group title={t("account.usage")}>
-        <div className="grid grid-cols-3 divide-x divide-border-faint">
+      <SettingsSection title={t("account.usage")}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border-faint">
           <Stat label={t("account.tasks")} value={String(stats.tasks)} />
           <Stat label={t("account.pomos")} value={String(stats.pomodoros)} />
           <Stat
@@ -210,11 +215,11 @@ export function AccountPage() {
             dot={stats.syncOK}
           />
         </div>
-      </Group>
+      </SettingsSection>
 
       {/* Support — Lumo is free; this is a voluntary donation link, not a paid tier. */}
-      <Group title={t("account.support")}>
-        <Row label={t("account.support")} helper={t("account.support.desc")}>
+      <SettingsSection title={t("account.support")}>
+        <SettingsRow label={t("account.support")} helper={t("account.support.desc")}>
           <a
             href={DONATE_URL}
             target="_blank"
@@ -230,12 +235,12 @@ export function AccountPage() {
             {t("account.support.cta")}
             <IconArrowRight size={12} style={{ transform: "rotate(-45deg)" }} />
           </a>
-        </Row>
-      </Group>
+        </SettingsRow>
+      </SettingsSection>
 
       {/* Security */}
-      <Group title={t("account.security")}>
-        <Row label={t("account.email.label")} helper={t("account.email.desc")}>
+      <SettingsSection title={t("account.security")}>
+        <SettingsRow label={t("account.email.label")} helper={t("account.email.desc")}>
           <div className="flex items-center gap-2.5">
             {user.email ? (
               <>
@@ -249,25 +254,25 @@ export function AccountPage() {
               {user.email ? t("account.email.change") : t("account.email.bind")}
             </button>
           </div>
-        </Row>
-        <Row label={t("account.recovery")} helper={t("account.recovery.desc")}>
+        </SettingsRow>
+        <SettingsRow label={t("account.recovery")} helper={t("account.recovery.desc")}>
           <RegenerateRecoveryButton onCode={setRecoveryCode} />
-        </Row>
-        <Row label={t("account.changePass")}>
+        </SettingsRow>
+        <SettingsRow label={t("account.changePass")}>
           <button className="btn btn-secondary" onClick={() => navigate("/account/change-password")}>
             {t("account.changePass")}
           </button>
-        </Row>
-        <Row label={t("auth.signout")}>
+        </SettingsRow>
+        <SettingsRow label={t("auth.signout")}>
           <button className="btn btn-secondary" onClick={handleSignOut}>
             {t("auth.signout")}
           </button>
-        </Row>
-      </Group>
+        </SettingsRow>
+      </SettingsSection>
 
       {/* Data & privacy */}
-      <Group title={t("account.data")}>
-        <Row label={t("account.export")} helper={t("account.export.desc")}>
+      <SettingsSection title={t("account.data")}>
+        <SettingsRow label={t("account.export")} helper={t("account.export.desc")}>
           <button
             className="btn btn-secondary"
             onClick={handleExport}
@@ -276,12 +281,12 @@ export function AccountPage() {
           >
             {exporting ? t("account.export.busy") : t("account.export.btn")}
           </button>
-        </Row>
-      </Group>
+        </SettingsRow>
+      </SettingsSection>
 
       {/* Danger zone */}
-      <Group title={t("account.danger")} danger>
-        <Row label={t("account.delete")} helper={t("account.delete.desc")}>
+      <SettingsSection title={t("account.danger")} danger>
+        <SettingsRow label={t("account.delete")} helper={t("account.delete.desc")}>
           <button
             className="btn btn-secondary"
             style={{ color: "var(--status-urgent)", borderColor: "rgba(255,107,107,0.4)" }}
@@ -289,8 +294,8 @@ export function AccountPage() {
           >
             {t("account.delete.btn")}
           </button>
-        </Row>
-      </Group>
+        </SettingsRow>
+      </SettingsSection>
 
       <DeleteAccountDialog
         open={deleteOpen}
@@ -314,7 +319,7 @@ export function AccountPage() {
       />
 
       <RecoveryModal code={recoveryCode} onClose={() => setRecoveryCode(null)} />
-    </div>
+    </SettingsPageFrame>
   );
 }
 
@@ -655,58 +660,6 @@ function RecoveryModal({ code, onClose }: { code: string | null; onClose: () => 
       </div>
     </div>,
     document.body,
-  );
-}
-
-function Group({
-  title,
-  danger,
-  children,
-}: {
-  title: string;
-  danger?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mt-7">
-      <h3
-        className="text-[10px] font-semibold uppercase mb-2 pl-0.5"
-        style={{ letterSpacing: "0.1em", color: danger ? "var(--status-urgent)" : "var(--text-faint)" }}
-      >
-        {title}
-      </h3>
-      <div
-        className="surface-card overflow-hidden"
-        style={danger ? { borderColor: "rgba(255, 107, 107, 0.25)" } : undefined}
-      >
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function Row({
-  label,
-  helper,
-  children,
-}: {
-  label: string;
-  helper?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="grid items-center px-5 py-4 border-t border-border-faint first:border-t-0"
-      style={{ gridTemplateColumns: "220px 1fr", gap: 36 }}
-    >
-      <div>
-        <div className="text-[13px] font-medium text-text-primary leading-snug">{label}</div>
-        {helper && (
-          <div className="text-[11.5px] text-text-muted mt-1 leading-relaxed max-w-[360px]">{helper}</div>
-        )}
-      </div>
-      <div className="flex justify-end">{children}</div>
-    </div>
   );
 }
 

@@ -87,4 +87,22 @@ describe("ProjectFormModal", () => {
     expect(onClose).toHaveBeenCalled();
     expect(createMock).not.toHaveBeenCalled();
   });
+
+  it("picks an emoji from the quick choices and previews it with the chosen colour", async () => {
+    render(<ProjectFormModal onClose={vi.fn()} onCreated={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "🚀" }));
+    expect(screen.getByRole("button", { name: "🚀" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("project-preview")).toHaveTextContent("🚀");
+    fireEvent.click(screen.getByText("project.create"));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ emoji: "🚀" })));
+  });
+
+  it("uses the shared dialog frame with an X close button", () => {
+    const onClose = vi.fn();
+    render(<ProjectFormModal onClose={onClose} onCreated={vi.fn()} />);
+    const dialog = screen.getByRole("dialog", { name: "project.new" });
+    expect(dialog.className).toContain("task-dialog");
+    fireEvent.click(screen.getByRole("button", { name: "qc.close" }));
+    expect(onClose).toHaveBeenCalled();
+  });
 });

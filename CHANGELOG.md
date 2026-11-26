@@ -8,6 +8,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- feat(account): **Export my data downloads an Excel workbook** (`lumo-export-YYYY-MM-DD.xlsx`) instead of JSON.
+  - One sheet per kind of data: Profile and Settings as Field/Value sheets, then Tasks, Completed, Projects, Members, Habits, Habit check-ins and Countdowns as tables.
+  - Sheet names follow the app language.
+  - Each table has one column for every field seen, with a bold frozen header row and columns sized to their content. Nested values (tags, goals…) are JSON text, and an empty kind still gets its sheet, marked "No records".
+  - The workbook is built in the browser by `lib/xlsx.ts`, a small SpreadsheetML writer. It uses `fflate` (MIT, about 8 KB) for the zip container. It escapes text, strips characters XML can't carry, makes sheet names Excel-safe and unique, and caps a cell at Excel's 32,767-character limit.
+  - Checked by opening a generated file with openpyxl: it loads without warnings.
+
+### Changed
+- feat(settings): **Members redesigned; Settings and Account adapt to the screen and share one layout**.
+  - **Members**:
+    - a header with a member count, a one-line purpose and an **Add member** button, plus a search box;
+    - members as cards: avatar, name, email (or "No email") and how many open tasks they're on, with icon buttons to edit or remove;
+    - the grid fits as many 260px+ cards as the column allows (one on a phone);
+    - add and edit happen in one dialog on the shared task-dialog frame, with a live avatar preview, initials that follow the name until you type your own, and round colour swatches with a check;
+    - removing still asks first.
+  - **Settings on a phone**: the tab list becomes a scrollable row above the content instead of a side column that squeezed it.
+  - **Account and Change password** now use the same page frame as the other pages (left-aligned, same margins, no centred column) and the same `SettingsSection` / `SettingsRow` as Settings, which stack on a phone. The usage stats stack on a phone too.
+
+### Removed
+- feat: **the Notifications feature is gone**.
+  - Web:
+    - Settings → Notifications: browser-notification permission, morning planning reminder, Q1 due-today alert, evening review reminder;
+    - the background scheduler that fired those reminders;
+    - the per-task **Reminder** field in Edit task;
+    - the browser notification when a focus session ends;
+    - the service worker's notification-click handler, and the Today page's `?planning=open` / `?evening=open` links that served it.
+  - API (contract first): the `notifications_enabled`, `morning_reminder_time`, `evening_reminder_time` and `due_alerts_enabled` settings fields and the task `remind_at` field. `openapi.json` was regenerated.
+  - Backend: settings no longer read or write those fields, and tasks no longer store or return `remind_at`; their tests are removed.
+  - The database columns stay, so existing data still syncs and exports and no destructive migration is needed.
+
+### Changed
+- feat(projects): **a project's name, emoji, category and colour are edited in a dialog, not inline**.
+  - The detail page header is read-only: a colour tile with the emoji, the name as the page title, and the category as a small tag ("Uncategorized" when empty). An **Edit** button next to it opens the edit dialog, so a stray click no longer starts renaming. Colour moved there from the ⋯ menu, which now holds only Archive and Delete. Notes use a note icon, so Edit is the only pencil.
+  - **New / Edit project dialog**, restyled on the same frame as the task dialogs:
+    - header with a live preview tile (emoji on the chosen colour) and an X;
+    - labelled fields using the shared `FieldLabel` and `.input`;
+    - a row of emoji quick picks plus a box for your own emoji;
+    - round colour swatches with a check mark;
+    - footer with Cancel and Save/Create;
+    - full screen on phones.
+
+### Fixed
+- fix(matrix): **a quadrant with more tasks than fit now scrolls its own list** — before, the extra tasks were clipped with no scrollbar.
+  - Cause: the list used `sm:scroll-y`. `scroll-y` is a custom class in index.css, not a Tailwind utility, so the `sm:` prefix generated no CSS, and the list stayed at `overflow: visible` inside an `overflow: hidden` card.
+  - Fix: a `.quadrant-list` class with a ≥640px media rule. In the 2×2 grid each list fills its quadrant and scrolls on its own, with a thin scrollbar; on a phone it still grows with its tasks and the page scrolls.
+  - Quadrants never get shorter than 220px (`grid-rows-[repeat(2,minmax(220px,1fr))]`). On a short window the board scrolls instead of squeezing them.
+  - Guards:
+    - a standards test that fails on any Tailwind variant prefix on a class index.css defines itself, plus a check of the quadrant-list rule;
+    - Playwright TC90, which fills a quadrant and scrolls it with the mouse wheel. It fails on the old code.
+
+### Changed
 - feat(stats): **the Stats page is now a dashboard with charts**.
   - **Range picker** (7 / 30 / 90 days, 30 by default) in one row above everything it scopes.
   - **KPI tiles**, each with an icon:

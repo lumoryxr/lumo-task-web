@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SettingsPageFrame } from "@/components/settings/SettingsSection";
 import { useNavigate } from "react-router-dom";
 import { IconArrowLeft, IconCheck } from "@/components/icons";
 import { useT } from "@/i18n/useT";
@@ -70,26 +71,25 @@ export function ChangePasswordPage() {
   }
 
   return (
-    <div className="fade-in px-8 py-8 max-w-[760px] mx-auto">
+    <SettingsPageFrame>
+      <div>
       {/* Back link */}
       <button
         onClick={() => navigate("/account")}
-        className="inline-flex items-center gap-1.5 text-[12px] text-text-secondary hover:text-text-primary transition-colors mb-6"
+        className="inline-flex items-center gap-1.5 text-[12px] text-text-secondary hover:text-text-primary transition-colors mb-3"
       >
         <IconArrowLeft size={14} />
         {t("account.title")}
       </button>
 
-      <h1
-        className="text-[22px] font-semibold text-text-primary mb-6"
-        style={{ letterSpacing: "-0.01em" }}
-      >
+      <h1 className="text-[20px] font-semibold text-text-primary">
         {t("account.changePass")}
       </h1>
+      </div>
 
       <div
         className="surface-card overflow-hidden"
-        style={{ maxWidth: 480 }}
+        style={{ maxWidth: 560 }}
       >
         {success ? (
           <div className="px-6 py-8 flex flex-col items-center gap-3 text-center">
@@ -174,16 +174,13 @@ export function ChangePasswordPage() {
           </form>
         )}
       </div>
-    </div>
+    </SettingsPageFrame>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div
-      className="grid items-center px-5 py-4"
-      style={{ gridTemplateColumns: "180px 1fr", gap: 24 }}
-    >
+    <div className="settings-row items-center px-5 py-4">
       <label className="text-[13px] font-medium text-text-primary">{label}</label>
       <div>{children}</div>
     </div>

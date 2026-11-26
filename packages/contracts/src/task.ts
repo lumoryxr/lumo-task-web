@@ -154,13 +154,6 @@ export const TaskCreateBodySchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)
     .nullable()
     .optional(),
-  // Optional per-task reminder: a local wall-clock datetime at which the client
-  // surfaces a notification for this task. Same format as scheduled_start.
-  remind_at: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)
-    .nullable()
-    .optional(),
 });
 
 export const TaskUpdateBodySchema = patchBodyOf(TaskCreateBodySchema);
@@ -203,7 +196,6 @@ export const TaskWireSchema = z.object({
   tags: z.array(z.string()).catch([]),
   project_id: z.string().nullable().catch(null),
   scheduled_start: z.string().nullable(),
-  remind_at: z.string().nullable(),
   progress: ProgressSchema,
   progress_log: z.array(TaskProgressNoteSchema).default([]),
   section_id: z.string().nullable(),
@@ -293,8 +285,6 @@ export interface Task {
   project_id?: string | null;
   /** ISO datetime (YYYY-MM-DDTHH:MM:SS) for a specific time block on the calendar. */
   scheduled_start?: string | null;
-  /** ISO datetime (YYYY-MM-DDTHH:MM) at which to surface a reminder notification. */
-  remind_at?: string | null;
   /** Completion percentage, a whole number 0..100 set by the user. */
   progress?: number;
   /** Dated progress notes (进展记录), in no particular order. */
