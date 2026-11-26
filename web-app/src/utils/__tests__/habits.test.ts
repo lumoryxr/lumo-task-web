@@ -143,3 +143,58 @@ describe("longestStreak", () => {
     expect(longestStreak(DAILY_HABIT, logs)).toBe(3);
   });
 });
+
+// ── Habits page overview (week strip + today summary) ────────────────────────
+import { lastNDays, habitsOverview } from "../habits";
+
+describe("lastNDays", () => {
+  const H = { id: "w", title: "Workout", color: "green", frequency: "weekdays", createdAt: "2024-01-01T00:00:00.000Z" } as const;
+
+  it("returns the last 7 days oldest first, marking done, scheduled and today", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 26, 10)); // Thu 26 Nov 2026
+    try {
+      const days = lastNDays(H, [{ habitId: "w", date: "2026-11-25", completedAt: "" }], 7);
+      expect(days).toHaveLength(7);
+      expect(days[0].date).toBe("2026-11-20"); // Friday
+      expect(days[6]).toMatchObject({ date: "2026-11-26", isToday: true, scheduled: true, done: false });
+      expect(days[5]).toMatchObject({ date: "2026-11-25", done: true });
+      // Sat 21 / Sun 22 are not weekdays.
+      expect(days[1]).toMatchObject({ weekday: 6, scheduled: false });
+      expect(days[2]).toMatchObject({ weekday: 0, scheduled: false });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("habitsOverview", () => {
+  it("sums today's progress, the best running streak, this week's check-ins and the 30-day rate", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 26, 10)); // Thursday
+    try {
+      const daily = { id: "a", title: "Read", color: "green", frequency: "daily", createdAt: "2026-01-01T00:00:00.000Z" } satisfies Habit;
+      const sunday = { id: "b", title: "Call", color: "red", frequency: "days_of_week", frequencyDays: [0], createdAt: "2026-01-01T00:00:00.000Z" } satisfies Habit;
+      const logs = [
+        { habitId: "a", date: "2026-11-26", completedAt: "" },
+        { habitId: "a", date: "2026-11-25", completedAt: "" },
+        { habitId: "a", date: "2026-11-24", completedAt: "" },
+        { habitId: "b", date: "2026-11-22", completedAt: "" }, // last Sunday, previous week
+      ];
+      const o = habitsOverview([daily, sunday], logs);
+      expect(o.scheduledToday).toBe(1);
+      expect(o.doneToday).toBe(1);
+      expect(o.bestStreak).toEqual({ habitId: "a", title: "Read", days: 3 });
+      expect(o.weekCheckIns).toBe(3); // Mon 23 … Thu 26
+      expect(o.rate30).toBeGreaterThan(0);
+      expect(o.rate30).toBeLessThanOrEqual(100);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is empty-safe", () => {
+    const o = habitsOverview([], []);
+    expect(o).toMatchObject({ scheduledToday: 0, doneToday: 0, bestStreak: null, weekCheckIns: 0, rate30: 0 });
+  });
+});

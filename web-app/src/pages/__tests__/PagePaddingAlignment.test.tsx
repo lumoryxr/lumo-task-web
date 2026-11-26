@@ -23,6 +23,7 @@ vi.mock("@/components/icons", () => ({
   IconHabit: () => null,
   IconPlus: () => null,
   IconStats: () => null,
+  IconCalendar: () => null,
 }));
 
 vi.mock("@/store/useAuthStore", () => ({
@@ -71,7 +72,9 @@ function headerOf(container: HTMLElement) {
   const h1 = container.querySelector("h1");
   expect(h1, "page should render an <h1> header").not.toBeNull();
   // The padded column is the header's ancestor that owns the horizontal padding.
-  return h1!.closest(`.${TOPBAR_PADDING}`);
+  // A page may tighten the gutter on phones (`px-4 sm:px-7`); from `sm` up it
+  // must still match the Topbar.
+  return h1!.closest(`.${TOPBAR_PADDING}, .sm\\:${TOPBAR_PADDING}`);
 }
 
 beforeEach(() => {

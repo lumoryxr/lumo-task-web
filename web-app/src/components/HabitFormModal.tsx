@@ -12,7 +12,7 @@ const COLOR_HEX: Record<HabitColor, string> = {
   green:  "var(--status-success)",
   cyan:   "var(--accent-primary)",
   amber:  "var(--status-warning)",
-  red:    "var(--status-danger)",
+  red:    "var(--status-urgent)",
   purple: "#a78bfa",
 };
 
@@ -161,7 +161,7 @@ export function HabitFormModal({ habit, onSave, onClose }: Props) {
               className="w-full px-3 py-2 rounded-lg bg-elevated border border-border-faint text-[13px] text-text-primary placeholder:text-text-faint outline-none focus:border-accent-edge transition-colors"
             />
             {errors.title && (
-              <p className="mt-1 text-[11px]" style={{ color: "var(--status-danger)" }}>
+              <p className="mt-1 text-[11px]" style={{ color: "var(--status-urgent)" }}>
                 {errors.title}
               </p>
             )}
@@ -325,7 +325,7 @@ export function HabitFormModal({ habit, onSave, onClose }: Props) {
               className="w-full px-3 py-2 rounded-lg bg-elevated border border-border-faint text-[13px] text-text-primary placeholder:text-text-faint outline-none focus:border-accent-edge transition-colors resize-none"
             />
             {errors.note && (
-              <p className="mt-1 text-[11px]" style={{ color: "var(--status-danger)" }}>
+              <p className="mt-1 text-[11px]" style={{ color: "var(--status-urgent)" }}>
                 {errors.note}
               </p>
             )}

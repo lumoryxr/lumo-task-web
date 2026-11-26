@@ -46,7 +46,7 @@ function HabitWeekCard({ habit, logs, weekStart, weekEnd }: CardProps) {
     statusColor = "var(--status-warning)";
   } else {
     statusKey = "stats.habits.needsattention";
-    statusColor = "var(--status-danger)";
+    statusColor = "var(--status-urgent)";
   }
 
   return (

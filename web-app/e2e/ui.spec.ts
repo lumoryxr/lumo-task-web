@@ -1036,14 +1036,14 @@ test("TC56 – Habits: 'Add' button opens habit creation modal", async ({ page }
   }
 });
 
-test("TC57 – Habits: each card shows a completion checkbox or toggle", async ({ page }) => {
+test("TC57 – Habits: today overview, a 7-day strip and a Check in button on each card", async ({ page }) => {
   await skipOnboardingAndSignIn(page);
   await mockAPIWithData(page);
   await page.goto("/#/habits");
   await expect(page.getByText("Morning exercise")).toBeVisible({ timeout: 8_000 });
-  await expect(
-    page.getByRole("button", { name: /done today/i }).first()
-  ).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("region", { name: "Today at a glance" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Last 7 days" }).first().getByRole("listitem")).toHaveCount(7);
+  await expect(page.getByRole("button", { name: "Check in" }).first()).toBeVisible({ timeout: 10_000 });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

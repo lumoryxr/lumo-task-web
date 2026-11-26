@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- feat(habits): **Habits page redesigned**.
+  - **Today at a glance** at the top: a progress ring with done/scheduled for today, plus three tiles. They show the longest running streak (and which habit), check-ins this week, and the 30-day completion rate.
+  - Habits are grouped into **Today** (still to do first, then done) and **Resting today**. The cards sit in a responsive grid: as many ≥300px columns as fit, one column on a phone.
+  - **New habit card**:
+    - The emoji sits on a tile in the habit's colour, with the schedule spelled out ("3× a week", "Every 2 days", "Mon · Wed").
+    - A **last 7 days strip** shows filled = done, ring = missed, dim = rest day, with today outlined.
+    - The 🔥 running streak shows next to the best streak.
+    - A clear **Check in** button turns into a "Checked in today" badge once done, and done cards get a soft tint.
+    - Calendar, edit and delete stay in the header.
+  - New `lastNDays` / `habitsOverview` helpers in `utils/habits.ts`, with unit tests.
+- fix(habits): red habits and the Delete menu item used `--status-danger`, a token that doesn't exist, so they had no colour. Both now use `--status-urgent`.
+- fix(habits): the done-card tint used an invalid `${cssVar}0a` colour and so never showed; it is now `color-mix()`.
+
+### Changed
 - feat(account): **Export my data downloads an Excel workbook** (`lumo-export-YYYY-MM-DD.xlsx`) instead of JSON.
   - One sheet per kind of data: Profile and Settings as Field/Value sheets, then Tasks, Completed, Projects, Members, Habits, Habit check-ins and Countdowns as tables.
   - Sheet names follow the app language.
